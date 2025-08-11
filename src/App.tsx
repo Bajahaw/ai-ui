@@ -19,9 +19,10 @@ import {
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import { Response } from "@/components/ai-elements/response";
-import { GlobeIcon } from "lucide-react";
+import { GlobeIcon, AlertCircleIcon, RotateCcwIcon } from "lucide-react";
 import { Loader } from "@/components/ai-elements/loader";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Actions, Action } from "@/components/ai-elements/actions";
 
 const models = [
   {
@@ -38,6 +39,9 @@ interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  status?: "success" | "error" | "pending";
+  error?: string;
+  originalRequest?: string;
 }
 
 function App() {
@@ -55,6 +59,7 @@ function App() {
       id: Date.now().toString(),
       role: "user",
       content: input,
+      status: "success",
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -68,17 +73,24 @@ function App() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          messages: [...messages, userMessage].map((msg) => ({
-            role: msg.role,
-            content: msg.content,
-          })),
+          messages: [...messages, userMessage]
+            .filter((msg) => msg.status !== "error")
+            .map((msg) => ({
+              role: msg.role,
+              content: msg.content,
+            })),
           model,
           webSearch,
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Failed to get response");
+        const errorText = await response
+          .text()
+          .catch(() => response.statusText);
+        throw new Error(
+          `Failed to get response (${response.status}): ${errorText}`,
+        );
       }
 
       const data = await response.json();
@@ -90,19 +102,110 @@ function App() {
           data.message?.content ||
           data.message?.parts?.[0]?.text ||
           "Sorry, I couldn't process your request.",
+        status: "success",
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error) {
       console.error("Error:", error);
+      let errorMsg = "An unknown error occurred";
+      if (error instanceof Error) {
+        errorMsg = error.message;
+      } else if (typeof error === "string") {
+        errorMsg = error;
+      }
+
       const errorMessage: ChatMessage = {
         id: Date.now().toString() + "_error",
         role: "assistant",
-        content: "Sorry, I encountered an error while processing your request.",
+        content: "",
+        status: "error",
+        error: errorMsg,
+        originalRequest: input,
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const retryMessage = async (messageId: string) => {
+    const message = messages.find((msg) => msg.id === messageId);
+    if (!message || !message.originalRequest) return;
+
+    // Set the input to the original request and trigger submit
+    setInput(message.originalRequest);
+
+    // Simulate form submission with the original request
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      role: "user",
+      content: message.originalRequest,
+      status: "success",
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: [...messages, userMessage]
+            .filter((msg) => msg.status !== "error")
+            .map((msg) => ({
+              role: msg.role,
+              content: msg.content,
+            })),
+          model,
+          webSearch,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response
+          .text()
+          .catch(() => response.statusText);
+        throw new Error(`Retry failed (${response.status}): ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      const assistantMessage: ChatMessage = {
+        id: Date.now().toString() + "_assistant",
+        role: "assistant",
+        content:
+          data.message?.content ||
+          data.message?.parts?.[0]?.text ||
+          "Sorry, I couldn't process your request.",
+        status: "success",
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error("Retry error:", error);
+      let errorMsg = "Retry failed - An unknown error occurred";
+      if (error instanceof Error) {
+        errorMsg = `Retry failed: ${error.message}`;
+      } else if (typeof error === "string") {
+        errorMsg = `Retry failed: ${error}`;
+      }
+
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString() + "_error",
+        role: "assistant",
+        content: "",
+        status: "error",
+        error: errorMsg,
+        originalRequest: message.originalRequest,
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+      setInput("");
     }
   };
 
@@ -116,9 +219,37 @@ function App() {
         <Conversation className="h-full">
           <ConversationContent>
             {messages.map((message) => (
-              <Message from={message.role} key={message.id}>
+              <Message
+                from={message.role}
+                key={message.id}
+                status={message.status}
+              >
                 <MessageContent>
-                  <Response>{message.content}</Response>
+                  {message.status === "error" ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-destructive">
+                        <AlertCircleIcon className="size-4 flex-shrink-0" />
+                        <span className="font-medium">
+                          Failed to send message
+                        </span>
+                      </div>
+                      <div className="text-sm text-destructive/80">
+                        {message.error || "An unknown error occurred"}
+                      </div>
+                      <Actions>
+                        <Action
+                          tooltip="Retry sending this message"
+                          onClick={() => retryMessage(message.id)}
+                          disabled={isLoading}
+                          className="text-destructive hover:text-destructive-foreground hover:bg-destructive"
+                        >
+                          <RotateCcwIcon className="size-4" />
+                        </Action>
+                      </Actions>
+                    </div>
+                  ) : (
+                    <Response>{message.content}</Response>
+                  )}
                 </MessageContent>
               </Message>
             ))}
