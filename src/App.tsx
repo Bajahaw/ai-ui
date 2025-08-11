@@ -21,6 +21,7 @@ import {
 import { Response } from "@/components/ai-elements/response";
 import { GlobeIcon } from "lucide-react";
 import { Loader } from "@/components/ai-elements/loader";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const models = [
   {
@@ -108,6 +109,10 @@ function App() {
   return (
     <div className="max-w-4xl mx-auto p-6 relative size-full h-screen">
       <div className="flex flex-col h-full">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-bold">AI Chat</h1>
+          <ThemeToggle />
+        </div>
         <Conversation className="h-full">
           <ConversationContent>
             {messages.map((message) => (
