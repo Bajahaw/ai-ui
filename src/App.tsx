@@ -1,429 +1,202 @@
-import { useState } from "react";
-import {
-  Conversation,
-  ConversationContent,
-  ConversationScrollButton,
-} from "@/components/ai-elements/conversation";
-import { Message, MessageContent } from "@/components/ai-elements/message";
-import {
-  PromptInput,
-  PromptInputButton,
-  PromptInputModelSelect,
-  PromptInputModelSelectContent,
-  PromptInputModelSelectItem,
-  PromptInputModelSelectTrigger,
-  PromptInputModelSelectValue,
-  PromptInputSubmit,
-  PromptInputTextarea,
-  PromptInputToolbar,
-  PromptInputTools,
-} from "@/components/ai-elements/prompt-input";
-import { Response } from "@/components/ai-elements/response";
-import {
-  GlobeIcon,
-  AlertCircleIcon,
-  RotateCcwIcon,
-  CopyIcon,
-  ThumbsUpIcon,
-  ThumbsDownIcon,
-} from "lucide-react";
-import { Loader } from "@/components/ai-elements/loader";
+import { useState, useEffect, useMemo } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Actions, Action } from "@/components/ai-elements/actions";
+import { Button } from "@/components/ui/button";
+import { ConversationSidebar } from "@/components/ai-elements/conversation-sidebar";
+import { ChatInterface } from "@/components/ChatInterface";
+import { useConversations } from "@/hooks/useConversations";
 
-const models = [
-  {
-    name: "GPT 4o",
-    value: "openai/gpt-4o",
-  },
-  {
-    name: "Deepseek R1",
-    value: "deepseek/deepseek-r1",
-  },
-];
-
-interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  status?: "success" | "error" | "pending";
-  error?: string;
-  originalRequest?: string;
-}
+import { useChat } from "@/hooks/useChat";
+import { MessageSquareIcon } from "lucide-react";
 
 function App() {
-  const [model, setModel] = useState<string>(models[0].value);
-  const [webSearch, setWebSearch] = useState(false);
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [webSearch, setWebSearch] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
+  // Conversation management
+  const {
+    conversations,
+    currentConversation,
+    activeConversationId,
+    createConversation,
+    addMessage,
+    replaceLastAssistantMessage,
+    selectConversation,
+    startNewChat,
+    getCurrentMessages,
+  } = useConversations();
 
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content: input,
-      status: "success",
+  // Chat API
+  const { sendMessage } = useChat();
+
+  // Detect mobile screen size and set initial sidebar state
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) {
+        setSidebarCollapsed(true);
+      }
     };
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  const handleSendMessage = async (
+    message: string,
+    webSearchEnabled: boolean,
+    model: string,
+  ) => {
+    // Create conversation if none exists
+    let conversationId = activeConversationId;
+    if (!conversationId) {
+      conversationId = createConversation(message);
+    }
+
+    // Add user message
+    addMessage(conversationId, message, "user");
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messages: [...messages, userMessage]
-            .filter((msg) => msg.status !== "error")
-            .map((msg) => ({
-              role: msg.role,
-              content: msg.content,
-            })),
-          model,
-          webSearch,
-        }),
-      });
+      // Get current messages for API call
+      const currentMessages = currentConversation
+        ? getCurrentMessages(currentConversation)
+        : [];
 
-      if (!response.ok) {
-        const errorText = await response
-          .text()
-          .catch(() => response.statusText);
-        throw new Error(
-          `Failed to get response (${response.status}): ${errorText}`,
-        );
-      }
+      // Send to API
+      const assistantMessage = await sendMessage(
+        [
+          ...currentMessages,
+          {
+            id: "",
+            role: "user",
+            content: message,
+            timestamp: Date.now(),
+          },
+        ],
+        model,
+        webSearchEnabled,
+      );
 
-      const data = await response.json();
-
-      const assistantMessage: ChatMessage = {
-        id: Date.now().toString() + "_assistant",
-        role: "assistant",
-        content:
-          data.message?.content ||
-          data.message?.parts?.[0]?.text ||
-          "Sorry, I couldn't process your request.",
-        status: "success",
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
+      // Add assistant message
+      addMessage(conversationId, assistantMessage.content, "assistant");
     } catch (error) {
       console.error("Error:", error);
-      let errorMsg = "An unknown error occurred";
-      if (error instanceof Error) {
-        errorMsg = error.message;
-      } else if (typeof error === "string") {
-        errorMsg = error;
-      }
-
-      const errorMessage: ChatMessage = {
-        id: Date.now().toString() + "_error",
-        role: "assistant",
-        content: "",
-        status: "error",
-        error: errorMsg,
-        originalRequest: input,
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      const errorMsg =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      addMessage(conversationId, "", "assistant", "error", errorMsg);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const retryMessage = async (messageId: string) => {
-    const message = messages.find((msg) => msg.id === messageId);
-    if (!message || !message.originalRequest) return;
+  const handleRetryMessage = async (messageId: string) => {
+    if (!activeConversationId || !currentConversation) return;
 
-    // Set the input to the original request and trigger submit
-    setInput(message.originalRequest);
-
-    // Simulate form submission with the original request
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content: message.originalRequest,
-      status: "success",
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
-
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messages: [...messages, userMessage]
-            .filter((msg) => msg.status !== "error")
-            .map((msg) => ({
-              role: msg.role,
-              content: msg.content,
-            })),
-          model,
-          webSearch,
-        }),
-      });
+      // Get current messages for retry context
+      const currentMessages = getCurrentMessages(currentConversation);
 
-      if (!response.ok) {
-        const errorText = await response
-          .text()
-          .catch(() => response.statusText);
-        throw new Error(`Retry failed (${response.status}): ${errorText}`);
-      }
+      // Find the message to retry and get context up to that point
+      const messageIndex = currentMessages.findIndex(
+        (msg) => msg.id === messageId,
+      );
+      const contextMessages = currentMessages.slice(0, messageIndex);
 
-      const data = await response.json();
+      // Send to API
+      const response = await sendMessage(
+        contextMessages,
+        "openai/gpt-4o",
+        webSearch,
+      );
 
-      const assistantMessage: ChatMessage = {
-        id: Date.now().toString() + "_assistant",
-        role: "assistant",
-        content:
-          data.message?.content ||
-          data.message?.parts?.[0]?.text ||
-          "Sorry, I couldn't process your request.",
-        status: "success",
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
+      // Replace the failed message with new response
+      replaceLastAssistantMessage(activeConversationId, response.content);
     } catch (error) {
-      console.error("Retry error:", error);
-      let errorMsg = "Retry failed - An unknown error occurred";
-      if (error instanceof Error) {
-        errorMsg = `Retry failed: ${error.message}`;
-      } else if (typeof error === "string") {
-        errorMsg = `Retry failed: ${error}`;
-      }
-
-      const errorMessage: ChatMessage = {
-        id: Date.now().toString() + "_error",
-        role: "assistant",
-        content: "",
-        status: "error",
-        error: errorMsg,
-        originalRequest: message.originalRequest,
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-      setInput("");
-    }
-  };
-
-  const retrySuccessfulMessage = async (messageId: string) => {
-    const messageIndex = messages.findIndex((msg) => msg.id === messageId);
-    if (messageIndex === -1) return;
-
-    // Find the user message that preceded this AI response
-    let userMessage = null;
-    for (let i = messageIndex - 1; i >= 0; i--) {
-      if (messages[i].role === "user") {
-        userMessage = messages[i];
-        break;
-      }
-    }
-
-    if (!userMessage) return;
-
-    // Add the user message again and get a new response
-    const newUserMessage: ChatMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content: userMessage.content,
-      status: "success",
-    };
-
-    setMessages((prev) => [...prev, newUserMessage]);
-    setIsLoading(true);
-
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messages: [...messages, newUserMessage]
-            .filter((msg) => msg.status !== "error")
-            .map((msg) => ({
-              role: msg.role,
-              content: msg.content,
-            })),
-          model,
-          webSearch,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response
-          .text()
-          .catch(() => response.statusText);
-        throw new Error(`Retry failed (${response.status}): ${errorText}`);
-      }
-
-      const data = await response.json();
-
-      const assistantMessage: ChatMessage = {
-        id: Date.now().toString() + "_assistant",
-        role: "assistant",
-        content:
-          data.message?.content ||
-          data.message?.parts?.[0]?.text ||
-          "Sorry, I couldn't process your request.",
-        status: "success",
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-    } catch (error) {
-      console.error("Retry error:", error);
-      let errorMsg = "Retry failed - An unknown error occurred";
-      if (error instanceof Error) {
-        errorMsg = `Retry failed: ${error.message}`;
-      } else if (typeof error === "string") {
-        errorMsg = `Retry failed: ${error}`;
-      }
-
-      const errorMessage: ChatMessage = {
-        id: Date.now().toString() + "_error",
-        role: "assistant",
-        content: "",
-        status: "error",
-        error: errorMsg,
-        originalRequest: userMessage.content,
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      console.error("Retry failed:", error);
+      const errorMsg = error instanceof Error ? error.message : "Retry failed";
+      replaceLastAssistantMessage(activeConversationId, "", "error", errorMsg);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const copyMessage = async (content: string) => {
-    try {
-      await navigator.clipboard.writeText(content);
-    } catch (error) {
-      console.error("Failed to copy message:", error);
+  const handleNewChat = () => {
+    startNewChat();
+    setWebSearch(false);
+  };
+
+  const handleConversationSelect = (conversationId: string) => {
+    selectConversation(conversationId);
+  };
+
+  const handleToggleSidebar = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
+
+  const handleConversationSelectMobile = (conversationId: string) => {
+    handleConversationSelect(conversationId);
+    if (isMobile) {
+      setSidebarCollapsed(true);
     }
+  };
+
+  const handleWebSearchToggle = (enabled: boolean) => {
+    setWebSearch(enabled);
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 relative size-full h-screen">
-      <div className="flex flex-col h-full">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold">AI Chat</h1>
+    <div className="flex h-screen relative">
+      {/* Sidebar */}
+      <ConversationSidebar
+        conversations={conversations}
+        activeConversationId={activeConversationId}
+        onConversationSelect={
+          isMobile ? handleConversationSelectMobile : handleConversationSelect
+        }
+        onNewChat={handleNewChat}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={handleToggleSidebar}
+        isMobile={isMobile}
+      />
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col max-w-none">
+        <div className="flex justify-between items-center p-6 pb-4 border-b">
+          <div className="flex items-center gap-3">
+            {isMobile && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleToggleSidebar}
+                className="md:hidden"
+              >
+                <MessageSquareIcon className="size-4" />
+              </Button>
+            )}
+            <h1 className="text-2xl font-bold">AI Chat</h1>
+          </div>
           <ThemeToggle />
         </div>
-        <Conversation className="h-full">
-          <ConversationContent>
-            {messages.map((message) => (
-              <Message
-                from={message.role}
-                key={message.id}
-                status={message.status}
-              >
-                <MessageContent>
-                  {message.status === "error" ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-destructive">
-                        <AlertCircleIcon className="size-4 flex-shrink-0" />
-                        <span className="font-medium">
-                          Failed to send message
-                        </span>
-                      </div>
-                      <div className="text-sm text-destructive/80">
-                        {message.error || "An unknown error occurred"}
-                      </div>
-                      <Actions>
-                        <Action
-                          tooltip="Retry sending this message"
-                          onClick={() => retryMessage(message.id)}
-                          disabled={isLoading}
-                          className="text-destructive hover:text-destructive-foreground hover:bg-destructive"
-                        >
-                          <RotateCcwIcon className="size-4" />
-                        </Action>
-                      </Actions>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <Response>{message.content}</Response>
-                      {message.role === "assistant" && (
-                        <Actions className="opacity-60 hover:opacity-100 transition-opacity">
-                          <Action
-                            tooltip="Regenerate response"
-                            onClick={() => retrySuccessfulMessage(message.id)}
-                            disabled={isLoading}
-                          >
-                            <RotateCcwIcon className="size-4" />
-                          </Action>
-                          <Action
-                            tooltip="Copy message"
-                            onClick={() => copyMessage(message.content)}
-                          >
-                            <CopyIcon className="size-4" />
-                          </Action>
-                          <Action tooltip="Good response" onClick={() => {}}>
-                            <ThumbsUpIcon className="size-4" />
-                          </Action>
-                          <Action tooltip="Bad response" onClick={() => {}}>
-                            <ThumbsDownIcon className="size-4" />
-                          </Action>
-                        </Actions>
-                      )}
-                    </div>
-                  )}
-                </MessageContent>
-              </Message>
-            ))}
-            {isLoading && <Loader />}
-          </ConversationContent>
-          <ConversationScrollButton />
-        </Conversation>
 
-        <PromptInput onSubmit={handleSubmit} className="mt-4">
-          <PromptInputTextarea
-            onChange={(e) => setInput(e.target.value)}
-            value={input}
-            placeholder="Type your message..."
-          />
-          <PromptInputToolbar>
-            <PromptInputTools>
-              <PromptInputButton
-                variant={webSearch ? "default" : "ghost"}
-                onClick={() => setWebSearch(!webSearch)}
-              >
-                <GlobeIcon size={16} />
-                <span>Search</span>
-              </PromptInputButton>
-              <PromptInputModelSelect
-                onValueChange={(value) => {
-                  setModel(value);
-                }}
-                value={model}
-              >
-                <PromptInputModelSelectTrigger>
-                  <PromptInputModelSelectValue />
-                </PromptInputModelSelectTrigger>
-                <PromptInputModelSelectContent>
-                  {models.map((model) => (
-                    <PromptInputModelSelectItem
-                      key={model.value}
-                      value={model.value}
-                    >
-                      {model.name}
-                    </PromptInputModelSelectItem>
-                  ))}
-                </PromptInputModelSelectContent>
-              </PromptInputModelSelect>
-            </PromptInputTools>
-            <PromptInputSubmit disabled={!input || isLoading} />
-          </PromptInputToolbar>
-        </PromptInput>
+        <ChatInterface
+          messages={useMemo(
+            () =>
+              currentConversation
+                ? getCurrentMessages(currentConversation)
+                : [],
+            [currentConversation, getCurrentMessages],
+          )}
+          isLoading={isLoading}
+          webSearch={webSearch}
+          onWebSearchToggle={handleWebSearchToggle}
+          onSendMessage={handleSendMessage}
+          onRetryMessage={handleRetryMessage}
+        />
       </div>
     </div>
   );
