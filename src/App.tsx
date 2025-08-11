@@ -19,7 +19,14 @@ import {
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import { Response } from "@/components/ai-elements/response";
-import { GlobeIcon, AlertCircleIcon, RotateCcwIcon } from "lucide-react";
+import {
+  GlobeIcon,
+  AlertCircleIcon,
+  RotateCcwIcon,
+  CopyIcon,
+  ThumbsUpIcon,
+  ThumbsDownIcon,
+} from "lucide-react";
 import { Loader } from "@/components/ai-elements/loader";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Actions, Action } from "@/components/ai-elements/actions";
@@ -209,6 +216,101 @@ function App() {
     }
   };
 
+  const retrySuccessfulMessage = async (messageId: string) => {
+    const messageIndex = messages.findIndex((msg) => msg.id === messageId);
+    if (messageIndex === -1) return;
+
+    // Find the user message that preceded this AI response
+    let userMessage = null;
+    for (let i = messageIndex - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        userMessage = messages[i];
+        break;
+      }
+    }
+
+    if (!userMessage) return;
+
+    // Add the user message again and get a new response
+    const newUserMessage: ChatMessage = {
+      id: Date.now().toString(),
+      role: "user",
+      content: userMessage.content,
+      status: "success",
+    };
+
+    setMessages((prev) => [...prev, newUserMessage]);
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: [...messages, newUserMessage]
+            .filter((msg) => msg.status !== "error")
+            .map((msg) => ({
+              role: msg.role,
+              content: msg.content,
+            })),
+          model,
+          webSearch,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response
+          .text()
+          .catch(() => response.statusText);
+        throw new Error(`Retry failed (${response.status}): ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      const assistantMessage: ChatMessage = {
+        id: Date.now().toString() + "_assistant",
+        role: "assistant",
+        content:
+          data.message?.content ||
+          data.message?.parts?.[0]?.text ||
+          "Sorry, I couldn't process your request.",
+        status: "success",
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error("Retry error:", error);
+      let errorMsg = "Retry failed - An unknown error occurred";
+      if (error instanceof Error) {
+        errorMsg = `Retry failed: ${error.message}`;
+      } else if (typeof error === "string") {
+        errorMsg = `Retry failed: ${error}`;
+      }
+
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString() + "_error",
+        role: "assistant",
+        content: "",
+        status: "error",
+        error: errorMsg,
+        originalRequest: userMessage.content,
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const copyMessage = async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+    } catch (error) {
+      console.error("Failed to copy message:", error);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-6 relative size-full h-screen">
       <div className="flex flex-col h-full">
@@ -248,7 +350,32 @@ function App() {
                       </Actions>
                     </div>
                   ) : (
-                    <Response>{message.content}</Response>
+                    <div className="space-y-4">
+                      <Response>{message.content}</Response>
+                      {message.role === "assistant" && (
+                        <Actions className="opacity-60 hover:opacity-100 transition-opacity">
+                          <Action
+                            tooltip="Regenerate response"
+                            onClick={() => retrySuccessfulMessage(message.id)}
+                            disabled={isLoading}
+                          >
+                            <RotateCcwIcon className="size-4" />
+                          </Action>
+                          <Action
+                            tooltip="Copy message"
+                            onClick={() => copyMessage(message.content)}
+                          >
+                            <CopyIcon className="size-4" />
+                          </Action>
+                          <Action tooltip="Good response" onClick={() => {}}>
+                            <ThumbsUpIcon className="size-4" />
+                          </Action>
+                          <Action tooltip="Bad response" onClick={() => {}}>
+                            <ThumbsDownIcon className="size-4" />
+                          </Action>
+                        </Actions>
+                      )}
+                    </div>
                   )}
                 </MessageContent>
               </Message>
