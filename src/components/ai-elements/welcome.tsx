@@ -12,7 +12,7 @@ export const Welcome = ({ className, ...props }: WelcomeProps) => {
       {...props}
     >
       <div className="text-center">
-        <h1 className="text-4xl font-light text-foreground">
+        <h1 className="text-4xl font-semibold text-foreground">
           How can I help you?
         </h1>
       </div>

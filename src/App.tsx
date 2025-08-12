@@ -35,9 +35,8 @@ function App() {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      if (mobile) {
-        setSidebarCollapsed(true);
-      }
+      // On wide screens, show sidebar by default; on mobile, hide it
+      setSidebarCollapsed(mobile);
     };
 
     checkMobile();
@@ -166,18 +165,16 @@ function App() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col max-w-none">
-        <div className="flex justify-between items-center p-6 pb-4 border-b">
+        <div className="flex justify-between items-center p-6 pb-4">
           <div className="flex items-center gap-3">
-            {isMobile && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleToggleSidebar}
-                className="md:hidden"
-              >
-                <MessageSquareIcon className="size-4" />
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleToggleSidebar}
+              className="hover:bg-accent"
+            >
+              <MessageSquareIcon className="size-4" />
+            </Button>
             <h1 className="text-2xl font-bold">AI Chat</h1>
           </div>
           <ThemeToggle />

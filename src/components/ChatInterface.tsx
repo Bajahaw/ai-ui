@@ -197,45 +197,47 @@ export const ChatInterface = ({
         </Conversation>
       )}
 
-      <PromptInput onSubmit={handleSubmit} className="mt-4">
-        <PromptInputTextarea
-          onChange={(e) => setInput(e.target.value)}
-          value={input}
-          placeholder="Type your message..."
-        />
-        <PromptInputToolbar>
-          <PromptInputTools>
-            <PromptInputButton
-              variant={webSearch ? "default" : "ghost"}
-              onClick={() => onWebSearchToggle(!webSearch)}
-            >
-              <GlobeIcon size={16} />
-              <span>Search</span>
-            </PromptInputButton>
-            <PromptInputModelSelect
-              onValueChange={(value) => {
-                setModel(value);
-              }}
-              value={model}
-            >
-              <PromptInputModelSelectTrigger>
-                <PromptInputModelSelectValue />
-              </PromptInputModelSelectTrigger>
-              <PromptInputModelSelectContent>
-                {models.map((model) => (
-                  <PromptInputModelSelectItem
-                    key={model.value}
-                    value={model.value}
-                  >
-                    {model.name}
-                  </PromptInputModelSelectItem>
-                ))}
-              </PromptInputModelSelectContent>
-            </PromptInputModelSelect>
-          </PromptInputTools>
-          <PromptInputSubmit disabled={!input || isLoading} />
-        </PromptInputToolbar>
-      </PromptInput>
+      <div className="flex justify-center mt-4 px-4">
+        <PromptInput onSubmit={handleSubmit} className="w-full max-w-3xl">
+          <PromptInputTextarea
+            onChange={(e) => setInput(e.target.value)}
+            value={input}
+            placeholder="Type your message..."
+          />
+          <PromptInputToolbar>
+            <PromptInputTools>
+              <PromptInputButton
+                variant={webSearch ? "default" : "ghost"}
+                onClick={() => onWebSearchToggle(!webSearch)}
+              >
+                <GlobeIcon size={16} />
+                <span>Search</span>
+              </PromptInputButton>
+              <PromptInputModelSelect
+                onValueChange={(value) => {
+                  setModel(value);
+                }}
+                value={model}
+              >
+                <PromptInputModelSelectTrigger>
+                  <PromptInputModelSelectValue />
+                </PromptInputModelSelectTrigger>
+                <PromptInputModelSelectContent>
+                  {models.map((model) => (
+                    <PromptInputModelSelectItem
+                      key={model.value}
+                      value={model.value}
+                    >
+                      {model.name}
+                    </PromptInputModelSelectItem>
+                  ))}
+                </PromptInputModelSelectContent>
+              </PromptInputModelSelect>
+            </PromptInputTools>
+            <PromptInputSubmit disabled={!input || isLoading} />
+          </PromptInputToolbar>
+        </PromptInput>
+      </div>
     </div>
   );
 };

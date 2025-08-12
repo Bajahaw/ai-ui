@@ -53,37 +53,7 @@ export const ConversationSidebar = ({
   }, [isMobile, isCollapsed]);
 
   if (isCollapsed) {
-    return (
-      <div
-        className={cn(
-          "flex flex-col h-full w-12 border-r bg-background/50 backdrop-blur-sm",
-          "md:static md:translate-x-0",
-          className,
-        )}
-        {...props}
-      >
-        <div className="p-2 border-b">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onToggleCollapse}
-            className="w-full h-8 p-0"
-          >
-            <ChevronRightIcon className="size-4" />
-          </Button>
-        </div>
-        <div className="p-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onNewChat}
-            className="w-full h-8 p-0"
-          >
-            <PlusIcon className="size-4" />
-          </Button>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -98,7 +68,7 @@ export const ConversationSidebar = ({
 
       <div
         className={cn(
-          "flex flex-col h-full border-r bg-background/95 backdrop-blur-sm transition-all duration-200",
+          "flex flex-col h-full bg-background/95 backdrop-blur-sm transition-all duration-200",
           // Mobile styles
           isMobile
             ? cn(
@@ -119,7 +89,7 @@ export const ConversationSidebar = ({
         {...props}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
+        <div className="flex items-center justify-between p-4">
           <h2 className="font-semibold text-sm">Conversations</h2>
           <Button
             variant="ghost"
@@ -136,7 +106,7 @@ export const ConversationSidebar = ({
         </div>
 
         {/* New Chat Button */}
-        <div className="p-4 border-b">
+        <div className="p-4">
           <Button
             variant="outline"
             onClick={onNewChat}
