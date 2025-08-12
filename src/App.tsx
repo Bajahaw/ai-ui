@@ -12,6 +12,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [webSearch, setWebSearch] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isMobile, setIsMobile] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastMessageContent, setLastMessageContent] = useState<string>("");
@@ -308,6 +309,10 @@ function App() {
     }
   };
 
+  const handleSidebarWidthChange = (width: number) => {
+    setSidebarWidth(width);
+  };
+
   const getBranchInfoForMessage = (messageId: string) => {
     if (!activeConversationId) return null;
     return getBranchInfo(activeConversationId, messageId);
@@ -340,6 +345,7 @@ function App() {
         onNewChat={handleNewChat}
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={handleToggleSidebar}
+        onWidthChange={handleSidebarWidthChange}
         isMobile={isMobile}
       />
 
@@ -369,6 +375,9 @@ function App() {
           onRetryMessage={handleRetryMessage}
           getBranchInfo={getBranchInfoForMessage}
           onBranchChange={handleBranchChange}
+          sidebarCollapsed={sidebarCollapsed}
+          sidebarWidth={sidebarWidth}
+          isMobile={isMobile}
         />
       </div>
     </div>

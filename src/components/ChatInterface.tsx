@@ -66,6 +66,10 @@ interface ChatInterfaceProps {
     branches: Message[];
   } | null;
   onBranchChange?: (messageId: string) => void;
+  // Props for dynamic width adjustment
+  sidebarCollapsed: boolean;
+  sidebarWidth: number;
+  isMobile: boolean;
 }
 
 export const ChatInterface = ({
@@ -77,6 +81,9 @@ export const ChatInterface = ({
   onRetryMessage,
   getBranchInfo,
   onBranchChange,
+  sidebarCollapsed,
+  sidebarWidth,
+  isMobile,
 }: ChatInterfaceProps) => {
   const [model, setModel] = useState<string>(models[0].value);
   const [input, setInput] = useState("");
@@ -289,22 +296,59 @@ export const ChatInterface = ({
     );
   };
 
-  return (
-    <div className="flex-1 flex flex-col p-6 pt-4">
-      {messages.length === 0 ? (
-        <Welcome />
-      ) : (
-        <Conversation className="h-full">
-          <ConversationContent>
-            {messages.map((message) => renderMessage(message))}
-            {isLoading && !retryingMessageId && <Loader />}
-          </ConversationContent>
-          <ConversationScrollButton />
-        </Conversation>
-      )}
+  // Dynamic width based on sidebar state and actual width
+  const getMaxWidth = () => {
+    if (isMobile) return "max-w-4xl"; // Full width on mobile since sidebar is overlay
 
-      <div className="flex justify-center mt-4 px-4">
-        <PromptInput onSubmit={handleSubmit} className="w-full max-w-3xl">
+    // Calculate available width based on viewport and sidebar
+    const viewportWidth = window.innerWidth;
+    const availableWidth = sidebarCollapsed
+      ? viewportWidth
+      : viewportWidth - sidebarWidth;
+    const maxChatWidth = Math.min(availableWidth * 0.9, 1280); // Max 1280px or 90% of available space
+
+    return sidebarCollapsed ? "max-w-6xl" : "";
+  };
+
+  // Get inline style for custom width when sidebar is open
+  const getChatStyle = () => {
+    if (isMobile || sidebarCollapsed) return {};
+
+    const viewportWidth = window.innerWidth;
+    const availableWidth = viewportWidth - sidebarWidth;
+    const maxChatWidth = Math.min(availableWidth * 0.9, 1280);
+
+    return { maxWidth: `${maxChatWidth}px` };
+  };
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0">
+      {/* Scrollable conversation area */}
+      <div className="flex-1 flex justify-center min-h-0 overflow-y-auto">
+        <div
+          className={`w-full ${getMaxWidth()} px-6 py-4`}
+          style={getChatStyle()}
+        >
+          {messages.length === 0 ? (
+            <div className="h-full flex items-center justify-center">
+              <Welcome />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {messages.map((message) => renderMessage(message))}
+              {isLoading && !retryingMessageId && <Loader />}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Fixed prompt area at bottom */}
+      <div className="flex-shrink-0 flex justify-center p-6 pt-4">
+        <PromptInput
+          onSubmit={handleSubmit}
+          className={`w-full ${getMaxWidth()}`}
+          style={getChatStyle()}
+        >
           <PromptInputTextarea
             onChange={(e) => setInput(e.target.value)}
             value={input}
