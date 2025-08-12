@@ -4,10 +4,19 @@ import App from "./App.tsx";
 import "./globals.css";
 import { ThemeProvider } from "./components/theme-provider";
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
+const isDevelopment = import.meta.env.DEV;
+
+// Conditionally wrap with StrictMode - disable in dev to prevent duplicate messages
+const AppWrapper = isDevelopment ? (
+  <ThemeProvider defaultTheme="system" storageKey="ai-ui-theme">
+    <App />
+  </ThemeProvider>
+) : (
   <React.StrictMode>
     <ThemeProvider defaultTheme="system" storageKey="ai-ui-theme">
       <App />
     </ThemeProvider>
-  </React.StrictMode>,
+  </React.StrictMode>
 );
+
+ReactDOM.createRoot(document.getElementById("root")!).render(AppWrapper);

@@ -6,7 +6,6 @@ import {
   PlusIcon,
   MessageSquareIcon,
   ChevronLeftIcon,
-  ChevronRightIcon,
   XIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";

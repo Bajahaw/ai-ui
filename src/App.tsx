@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { ConversationSidebar } from "@/components/ai-elements/conversation-sidebar";
@@ -13,18 +13,23 @@ function App() {
   const [webSearch, setWebSearch] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [lastMessageContent, setLastMessageContent] = useState<string>("");
+  const [lastMessageTime, setLastMessageTime] = useState<number>(0);
 
-  // Conversation management
+  // Conversation management with branching support
   const {
     conversations,
     currentConversation,
     activeConversationId,
     createConversation,
     addMessage,
-    replaceLastAssistantMessage,
+    addBranchMessage,
+    setActiveMessage,
     selectConversation,
     startNewChat,
     getCurrentMessages,
+    getBranchInfo,
   } = useConversations();
 
   // Chat API
@@ -49,46 +54,119 @@ function App() {
     webSearchEnabled: boolean,
     model: string,
   ) => {
-    // Create conversation if none exists
+    // Enhanced duplicate prevention for StrictMode and race conditions
+    const currentTime = Date.now();
+    const timeSinceLastMessage = currentTime - lastMessageTime;
+
+    if (isProcessing) {
+      console.log("⚠️ Already processing a message, ignoring duplicate call");
+      return;
+    }
+
+    // Prevent duplicate messages within 1 second with same content (StrictMode protection)
+    if (message === lastMessageContent && timeSinceLastMessage < 1000) {
+      console.log("⚠️ Duplicate message detected within 1 second, ignoring");
+      return;
+    }
+
+    setIsProcessing(true);
+    setLastMessageContent(message);
+    setLastMessageTime(currentTime);
+
+    // Create conversation if none exists and get the ID
     let conversationId = activeConversationId;
     if (!conversationId) {
       conversationId = createConversation(message);
     }
 
-    // Add user message
-    addMessage(conversationId, message, "user");
+    console.log("🚀 Starting message send...", { conversationId, message });
     setIsLoading(true);
 
     try {
-      // Get current messages for API call
-      const currentMessages = currentConversation
-        ? getCurrentMessages(currentConversation)
+      // Get current conversation context
+      const conversation = conversations.find((c) => c.id === conversationId);
+      const currentMessages = conversation
+        ? getCurrentMessages(conversation)
         : [];
 
-      // Send to API
+      console.log("📊 Current context:", {
+        foundConversation: !!conversation,
+        messageCount: currentMessages.length,
+        conversationId,
+        activeConversationId,
+      });
+
+      // Prepare API call with current context + new user message
+      const apiMessages = [
+        ...currentMessages,
+        {
+          id: "",
+          role: "user" as const,
+          content: message,
+          timestamp: Date.now(),
+        },
+      ];
+
+      console.log("📤 Calling API with", apiMessages.length, "messages");
+
+      // Get AI response
       const assistantMessage = await sendMessage(
-        [
-          ...currentMessages,
-          {
-            id: "",
-            role: "user",
-            content: message,
-            timestamp: Date.now(),
-          },
-        ],
+        apiMessages,
         model,
         webSearchEnabled,
       );
 
-      // Add assistant message
-      addMessage(conversationId, assistantMessage.content, "assistant");
+      console.log("📥 Got response:", assistantMessage.content.slice(0, 50));
+
+      // Add both messages to the conversation
+      const userMsgId = addMessage(conversationId, message, "user");
+      const assistantMsgId = addMessage(
+        conversationId,
+        assistantMessage.content,
+        "assistant",
+      );
+
+      console.log("💾 Added messages:", {
+        userMsgId,
+        assistantMsgId,
+        conversationId,
+        userMsgContent: message.slice(0, 50),
+        assistantMsgContent: assistantMessage.content.slice(0, 50),
+        totalMessagesAfter: getCurrentMessages(
+          conversations.find((c) => c.id === conversationId) ||
+            ({ branchingConversation: { getActivePath: () => [] } } as any),
+        ).length,
+      });
     } catch (error) {
-      console.error("Error:", error);
+      console.error("❌ Error:", error);
       const errorMsg =
         error instanceof Error ? error.message : "An unknown error occurred";
-      addMessage(conversationId, "", "assistant", "error", errorMsg);
+
+      // Add user message and error response
+      const errorUserMsgId = addMessage(conversationId, message, "user");
+      const errorAssistantMsgId = addMessage(
+        conversationId,
+        "",
+        "assistant",
+        "error",
+        errorMsg,
+      );
+      console.log("❌ Added error messages:", {
+        errorUserMsgId,
+        errorAssistantMsgId,
+        conversationId,
+        error: errorMsg,
+      });
     } finally {
       setIsLoading(false);
+      setIsProcessing(false);
+      console.log("🏁 Send complete", {
+        conversationId,
+        totalConversations: conversations.length,
+        currentMessageCount: currentConversation
+          ? getCurrentMessages(currentConversation).length
+          : 0,
+      });
     }
   };
 
@@ -97,14 +175,52 @@ function App() {
 
     setIsLoading(true);
     try {
-      // Get current messages for retry context
-      const currentMessages = getCurrentMessages(currentConversation);
+      // Get the message to retry
+      const failedMessage =
+        currentConversation.branchingConversation.getMessage(messageId);
 
-      // Find the message to retry and get context up to that point
-      const messageIndex = currentMessages.findIndex(
-        (msg) => msg.id === messageId,
+      if (!failedMessage || !failedMessage.parentId) {
+        console.error("Cannot retry message: no parent found");
+        return;
+      }
+
+      console.log("🔄 Retrying message:", {
+        messageId,
+        role: failedMessage.role,
+        content: failedMessage.content.slice(0, 50),
+        parentId: failedMessage.parentId,
+      });
+
+      // Get all messages up to the parent (for context)
+      const activePath =
+        currentConversation.branchingConversation.getActivePath();
+      const parentIndex = activePath.findIndex(
+        (msg) => msg.id === failedMessage.parentId,
       );
-      const contextMessages = currentMessages.slice(0, messageIndex);
+
+      if (parentIndex === -1) {
+        console.error("Parent message not found in active path");
+        return;
+      }
+
+      const contextMessages = activePath
+        .slice(0, parentIndex + 1)
+        .map((msg) => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+          timestamp: msg.timestamp,
+          status: msg.status,
+          error: msg.error,
+        }));
+
+      console.log("📤 Retry API call with context:", {
+        contextLength: contextMessages.length,
+        lastContext: contextMessages[contextMessages.length - 1]?.content.slice(
+          0,
+          50,
+        ),
+      });
 
       // Send to API
       const response = await sendMessage(
@@ -113,12 +229,44 @@ function App() {
         webSearch,
       );
 
-      // Replace the failed message with new response
-      replaceLastAssistantMessage(activeConversationId, response.content);
+      // Create a branch with the new response
+      const newMessageId = addBranchMessage(
+        activeConversationId,
+        response.content,
+        "assistant",
+        failedMessage.parentId,
+        "success",
+      );
+
+      console.log("✅ Retry successful, created branch:", {
+        newMessageId,
+        responseContent: response.content.slice(0, 50),
+        totalBranches:
+          currentConversation.branchingConversation.getTotalBranches(
+            newMessageId || "",
+          ),
+      });
     } catch (error) {
       console.error("Retry failed:", error);
       const errorMsg = error instanceof Error ? error.message : "Retry failed";
-      replaceLastAssistantMessage(activeConversationId, "", "error", errorMsg);
+
+      // For retry errors, also create a branch with error message
+      const failedMessage =
+        currentConversation.branchingConversation.getMessage(messageId);
+      if (failedMessage && failedMessage.parentId) {
+        const errorBranchId = addBranchMessage(
+          activeConversationId,
+          "",
+          "assistant",
+          failedMessage.parentId,
+          "error",
+          errorMsg,
+        );
+        console.log("❌ Retry failed, created error branch:", {
+          errorBranchId,
+          error: errorMsg,
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -130,6 +278,11 @@ function App() {
   };
 
   const handleConversationSelect = (conversationId: string) => {
+    console.log("🔄 Switching conversation:", {
+      from: activeConversationId,
+      to: conversationId,
+      isProcessing,
+    });
     selectConversation(conversationId);
   };
 
@@ -138,6 +291,7 @@ function App() {
   };
 
   const handleConversationSelectMobile = (conversationId: string) => {
+    console.log("📱 Mobile conversation select:", conversationId);
     handleConversationSelect(conversationId);
     if (isMobile) {
       setSidebarCollapsed(true);
@@ -147,6 +301,32 @@ function App() {
   const handleWebSearchToggle = (enabled: boolean) => {
     setWebSearch(enabled);
   };
+
+  const handleBranchChange = (messageId: string) => {
+    if (activeConversationId) {
+      setActiveMessage(activeConversationId, messageId);
+    }
+  };
+
+  const getBranchInfoForMessage = (messageId: string) => {
+    if (!activeConversationId) return null;
+    return getBranchInfo(activeConversationId, messageId);
+  };
+
+  // Compute current messages on every render
+  const currentMessages = currentConversation
+    ? getCurrentMessages(currentConversation)
+    : [];
+
+  // Debug logging for message state
+  console.log("🔍 App render state:", {
+    activeConversationId,
+    messagesCount: currentMessages.length,
+    isLoading,
+    isProcessing,
+    lastMessageContent: lastMessageContent.slice(0, 30),
+    conversations: conversations.map((c) => ({ id: c.id, title: c.title })),
+  });
 
   return (
     <div className="flex h-screen relative">
@@ -181,18 +361,14 @@ function App() {
         </div>
 
         <ChatInterface
-          messages={useMemo(
-            () =>
-              currentConversation
-                ? getCurrentMessages(currentConversation)
-                : [],
-            [currentConversation, getCurrentMessages],
-          )}
+          messages={currentMessages}
           isLoading={isLoading}
           webSearch={webSearch}
           onWebSearchToggle={handleWebSearchToggle}
           onSendMessage={handleSendMessage}
           onRetryMessage={handleRetryMessage}
+          getBranchInfo={getBranchInfoForMessage}
+          onBranchChange={handleBranchChange}
         />
       </div>
     </div>

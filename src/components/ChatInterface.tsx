@@ -4,6 +4,7 @@ import {
   ConversationContent,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
+
 import {
   Message as MessageComponent,
   MessageContent,
@@ -28,6 +29,8 @@ import {
   AlertCircleIcon,
   RotateCcwIcon,
   CopyIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from "lucide-react";
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
@@ -55,6 +58,14 @@ interface ChatInterfaceProps {
     model: string,
   ) => Promise<void>;
   onRetryMessage: (messageId: string) => Promise<void>;
+  // New props for branching
+  getBranchInfo?: (messageId: string) => {
+    hasBranches: boolean;
+    currentIndex: number;
+    totalBranches: number;
+    branches: Message[];
+  } | null;
+  onBranchChange?: (messageId: string) => void;
 }
 
 export const ChatInterface = ({
@@ -64,12 +75,25 @@ export const ChatInterface = ({
   onWebSearchToggle,
   onSendMessage,
   onRetryMessage,
+  getBranchInfo,
+  onBranchChange,
 }: ChatInterfaceProps) => {
   const [model, setModel] = useState<string>(models[0].value);
   const [input, setInput] = useState("");
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(
     null,
   );
+
+  // Debug logging
+  console.log("🎨 ChatInterface render:", {
+    messagesCount: messages.length,
+    isLoading,
+    messages: messages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content.slice(0, 50),
+    })),
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,45 +121,122 @@ export const ChatInterface = ({
     }
   };
 
-  const renderMessageActions = (message: Message) => (
-    <Actions className="opacity-60 hover:opacity-100 transition-opacity">
-      <Action
-        tooltip={message.status === "error" ? "Copy error" : "Copy message"}
-        onClick={() =>
-          copyMessage(
-            message.status === "error"
-              ? message.error || "Error occurred"
-              : message.content,
-          )
-        }
-      >
-        <CopyIcon className="size-4" />
-      </Action>
+  const handleBranchChange = (messageId: string, branchIndex: number) => {
+    if (onBranchChange) {
+      const branchInfo = getBranchInfo?.(messageId);
+      if (branchInfo && branchInfo.branches[branchIndex]) {
+        const targetBranchMessageId = branchInfo.branches[branchIndex].id;
+        console.log("🔀 ChatInterface branch change:", {
+          fromMessageId: messageId,
+          toBranchIndex: branchIndex,
+          targetMessageId: targetBranchMessageId,
+          totalBranches: branchInfo.totalBranches,
+          branchContent: branchInfo.branches[branchIndex].content.slice(0, 50),
+        });
+        onBranchChange(targetBranchMessageId);
+      }
+    }
+  };
 
-      {message.role === "assistant" && (
+  const renderMessageActions = (message: Message) => {
+    const branchInfo = getBranchInfo?.(message.id);
+    const hasBranches = branchInfo && branchInfo.totalBranches > 1;
+
+    return (
+      <Actions className="opacity-60 hover:opacity-100 transition-opacity">
         <Action
-          tooltip={
-            message.status === "error"
-              ? "Retry sending this message"
-              : "Regenerate response"
-          }
-          onClick={() => handleRetryMessage(message.id)}
-          disabled={isLoading || retryingMessageId === message.id}
-          className={
-            message.status === "error"
-              ? "text-destructive hover:text-destructive-foreground hover:bg-destructive"
-              : ""
+          tooltip={message.status === "error" ? "Copy error" : "Copy message"}
+          onClick={() =>
+            copyMessage(
+              message.status === "error"
+                ? message.error || "Error occurred"
+                : message.content,
+            )
           }
         >
-          {retryingMessageId === message.id ? (
-            <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-          ) : (
-            <RotateCcwIcon className="size-4" />
-          )}
+          <CopyIcon className="size-4" />
         </Action>
-      )}
-    </Actions>
-  );
+
+        {message.role === "assistant" && (
+          <Action
+            tooltip={
+              message.status === "error"
+                ? "Retry sending this message"
+                : "Regenerate response"
+            }
+            onClick={() => handleRetryMessage(message.id)}
+            disabled={isLoading || retryingMessageId === message.id}
+            className={
+              message.status === "error"
+                ? "text-destructive hover:text-destructive-foreground hover:bg-destructive"
+                : ""
+            }
+          >
+            {retryingMessageId === message.id ? (
+              <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : (
+              <RotateCcwIcon className="size-4" />
+            )}
+          </Action>
+        )}
+
+        {/* Branch navigation controls */}
+        {hasBranches && branchInfo && (
+          <>
+            <Action
+              tooltip="Previous branch"
+              onClick={() => {
+                const prevIndex =
+                  branchInfo.currentIndex === 0
+                    ? branchInfo.totalBranches - 1
+                    : branchInfo.currentIndex - 1;
+                const targetBranchMessageId =
+                  branchInfo.branches[prevIndex]?.id;
+                console.log("⬅️ Previous branch clicked:", {
+                  messageId: message.id,
+                  currentIndex: branchInfo.currentIndex,
+                  prevIndex,
+                  targetMessageId: targetBranchMessageId,
+                });
+                if (targetBranchMessageId) {
+                  handleBranchChange(message.id, prevIndex);
+                }
+              }}
+            >
+              <ChevronLeftIcon className="size-4" />
+            </Action>
+
+            <span className="text-xs text-muted-foreground px-1">
+              {branchInfo.currentIndex + 1} of {branchInfo.totalBranches}
+            </span>
+
+            <Action
+              tooltip="Next branch"
+              onClick={() => {
+                const nextIndex =
+                  branchInfo.currentIndex === branchInfo.totalBranches - 1
+                    ? 0
+                    : branchInfo.currentIndex + 1;
+                const targetBranchMessageId =
+                  branchInfo.branches[nextIndex]?.id;
+                console.log("➡️ Next branch clicked:", {
+                  messageId: message.id,
+                  currentIndex: branchInfo.currentIndex,
+                  nextIndex,
+                  targetMessageId: targetBranchMessageId,
+                });
+                if (targetBranchMessageId) {
+                  handleBranchChange(message.id, nextIndex);
+                }
+              }}
+            >
+              <ChevronRightIcon className="size-4" />
+            </Action>
+          </>
+        )}
+      </Actions>
+    );
+  };
 
   const renderMessageContent = (message: Message) => {
     if (message.status === "error") {
@@ -155,6 +256,39 @@ export const ChatInterface = ({
     return <Response>{message.content}</Response>;
   };
 
+  const renderMessage = (message: Message) => {
+    // Regular message rendering - branch controls are now in actions
+    return (
+      <div key={message.id}>
+        <MessageComponent
+          from={message.role}
+          status={message.status}
+          className={message.role === "user" ? "pb-1" : ""}
+        >
+          <MessageContent>
+            {message.role === "user" ? (
+              // User messages: content only, actions below
+              renderMessageContent(message)
+            ) : (
+              // Assistant messages: content and actions together
+              <div className="space-y-4">
+                {renderMessageContent(message)}
+                {renderMessageActions(message)}
+              </div>
+            )}
+          </MessageContent>
+        </MessageComponent>
+
+        {/* Actions for user messages appear below the message bubble */}
+        {message.role === "user" && (
+          <div className="flex justify-end">
+            {renderMessageActions(message)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="flex-1 flex flex-col p-6 pt-4">
       {messages.length === 0 ? (
@@ -162,35 +296,7 @@ export const ChatInterface = ({
       ) : (
         <Conversation className="h-full">
           <ConversationContent>
-            {messages.map((message) => (
-              <div key={message.id}>
-                <MessageComponent
-                  from={message.role}
-                  status={message.status}
-                  className={message.role === "user" ? "pb-1" : ""}
-                >
-                  <MessageContent>
-                    {message.role === "user" ? (
-                      // User messages: content only, actions below
-                      renderMessageContent(message)
-                    ) : (
-                      // Assistant messages: content and actions together
-                      <div className="space-y-4">
-                        {renderMessageContent(message)}
-                        {renderMessageActions(message)}
-                      </div>
-                    )}
-                  </MessageContent>
-                </MessageComponent>
-
-                {/* Actions for user messages appear below the message bubble */}
-                {message.role === "user" && (
-                  <div className="flex justify-end">
-                    {renderMessageActions(message)}
-                  </div>
-                )}
-              </div>
-            ))}
+            {messages.map((message) => renderMessage(message))}
             {isLoading && !retryingMessageId && <Loader />}
           </ConversationContent>
           <ConversationScrollButton />
