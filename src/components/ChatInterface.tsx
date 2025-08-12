@@ -1,9 +1,4 @@
 import { useState } from "react";
-import {
-  Conversation,
-  ConversationContent,
-  ConversationScrollButton,
-} from "@/components/ai-elements/conversation";
 
 import {
   Message as MessageComponent,
@@ -66,10 +61,6 @@ interface ChatInterfaceProps {
     branches: Message[];
   } | null;
   onBranchChange?: (messageId: string) => void;
-  // Props for dynamic width adjustment
-  sidebarCollapsed: boolean;
-  sidebarWidth: number;
-  isMobile: boolean;
 }
 
 export const ChatInterface = ({
@@ -81,9 +72,6 @@ export const ChatInterface = ({
   onRetryMessage,
   getBranchInfo,
   onBranchChange,
-  sidebarCollapsed,
-  sidebarWidth,
-  isMobile,
 }: ChatInterfaceProps) => {
   const [model, setModel] = useState<string>(models[0].value);
   const [input, setInput] = useState("");
@@ -296,39 +284,16 @@ export const ChatInterface = ({
     );
   };
 
-  // Dynamic width based on sidebar state and actual width
-  const getMaxWidth = () => {
-    if (isMobile) return "max-w-4xl"; // Full width on mobile since sidebar is overlay
-
-    // Calculate available width based on viewport and sidebar
-    const viewportWidth = window.innerWidth;
-    const availableWidth = sidebarCollapsed
-      ? viewportWidth
-      : viewportWidth - sidebarWidth;
-    const maxChatWidth = Math.min(availableWidth * 0.9, 1280); // Max 1280px or 90% of available space
-
-    return sidebarCollapsed ? "max-w-6xl" : "";
-  };
-
-  // Get inline style for custom width when sidebar is open
-  const getChatStyle = () => {
-    if (isMobile || sidebarCollapsed) return {};
-
-    const viewportWidth = window.innerWidth;
-    const availableWidth = viewportWidth - sidebarWidth;
-    const maxChatWidth = Math.min(availableWidth * 0.9, 1280);
-
-    return { maxWidth: `${maxChatWidth}px` };
+  // Flexible width that automatically adjusts to available space
+  const getContainerClassName = () => {
+    return "chat-interface w-full max-w-3xl mx-auto";
   };
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {/* Scrollable conversation area */}
       <div className="flex-1 flex justify-center min-h-0 overflow-y-auto">
-        <div
-          className={`w-full ${getMaxWidth()} px-6 py-4`}
-          style={getChatStyle()}
-        >
+        <div className={`${getContainerClassName()} px-6 py-4`}>
           {messages.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <Welcome />
@@ -346,8 +311,7 @@ export const ChatInterface = ({
       <div className="flex-shrink-0 flex justify-center p-6 pt-4">
         <PromptInput
           onSubmit={handleSubmit}
-          className={`w-full ${getMaxWidth()}`}
-          style={getChatStyle()}
+          className={getContainerClassName()}
         >
           <PromptInputTextarea
             onChange={(e) => setInput(e.target.value)}

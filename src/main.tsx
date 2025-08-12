@@ -4,7 +4,7 @@ import App from "./App.tsx";
 import "./globals.css";
 import { ThemeProvider } from "./components/theme-provider";
 
-const isDevelopment = import.meta.env.DEV;
+const isDevelopment = (import.meta as any).env.DEV;
 
 // Conditionally wrap with StrictMode - disable in dev to prevent duplicate messages
 const AppWrapper = isDevelopment ? (

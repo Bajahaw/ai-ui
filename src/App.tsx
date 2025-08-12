@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { ConversationSidebar } from "@/components/ai-elements/conversation-sidebar";
@@ -11,9 +11,10 @@ import { MessageSquareIcon } from "lucide-react";
 function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [webSearch, setWebSearch] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState(320);
-  const [isMobile, setIsMobile] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    window.innerWidth < 768,
+  );
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastMessageContent, setLastMessageContent] = useState<string>("");
   const [lastMessageTime, setLastMessageTime] = useState<number>(0);
@@ -35,20 +36,6 @@ function App() {
 
   // Chat API
   const { sendMessage } = useChat();
-
-  // Detect mobile screen size and set initial sidebar state
-  useEffect(() => {
-    const checkMobile = () => {
-      const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
-      // On wide screens, show sidebar by default; on mobile, hide it
-      setSidebarCollapsed(mobile);
-    };
-
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   const handleSendMessage = async (
     message: string,
@@ -291,14 +278,6 @@ function App() {
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
-  const handleConversationSelectMobile = (conversationId: string) => {
-    console.log("📱 Mobile conversation select:", conversationId);
-    handleConversationSelect(conversationId);
-    if (isMobile) {
-      setSidebarCollapsed(true);
-    }
-  };
-
   const handleWebSearchToggle = (enabled: boolean) => {
     setWebSearch(enabled);
   };
@@ -307,10 +286,6 @@ function App() {
     if (activeConversationId) {
       setActiveMessage(activeConversationId, messageId);
     }
-  };
-
-  const handleSidebarWidthChange = (width: number) => {
-    setSidebarWidth(width);
   };
 
   const getBranchInfoForMessage = (messageId: string) => {
@@ -335,22 +310,23 @@ function App() {
 
   return (
     <div className="flex h-screen relative">
+      {/* Overlay for mobile */}
+      {!sidebarCollapsed && window.innerWidth < 768 && (
+        <div className="sidebar-overlay" onClick={handleToggleSidebar} />
+      )}
+
       {/* Sidebar */}
       <ConversationSidebar
         conversations={conversations}
         activeConversationId={activeConversationId}
-        onConversationSelect={
-          isMobile ? handleConversationSelectMobile : handleConversationSelect
-        }
+        onConversationSelect={handleConversationSelect}
         onNewChat={handleNewChat}
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={handleToggleSidebar}
-        onWidthChange={handleSidebarWidthChange}
-        isMobile={isMobile}
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col max-w-none">
+      <div className="chat-container">
         <div className="flex justify-between items-center p-6 pb-4">
           <div className="flex items-center gap-3">
             <Button
@@ -375,9 +351,6 @@ function App() {
           onRetryMessage={handleRetryMessage}
           getBranchInfo={getBranchInfoForMessage}
           onBranchChange={handleBranchChange}
-          sidebarCollapsed={sidebarCollapsed}
-          sidebarWidth={sidebarWidth}
-          isMobile={isMobile}
         />
       </div>
     </div>

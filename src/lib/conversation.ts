@@ -90,7 +90,7 @@ export class BranchingConversation {
     let currentId: string | undefined = messageId;
 
     while (currentId) {
-      const msg = this.messages[currentId];
+      const msg: BranchMessage = this.messages[currentId];
       if (!msg) break;
       path.unshift(currentId);
       currentId = msg.parentId;

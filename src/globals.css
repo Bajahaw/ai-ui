@@ -68,3 +68,109 @@
             "calt" 1;
     }
 }
+
+@layer components {
+    /* Responsive layout utilities */
+    .chat-container {
+        @apply flex-1 flex flex-col min-h-0;
+    }
+
+    .sidebar {
+        transition: width 300ms cubic-bezier(0.4, 0, 0.2, 1);
+        box-sizing: border-box;
+    }
+
+    /* Small screen adjustments */
+    @media (max-width: 768px) {
+        .sidebar {
+            position: fixed !important;
+            top: 0;
+            left: 0;
+            z-index: 50;
+            height: 100vh;
+            width: min(80vw, 320px) !important;
+            min-width: 280px !important;
+            max-width: 320px !important;
+            box-shadow:
+                0 10px 15px -3px rgb(0 0 0 / 0.1),
+                0 4px 6px -4px rgb(0 0 0 / 0.1);
+            transition:
+                transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+            opacity: 0;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgb(0 0 0 / 0.5);
+            z-index: 40;
+            animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                backdrop-filter: blur(0px);
+            }
+            to {
+                opacity: 1;
+                backdrop-filter: blur(4px);
+            }
+        }
+
+        .chat-interface {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }
+
+        .chat-container {
+            transition: none;
+            margin-left: 0 !important;
+        }
+    }
+
+    /* Medium screen adjustments */
+    @media (max-width: 1024px) {
+        .chat-interface {
+            max-width: 100% !important;
+        }
+    }
+
+    /* Desktop sidebar transitions */
+    @media (min-width: 769px) {
+        .sidebar {
+            position: relative !important;
+            transform: none !important;
+            opacity: 1 !important;
+            transition:
+                width 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                min-width 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                max-width 300ms cubic-bezier(0.4, 0, 0.2, 1);
+            border-right: 1px solid hsl(var(--border));
+        }
+
+        .sidebar.collapsed {
+            opacity: 1 !important;
+            transform: none !important;
+            border-right: none;
+            min-width: 0 !important;
+        }
+
+        .sidebar-overlay {
+            display: none !important;
+        }
+
+        .chat-container {
+            min-width: 0;
+        }
+    }
+}
