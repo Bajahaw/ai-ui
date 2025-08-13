@@ -208,6 +208,72 @@ export const useConversations = () => {
     [manager],
   );
 
+  const deleteConversation = useCallback(
+    async (conversationId: string): Promise<void> => {
+      try {
+        setError(null);
+
+        // Optimistically remove from local state
+        manager.removeConversation(conversationId);
+
+        // If this was the active conversation, clear it
+        if (activeConversationId === conversationId) {
+          setActiveConversationId(null);
+        }
+
+        syncConversations();
+
+        // Call backend API
+        await conversationsAPI.deleteConversation(conversationId);
+      } catch (err) {
+        // On error, reload conversations to restore state
+        await loadConversations();
+        const errorMessage = ApiErrorHandler.getUserFriendlyMessage(err);
+        setError(errorMessage);
+        throw err;
+      }
+    },
+    [manager, activeConversationId, syncConversations, loadConversations],
+  );
+
+  const renameConversation = useCallback(
+    async (conversationId: string, newTitle: string): Promise<void> => {
+      if (!newTitle || newTitle.trim() === "") {
+        throw new Error("Valid title is required");
+      }
+
+      const conversation = manager.getConversation(conversationId);
+      if (!conversation) {
+        throw new Error("Conversation not found");
+      }
+
+      const originalTitle = conversation.title;
+
+      try {
+        setError(null);
+
+        // Optimistically update local state
+        manager.updateConversationTitle(conversationId, newTitle.trim());
+        syncConversations();
+
+        // Call backend API
+        await conversationsAPI.renameConversation(
+          conversationId,
+          newTitle.trim(),
+        );
+      } catch (err) {
+        // On error, revert the title change
+        manager.updateConversationTitle(conversationId, originalTitle);
+        syncConversations();
+
+        const errorMessage = ApiErrorHandler.getUserFriendlyMessage(err);
+        setError(errorMessage);
+        throw err;
+      }
+    },
+    [manager, syncConversations],
+  );
+
   return {
     conversations,
     activeConversationId,
@@ -221,5 +287,7 @@ export const useConversations = () => {
     startNewChat,
     clearError,
     hasPendingMessages,
+    deleteConversation,
+    renameConversation,
   };
 };

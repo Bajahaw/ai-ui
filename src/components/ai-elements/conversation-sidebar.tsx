@@ -2,9 +2,23 @@
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlusIcon, MessageSquareIcon, ChevronLeftIcon } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import {
+  PlusIcon,
+  MessageSquareIcon,
+  ChevronLeftIcon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  TrashIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ComponentProps } from "react";
+import { ComponentProps, useState } from "react";
 import { ClientConversation } from "@/lib/clientConversationManager";
 
 export interface ConversationSidebarProps extends ComponentProps<"div"> {
@@ -12,6 +26,8 @@ export interface ConversationSidebarProps extends ComponentProps<"div"> {
   activeConversationId?: string | null;
   onConversationSelect?: (conversationId: string) => void;
   onNewChat?: () => void;
+  onDeleteConversation?: (conversationId: string) => void;
+  onRenameConversation?: (conversationId: string, newTitle: string) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   maxWidth?: string;
@@ -22,17 +38,45 @@ export const ConversationSidebar = ({
   activeConversationId,
   onConversationSelect,
   onNewChat,
+  onDeleteConversation,
+  onRenameConversation,
   isCollapsed = false,
   onToggleCollapse,
-
   className,
   ...props
 }: ConversationSidebarProps) => {
   const width = 320; // Fixed width in pixels
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState<string>("");
+
   const truncateTitle = (title: string, maxLength: number = 30) => {
     return title.length > maxLength
       ? `${title.substring(0, maxLength)}...`
       : title;
+  };
+
+  const handleRename = (conversationId: string, currentTitle: string) => {
+    setEditingId(conversationId);
+    setEditingTitle(currentTitle);
+  };
+
+  const handleSaveRename = (conversationId: string) => {
+    if (editingTitle.trim() && onRenameConversation) {
+      onRenameConversation(conversationId, editingTitle.trim());
+    }
+    setEditingId(null);
+    setEditingTitle("");
+  };
+
+  const handleCancelRename = () => {
+    setEditingId(null);
+    setEditingTitle("");
+  };
+
+  const handleDelete = (conversationId: string) => {
+    if (onDeleteConversation) {
+      onDeleteConversation(conversationId);
+    }
   };
 
   return (
@@ -111,22 +155,72 @@ export const ConversationSidebar = ({
                       : "hover:bg-accent",
                   )}
                 >
-                  <Button
-                    variant="ghost"
-                    onClick={() => onConversationSelect?.(conversation.id)}
-                    className={cn(
-                      "w-full justify-start h-auto p-2 text-left hover:bg-transparent",
-                      activeConversationId === conversation.id &&
-                        "bg-transparent",
-                    )}
-                  >
-                    <div className="flex items-center gap-2 w-full">
+                  {editingId === conversation.id ? (
+                    <div className="flex items-center gap-2 p-2">
                       <MessageSquareIcon className="size-3" />
-                      <span className="font-medium text-sm flex-1 truncate">
-                        {truncateTitle(conversation.title)}
-                      </span>
+                      <Input
+                        value={editingTitle}
+                        onChange={(e) => setEditingTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            handleSaveRename(conversation.id);
+                          } else if (e.key === "Escape") {
+                            handleCancelRename();
+                          }
+                        }}
+                        onBlur={() => handleSaveRename(conversation.id)}
+                        className="flex-1 h-7 text-sm"
+                        autoFocus
+                      />
                     </div>
-                  </Button>
+                  ) : (
+                    <div className="flex items-center group/item">
+                      <Button
+                        variant="ghost"
+                        onClick={() => onConversationSelect?.(conversation.id)}
+                        className={cn(
+                          "flex-1 justify-start h-auto p-2 text-left hover:bg-transparent",
+                          activeConversationId === conversation.id &&
+                            "bg-transparent",
+                        )}
+                      >
+                        <div className="flex items-center gap-2 w-full">
+                          <MessageSquareIcon className="size-3" />
+                          <span className="font-medium text-sm flex-1 truncate">
+                            {truncateTitle(conversation.title)}
+                          </span>
+                        </div>
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="opacity-0 group-hover/item:opacity-100 h-8 w-8 p-0 shrink-0"
+                          >
+                            <MoreHorizontalIcon className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              handleRename(conversation.id, conversation.title)
+                            }
+                          >
+                            <PencilIcon className="size-4 mr-2" />
+                            Rename
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleDelete(conversation.id)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <TrashIcon className="size-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
                 </div>
               ))
             )}

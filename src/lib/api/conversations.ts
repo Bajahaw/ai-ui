@@ -1,5 +1,15 @@
-import {Conversation, CreateConversationRequest, frontendToBackendMessage, generateConversationId,} from "./types";
-import {ApiErrorHandler, isConversation, isConversationArray, isCreateConversationResponse,} from "./errorHandler";
+import {
+  Conversation,
+  CreateConversationRequest,
+  frontendToBackendMessage,
+  generateConversationId,
+} from "./types";
+import {
+  ApiErrorHandler,
+  isConversation,
+  isConversationArray,
+  isCreateConversationResponse,
+} from "./errorHandler";
 
 // API client for conversation endpoints
 export class ConversationsAPI {
@@ -131,11 +141,68 @@ export class ConversationsAPI {
 
       // Validate conversation data structure
       return ApiErrorHandler.validateResponse(
-          data,
-          isConversation,
-          `Fetch conversation ${id}`,
+        data,
+        isConversation,
+        `Fetch conversation ${id}`,
       );
     }, `fetchConversation(${id})`);
+  }
+
+  // DELETE /api/conversations/{id}
+  async deleteConversation(id: string): Promise<void> {
+    if (!id) {
+      throw new Error("Invalid conversation ID provided");
+    }
+
+    return ApiErrorHandler.handleApiCall(async () => {
+      const response = await fetch(
+        `${this.baseUrl}/api/conversations/${encodeURIComponent(id)}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(
+          response,
+          `Delete conversation ${id}`,
+        );
+      }
+    }, `deleteConversation(${id})`);
+  }
+
+  // POST /api/conversations/{id}/rename
+  async renameConversation(id: string, title: string): Promise<void> {
+    if (!id) {
+      throw new Error("Invalid conversation ID provided");
+    }
+
+    if (!title || title.trim() === "") {
+      throw new Error("Valid title is required");
+    }
+
+    return ApiErrorHandler.handleApiCall(async () => {
+      const response = await fetch(
+        `${this.baseUrl}/api/conversations/${encodeURIComponent(id)}/rename`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ title: title.trim() }),
+        },
+      );
+
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(
+          response,
+          `Rename conversation ${id}`,
+        );
+      }
+    }, `renameConversation(${id})`);
   }
 }
 

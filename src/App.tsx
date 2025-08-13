@@ -30,6 +30,8 @@ function App() {
     isLoading: conversationsLoading,
     error: conversationsError,
     clearError,
+    deleteConversation,
+    renameConversation,
   } = useConversations();
 
   const handleSendMessage = async (
@@ -112,6 +114,25 @@ function App() {
     setWebSearch(enabled);
   };
 
+  const handleDeleteConversation = async (conversationId: string) => {
+    try {
+      await deleteConversation(conversationId);
+    } catch (error) {
+      console.error("Failed to delete conversation:", error);
+    }
+  };
+
+  const handleRenameConversation = async (
+    conversationId: string,
+    newTitle: string,
+  ) => {
+    try {
+      await renameConversation(conversationId, newTitle);
+    } catch (error) {
+      console.error("Failed to rename conversation:", error);
+    }
+  };
+
   // Get current messages for display
   const currentMessages = currentConversation
     ? getCurrentMessages(currentConversation)
@@ -133,6 +154,8 @@ function App() {
         activeConversationId={activeConversationId}
         onConversationSelect={handleConversationSelect}
         onNewChat={handleNewChat}
+        onDeleteConversation={handleDeleteConversation}
+        onRenameConversation={handleRenameConversation}
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={handleToggleSidebar}
       />

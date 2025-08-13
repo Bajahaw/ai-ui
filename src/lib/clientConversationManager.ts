@@ -295,4 +295,18 @@ export class ClientConversationManager {
     const conversation = this.conversations.get(conversationId);
     return conversation?.backendConversation?.activeMessageId;
   }
+
+  removeConversation(conversationId: string): void {
+    this.conversations.delete(conversationId);
+  }
+
+  updateConversationTitle(conversationId: string, newTitle: string): void {
+    const conversation = this.conversations.get(conversationId);
+    if (conversation) {
+      conversation.title = newTitle;
+      if (conversation.backendConversation) {
+        conversation.backendConversation.title = newTitle;
+      }
+    }
+  }
 }
