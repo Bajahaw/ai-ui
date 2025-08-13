@@ -5,10 +5,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { PlusIcon, MessageSquareIcon, ChevronLeftIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ComponentProps } from "react";
-import { Conversation } from "@/hooks/useConversations";
+import { ClientConversation } from "@/lib/clientConversationManager";
 
 export interface ConversationSidebarProps extends ComponentProps<"div"> {
-  conversations?: Conversation[];
+  conversations?: ClientConversation[];
   activeConversationId?: string | null;
   onConversationSelect?: (conversationId: string) => void;
   onNewChat?: () => void;

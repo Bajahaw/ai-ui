@@ -5,11 +5,9 @@ import { ConversationSidebar } from "@/components/ai-elements/conversation-sideb
 import { ChatInterface } from "@/components/ChatInterface";
 import { useConversations } from "@/hooks/useConversations";
 
-import { useChat } from "@/hooks/useChat";
 import { MessageSquareIcon } from "lucide-react";
 
 function App() {
-  const [isLoading, setIsLoading] = useState(false);
   const [webSearch, setWebSearch] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     window.innerWidth < 768,
@@ -19,23 +17,20 @@ function App() {
   const [lastMessageContent, setLastMessageContent] = useState<string>("");
   const [lastMessageTime, setLastMessageTime] = useState<number>(0);
 
-  // Conversation management with branching support
+  // Conversation management with optimistic updates
   const {
     conversations,
     currentConversation,
     activeConversationId,
     createConversation,
-    addMessage,
-    addBranchMessage,
-    setActiveMessage,
+    sendMessage: sendChatMessage,
     selectConversation,
     startNewChat,
     getCurrentMessages,
-    getBranchInfo,
+    isLoading: conversationsLoading,
+    error: conversationsError,
+    clearError,
   } = useConversations();
-
-  // Chat API
-  const { sendMessage } = useChat();
 
   const handleSendMessage = async (
     message: string,
@@ -61,216 +56,51 @@ function App() {
     setLastMessageContent(message);
     setLastMessageTime(currentTime);
 
-    // Create conversation if none exists and get the ID
-    let conversationId = activeConversationId;
-    if (!conversationId) {
-      conversationId = createConversation(message);
-    }
-
-    console.log("🚀 Starting message send...", { conversationId, message });
-    setIsLoading(true);
-
     try {
-      // Get current conversation context
-      const conversation = conversations.find((c) => c.id === conversationId);
-      const currentMessages = conversation
-        ? getCurrentMessages(conversation)
-        : [];
+      const conversationId = activeConversationId;
 
-      console.log("📊 Current context:", {
-        foundConversation: !!conversation,
-        messageCount: currentMessages.length,
-        conversationId,
-        activeConversationId,
-      });
-
-      // Prepare API call with current context + new user message
-      const apiMessages = [
-        ...currentMessages,
-        {
-          id: "",
-          role: "user" as const,
-          content: message,
-          timestamp: Date.now(),
-        },
-      ];
-
-      console.log("📤 Calling API with", apiMessages.length, "messages");
-
-      // Get AI response
-      const assistantMessage = await sendMessage(
-        apiMessages,
-        model,
-        webSearchEnabled,
-      );
-
-      console.log("📥 Got response:", assistantMessage.content.slice(0, 50));
-
-      // Add both messages to the conversation
-      const userMsgId = addMessage(conversationId, message, "user");
-      const assistantMsgId = addMessage(
-        conversationId,
-        assistantMessage.content,
-        "assistant",
-      );
-
-      console.log("💾 Added messages:", {
-        userMsgId,
-        assistantMsgId,
-        conversationId,
-        userMsgContent: message.slice(0, 50),
-        assistantMsgContent: assistantMessage.content.slice(0, 50),
-        totalMessagesAfter: getCurrentMessages(
-          conversations.find((c) => c.id === conversationId) ||
-            ({ branchingConversation: { getActivePath: () => [] } } as any),
-        ).length,
-      });
+      if (!conversationId) {
+        await createConversation(message, model, webSearchEnabled);
+      } else {
+        await sendChatMessage(conversationId, message, model, webSearchEnabled);
+      }
     } catch (error) {
-      console.error("❌ Error:", error);
-      const errorMsg =
-        error instanceof Error ? error.message : "An unknown error occurred";
-
-      // Add user message and error response
-      const errorUserMsgId = addMessage(conversationId, message, "user");
-      const errorAssistantMsgId = addMessage(
-        conversationId,
-        "",
-        "assistant",
-        "error",
-        errorMsg,
-      );
-      console.log("❌ Added error messages:", {
-        errorUserMsgId,
-        errorAssistantMsgId,
-        conversationId,
-        error: errorMsg,
-      });
+      console.error("Error in message flow:", error);
     } finally {
-      setIsLoading(false);
       setIsProcessing(false);
-      console.log("🏁 Send complete", {
-        conversationId,
-        totalConversations: conversations.length,
-        currentMessageCount: currentConversation
-          ? getCurrentMessages(currentConversation).length
-          : 0,
-      });
     }
   };
 
   const handleRetryMessage = async (messageId: string) => {
     if (!activeConversationId || !currentConversation) return;
 
-    setIsLoading(true);
     try {
-      // Get the message to retry
-      const failedMessage =
-        currentConversation.branchingConversation.getMessage(messageId);
+      const failedMessage = currentConversation.messages.find(
+        (m) => m.id === messageId,
+      );
+      if (!failedMessage) return;
 
-      if (!failedMessage || !failedMessage.parentId) {
-        console.error("Cannot retry message: no parent found");
-        return;
+      if (failedMessage.role === "user") {
+        await sendChatMessage(
+          activeConversationId,
+          failedMessage.content,
+          "openai/gpt-4o",
+          webSearch,
+        );
       }
-
-      console.log("🔄 Retrying message:", {
-        messageId,
-        role: failedMessage.role,
-        content: failedMessage.content.slice(0, 50),
-        parentId: failedMessage.parentId,
-      });
-
-      // Get all messages up to the parent (for context)
-      const activePath =
-        currentConversation.branchingConversation.getActivePath();
-      const parentIndex = activePath.findIndex(
-        (msg) => msg.id === failedMessage.parentId,
-      );
-
-      if (parentIndex === -1) {
-        console.error("Parent message not found in active path");
-        return;
-      }
-
-      const contextMessages = activePath
-        .slice(0, parentIndex + 1)
-        .map((msg) => ({
-          id: msg.id,
-          role: msg.role,
-          content: msg.content,
-          timestamp: msg.timestamp,
-          status: msg.status,
-          error: msg.error,
-        }));
-
-      console.log("📤 Retry API call with context:", {
-        contextLength: contextMessages.length,
-        lastContext: contextMessages[contextMessages.length - 1]?.content.slice(
-          0,
-          50,
-        ),
-      });
-
-      // Send to API
-      const response = await sendMessage(
-        contextMessages,
-        "openai/gpt-4o",
-        webSearch,
-      );
-
-      // Create a branch with the new response
-      const newMessageId = addBranchMessage(
-        activeConversationId,
-        response.content,
-        "assistant",
-        failedMessage.parentId,
-        "success",
-      );
-
-      console.log("✅ Retry successful, created branch:", {
-        newMessageId,
-        responseContent: response.content.slice(0, 50),
-        totalBranches:
-          currentConversation.branchingConversation.getTotalBranches(
-            newMessageId || "",
-          ),
-      });
     } catch (error) {
       console.error("Retry failed:", error);
-      const errorMsg = error instanceof Error ? error.message : "Retry failed";
-
-      // For retry errors, also create a branch with error message
-      const failedMessage =
-        currentConversation.branchingConversation.getMessage(messageId);
-      if (failedMessage && failedMessage.parentId) {
-        const errorBranchId = addBranchMessage(
-          activeConversationId,
-          "",
-          "assistant",
-          failedMessage.parentId,
-          "error",
-          errorMsg,
-        );
-        console.log("❌ Retry failed, created error branch:", {
-          errorBranchId,
-          error: errorMsg,
-        });
-      }
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const handleNewChat = () => {
     startNewChat();
     setWebSearch(false);
+    clearError(); // Clear any existing errors
   };
 
   const handleConversationSelect = (conversationId: string) => {
-    console.log("🔄 Switching conversation:", {
-      from: activeConversationId,
-      to: conversationId,
-      isProcessing,
-    });
+    if (isProcessing) return;
     selectConversation(conversationId);
   };
 
@@ -282,31 +112,13 @@ function App() {
     setWebSearch(enabled);
   };
 
-  const handleBranchChange = (messageId: string) => {
-    if (activeConversationId) {
-      setActiveMessage(activeConversationId, messageId);
-    }
-  };
-
-  const getBranchInfoForMessage = (messageId: string) => {
-    if (!activeConversationId) return null;
-    return getBranchInfo(activeConversationId, messageId);
-  };
-
-  // Compute current messages on every render
+  // Get current messages for display
   const currentMessages = currentConversation
     ? getCurrentMessages(currentConversation)
     : [];
 
-  // Debug logging for message state
-  console.log("🔍 App render state:", {
-    activeConversationId,
-    messagesCount: currentMessages.length,
-    isLoading,
-    isProcessing,
-    lastMessageContent: lastMessageContent.slice(0, 30),
-    conversations: conversations.map((c) => ({ id: c.id, title: c.title })),
-  });
+  // Fallback handling for empty or invalid conversations
+  const safeConversations = Array.isArray(conversations) ? conversations : [];
 
   return (
     <div className="flex h-screen relative">
@@ -317,7 +129,7 @@ function App() {
 
       {/* Sidebar */}
       <ConversationSidebar
-        conversations={conversations}
+        conversations={safeConversations}
         activeConversationId={activeConversationId}
         onConversationSelect={handleConversationSelect}
         onNewChat={handleNewChat}
@@ -342,15 +154,42 @@ function App() {
           <ThemeToggle />
         </div>
 
+        {/* Error Display */}
+        {conversationsError && (
+          <div className="flex justify-center px-6 mb-4">
+            <div className="w-full max-w-3xl p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <div className="flex justify-between items-center">
+                <p className="text-red-700 dark:text-red-300 text-sm">
+                  {conversationsError}
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearError}
+                  className="text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-800/30"
+                >
+                  ✕
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {conversationsLoading && safeConversations.length === 0 && (
+          <div className="flex items-center justify-center h-32">
+            <div className="text-muted-foreground">
+              Loading conversations...
+            </div>
+          </div>
+        )}
+
         <ChatInterface
           messages={currentMessages}
-          isLoading={isLoading}
           webSearch={webSearch}
           onWebSearchToggle={handleWebSearchToggle}
           onSendMessage={handleSendMessage}
           onRetryMessage={handleRetryMessage}
-          getBranchInfo={getBranchInfoForMessage}
-          onBranchChange={handleBranchChange}
         />
       </div>
     </div>

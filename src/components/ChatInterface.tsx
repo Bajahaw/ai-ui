@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import {
   Message as MessageComponent,
@@ -17,24 +17,28 @@ import {
   PromptInputToolbar,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
+
 import { Welcome } from "@/components/ai-elements/welcome";
 import { Response } from "@/components/ai-elements/response";
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation";
 import {
   GlobeIcon,
   AlertCircleIcon,
   RotateCcwIcon,
   CopyIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
 } from "lucide-react";
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
-import { Message } from "@/hooks/useConversations";
+import { FrontendMessage } from "@/lib/api/types";
 
 const models = [
   {
-    name: "GPT 4o",
-    value: "openai/gpt-4o",
+    name: "Llama",
+    value: "meta-llama/llama-4-maverick-17b-128e-instruct",
   },
   {
     name: "Deepseek R1",
@@ -43,8 +47,7 @@ const models = [
 ];
 
 interface ChatInterfaceProps {
-  messages: Message[];
-  isLoading: boolean;
+  messages: FrontendMessage[];
   webSearch: boolean;
   onWebSearchToggle: (enabled: boolean) => void;
   onSendMessage: (
@@ -53,25 +56,14 @@ interface ChatInterfaceProps {
     model: string,
   ) => Promise<void>;
   onRetryMessage: (messageId: string) => Promise<void>;
-  // New props for branching
-  getBranchInfo?: (messageId: string) => {
-    hasBranches: boolean;
-    currentIndex: number;
-    totalBranches: number;
-    branches: Message[];
-  } | null;
-  onBranchChange?: (messageId: string) => void;
 }
 
 export const ChatInterface = ({
   messages,
-  isLoading,
   webSearch,
   onWebSearchToggle,
   onSendMessage,
   onRetryMessage,
-  getBranchInfo,
-  onBranchChange,
 }: ChatInterfaceProps) => {
   const [model, setModel] = useState<string>(models[0].value);
   const [input, setInput] = useState("");
@@ -79,20 +71,14 @@ export const ChatInterface = ({
     null,
   );
 
-  // Debug logging
-  console.log("🎨 ChatInterface render:", {
-    messagesCount: messages.length,
-    isLoading,
-    messages: messages.map((m) => ({
-      id: m.id,
-      role: m.role,
-      content: m.content.slice(0, 50),
-    })),
-  });
+  // Check if there are any pending messages
+  const hasPendingMessages = messages.some(
+    (message) => message.status === "pending",
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!input.trim()) return;
 
     const message = input;
     setInput("");
@@ -116,27 +102,7 @@ export const ChatInterface = ({
     }
   };
 
-  const handleBranchChange = (messageId: string, branchIndex: number) => {
-    if (onBranchChange) {
-      const branchInfo = getBranchInfo?.(messageId);
-      if (branchInfo && branchInfo.branches[branchIndex]) {
-        const targetBranchMessageId = branchInfo.branches[branchIndex].id;
-        console.log("🔀 ChatInterface branch change:", {
-          fromMessageId: messageId,
-          toBranchIndex: branchIndex,
-          targetMessageId: targetBranchMessageId,
-          totalBranches: branchInfo.totalBranches,
-          branchContent: branchInfo.branches[branchIndex].content.slice(0, 50),
-        });
-        onBranchChange(targetBranchMessageId);
-      }
-    }
-  };
-
-  const renderMessageActions = (message: Message) => {
-    const branchInfo = getBranchInfo?.(message.id);
-    const hasBranches = branchInfo && branchInfo.totalBranches > 1;
-
+  const renderMessageActions = (message: FrontendMessage) => {
     return (
       <Actions className="opacity-60 hover:opacity-100 transition-opacity">
         <Action
@@ -152,15 +118,15 @@ export const ChatInterface = ({
           <CopyIcon className="size-4" />
         </Action>
 
-        {message.role === "assistant" && (
+        {message.role === "assistant" && message.status !== "pending" && (
           <Action
             tooltip={
               message.status === "error"
-                ? "Retry sending this message"
+                ? "Retry getting response"
                 : "Regenerate response"
             }
             onClick={() => handleRetryMessage(message.id)}
-            disabled={isLoading || retryingMessageId === message.id}
+            disabled={retryingMessageId === message.id}
             className={
               message.status === "error"
                 ? "text-destructive hover:text-destructive-foreground hover:bg-destructive"
@@ -174,72 +140,21 @@ export const ChatInterface = ({
             )}
           </Action>
         )}
-
-        {/* Branch navigation controls */}
-        {hasBranches && branchInfo && (
-          <>
-            <Action
-              tooltip="Previous branch"
-              onClick={() => {
-                const prevIndex =
-                  branchInfo.currentIndex === 0
-                    ? branchInfo.totalBranches - 1
-                    : branchInfo.currentIndex - 1;
-                const targetBranchMessageId =
-                  branchInfo.branches[prevIndex]?.id;
-                console.log("⬅️ Previous branch clicked:", {
-                  messageId: message.id,
-                  currentIndex: branchInfo.currentIndex,
-                  prevIndex,
-                  targetMessageId: targetBranchMessageId,
-                });
-                if (targetBranchMessageId) {
-                  handleBranchChange(message.id, prevIndex);
-                }
-              }}
-            >
-              <ChevronLeftIcon className="size-4" />
-            </Action>
-
-            <span className="text-xs text-muted-foreground px-1">
-              {branchInfo.currentIndex + 1} of {branchInfo.totalBranches}
-            </span>
-
-            <Action
-              tooltip="Next branch"
-              onClick={() => {
-                const nextIndex =
-                  branchInfo.currentIndex === branchInfo.totalBranches - 1
-                    ? 0
-                    : branchInfo.currentIndex + 1;
-                const targetBranchMessageId =
-                  branchInfo.branches[nextIndex]?.id;
-                console.log("➡️ Next branch clicked:", {
-                  messageId: message.id,
-                  currentIndex: branchInfo.currentIndex,
-                  nextIndex,
-                  targetMessageId: targetBranchMessageId,
-                });
-                if (targetBranchMessageId) {
-                  handleBranchChange(message.id, nextIndex);
-                }
-              }}
-            >
-              <ChevronRightIcon className="size-4" />
-            </Action>
-          </>
-        )}
       </Actions>
     );
   };
 
-  const renderMessageContent = (message: Message) => {
+  const renderMessageContent = (message: FrontendMessage) => {
     if (message.status === "error") {
       return (
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-destructive">
             <AlertCircleIcon className="size-4 flex-shrink-0" />
-            <span className="font-medium">Failed to send message</span>
+            <span className="font-medium">
+              {message.role === "assistant"
+                ? "Failed to get response"
+                : "Failed to send message"}
+            </span>
           </div>
           <div className="text-sm text-destructive/80">
             {message.error || "An unknown error occurred"}
@@ -248,11 +163,23 @@ export const ChatInterface = ({
       );
     }
 
+    if (
+      message.status === "pending" &&
+      message.role === "assistant" &&
+      message.content === ""
+    ) {
+      return (
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader size={16} />
+          <span className="text-sm">Thinking...</span>
+        </div>
+      );
+    }
+
     return <Response>{message.content}</Response>;
   };
 
-  const renderMessage = (message: Message) => {
-    // Regular message rendering - branch controls are now in actions
+  const renderMessage = (message: FrontendMessage) => {
     return (
       <div key={message.id}>
         <MessageComponent
@@ -262,20 +189,17 @@ export const ChatInterface = ({
         >
           <MessageContent>
             {message.role === "user" ? (
-              // User messages: content only, actions below
               renderMessageContent(message)
             ) : (
-              // Assistant messages: content and actions together
               <div className="space-y-4">
                 {renderMessageContent(message)}
-                {renderMessageActions(message)}
+                {message.status !== "pending" && renderMessageActions(message)}
               </div>
             )}
           </MessageContent>
         </MessageComponent>
 
-        {/* Actions for user messages appear below the message bubble */}
-        {message.role === "user" && (
+        {message.role === "user" && message.status !== "pending" && (
           <div className="flex justify-end">
             {renderMessageActions(message)}
           </div>
@@ -284,16 +208,21 @@ export const ChatInterface = ({
     );
   };
 
-  // Flexible width that automatically adjusts to available space
-  const getContainerClassName = () => {
-    return "chat-interface w-full max-w-3xl mx-auto";
-  };
+  // Simple scroll to bottom when messages change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const scrollContainer = document.querySelector('[role="log"]');
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [messages]);
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      {/* Scrollable conversation area */}
-      <div className="flex-1 flex justify-center min-h-0 overflow-y-auto">
-        <div className={`${getContainerClassName()} px-6 py-4`}>
+      <Conversation className="flex-1">
+        <ConversationContent className="chat-interface w-full max-w-3xl mx-auto">
           {messages.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <Welcome />
@@ -301,22 +230,21 @@ export const ChatInterface = ({
           ) : (
             <div className="space-y-4">
               {messages.map((message) => renderMessage(message))}
-              {isLoading && !retryingMessageId && <Loader />}
             </div>
           )}
-        </div>
-      </div>
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
 
-      {/* Fixed prompt area at bottom */}
       <div className="flex-shrink-0 flex justify-center p-6 pt-4">
         <PromptInput
           onSubmit={handleSubmit}
-          className={getContainerClassName()}
+          className="chat-interface w-full max-w-3xl mx-auto"
         >
           <PromptInputTextarea
             onChange={(e) => setInput(e.target.value)}
             value={input}
-            placeholder="Type your message..."
+            placeholder="Ask anything here ..."
           />
           <PromptInputToolbar>
             <PromptInputTools>
@@ -348,7 +276,10 @@ export const ChatInterface = ({
                 </PromptInputModelSelectContent>
               </PromptInputModelSelect>
             </PromptInputTools>
-            <PromptInputSubmit disabled={!input || isLoading} />
+            <PromptInputSubmit
+              disabled={!input}
+              status={hasPendingMessages ? "submitted" : undefined}
+            />
           </PromptInputToolbar>
         </PromptInput>
       </div>
