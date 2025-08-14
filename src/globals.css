@@ -31,13 +31,13 @@
 }
 
 .dark {
-    --background: 240 0% 15%;
+    --background: 240 0% 10%;
     --foreground: 0 0% 98%;
     --card: 240 10% 3.9%;
     --card-foreground: 0 0% 98%;
     --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 95%;
+    --primary: 0 0% 90%;
     --primary-foreground: 240 5.9% 10%;
     --secondary: 240 3.7% 20.9%;
     --secondary-foreground: 0 0% 98%;
@@ -60,12 +60,21 @@
 @layer base {
     * {
         @apply border-border;
+        box-sizing: border-box;
     }
     body {
         @apply bg-background text-foreground;
         font-feature-settings:
             "rlig" 1,
             "calt" 1;
+        overflow-x: hidden;
+    }
+
+    /* Prevent horizontal scrolling globally */
+    html,
+    body {
+        max-width: 100vw;
+        overflow-x: hidden;
     }
 }
 
@@ -128,13 +137,81 @@
         .chat-interface {
             width: 100% !important;
             max-width: 100% !important;
-            padding-left: 1rem !important;
-            padding-right: 1rem !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
         }
 
         .chat-container {
             transition: none;
             margin-left: 0 !important;
+            overflow-x: hidden;
+        }
+
+        /* Prevent horizontal scrolling on mobile */
+        * {
+            max-width: 100vw !important;
+            box-sizing: border-box;
+        }
+
+        /* Better code block handling on mobile */
+        pre {
+            overflow-x: auto !important;
+            white-space: pre !important;
+            word-break: normal !important;
+            word-wrap: normal !important;
+            max-width: calc(100vw - 2rem) !important;
+        }
+
+        /* Responsive tables */
+        table {
+            display: block;
+            overflow-x: auto;
+            white-space: nowrap;
+            max-width: 100%;
+            width: 100%;
+        }
+
+        /* Long text handling */
+        .prose,
+        .prose * {
+            overflow-wrap: break-word;
+            word-break: break-word;
+            max-width: 100%;
+        }
+
+        /* Message content responsive handling */
+        [role="log"] {
+            overflow-x: hidden;
+            max-width: 100vw;
+        }
+
+        /* Code syntax highlighter containers */
+        .react-syntax-highlighter {
+            max-width: calc(100vw - 2rem) !important;
+            overflow-x: auto !important;
+        }
+
+        /* Ensure all content respects viewport width */
+        div,
+        span,
+        p,
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            max-width: 100%;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+        }
+
+        /* Handle long URLs and links */
+        a {
+            word-break: break-all;
+            overflow-wrap: break-word;
         }
     }
 
@@ -142,6 +219,8 @@
     @media (max-width: 1024px) {
         .chat-interface {
             max-width: 100% !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
         }
     }
 
@@ -171,6 +250,7 @@
 
         .chat-container {
             min-width: 0;
+            overflow-x: hidden;
         }
     }
 }

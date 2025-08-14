@@ -265,7 +265,7 @@ const components: Options["components"] = {
     </h6>
   ),
   p: ({ node, children, className, ...props }) => (
-    <p className={cn("mb-4 leading-relaxed", className)} {...props}>
+    <p className={cn("mb-4 leading-relaxed break-words", className)} {...props}>
       {children}
     </p>
   ),
@@ -283,12 +283,16 @@ const components: Options["components"] = {
       children.type === "code";
 
     if (!childrenIsCode) {
-      return <pre>{children}</pre>;
+      return (
+        <pre className="overflow-x-auto whitespace-pre-wrap break-words">
+          {children}
+        </pre>
+      );
     }
 
     return (
       <CodeBlock
-        className={cn("my-4 h-auto", className)}
+        className={cn("my-4 h-auto w-full overflow-hidden", className)}
         code={(children.props as { children: string }).children}
         language={language}
       >
@@ -321,7 +325,7 @@ export const Response = memo(
     return (
       <div
         className={cn(
-          "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:mb-4 [&_p]:leading-relaxed prose-p:mb-4 prose-p:leading-relaxed",
+          "size-full w-full max-w-full overflow-hidden [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:mb-4 [&_p]:leading-relaxed [&_p]:break-words prose-p:mb-4 prose-p:leading-relaxed prose-p:break-words [&_table]:overflow-x-auto [&_table]:block [&_table]:whitespace-nowrap [&_table]:max-w-full",
           className,
         )}
         {...props}

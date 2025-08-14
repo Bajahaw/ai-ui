@@ -18,7 +18,9 @@ export const Message = ({
     className={cn(
       "group flex w-full items-start gap-2 py-6",
       from === "user" ? "is-user justify-end" : "is-assistant justify-start",
-      from === "user" ? "[&>div]:max-w-[80%]" : "[&>div]:max-w-full",
+      from === "user"
+        ? "[&>div]:max-w-[80%] sm:[&>div]:max-w-[70%]"
+        : "[&>div]:max-w-full",
       status === "error" && "is-error",
       className,
     )}
@@ -35,15 +37,17 @@ export const MessageContent = ({
 }: MessageContentProps) => (
   <div
     className={cn(
-      "flex flex-col gap-2 text-sm text-foreground overflow-hidden leading-relaxed",
-      "group-[.is-user]:bg-primary group-[.is-user]:text-primary-foreground group-[.is-user]:rounded-lg group-[.is-user]:px-4 group-[.is-user]:py-3",
+      "flex flex-col gap-2 text-sm text-foreground overflow-hidden leading-relaxed w-full min-w-0",
+      "group-[.is-user]:bg-primary group-[.is-user]:text-primary-foreground group-[.is-user]:rounded-lg group-[.is-user]:px-3 group-[.is-user]:py-2 sm:group-[.is-user]:px-4 sm:group-[.is-user]:py-3",
       "group-[.is-assistant]:bg-transparent group-[.is-assistant]:text-foreground group-[.is-assistant]:px-0 group-[.is-assistant]:py-0",
-      "group-[.is-error]:bg-destructive/10 group-[.is-error]:border group-[.is-error]:border-destructive/20 group-[.is-error]:rounded-lg group-[.is-error]:px-4 group-[.is-error]:py-3",
+      "group-[.is-error]:bg-destructive/10 group-[.is-error]:border group-[.is-error]:border-destructive/20 group-[.is-error]:rounded-lg group-[.is-error]:px-3 group-[.is-error]:py-2 sm:group-[.is-error]:px-4 sm:group-[.is-error]:py-3",
       className,
     )}
     {...props}
   >
-    <div className="group-[.is-user]:dark space-y-4">{children}</div>
+    <div className="group-[.is-user]:dark space-y-4 overflow-hidden break-words">
+      {children}
+    </div>
   </div>
 );
 
