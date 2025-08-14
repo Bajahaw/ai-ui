@@ -27,6 +27,7 @@ export class ConversationsAPI {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
       });
 
       if (!response.ok) {
@@ -93,6 +94,7 @@ export class ConversationsAPI {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify(request),
       });
 
@@ -127,6 +129,7 @@ export class ConversationsAPI {
           headers: {
             "Content-Type": "application/json",
           },
+          credentials: "include",
         },
       );
 
@@ -162,6 +165,7 @@ export class ConversationsAPI {
           headers: {
             "Content-Type": "application/json",
           },
+          credentials: "include",
         },
       );
 
@@ -192,6 +196,7 @@ export class ConversationsAPI {
           headers: {
             "Content-Type": "application/json",
           },
+          credentials: "include",
           body: JSON.stringify({ title: title.trim() }),
         },
       );

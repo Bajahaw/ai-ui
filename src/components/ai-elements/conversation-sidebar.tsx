@@ -16,10 +16,14 @@ import {
   MoreHorizontalIcon,
   PencilIcon,
   TrashIcon,
+  LogInIcon,
+  LogOutIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ComponentProps, useState } from "react";
 import { ClientConversation } from "@/lib/clientConversationManager";
+import { useAuth } from "@/hooks/useAuth";
+import { LoginDialog } from "@/components/auth/LoginDialog";
 
 export interface ConversationSidebarProps extends ComponentProps<"div"> {
   conversations?: ClientConversation[];
@@ -226,7 +230,51 @@ export const ConversationSidebar = ({
             )}
           </div>
         </ScrollArea>
+
+        {/* Login/Logout Section */}
+        <div className="p-4 border-t">
+          <AuthButton />
+        </div>
       </div>
     </div>
+  );
+};
+
+const AuthButton = () => {
+  const { isAuthenticated, logout, isLoading } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
+  };
+
+  if (isAuthenticated) {
+    return (
+      <Button
+        variant="outline"
+        onClick={handleLogout}
+        disabled={isLoading}
+        className="w-full justify-start gap-2"
+      >
+        {isLoading ? (
+          <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        ) : (
+          <LogOutIcon className="size-4" />
+        )}
+        <span>{isLoading ? "Logging out..." : "Logout"}</span>
+      </Button>
+    );
+  }
+
+  return (
+    <LoginDialog>
+      <Button variant="outline" className="w-full justify-start gap-2">
+        <LogInIcon className="size-4" />
+        Login
+      </Button>
+    </LoginDialog>
   );
 };

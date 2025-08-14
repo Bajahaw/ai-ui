@@ -80,6 +80,7 @@ export class ChatAPI {
             headers: {
               "Content-Type": "application/json",
             },
+            credentials: "include",
             body: JSON.stringify(createRequest),
           },
         );
@@ -122,6 +123,7 @@ export class ChatAPI {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify(request),
       });
 
