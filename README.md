@@ -34,9 +34,24 @@ npm run dev
 
 The app will be available at `http://localhost:3000`. 
 
-The frontend expects a Go backend API running on `http://localhost:8080`.
+### 3. Configure API Base URL
 
-### 3. Build for Production
+Copy the environment configuration file:
+
+```bash
+cp .env.example .env.local
+```
+
+Edit `.env.local` to point to your backend API:
+
+```bash
+# For local development
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+The frontend will now make direct API calls to your backend without using a proxy.
+
+### 4. Build for Production
 
 ```bash
 npm run build
@@ -44,7 +59,7 @@ npm run build
 
 The built files will be in the `dist` directory.
 
-### 4. Preview Production Build
+### 5. Preview Production Build
 
 ```bash
 npm run preview
@@ -77,11 +92,27 @@ ai-ui/
 - `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint
 
-## Backend API
+## API Configuration
 
-The frontend is configured to proxy API calls to `http://localhost:8080` during development. 
+The frontend uses environment-based configuration for API endpoints. See [API_CONFIGURATION.md](./API_CONFIGURATION.md) for detailed setup instructions.
 
-### API Endpoint
+### Quick Setup
+
+For development, ensure `.env.local` contains:
+```bash
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+For production, set the appropriate API base URL:
+```bash
+# Same domain deployment (behind reverse proxy)
+VITE_API_BASE_URL=
+
+# Separate API domain
+VITE_API_BASE_URL=https://api.yourdomain.com
+```
+
+### API Endpoints
 
 The app expects a Go backend with the following endpoint:
 
@@ -166,15 +197,21 @@ Deploy the `dist` folder to any static hosting service:
 
 ### Backend Requirements
 Ensure your Go backend:
-1. Runs on `localhost:8080` (or update proxy in `vite.config.ts`)
-2. Implements the `/api/chat` endpoint
-3. Handles CORS for your frontend domain
-4. Returns responses in the expected format
+1. Implements the required API endpoints (`/api/chat`, `/api/conversations`, etc.)
+2. Handles CORS for your frontend domain
+3. Returns responses in the expected format
+4. Is accessible at the configured API base URL
 
 ### Production Configuration
-For production, configure your web server to:
+See [API_CONFIGURATION.md](./API_CONFIGURATION.md) for detailed deployment configurations including:
+- Same-domain deployment with reverse proxy
+- Separate API domain setup
+- Docker deployment
+- Environment variable configuration
+
+For basic setup, configure your web server to:
 - Serve static files from `dist/`
-- Proxy `/api/*` requests to your Go backend
+- Route API calls to your backend (if using same domain)
 - Handle client-side routing (return `index.html` for SPA routes)
 
 ## Future Enhancements

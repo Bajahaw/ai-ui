@@ -10,19 +10,16 @@ import {
   isConversationArray,
   isCreateConversationResponse,
 } from "./errorHandler";
+import { getApiUrl } from "../config";
 
 // API client for conversation endpoints
 export class ConversationsAPI {
-  private baseUrl: string;
-
-  constructor(baseUrl: string = "") {
-    this.baseUrl = baseUrl;
-  }
+  constructor() {}
 
   // GET /api/conversations
   async fetchConversations(): Promise<Conversation[]> {
     return ApiErrorHandler.handleApiCall(async () => {
-      const response = await fetch(`${this.baseUrl}/api/conversations`, {
+      const response = await fetch(getApiUrl("/api/conversations"), {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -89,7 +86,7 @@ export class ConversationsAPI {
         conversation,
       };
 
-      const response = await fetch(`${this.baseUrl}/api/conversations/add`, {
+      const response = await fetch(getApiUrl("/api/conversations/add"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -123,7 +120,7 @@ export class ConversationsAPI {
 
     return ApiErrorHandler.handleApiCall(async () => {
       const response = await fetch(
-        `${this.baseUrl}/api/conversations/${encodeURIComponent(id)}`,
+        getApiUrl(`/api/conversations/${encodeURIComponent(id)}`),
         {
           method: "GET",
           headers: {
@@ -159,7 +156,7 @@ export class ConversationsAPI {
 
     return ApiErrorHandler.handleApiCall(async () => {
       const response = await fetch(
-        `${this.baseUrl}/api/conversations/${encodeURIComponent(id)}`,
+        getApiUrl(`/api/conversations/${encodeURIComponent(id)}`),
         {
           method: "DELETE",
           headers: {
@@ -190,7 +187,7 @@ export class ConversationsAPI {
 
     return ApiErrorHandler.handleApiCall(async () => {
       const response = await fetch(
-        `${this.baseUrl}/api/conversations/${encodeURIComponent(id)}/rename`,
+        getApiUrl(`/api/conversations/${encodeURIComponent(id)}/rename`),
         {
           method: "POST",
           headers: {

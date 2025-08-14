@@ -1,12 +1,9 @@
 import { ApiErrorHandler } from "./errorHandler";
+import { getApiUrl } from "../config";
 
 // Authentication API client for login/logout endpoints
 export class AuthAPI {
-  private baseUrl: string;
-
-  constructor(baseUrl: string = "") {
-    this.baseUrl = baseUrl;
-  }
+  constructor() {}
 
   // POST /login
   async login(token: string): Promise<void> {
@@ -16,13 +13,13 @@ export class AuthAPI {
 
     return ApiErrorHandler.handleApiCall(async () => {
       const response = await fetch(
-        `${this.baseUrl}/api/login?token=${encodeURIComponent(token.trim())}`,
+        getApiUrl(`/api/login?token=${encodeURIComponent(token.trim())}`),
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          credentials: "include", // Include cookies in the request
+          credentials: "include",
         },
       );
 
@@ -37,7 +34,7 @@ export class AuthAPI {
   // POST /logout
   async logout(): Promise<void> {
     return ApiErrorHandler.handleApiCall(async () => {
-      const response = await fetch(`${this.baseUrl}/api/logout`, {
+      const response = await fetch(getApiUrl("/api/logout"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -56,7 +53,7 @@ export class AuthAPI {
   // Check if user is authenticated by making a test request
   async checkAuthStatus(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/conversations`, {
+      const response = await fetch(getApiUrl("/api/conversations"), {
         method: "GET",
         headers: {
           "Content-Type": "application/json",

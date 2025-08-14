@@ -11,16 +11,11 @@ import {
   isChatResponse,
   isCreateConversationResponse,
 } from "./errorHandler";
+import { getApiUrl } from "../config";
 
-// API client for chat endpoint
 export class ChatAPI {
-  private baseUrl: string;
+  constructor() {}
 
-  constructor(baseUrl: string = "") {
-    this.baseUrl = baseUrl;
-  }
-
-  // POST /api/chat - handles both new conversations and existing ones
   async sendMessage(
     conversationId: string | null,
     activeMessageId: number | null,
@@ -41,7 +36,6 @@ export class ChatAPI {
       let finalConversationId = conversationId;
       let finalActiveMessageId = activeMessageId;
 
-      // If no conversation ID, create new conversation first
       if (!conversationId) {
         finalConversationId = generateConversationId();
         finalActiveMessageId = 1;
@@ -74,7 +68,7 @@ export class ChatAPI {
         };
 
         const createResponse = await fetch(
-          `${this.baseUrl}/api/conversations/add`,
+          getApiUrl("/api/conversations/add"),
           {
             method: "POST",
             headers: {
@@ -118,7 +112,7 @@ export class ChatAPI {
         webSearch,
       };
 
-      const response = await fetch(`${this.baseUrl}/api/chat`, {
+      const response = await fetch(getApiUrl("/api/chat"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
