@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { ConversationSidebar } from "@/components/ai-elements/conversation-sidebar";
@@ -6,6 +6,27 @@ import { ChatInterface } from "@/components/ChatInterface";
 import { useConversations } from "@/hooks/useConversations";
 
 import { MessageSquareIcon } from "lucide-react";
+
+// Utility function to extract timestamp from conversation ID (conv-20250815-182253)
+// Example: conv-20250815-182253 → August 15, 2025 at 18:22:53 → timestamp for sorting
+const getConversationTimestamp = (conversationId: string): number => {
+  try {
+    const match = conversationId.match(/^conv-(\d{8})-(\d{6})$/);
+    if (!match) return 0;
+
+    const [, dateStr, timeStr] = match;
+    const year = parseInt(dateStr.substring(0, 4));
+    const month = parseInt(dateStr.substring(4, 6)) - 1; // Month is 0-indexed
+    const day = parseInt(dateStr.substring(6, 8));
+    const hour = parseInt(timeStr.substring(0, 2));
+    const minute = parseInt(timeStr.substring(2, 4));
+    const second = parseInt(timeStr.substring(4, 6));
+
+    return new Date(year, month, day, hour, minute, second).getTime();
+  } catch {
+    return 0;
+  }
+};
 
 function App() {
   const [webSearch, setWebSearch] = useState(false);
@@ -22,7 +43,6 @@ function App() {
     conversations,
     currentConversation,
     activeConversationId,
-    createConversation,
     sendMessage: sendChatMessage,
     selectConversation,
     startNewChat,
@@ -59,13 +79,12 @@ function App() {
     setLastMessageTime(currentTime);
 
     try {
-      const conversationId = activeConversationId;
-
-      if (!conversationId) {
-        await createConversation(message, model, webSearchEnabled);
-      } else {
-        await sendChatMessage(conversationId, message, model, webSearchEnabled);
-      }
+      await sendChatMessage(
+        activeConversationId,
+        message,
+        model,
+        webSearchEnabled,
+      );
     } catch (error) {
       console.error("Error in message flow:", error);
     } finally {
@@ -138,8 +157,16 @@ function App() {
     ? getCurrentMessages(currentConversation)
     : [];
 
-  // Fallback handling for empty or invalid conversations
-  const safeConversations = Array.isArray(conversations) ? conversations : [];
+  // Fallback handling for empty or invalid conversations and sort by recency
+  const safeConversations = useMemo(() => {
+    return Array.isArray(conversations)
+      ? [...conversations].sort((a, b) => {
+          const timestampA = getConversationTimestamp(a.id);
+          const timestampB = getConversationTimestamp(b.id);
+          return timestampB - timestampA; // Most recent first
+        })
+      : [];
+  }, [conversations]);
 
   return (
     <div className="flex h-screen relative overflow-hidden">

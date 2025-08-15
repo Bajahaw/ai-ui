@@ -6,10 +6,9 @@ export interface ApiConfig {
 }
 
 const getApiBaseUrl = (): string => {
-
   const isDevelopment = import.meta.env.DEV;
   if (isDevelopment) {
-    return import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+    return "http://localhost:8080";
   }
 
   const productionBaseUrl = import.meta.env.VITE_API_BASE_URL;
@@ -17,7 +16,7 @@ const getApiBaseUrl = (): string => {
     return productionBaseUrl;
   }
 
-  return '';
+  return "";
 };
 
 export const apiConfig: ApiConfig = {
@@ -29,10 +28,10 @@ export const apiConfig: ApiConfig = {
 // Helper function to get full API URL
 export const getApiUrl = (endpoint: string): string => {
   const baseUrl = apiConfig.baseUrl;
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
 
   if (baseUrl) {
-    return `${baseUrl.replace(/\/$/, '')}${cleanEndpoint}`;
+    return `${baseUrl.replace(/\/$/, "")}${cleanEndpoint}`;
   }
 
   return cleanEndpoint;
@@ -48,7 +47,7 @@ export const envInfo = {
 
 // Log configuration in development
 if (import.meta.env.DEV) {
-  console.log('API Configuration:', {
+  console.log("API Configuration:", {
     baseUrl: apiConfig.baseUrl,
     environment: import.meta.env.MODE,
   });

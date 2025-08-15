@@ -39,7 +39,7 @@ export class AuthAPI {
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: "include", // Include cookies in the request
+        credentials: "include",
       });
 
       if (!response.ok) {

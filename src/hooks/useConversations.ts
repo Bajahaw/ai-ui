@@ -54,85 +54,65 @@ export const useConversations = () => {
     }
   }, [manager, syncConversations]);
 
-  const createConversation = useCallback(
-    async (
-      firstMessage: string,
-      model: string,
-      webSearch: boolean = false,
-    ): Promise<string> => {
-      setError(null);
-
-      // Create conversation optimistically
-      const clientConversation = manager.createConversation(firstMessage);
-      syncConversations();
-      setActiveConversationId(clientConversation.id);
-
-      try {
-        // Use merged chat API that handles both conversation creation and first message
-        const chatResponse = await chatAPI.sendMessage(
-          null, // null conversationId triggers new conversation creation
-          null, // null activeMessageId for new conversation
-          model, // use the model selected by user
-          firstMessage,
-          webSearch, // use the webSearch setting from user
-          clientConversation.title, // title for new conversation
-        );
-
-        // Set up backend conversation structure from chat response
-        const messageIds = Object.keys(chatResponse.messages).map(Number);
-        const maxMessageId =
-          messageIds.length > 0 ? Math.max(...messageIds) : 1;
-
-        const backendConversation = {
-          id: chatResponse.conversationId,
-          title: clientConversation.title,
-          messages: chatResponse.messages,
-          root: messageIds.length > 0 ? [Math.min(...messageIds)] : [1],
-          activeMessageId: maxMessageId,
-        };
-
-        // Set backend conversation and process messages in one go
-        const conversation = manager.getConversation(clientConversation.id);
-        if (conversation) {
-          conversation.backendConversation = backendConversation;
-        }
-
-        manager.updateWithChatResponse(
-          clientConversation.id,
-          chatResponse.messages,
-        );
-        syncConversations();
-
-        return clientConversation.id;
-      } catch (error) {
-        const tempMessage = clientConversation.messages[0];
-        if (tempMessage) {
-          const errorMsg = ApiErrorHandler.getUserFriendlyMessage(error);
-          manager.markAssistantFailed(
-            clientConversation.id,
-            tempMessage.id,
-            errorMsg,
-          );
-          syncConversations();
-        }
-        throw error;
-      }
-    },
-    [manager, syncConversations],
-  );
-
   const sendMessage = useCallback(
     async (
-      conversationId: string,
+      conversationId: string | null,
       message: string,
       model: string,
       webSearch: boolean = false,
-    ): Promise<void> => {
+    ): Promise<string> => {
       let tempMessageId: string | undefined;
+      let clientConversationId = conversationId;
 
       try {
         setError(null);
 
+        // Handle new conversation case
+        if (!conversationId) {
+          // Create conversation optimistically
+          const clientConversation = manager.createConversation(message);
+          clientConversationId = clientConversation.id;
+          syncConversations();
+          setActiveConversationId(clientConversationId);
+
+          // Send message to server - server will create conversation on the fly
+          const chatResponse = await chatAPI.sendMessage(
+            null, // null conversationId triggers server-side conversation creation
+            null, // null activeMessageId for new conversation
+            model,
+            message,
+            webSearch,
+          );
+
+          // Set up backend conversation structure from chat response
+          const messageIds = Object.keys(chatResponse.messages).map(Number);
+          const maxMessageId =
+            messageIds.length > 0 ? Math.max(...messageIds) : 1;
+
+          const backendConversation = {
+            id: chatResponse.conversationId,
+            title: clientConversation.title,
+            messages: chatResponse.messages,
+            root: messageIds.length > 0 ? [Math.min(...messageIds)] : [1],
+            activeMessageId: maxMessageId,
+          };
+
+          // Set backend conversation and process messages in one go
+          const conversation = manager.getConversation(clientConversationId);
+          if (conversation) {
+            conversation.backendConversation = backendConversation;
+          }
+
+          manager.updateWithChatResponse(
+            clientConversationId,
+            chatResponse.messages,
+          );
+          syncConversations();
+
+          return clientConversationId;
+        }
+
+        // Handle existing conversation case
         const conversation = manager.getConversation(conversationId);
         if (!conversation) {
           throw new Error("Conversation not found");
@@ -162,12 +142,18 @@ export const useConversations = () => {
 
         manager.updateWithChatResponse(conversationId, chatResponse.messages);
         syncConversations();
+
+        return conversationId;
       } catch (err) {
         console.error("Failed to send message:", err);
 
-        if (tempMessageId) {
+        if (tempMessageId && clientConversationId) {
           const errorMsg = ApiErrorHandler.getUserFriendlyMessage(err);
-          manager.markAssistantFailed(conversationId, tempMessageId, errorMsg);
+          manager.markAssistantFailed(
+            clientConversationId,
+            tempMessageId,
+            errorMsg,
+          );
           syncConversations();
         }
 
@@ -280,7 +266,6 @@ export const useConversations = () => {
     currentConversation,
     isLoading,
     error,
-    createConversation,
     sendMessage,
     getCurrentMessages,
     selectConversation,

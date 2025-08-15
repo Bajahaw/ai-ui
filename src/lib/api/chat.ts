@@ -1,16 +1,5 @@
-import {
-  ChatRequest,
-  ChatResponse,
-  generateConversationId,
-  Conversation,
-  frontendToBackendMessage,
-  CreateConversationRequest,
-} from "./types";
-import {
-  ApiErrorHandler,
-  isChatResponse,
-  isCreateConversationResponse,
-} from "./errorHandler";
+import { ChatRequest, ChatResponse, generateConversationId } from "./types";
+import { ApiErrorHandler, isChatResponse } from "./errorHandler";
 import { getApiUrl } from "../config";
 
 export class ChatAPI {
@@ -22,7 +11,6 @@ export class ChatAPI {
     model: string,
     content: string,
     webSearch: boolean = false,
-    title?: string,
   ): Promise<ChatResponse & { conversationId: string }> {
     if (!model) {
       throw new Error("Valid model is required");
@@ -33,80 +21,9 @@ export class ChatAPI {
     }
 
     return ApiErrorHandler.handleApiCall(async () => {
-      let finalConversationId = conversationId;
-      let finalActiveMessageId = activeMessageId;
-
-      if (!conversationId) {
-        finalConversationId = generateConversationId();
-        finalActiveMessageId = 1;
-
-        const userMessage = frontendToBackendMessage(
-          {
-            id: "1",
-            role: "user",
-            content: content,
-            status: "success",
-            timestamp: Date.now(),
-          },
-          1,
-        );
-
-        const conversation: Conversation = {
-          id: finalConversationId,
-          title:
-            title ||
-            (content.length > 50 ? content.substring(0, 47) + "..." : content),
-          messages: {
-            1: userMessage,
-          },
-          root: [1],
-          activeMessageId: 1,
-        };
-
-        const createRequest: CreateConversationRequest = {
-          conversation,
-        };
-
-        const createResponse = await fetch(
-          getApiUrl("/api/conversations/add"),
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            credentials: "include",
-            body: JSON.stringify(createRequest),
-          },
-        );
-
-        if (!createResponse.ok) {
-          await ApiErrorHandler.handleFetchError(
-            createResponse,
-            "Create conversation",
-          );
-        }
-
-        const createResult = await createResponse.json();
-        ApiErrorHandler.validateResponse(
-          createResult,
-          isCreateConversationResponse,
-          "Create conversation",
-        );
-      }
-
-      // Validate for existing conversations
-      if (
-        conversationId &&
-        (typeof finalActiveMessageId !== "number" || finalActiveMessageId < 0)
-      ) {
-        throw new Error(
-          "Valid active message ID is required for existing conversations",
-        );
-      }
-
       const request: ChatRequest = {
-        conversationId: finalConversationId!,
-        activeMessageId: finalActiveMessageId!,
+        conversationId: conversationId || generateConversationId(),
+        activeMessageId: activeMessageId || 1,
         model,
         content,
         webSearch,
@@ -136,7 +53,7 @@ export class ChatAPI {
 
       return {
         ...validatedData,
-        conversationId: finalConversationId!,
+        conversationId: request.conversationId,
       };
     }, "sendMessage");
   }
