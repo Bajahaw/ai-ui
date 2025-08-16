@@ -4,10 +4,10 @@ import { CheckIcon, CopyIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 import { createContext, useContext, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-// @ts-ignore
-import { tomorrow } from "react-syntax-highlighter/dist/styles/tomorrow";
-// @ts-ignore
-import { github } from "react-syntax-highlighter/dist/styles/github";
+import {
+  oneDark,
+  oneLight,
+} from "react-syntax-highlighter/dist/cjs/styles/prism";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -45,7 +45,7 @@ export const CodeBlock = ({
       <div className="relative">
         <SyntaxHighlighter
           language={language}
-          style={github}
+          style={oneLight}
           customStyle={{
             margin: 0,
             padding: "1rem",
@@ -71,7 +71,7 @@ export const CodeBlock = ({
         </SyntaxHighlighter>
         <SyntaxHighlighter
           language={language}
-          style={tomorrow}
+          style={oneDark}
           customStyle={{
             margin: 0,
             padding: "1rem",
