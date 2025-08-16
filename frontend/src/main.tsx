@@ -10,14 +10,14 @@ const isDevelopment = (import.meta as any).env.DEV;
 // Conditionally wrap with StrictMode - disable in dev to prevent duplicate messages
 const AppWrapper = isDevelopment ? (
   <AuthProvider>
-    <ThemeProvider defaultTheme="system" storageKey="ai-ui-theme">
+    <ThemeProvider defaultTheme="dark" storageKey="ai-ui-theme">
       <App />
     </ThemeProvider>
   </AuthProvider>
 ) : (
   <React.StrictMode>
     <AuthProvider>
-      <ThemeProvider defaultTheme="system" storageKey="ai-ui-theme">
+      <ThemeProvider defaultTheme="dark" storageKey="ai-ui-theme">
         <App />
       </ThemeProvider>
     </AuthProvider>

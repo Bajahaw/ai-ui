@@ -1,13 +1,29 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI UI</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<html lang="en" class="dark">
+    <head>
+        <meta charset="UTF-8" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>AI UI</title>
+        <script>
+            (function () {
+                const stored = localStorage.getItem("ai-ui-theme");
+                const theme = stored === "light" || stored === "dark" ? stored : "dark";
+                document.documentElement.className = theme;
+            })();
+        </script>
+        <style>
+            html:not(.light) {
+                color-scheme: dark;
+            }
+            html:not(.light) body {
+                background-color: hsl(240 0% 10%) !important;
+                color: hsl(0 0% 98%) !important;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="/src/main.tsx"></script>
+    </body>
 </html>
