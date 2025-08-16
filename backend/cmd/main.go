@@ -3,6 +3,7 @@ package main
 import (
 	"ai-client/cmd/auth"
 	"ai-client/cmd/chat"
+	"ai-client/cmd/provider"
 	"context"
 	"errors"
 	"log"
@@ -12,6 +13,11 @@ import (
 	"syscall"
 	"time"
 )
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
 
 func main() {
 	StartServer()
@@ -25,18 +31,15 @@ func StartServer() {
 	mux := http.NewServeMux()
 
 	mux.Handle("/", fs)
-	mux.HandleFunc("POST 	  /api/chat", auth.Authenticated(chat.Chat))
-	mux.HandleFunc("GET  	  /api/conversations", auth.Authenticated(chat.GetAllConversations))
-	mux.HandleFunc("POST 	  /api/conversations/add", auth.Authenticated(chat.AddConversation))
-	mux.HandleFunc("GET  	  /api/conversations/{id}", auth.Authenticated(chat.GetConversation))
-	mux.HandleFunc("DELETE 	  /api/conversations/{id}", auth.Authenticated(chat.DeleteConversation))
-	mux.HandleFunc("POST 	  /api/conversations/{id}/rename", auth.Authenticated(chat.RenameConversation))
-	mux.HandleFunc("POST 	  /api/logout", auth.Authenticated(auth.Logout))
-	mux.HandleFunc("POST 	  /api/login", auth.Login)
+	mux.Handle("/api/chat/", http.StripPrefix("/api/chat", chat.Handler()))
+	mux.Handle("/api/conversations/", http.StripPrefix("/api/conversations", chat.ConvsHandler()))
+	mux.Handle("/api/providers/", http.StripPrefix("/api/providers", provider.Handler()))
+	mux.Handle("POST /api/logout", auth.Logout())
+	mux.Handle("POST /api/login", auth.Login())
 
 	server := &http.Server{
 		Addr:         ":8080",
-		Handler:      mux,
+		Handler:      logMiddleware(mux),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  120 * time.Second,
@@ -64,4 +67,17 @@ func StartServer() {
 	}
 
 	log.Println("Server gracefully stopped")
+}
+
+func (r *statusRecorder) writeHeader(code int) {
+	r.status = code
+	r.ResponseWriter.WriteHeader(code)
+}
+
+func logMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(recorder, r)
+		log.Printf("Received request: %d %s %s", recorder.status, r.Method, r.URL.Path)
+	})
 }

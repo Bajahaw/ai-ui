@@ -44,11 +44,30 @@ func ExtractBody(r *http.Request) ([]byte, error) {
 	return body, nil
 }
 
-func RespondWithJSON(w http.ResponseWriter, data interface{}) {
+func ExtractJSONBody(r *http.Request, v interface{}) error {
+	err := json.NewDecoder(r.Body).Decode(v)
+	if err != nil {
+		return fmt.Errorf("error decoding JSON body: %w", err)
+	}
+	if err := r.Body.Close(); err != nil {
+		return fmt.Errorf("error closing request body: %w", err)
+	}
+	return nil
+}
+
+func RespondWithJSON(w http.ResponseWriter, data interface{}, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		http.Error(w, fmt.Sprintf("Error encoding response: %v", err), http.StatusInternalServerError)
+
+	buf, err := json.Marshal(data)
+	if err != nil {
+		http.Error(w, "failed to encode JSON", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(statusCode)
+	_, err = w.Write(buf)
+	if err != nil {
+		log.Println("failed to write response:", err)
 	}
 }
 

@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"ai-client/cmd/auth"
 	"ai-client/cmd/utils"
 	"context"
 	"encoding/json"
@@ -22,7 +23,25 @@ type Request struct {
 	WebSearch      bool   `json:"webSearch,omitempty"`
 }
 
-func Chat(w http.ResponseWriter, r *http.Request) {
+func Handler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /", chat)
+	return auth.Authenticated(mux)
+}
+
+func ConvsHandler() http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET  		/", GetAllConversations)
+	mux.HandleFunc("POST 		/add", AddConversation)
+	mux.HandleFunc("GET  		/{id}", GetConversation)
+	mux.HandleFunc("DELETE	/{id}", DeleteConversation)
+	mux.HandleFunc("POST 		/{id}/rename", RenameConversation)
+
+	return auth.Authenticated(mux)
+}
+
+func chat(w http.ResponseWriter, r *http.Request) {
 	var req Request
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil || req.ConversationID == "" || req.Content == "" {
@@ -30,6 +49,7 @@ func Chat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+	_ = r.Body.Close()
 
 	ctx := context.Background()
 	client := openai.NewClient(
@@ -127,7 +147,7 @@ func Chat(w http.ResponseWriter, r *http.Request) {
 	response.Messages[userMessage.ID], _ = conv.GetMessage(userMessage.ID)
 	response.Messages[responseMessage.ID], _ = conv.GetMessage(responseMessage.ID)
 
-	utils.RespondWithJSON(w, response)
+	utils.RespondWithJSON(w, response, http.StatusOK)
 }
 
 func AddConversation(w http.ResponseWriter, r *http.Request) {
@@ -140,6 +160,7 @@ func AddConversation(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+	_ = r.Body.Close()
 
 	conv := &req.Conv
 
@@ -152,7 +173,7 @@ func AddConversation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.RespondWithJSON(w, conv)
+	utils.RespondWithJSON(w, conv, http.StatusCreated)
 }
 
 func GetConversation(w http.ResponseWriter, r *http.Request) {
@@ -162,7 +183,7 @@ func GetConversation(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Error retrieving conversation: %v", err), http.StatusInternalServerError)
 		return
 	}
-	utils.RespondWithJSON(w, &conv)
+	utils.RespondWithJSON(w, &conv, http.StatusOK)
 }
 
 func GetAllConversations(w http.ResponseWriter, _ *http.Request) {
@@ -171,7 +192,7 @@ func GetAllConversations(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, fmt.Sprintf("Error retrieving conversations: %v", err), http.StatusInternalServerError)
 		return
 	}
-	utils.RespondWithJSON(w, conversations)
+	utils.RespondWithJSON(w, conversations, http.StatusOK)
 }
 
 func DeleteConversation(w http.ResponseWriter, r *http.Request) {
@@ -195,6 +216,7 @@ func RenameConversation(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+	_ = r.Body.Close()
 
 	conv, err := repo.GetConversation(convId)
 	if err != nil {
@@ -210,5 +232,5 @@ func RenameConversation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.RespondWithJSON(w, conv)
+	utils.RespondWithJSON(w, &conv, http.StatusOK)
 }
