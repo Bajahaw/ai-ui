@@ -1,5 +1,5 @@
 # Dependencies
-node_modules/
+../node_modules/
 .pnp
 .pnp.*
 
@@ -9,7 +9,7 @@ build/
 
 # Environment variables
 .env
-.env.local
+frontend/.env.local
 .env.development.local
 .env.test.local
 .env.production.local
