@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { ConversationSidebar } from "@/components/ai-elements/conversation-sidebar";
 import { ChatInterface } from "@/components/ChatInterface";
 import { useConversations } from "@/hooks/useConversations";
+import { SettingsDialog } from "@/components/settings";
 
-import { MessageSquareIcon } from "lucide-react";
+import { MessageSquareIcon, SettingsIcon } from "lucide-react";
 
 // Utility function to extract timestamp from conversation ID (conv-20250815-182253)
 // Example: conv-20250815-182253 → August 15, 2025 at 18:22:53 → timestamp for sorting
@@ -37,6 +38,7 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastMessageContent, setLastMessageContent] = useState<string>("");
   const [lastMessageTime, setLastMessageTime] = useState<number>(0);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Conversation management with optimistic updates
   const {
@@ -201,7 +203,18 @@ function App() {
             </Button>
             <h1 className="text-2xl font-bold">AI Chat</h1>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowSettings(true)}
+              className="hover:bg-accent"
+              title="Settings"
+            >
+              <SettingsIcon className="size-4" />
+            </Button>
+            <ThemeToggle />
+          </div>
         </div>
 
         {/* Error Display */}
@@ -242,6 +255,9 @@ function App() {
           onRetryMessage={handleRetryMessage}
         />
       </div>
+
+      {/* Settings Dialog */}
+      <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
     </div>
   );
 }

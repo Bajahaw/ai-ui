@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useModels } from "@/hooks/useModels";
 
 import {
   Message as MessageComponent,
@@ -35,16 +36,7 @@ import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
 import { FrontendMessage } from "@/lib/api/types";
 
-const models = [
-  {
-    name: "Llama",
-    value: "meta-llama/llama-4-maverick-17b-128e-instruct",
-  },
-  {
-    name: "Deepseek R1",
-    value: "deepseek/deepseek-r1",
-  },
-];
+// Dynamic models are now loaded from providers via useModels hook
 
 interface ChatInterfaceProps {
   messages: FrontendMessage[];
@@ -65,11 +57,19 @@ export const ChatInterface = ({
   onSendMessage,
   onRetryMessage,
 }: ChatInterfaceProps) => {
-  const [model, setModel] = useState<string>(models[0].value);
+  const { models, isLoading: modelsLoading, getModelDisplayName } = useModels();
+  const [model, setModel] = useState<string>("");
   const [input, setInput] = useState("");
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(
     null,
   );
+
+  // Set default model when models are loaded
+  useEffect(() => {
+    if (models.length > 0 && !model) {
+      setModel(models[0].id);
+    }
+  }, [models, model]);
 
   // Check if there are any pending messages
   const hasPendingMessages = messages.some(
@@ -260,24 +260,35 @@ export const ChatInterface = ({
                   setModel(value);
                 }}
                 value={model}
+                disabled={modelsLoading || models.length === 0}
               >
                 <PromptInputModelSelectTrigger>
-                  <PromptInputModelSelectValue />
+                  <PromptInputModelSelectValue
+                    placeholder={
+                      modelsLoading ? "Loading models..." : "Select a model"
+                    }
+                  />
                 </PromptInputModelSelectTrigger>
                 <PromptInputModelSelectContent>
-                  {models.map((model) => (
-                    <PromptInputModelSelectItem
-                      key={model.value}
-                      value={model.value}
-                    >
-                      {model.name}
-                    </PromptInputModelSelectItem>
-                  ))}
+                  {models.length === 0 ? (
+                    <div className="px-2 py-1 text-sm text-muted-foreground">
+                      No models available
+                    </div>
+                  ) : (
+                    models.map((modelItem) => (
+                      <PromptInputModelSelectItem
+                        key={modelItem.id}
+                        value={modelItem.id}
+                      >
+                        {modelItem.name}
+                      </PromptInputModelSelectItem>
+                    ))
+                  )}
                 </PromptInputModelSelectContent>
               </PromptInputModelSelect>
             </PromptInputTools>
             <PromptInputSubmit
-              disabled={!input}
+              disabled={!input || !model || models.length === 0}
               status={hasPendingMessages ? "submitted" : undefined}
             />
           </PromptInputToolbar>

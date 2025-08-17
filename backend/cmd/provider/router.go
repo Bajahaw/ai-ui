@@ -76,6 +76,9 @@ func getAllModels(w http.ResponseWriter, r *http.Request) {
 
 func getProvidersList(w http.ResponseWriter, _ *http.Request) {
 	providers := repo.getAllProviders()
+	if providers == nil {
+		providers = []*Response{}
+	}
 	utils.RespondWithJSON(w, &providers, http.StatusOK)
 }
 

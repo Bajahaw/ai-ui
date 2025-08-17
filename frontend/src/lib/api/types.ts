@@ -129,3 +129,37 @@ export const frontendToBackendMessage = (
     children: [],
   };
 };
+
+// Provider API Types
+export interface ProviderRequest {
+  base_url: string;
+  api_key: string;
+}
+
+export interface ProviderResponse {
+  id: string;
+  base_url: string;
+}
+
+export interface Model {
+  name: string; // original name from provider
+  id: string; // provider id + name (for quick finding) e.g: provider-123/meta/llama-3b
+}
+
+export interface ModelsResponse {
+  models: Model[];
+}
+
+// Settings API Types
+export interface Settings {
+  settings: Record<string, string>;
+}
+
+// Frontend types for providers
+export interface FrontendProvider {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKey?: string; // Optional for display purposes
+  models?: Model[];
+}
