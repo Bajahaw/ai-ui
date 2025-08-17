@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/alecthomas/jsonschema"
-	"github.com/openai/openai-go"
 	"io"
 	"log"
 	"net/http"
+	"strings"
 )
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -47,10 +47,10 @@ func ExtractBody(r *http.Request) ([]byte, error) {
 func ExtractJSONBody(r *http.Request, v interface{}) error {
 	err := json.NewDecoder(r.Body).Decode(v)
 	if err != nil {
-		return fmt.Errorf("error decoding JSON body: %w", err)
+		return err
 	}
 	if err := r.Body.Close(); err != nil {
-		return fmt.Errorf("error closing request body: %w", err)
+		return err
 	}
 	return nil
 }
@@ -79,42 +79,11 @@ func Structure(t interface{}) string {
 	return string(str)
 }
 
-type SimpleMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessageParamUnion {
-	openaiMessages := make([]openai.ChatCompletionMessageParamUnion, len(messages))
-	for i, msg := range messages {
-		if msg.Role == "system" {
-			openaiMessages[i] = openai.ChatCompletionMessageParamUnion{
-				OfSystem: &openai.ChatCompletionSystemMessageParam{
-					Content: openai.ChatCompletionSystemMessageParamContentUnion{
-						OfString: openai.String(msg.Content),
-					},
-				},
-			}
-		} else if msg.Role == "user" {
-			openaiMessages[i] = openai.ChatCompletionMessageParamUnion{
-				OfUser: &openai.ChatCompletionUserMessageParam{
-					Content: openai.ChatCompletionUserMessageParamContentUnion{
-						OfString: openai.String(msg.Content),
-					},
-				},
-			}
-		} else if msg.Role == "assistant" {
-			openaiMessages[i] = openai.ChatCompletionMessageParamUnion{
-				OfAssistant: &openai.ChatCompletionAssistantMessageParam{
-					Content: openai.ChatCompletionAssistantMessageParamContentUnion{
-						OfString: openai.String(msg.Content),
-					},
-				},
-			}
-		} else {
-			log.Printf("Unknown role %s in message, skipping", msg.Role)
-			continue
-		}
+func ExtractProviderID(model string) (string, string) {
+	// Example: "provider-20250817-025038/whisper-large-v3-turbo" -> "provider-20250817-025038"
+	parts := strings.Split(model, "/")
+	if len(parts) < 2 {
+		return "", ""
 	}
-	return openaiMessages
+	return parts[0], parts[1] // provider ID and model name
 }
