@@ -57,7 +57,7 @@ export const ChatInterface = ({
   onSendMessage,
   onRetryMessage,
 }: ChatInterfaceProps) => {
-  const { models, isLoading: modelsLoading, getModelDisplayName } = useModels();
+  const { models, isLoading: modelsLoading } = useModels();
   const [model, setModel] = useState<string>("");
   const [input, setInput] = useState("");
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(
@@ -271,18 +271,32 @@ export const ChatInterface = ({
                 </PromptInputModelSelectTrigger>
                 <PromptInputModelSelectContent>
                   {models.length === 0 ? (
-                    <div className="px-2 py-1 text-sm text-muted-foreground">
-                      No models available
+                    <div className="px-3 py-4 text-center">
+                      <div className="text-sm text-muted-foreground">
+                        No models available
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Add AI providers in settings
+                      </div>
                     </div>
                   ) : (
-                    models.map((modelItem) => (
-                      <PromptInputModelSelectItem
-                        key={modelItem.id}
-                        value={modelItem.id}
-                      >
-                        {modelItem.name}
-                      </PromptInputModelSelectItem>
-                    ))
+                    <div className="space-y-1 p-1">
+                      {models.map((modelItem) => (
+                        <PromptInputModelSelectItem
+                          key={modelItem.id}
+                          value={modelItem.id}
+                        >
+                          {modelItem.name}
+                        </PromptInputModelSelectItem>
+                      ))}
+                      {models.length > 5 && (
+                        <div className="border-t pt-2 mt-2">
+                          <div className="text-xs text-muted-foreground text-center px-2">
+                            {models.length} models available
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </PromptInputModelSelectContent>
               </PromptInputModelSelect>

@@ -1,31 +1,30 @@
-'use client';
+"use client";
 
-import { Loader2Icon, SendIcon, SquareIcon, XIcon } from 'lucide-react';
+import { Loader2Icon, SendIcon, SquareIcon, XIcon } from "lucide-react";
 import type {
   ComponentProps,
   HTMLAttributes,
   KeyboardEventHandler,
-} from 'react';
-import { Children } from 'react';
-import { Button } from '@/components/ui/button.tsx';
+} from "react";
+import { Children } from "react";
+import { Button } from "@/components/ui/button.tsx";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select.tsx';
-import { Textarea } from '@/components/ui/textarea.tsx';
-import { cn } from '@/lib/utils.ts';
-import type { ChatStatus } from 'ai';
-
+} from "@/components/ui/select.tsx";
+import { Textarea } from "@/components/ui/textarea.tsx";
+import { cn } from "@/lib/utils.ts";
+import type { ChatStatus } from "ai";
 
 export type PromptInputProps = HTMLAttributes<HTMLFormElement>;
 
 export const PromptInput = ({ className, ...props }: PromptInputProps) => (
   <form
     className={cn(
-      'w-full divide-y overflow-hidden rounded-xl border bg-background shadow-sm',
+      "w-full divide-y overflow-hidden rounded-xl border bg-background shadow-sm",
       className,
     )}
     {...props}
@@ -40,13 +39,13 @@ export type PromptInputTextareaProps = ComponentProps<typeof Textarea> & {
 export const PromptInputTextarea = ({
   onChange,
   className,
-  placeholder = 'What would you like to know?',
+  placeholder = "What would you like to know?",
   minHeight = 48,
   maxHeight = 164,
   ...props
 }: PromptInputTextareaProps) => {
   const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       if (e.shiftKey) {
         // Allow newline
         return;
@@ -64,9 +63,9 @@ export const PromptInputTextarea = ({
   return (
     <Textarea
       className={cn(
-        'w-full resize-none rounded-none border-none p-3 shadow-none outline-none ring-0',
-        'bg-transparent dark:bg-transparent field-sizing-content max-h-[6lh]',
-        'focus-visible:ring-0',
+        "w-full resize-none rounded-none border-none p-3 shadow-none outline-none ring-0",
+        "bg-transparent dark:bg-transparent field-sizing-content max-h-[6lh]",
+        "focus-visible:ring-0",
         className,
       )}
       name="message"
@@ -87,7 +86,7 @@ export const PromptInputToolbar = ({
   ...props
 }: PromptInputToolbarProps) => (
   <div
-    className={cn('flex items-center justify-between p-1', className)}
+    className={cn("flex items-center justify-between p-1", className)}
     {...props}
   />
 );
@@ -100,8 +99,8 @@ export const PromptInputTools = ({
 }: PromptInputToolsProps) => (
   <div
     className={cn(
-      'flex items-center gap-1',
-      '[&_button:first-child]:rounded-bl-xl',
+      "flex items-center gap-1",
+      "[&_button:first-child]:rounded-bl-xl",
       className,
     )}
     {...props}
@@ -111,20 +110,20 @@ export const PromptInputTools = ({
 export type PromptInputButtonProps = ComponentProps<typeof Button>;
 
 export const PromptInputButton = ({
-  variant = 'ghost',
+  variant = "ghost",
   className,
   size,
   ...props
 }: PromptInputButtonProps) => {
   const newSize =
-    (size ?? Children.count(props.children) > 1) ? 'default' : 'icon';
+    (size ?? Children.count(props.children) > 1) ? "default" : "icon";
 
   return (
     <Button
       className={cn(
-        'shrink-0 gap-1.5 rounded-lg',
-        variant === 'ghost' && 'text-muted-foreground',
-        newSize === 'default' && 'px-3',
+        "shrink-0 gap-1.5 rounded-lg",
+        variant === "ghost" && "text-muted-foreground",
+        newSize === "default" && "px-3",
         className,
       )}
       size={newSize}
@@ -141,25 +140,25 @@ export type PromptInputSubmitProps = ComponentProps<typeof Button> & {
 
 export const PromptInputSubmit = ({
   className,
-  variant = 'default',
-  size = 'icon',
+  variant = "default",
+  size = "icon",
   status,
   children,
   ...props
 }: PromptInputSubmitProps) => {
   let Icon = <SendIcon className="size-4" />;
 
-  if (status === 'submitted') {
+  if (status === "submitted") {
     Icon = <Loader2Icon className="size-4 animate-spin" />;
-  } else if (status === 'streaming') {
+  } else if (status === "streaming") {
     Icon = <SquareIcon className="size-4" />;
-  } else if (status === 'error') {
+  } else if (status === "error") {
     Icon = <XIcon className="size-4" />;
   }
 
   return (
     <Button
-      className={cn('gap-1.5 rounded-lg', className)}
+      className={cn("gap-1.5 rounded-lg", className)}
       size={size}
       type="submit"
       variant={variant}
@@ -186,7 +185,7 @@ export const PromptInputModelSelectTrigger = ({
 }: PromptInputModelSelectTriggerProps) => (
   <SelectTrigger
     className={cn(
-      'border-none bg-transparent font-medium text-muted-foreground shadow-none transition-colors',
+      "border-none bg-transparent font-medium text-muted-foreground shadow-none transition-colors",
       'hover:bg-accent hover:text-foreground [&[aria-expanded="true"]]:bg-accent [&[aria-expanded="true"]]:text-foreground',
       className,
     )}
@@ -202,7 +201,22 @@ export const PromptInputModelSelectContent = ({
   className,
   ...props
 }: PromptInputModelSelectContentProps) => (
-  <SelectContent className={cn(className)} {...props} />
+  <SelectContent
+    className={cn(
+      "max-h-[300px] min-w-[250px] overflow-y-auto",
+      "bg-black/10 backdrop-blur-md border-border/20 shadow-xl rounded-2xl",
+      "data-[state=open]:animate-in data-[state=closed]:animate-out",
+      "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+      "[&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:bg-transparent",
+      "[&::-webkit-scrollbar-thumb]:bg-transparent",
+      "[-ms-overflow-style:none] [scrollbar-width:none]",
+      "supports-[scrollbar-width:none]:scrollbar-none",
+      className,
+    )}
+    style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+    {...props}
+  />
 );
 
 export type PromptInputModelSelectItemProps = ComponentProps<typeof SelectItem>;
@@ -211,7 +225,18 @@ export const PromptInputModelSelectItem = ({
   className,
   ...props
 }: PromptInputModelSelectItemProps) => (
-  <SelectItem className={cn(className)} {...props} />
+  <SelectItem
+    className={cn(
+      "cursor-pointer rounded-xl px-3 py-2.5 text-sm mx-2 my-0.5",
+      "hover:bg-muted/60 hover:text-foreground",
+      "focus:bg-muted/60 focus:text-foreground",
+      "data-[highlighted]:bg-muted/60 data-[highlighted]:text-foreground",
+      "transition-all duration-200 ease-in-out",
+      "font-medium",
+      className,
+    )}
+    {...props}
+  />
 );
 
 export type PromptInputModelSelectValueProps = ComponentProps<
