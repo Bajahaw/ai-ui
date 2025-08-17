@@ -20,16 +20,19 @@ type InMemoryProviderRepo struct {
 	providers map[string]*Provider
 }
 
-func NewInMemoryProviderRepo() *InMemoryProviderRepo {
+func newInMemoryProviderRepo() *InMemoryProviderRepo {
 	return &InMemoryProviderRepo{
 		providers: make(map[string]*Provider),
 	}
 }
 
-func (repo *InMemoryProviderRepo) getAllProviders() []*Provider {
-	var allProviders []*Provider
+func (repo *InMemoryProviderRepo) getAllProviders() []*Response {
+	var allProviders []*Response
 	for _, provider := range repo.providers {
-		allProviders = append(allProviders, provider)
+		allProviders = append(allProviders, &Response{
+			ID:      provider.ID,
+			BaseURL: provider.BaseURL,
+		})
 	}
 	return allProviders
 }
