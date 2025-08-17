@@ -9,10 +9,9 @@ type Provider struct {
 }
 
 type Repository interface {
-	getAllProviders() []*Provider
+	getAllProviders() []*Response
 	getProvider(id string) (*Provider, error)
-	addProvider(provider *Provider) error
-	updateProvider(provider *Provider) error
+	saveProvider(provider *Provider)
 	deleteProvider(id string)
 }
 
@@ -44,20 +43,8 @@ func (repo *InMemoryProviderRepo) getProvider(id string) (*Provider, error) {
 	return nil, errors.New("provider not found")
 }
 
-func (repo *InMemoryProviderRepo) addProvider(provider *Provider) error {
-	if _, exists := repo.providers[provider.ID]; exists {
-		return errors.New("provider already exists")
-	}
+func (repo *InMemoryProviderRepo) saveProvider(provider *Provider) {
 	repo.providers[provider.ID] = provider
-	return nil
-}
-
-func (repo *InMemoryProviderRepo) updateProvider(provider *Provider) error {
-	if _, exists := repo.providers[provider.ID]; !exists {
-		return errors.New("provider not found")
-	}
-	repo.providers[provider.ID] = provider
-	return nil
 }
 
 func (repo *InMemoryProviderRepo) deleteProvider(id string) {

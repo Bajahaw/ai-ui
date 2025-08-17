@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"ai-client/cmd/auth"
 	"ai-client/cmd/utils"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -35,12 +36,11 @@ func Handler() http.Handler {
 
 	mux.HandleFunc("GET /", getProvidersList)
 	mux.HandleFunc("GET /{id}", getProvider)
-	mux.HandleFunc("POST /", addProvider)
-	mux.HandleFunc("PATCH /{id}", updateProvider)
+	mux.HandleFunc("POST /save", saveProvider)
 	mux.HandleFunc("GET /{id}/models", getAllModels)
-	mux.HandleFunc("DELETE /{id}", deleteProvider)
+	mux.HandleFunc("DELETE /delete/{id}", deleteProvider)
 
-	return mux
+	return http.StripPrefix("/api/providers", auth.Authenticated(mux))
 }
 
 func getAllModels(w http.ResponseWriter, r *http.Request) {
@@ -95,7 +95,7 @@ func getProvider(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, &response, http.StatusOK)
 }
 
-func addProvider(w http.ResponseWriter, r *http.Request) {
+func saveProvider(w http.ResponseWriter, r *http.Request) {
 	var req Request
 	if err := utils.ExtractJSONBody(r, &req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -108,11 +108,7 @@ func addProvider(w http.ResponseWriter, r *http.Request) {
 		APIKey:  req.APIKey,
 	}
 
-	err := repo.addProvider(provider)
-	if err != nil {
-		http.Error(w, "Error adding provider: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
+	repo.saveProvider(provider)
 
 	response := Response{
 		ID:      provider.ID,
@@ -120,34 +116,6 @@ func addProvider(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, &response, http.StatusCreated)
-}
-
-func updateProvider(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	var req Request
-	if err := utils.ExtractJSONBody(r, &req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	provider := &Provider{
-		ID:      id,
-		BaseURL: req.BaseURL,
-		APIKey:  req.APIKey,
-	}
-
-	err := repo.updateProvider(provider)
-	if err != nil {
-		http.Error(w, "Error updating provider: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	response := Response{
-		ID:      provider.ID,
-		BaseURL: provider.BaseURL,
-	}
-
-	utils.RespondWithJSON(w, &response, http.StatusOK)
 }
 
 func deleteProvider(w http.ResponseWriter, r *http.Request) {

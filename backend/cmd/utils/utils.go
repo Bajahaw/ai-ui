@@ -45,7 +45,9 @@ func ExtractBody(r *http.Request) ([]byte, error) {
 }
 
 func ExtractJSONBody(r *http.Request, v interface{}) error {
-	err := json.NewDecoder(r.Body).Decode(v)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	err := dec.Decode(v)
 	if err != nil {
 		return err
 	}

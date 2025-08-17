@@ -21,20 +21,31 @@ type Request struct {
 
 func Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /", chat)
+
+	mux.HandleFunc("POST /api/chat", chat)
+
 	return auth.Authenticated(mux)
+}
+
+func SettingsHandler() http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /", getAllSettings)
+	mux.HandleFunc("POST /update", updateSettings)
+
+	return http.StripPrefix("/api/settings", auth.Authenticated(mux))
 }
 
 func ConvsHandler() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET  		/", GetAllConversations)
-	mux.HandleFunc("POST 		/add", AddConversation)
-	mux.HandleFunc("GET  		/{id}", GetConversation)
-	mux.HandleFunc("DELETE	/{id}", DeleteConversation)
-	mux.HandleFunc("POST 		/{id}/rename", RenameConversation)
+	mux.HandleFunc("GET     /", GetAllConversations)
+	mux.HandleFunc("POST 	  /add", AddConversation)
+	mux.HandleFunc("GET  	  /{id}", GetConversation)
+	mux.HandleFunc("DELETE  /{id}", DeleteConversation)
+	mux.HandleFunc("POST 	  /{id}/rename", RenameConversation)
 
-	return auth.Authenticated(mux)
+	return http.StripPrefix("/api/conversations", auth.Authenticated(mux))
 }
 
 func chat(w http.ResponseWriter, r *http.Request) {
@@ -84,6 +95,12 @@ func chat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var messages []provider.SimpleMessage
+
+	messages = append(messages, provider.SimpleMessage{
+		Role:    "system",
+		Content: settings["systemPrompt"],
+	})
+
 	for i := len(path) - 1; i >= 0; i-- {
 		msg, err := conv.GetMessage(path[i])
 		if err != nil {
@@ -103,7 +120,7 @@ func chat(w http.ResponseWriter, r *http.Request) {
 	completion, err := provider.SendChatCompletionRequest(messages, req.Model)
 	if err != nil {
 		fmt.Println("Error sending chat completion request:", err)
-		http.Error(w, fmt.Sprintf("Error sending chat completion request: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Chat completion error: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -215,4 +232,34 @@ func RenameConversation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, &conv, http.StatusOK)
+}
+
+func getAllSettings(w http.ResponseWriter, _ *http.Request) {
+	response := Settings{settings}
+	utils.RespondWithJSON(w, &response, http.StatusOK)
+}
+
+func updateSettings(w http.ResponseWriter, r *http.Request) {
+	var request Settings
+	err := utils.ExtractJSONBody(r, &request)
+	if err != nil {
+		fmt.Println("Error unmarshalling request body:", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	for key, value := range request.Settings {
+
+		if key == "" {
+			fmt.Println("Empty setting key:", key, value)
+			http.Error(w, "Invalid setting key", http.StatusBadRequest)
+			return
+		}
+
+		settings[key] = value
+	}
+
+	response := Settings{settings}
+
+	utils.RespondWithJSON(w, &response, http.StatusOK)
 }

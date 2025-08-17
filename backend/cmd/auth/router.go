@@ -32,8 +32,8 @@ func Login() http.HandlerFunc {
 	}
 }
 
-func Logout() http.Handler {
-	handler := func(w http.ResponseWriter, _ *http.Request) {
+func Logout() http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
 		cookie := &http.Cookie{
 			Name:     authCookie,
 			Value:    "",
@@ -46,8 +46,6 @@ func Logout() http.Handler {
 		http.SetCookie(w, cookie)
 		fmt.Fprintln(w, "Logged out.")
 	}
-
-	return Authenticated(http.HandlerFunc(handler))
 }
 
 func Authenticated(next http.Handler) http.Handler {

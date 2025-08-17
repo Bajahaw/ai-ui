@@ -31,9 +31,11 @@ func StartServer() {
 	mux := http.NewServeMux()
 
 	mux.Handle("/", fs)
-	mux.Handle("/api/chat/", http.StripPrefix("/api/chat", chat.Handler()))
-	mux.Handle("/api/conversations/", http.StripPrefix("/api/conversations", chat.ConvsHandler()))
-	mux.Handle("/api/providers/", http.StripPrefix("/api/providers", provider.Handler()))
+	mux.Handle("/api/chat", chat.Handler())
+	mux.Handle("/api/conversations/", chat.ConvsHandler())
+	mux.Handle("/api/providers/", provider.Handler())
+	mux.Handle("/api/settings/", chat.SettingsHandler())
+
 	mux.Handle("POST /api/logout", auth.Logout())
 	mux.Handle("POST /api/login", auth.Login())
 
@@ -69,7 +71,7 @@ func StartServer() {
 	log.Println("Server gracefully stopped")
 }
 
-func (r *statusRecorder) writeHeader(code int) {
+func (r *statusRecorder) WriteHeader(code int) {
 	r.status = code
 	r.ResponseWriter.WriteHeader(code)
 }
