@@ -87,5 +87,9 @@ func ExtractProviderID(model string) (string, string) {
 	if len(parts) < 2 {
 		return "", ""
 	}
-	return parts[0], parts[1] // provider ID and model name
+
+	provider := parts[0]
+	name := strings.TrimPrefix(model, provider+"/")
+
+	return provider, name
 }

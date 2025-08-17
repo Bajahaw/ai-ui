@@ -14,8 +14,6 @@ type SimpleMessage struct {
 	Content string `json:"content"`
 }
 
-var client = openai.NewClient()
-
 func SendChatCompletionRequest(messages []SimpleMessage, model string) (*openai.ChatCompletion, error) {
 	providerID, model := utils.ExtractProviderID(model)
 	provider, err := repo.getProvider(providerID)
@@ -26,10 +24,10 @@ func SendChatCompletionRequest(messages []SimpleMessage, model string) (*openai.
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	client.Options = []option.RequestOption{
+	client := openai.NewClient(
 		option.WithAPIKey(provider.APIKey),
 		option.WithBaseURL(provider.BaseURL),
-	}
+	)
 
 	params := openai.ChatCompletionNewParams{
 		Model:    model,
