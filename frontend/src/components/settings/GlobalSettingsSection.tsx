@@ -5,6 +5,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import { AlertCircle, Save, Loader2, RotateCcw } from "lucide-react";
 import { useSettings } from "@/hooks/useSettings";
+import { useModels } from "@/hooks/useModels";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const GlobalSettingsSection = () => {
   const {
@@ -12,52 +20,81 @@ export const GlobalSettingsSection = () => {
     isLoading,
     error,
     updateSystemPromptSetting,
+    updateSingleSetting,
+    getSingleSetting,
     clearError,
   } = useSettings();
 
+  const { models, isLoading: modelsLoading } = useModels();
+
   const [localSystemPrompt, setLocalSystemPrompt] = useState("");
+  const [localDefaultModel, setLocalDefaultModel] = useState("");
   const [isSaving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Update local state when system prompt changes
+  // Update local state when settings change
   useEffect(() => {
     setLocalSystemPrompt(systemPrompt);
+    const savedModel = getSingleSetting("defaultModel");
+    setLocalDefaultModel(savedModel || ""); // Handle case where setting doesn't exist yet
     setHasChanges(false);
-  }, [systemPrompt]);
+  }, [systemPrompt, getSingleSetting]);
 
   const handleSystemPromptChange = (value: string) => {
     setLocalSystemPrompt(value);
-    setHasChanges(value !== systemPrompt);
+    setHasChanges(
+      value !== systemPrompt ||
+        localDefaultModel !== getSingleSetting("defaultModel"),
+    );
   };
 
-  const handleSaveSystemPrompt = async () => {
+  const handleDefaultModelChange = (value: string) => {
+    setLocalDefaultModel(value);
+    setHasChanges(
+      localSystemPrompt !== systemPrompt ||
+        value !== getSingleSetting("defaultModel"),
+    );
+  };
+
+  const handleSaveSettings = async () => {
     setSaving(true);
     try {
       await updateSystemPromptSetting(localSystemPrompt);
+      if (localDefaultModel) {
+        // This will create the defaultModel setting if it doesn't exist
+        await updateSingleSetting("defaultModel", localDefaultModel);
+      }
       setHasChanges(false);
     } catch (error) {
-      console.error("Failed to save system prompt:", error);
+      console.error("Failed to save settings:", error);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleResetSystemPrompt = () => {
+  const handleResetSettings = () => {
     setLocalSystemPrompt(systemPrompt);
+    setLocalDefaultModel(getSingleSetting("defaultModel") || ""); // Handle missing setting
     setHasChanges(false);
   };
 
   const defaultSystemPrompt =
     "You are a helpful AI assistant. Provide clear, accurate, and helpful responses to user questions.";
 
-  if (isLoading) {
+  if (isLoading || modelsLoading) {
     return (
       <div className="space-y-4">
         <h3 className="text-lg font-medium">Global Settings</h3>
         <div className="flex items-center justify-center py-8">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span>Loading settings...</span>
+            <span>
+              {isLoading && modelsLoading
+                ? "Loading settings and models..."
+                : isLoading
+                  ? "Loading settings..."
+                  : "Loading models..."}
+            </span>
           </div>
         </div>
       </div>
@@ -111,7 +148,7 @@ export const GlobalSettingsSection = () => {
 
           <div className="flex items-center gap-3">
             <Button
-              onClick={handleSaveSystemPrompt}
+              onClick={handleSaveSettings}
               disabled={!hasChanges || isSaving}
               size="sm"
             >
@@ -123,7 +160,7 @@ export const GlobalSettingsSection = () => {
             {hasChanges && (
               <Button
                 variant="outline"
-                onClick={handleResetSystemPrompt}
+                onClick={handleResetSettings}
                 disabled={isSaving}
                 size="sm"
               >
@@ -131,6 +168,68 @@ export const GlobalSettingsSection = () => {
                 Reset
               </Button>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-transparent">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-base">Default Model</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-3">
+            <Label htmlFor="default-model">
+              Default AI model for new conversations
+            </Label>
+            <Select
+              value={localDefaultModel}
+              onValueChange={handleDefaultModelChange}
+              disabled={isSaving || models.length === 0 || modelsLoading}
+            >
+              <SelectTrigger id="default-model">
+                <SelectValue
+                  placeholder={
+                    modelsLoading
+                      ? "Loading models..."
+                      : models.length === 0
+                        ? "No models available"
+                        : "Select a model"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {modelsLoading ? (
+                  <div className="px-3 py-4 text-center">
+                    <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Loading models...
+                    </div>
+                  </div>
+                ) : models.length === 0 ? (
+                  <div className="px-3 py-4 text-center">
+                    <div className="text-sm text-muted-foreground">
+                      No models available
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Add AI providers in the Providers tab
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {!localDefaultModel && (
+                      <SelectItem value="" disabled>
+                        Select a default model
+                      </SelectItem>
+                    )}
+                    {models.map((model) => (
+                      <SelectItem key={model.id} value={model.id}>
+                        {model.name}
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>

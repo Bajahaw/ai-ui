@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useModels } from "@/hooks/useModels";
+import { useSettings } from "@/hooks/useSettings";
 
 import {
   Message as MessageComponent,
@@ -58,18 +59,72 @@ export const ChatInterface = ({
   onRetryMessage,
 }: ChatInterfaceProps) => {
   const { models, isLoading: modelsLoading } = useModels();
+  const {
+    updateSingleSetting,
+    getSingleSetting,
+    isLoading: settingsLoading,
+  } = useSettings();
   const [model, setModel] = useState<string>("");
   const [input, setInput] = useState("");
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(
     null,
   );
 
-  // Set default model when models are loaded
+  /**
+   * Initialize model selection with persistence
+   * Prioritizes saved user preference, falls back to first available model
+   * Ensures model choice persists across page refreshes and sessions
+   */
   useEffect(() => {
-    if (models.length > 0 && !model) {
-      setModel(models[0].id);
+    if (models.length > 0 && !model && !settingsLoading) {
+      const savedModel = getSingleSetting("defaultModel");
+
+      // Check if saved model is still available in current providers
+      const isModelAvailable =
+        savedModel && models.find((m) => m.id === savedModel);
+
+      if (isModelAvailable) {
+        // Use saved model if it exists in available models
+        setModel(savedModel);
+      } else {
+        // Fallback to first available model when:
+        // - No saved model exists (backend doesn't have defaultModel setting)
+        // - Saved model is no longer available (provider removed/changed)
+        const fallbackModel = models[0].id;
+        setModel(fallbackModel);
+
+        // Create/update the default model setting in backend
+        // This handles the case where backend doesn't have defaultModel setting yet
+        updateSingleSetting("defaultModel", fallbackModel).catch((error) => {
+          console.error(
+            "Failed to create/update default model setting:",
+            error,
+          );
+        });
+
+        // Log when we fall back due to unavailable model (but not for missing setting)
+        if (savedModel && !isModelAvailable) {
+          console.warn(
+            `Saved model "${savedModel}" is no longer available. Falling back to "${fallbackModel}".`,
+          );
+        }
+      }
     }
-  }, [models, model]);
+  }, [models, model, settingsLoading, getSingleSetting, updateSingleSetting]);
+
+  /**
+   * Handle model selection change and persist to settings
+   * Updates both local state and saves preference to backend
+   * This ensures the model choice is remembered across sessions
+   */
+  const handleModelChange = async (newModel: string) => {
+    setModel(newModel);
+    try {
+      await updateSingleSetting("defaultModel", newModel);
+    } catch (error) {
+      console.error("Failed to save model preference:", error);
+    }
+  };
 
   // Check if there are any pending messages
   const hasPendingMessages = messages.some(
@@ -256,11 +311,11 @@ export const ChatInterface = ({
                 <span>Search</span>
               </PromptInputButton>
               <PromptInputModelSelect
-                onValueChange={(value) => {
-                  setModel(value);
-                }}
+                onValueChange={handleModelChange}
                 value={model}
-                disabled={modelsLoading || models.length === 0}
+                disabled={
+                  modelsLoading || models.length === 0 || settingsLoading
+                }
               >
                 <PromptInputModelSelectTrigger>
                   <PromptInputModelSelectValue
