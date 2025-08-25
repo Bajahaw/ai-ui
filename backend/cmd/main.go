@@ -6,13 +6,17 @@ import (
 	"ai-client/cmd/provider"
 	"context"
 	"errors"
-	"log"
+	logger "github.com/charmbracelet/log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 )
+
+var log = logger.NewWithOptions(os.Stdout, logger.Options{
+	ReportTimestamp: true,
+})
 
 type statusRecorder struct {
 	http.ResponseWriter
@@ -52,23 +56,23 @@ func StartServer() {
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("Server Failed: %v", err)
+			log.Fatal("Server Failed", "err", err)
 		}
 	}()
 
-	log.Println("Server started on port 8080")
+	log.Info("Server started on port 8080")
 
 	<-stop
 
-	log.Println("Shutting down server...")
+	log.Info("Shutting down server...")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server Shutdown Failed: %v", err)
+		log.Fatal("Server Shutdown Failed", "err", err)
 	}
 
-	log.Println("Server gracefully stopped")
+	log.Info("Server gracefully stopped")
 }
 
 func (r *statusRecorder) WriteHeader(code int) {
@@ -80,6 +84,6 @@ func logMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(recorder, r)
-		log.Printf("Received request: %d %s %s", recorder.status, r.Method, r.URL.Path)
+		log.Info("Received request", "status", recorder.status, "method", r.Method, "path", r.URL.Path)
 	})
 }

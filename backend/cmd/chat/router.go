@@ -5,6 +5,7 @@ import (
 	"ai-client/cmd/provider"
 	"ai-client/cmd/utils"
 	"fmt"
+	"github.com/charmbracelet/log"
 	"net/http"
 	"time"
 )
@@ -52,7 +53,7 @@ func chat(w http.ResponseWriter, r *http.Request) {
 	var req Request
 	err := utils.ExtractJSONBody(r, &req)
 	if err != nil || req.ConversationID == "" || req.Content == "" {
-		fmt.Println("Error unmarshalling request body:", err)
+		log.Error("Error unmarshalling request body", "err", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -66,10 +67,13 @@ func chat(w http.ResponseWriter, r *http.Request) {
 		}
 		conv = NewConversation(id)
 		if err := repo.AddConversation(conv); err != nil {
+			log.Error("Error creating conversation", "err", err)
 			http.Error(w, fmt.Sprintf("Error creating conversation: %v", err), http.StatusInternalServerError)
 			return
 		}
 	}
+
+	conv.ActiveMessage = req.ActiveMessage
 
 	userMessage := Message{
 		ID:       -1,
@@ -84,7 +88,7 @@ func chat(w http.ResponseWriter, r *http.Request) {
 	// build context
 	var path []int
 	var current = userMessage.ID
-	fmt.Println("Current message ID:", current)
+	log.Debug("Current message ID", "id", current)
 	for {
 		leaf, err := conv.GetMessage(current)
 		if err != nil {
@@ -113,13 +117,13 @@ func chat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//debug
-	fmt.Println("Path:", path)
-	fmt.Println("Messages:", messages)
+	log.Debug("Path", "path", path)
+	log.Debug("Messages", "messages", messages)
 	//
 
 	completion, err := provider.SendChatCompletionRequest(messages, req.Model)
 	if err != nil {
-		fmt.Println("Error sending chat completion request:", err)
+		log.Error("Error sending chat completion request", "err", err)
 		http.Error(w, fmt.Sprintf("Chat completion error: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -136,7 +140,7 @@ func chat(w http.ResponseWriter, r *http.Request) {
 
 	err = repo.UpdateConversation(conv)
 	if err != nil {
-		fmt.Println("Error updating conversation:", err)
+		log.Error("Error updating conversation", "err", err)
 		http.Error(w, fmt.Sprintf("Error updating conversation: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -157,7 +161,7 @@ func AddConversation(w http.ResponseWriter, r *http.Request) {
 	}
 	err := utils.ExtractJSONBody(r, &req)
 	if err != nil {
-		fmt.Println("Error unmarshalling request body:", err)
+		log.Error("Error unmarshalling request body", "err", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -165,10 +169,11 @@ func AddConversation(w http.ResponseWriter, r *http.Request) {
 	conv := &req.Conv
 
 	// debug
-	fmt.Println("Adding conversation:", conv)
+	log.Debug("Adding conversation", "conversation", conv)
 
 	err = repo.AddConversation(conv)
 	if err != nil {
+		log.Error("Error adding conversation", "err", err)
 		http.Error(w, fmt.Sprintf("Error adding conversation: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -212,13 +217,14 @@ func RenameConversation(w http.ResponseWriter, r *http.Request) {
 	}
 	err := utils.ExtractJSONBody(r, &req)
 	if err != nil {
-		fmt.Println("Error unmarshalling request body:", err)
+		log.Error("Error unmarshalling request body", "err", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	conv, err := repo.GetConversation(convId)
 	if err != nil {
+		log.Error("Error retrieving conversation", "err", err)
 		http.Error(w, fmt.Sprintf("Error retrieving conversation: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -227,6 +233,7 @@ func RenameConversation(w http.ResponseWriter, r *http.Request) {
 
 	err = repo.UpdateConversation(conv)
 	if err != nil {
+		log.Error("Error updating conversation", "err", err)
 		http.Error(w, fmt.Sprintf("Error updating conversation: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -243,7 +250,7 @@ func updateSettings(w http.ResponseWriter, r *http.Request) {
 	var request Settings
 	err := utils.ExtractJSONBody(r, &request)
 	if err != nil {
-		fmt.Println("Error unmarshalling request body:", err)
+		log.Error("Error unmarshalling request body", "err", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -251,7 +258,7 @@ func updateSettings(w http.ResponseWriter, r *http.Request) {
 	for key, value := range request.Settings {
 
 		if key == "" {
-			fmt.Println("Empty setting key:", key, value)
+			log.Error("Empty setting key", "key", key, "value", value)
 			http.Error(w, "Invalid setting key", http.StatusBadRequest)
 			return
 		}
