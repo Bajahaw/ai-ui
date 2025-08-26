@@ -19,6 +19,13 @@ type Request struct {
 	Content        string `json:"content"`
 	WebSearch      bool   `json:"webSearch,omitempty"`
 }
+
+type Retry struct {
+	ConversationID string `json:"conversationId"`
+	ParentID       int    `json:"parentId"`
+	Model          string `json:"model"`
+}
+
 type Response struct {
 	Messages map[int]*Message `json:"messages"`
 }
@@ -27,6 +34,7 @@ func Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /new", chat)
+	mux.HandleFunc("POST /retry", retry)
 
 	return http.StripPrefix("/api/chat", auth.Authenticated(mux))
 }
@@ -131,6 +139,91 @@ func chat(w http.ResponseWriter, r *http.Request) {
 	response.Messages = make(map[int]*Message)
 	response.Messages[userMessage.ID], _ = conv.GetMessage(userMessage.ID)
 	response.Messages[responseMessage.ID], _ = conv.GetMessage(responseMessage.ID)
+
+	utils.RespondWithJSON(w, &response, http.StatusOK)
+}
+
+func retry(w http.ResponseWriter, r *http.Request) {
+	var req Retry
+	err := utils.ExtractJSONBody(r, &req)
+	if err != nil || req.ConversationID == "" {
+		log.Error("Error unmarshalling request body", "err", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	conv, err := repo.GetConversation(req.ConversationID)
+	if err != nil {
+		log.Error("Error retrieving conversation", "err", err)
+		http.Error(w, fmt.Sprintf("Error retrieving conversation: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	parent, err := conv.GetMessage(req.ParentID)
+	if err != nil || parent.Role != "user" {
+		log.Error("Error retrieving parent message or invalid role", "err", err)
+		http.Error(w, "Invalid parent message", http.StatusBadRequest)
+		return
+	}
+
+	var path []int
+	var current = parent.ID
+	log.Debug("Current message ID", "id", current)
+	for {
+		leaf, err := conv.GetMessage(current)
+		if err != nil {
+			break
+		}
+		path = append(path, current)
+		current = leaf.ParentID
+	}
+
+	var messages []provider.SimpleMessage
+
+	messages = append(messages, provider.SimpleMessage{
+		Role:    "system",
+		Content: settings["systemPrompt"],
+	})
+
+	for i := len(path) - 1; i >= 0; i-- {
+		msg, err := conv.GetMessage(path[i])
+		if err != nil {
+			break
+		}
+		messages = append(messages, provider.SimpleMessage{
+			Role:    msg.Role,
+			Content: msg.Content,
+		})
+	}
+
+	completion, err := provider.SendChatCompletionRequest(messages, req.Model)
+	if err != nil {
+		log.Error("Error sending chat completion request", "err", err)
+		http.Error(w, fmt.Sprintf("Chat completion error: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	responseMessage := Message{
+		ID:       -1,
+		Role:     "assistant",
+		Content:  completion.Choices[0].Message.Content,
+		ParentID: parent.ID,
+		Children: []int{},
+	}
+
+	responseMessage.ID = conv.AppendMessage(responseMessage)
+	err = repo.UpdateConversation(conv)
+	if err != nil {
+		log.Error("Error updating conversation", "err", err)
+		http.Error(w, fmt.Sprintf("Error updating conversation: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	response := &Response{
+		Messages: make(map[int]*Message),
+	}
+
+	response.Messages[parent.ID], _ = conv.GetMessage(parent.ID)
 
 	utils.RespondWithJSON(w, &response, http.StatusOK)
 }
