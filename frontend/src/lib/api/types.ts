@@ -14,17 +14,28 @@ export interface Conversation {
   messages: Record<number, Message>;
   root: number[];
   activeMessageId: number;
+  activeBranches: Record<number, number>; // messageId -> activeChildId mapping
 }
 
 export interface ChatRequest {
   conversationId: string;
-  activeMessageId: number;
+  parentId: number;
   model: string;
   content: string;
   webSearch?: boolean;
 }
 
 export interface ChatResponse {
+  messages: Record<number, Message>;
+}
+
+export interface RetryRequest {
+  conversationId: string;
+  parentId: number;
+  model: string;
+}
+
+export interface RetryResponse {
   messages: Record<number, Message>;
 }
 

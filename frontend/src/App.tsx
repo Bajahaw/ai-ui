@@ -46,6 +46,7 @@ function App() {
     currentConversation,
     activeConversationId,
     sendMessage: sendChatMessage,
+    retryMessage,
     selectConversation,
     startNewChat,
     getCurrentMessages,
@@ -54,6 +55,8 @@ function App() {
     clearError,
     deleteConversation,
     renameConversation,
+    switchBranch,
+    getBranchInfo,
   } = useConversations();
 
   const handleSendMessage = async (
@@ -94,7 +97,7 @@ function App() {
     }
   };
 
-  const handleRetryMessage = async (messageId: string) => {
+  const handleRetryMessage = async (messageId: string, model: string) => {
     if (!activeConversationId || !currentConversation) return;
 
     try {
@@ -107,9 +110,12 @@ function App() {
         await sendChatMessage(
           activeConversationId,
           failedMessage.content,
-          "openai/gpt-4o",
+          model,
           webSearch,
         );
+      } else if (failedMessage.role === "assistant") {
+        // Use retry API for assistant messages
+        await retryMessage(messageId, model);
       }
     } catch (error) {
       console.error("Retry failed:", error);
@@ -250,9 +256,12 @@ function App() {
         <ChatInterface
           messages={currentMessages}
           webSearch={webSearch}
+          currentConversation={currentConversation}
           onWebSearchToggle={handleWebSearchToggle}
           onSendMessage={handleSendMessage}
           onRetryMessage={handleRetryMessage}
+          onSwitchBranch={switchBranch}
+          getBranchInfo={getBranchInfo}
         />
       </div>
 

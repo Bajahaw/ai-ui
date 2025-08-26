@@ -36,27 +36,39 @@ import {
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
 import { FrontendMessage } from "@/lib/api/types";
+import { BranchNavigation } from "@/components/BranchNavigation";
+import { ClientConversation } from "@/lib/clientConversationManager";
 
 // Dynamic models are now loaded from providers via useModels hook
 
 interface ChatInterfaceProps {
   messages: FrontendMessage[];
   webSearch: boolean;
+  currentConversation: ClientConversation | undefined;
   onWebSearchToggle: (enabled: boolean) => void;
   onSendMessage: (
     message: string,
     webSearch: boolean,
     model: string,
   ) => Promise<void>;
-  onRetryMessage: (messageId: string) => Promise<void>;
+  onRetryMessage: (messageId: string, model: string) => Promise<void>;
+  onSwitchBranch: (messageId: number, branchIndex: number) => void;
+  getBranchInfo: (messageId: number) => {
+    count: number;
+    activeIndex: number;
+    hasMultiple: boolean;
+  };
 }
 
 export const ChatInterface = ({
   messages,
   webSearch,
+  currentConversation,
   onWebSearchToggle,
   onSendMessage,
   onRetryMessage,
+  onSwitchBranch,
+  getBranchInfo,
 }: ChatInterfaceProps) => {
   const { models, isLoading: modelsLoading } = useModels();
   const {
@@ -151,51 +163,94 @@ export const ChatInterface = ({
   const handleRetryMessage = async (messageId: string) => {
     setRetryingMessageId(messageId);
     try {
-      await onRetryMessage(messageId);
+      await onRetryMessage(messageId, model);
     } finally {
       setRetryingMessageId(null);
     }
   };
 
   const renderMessageActions = (message: FrontendMessage) => {
-    return (
-      <Actions className="opacity-60 hover:opacity-100 transition-opacity">
-        <Action
-          tooltip={message.status === "error" ? "Copy error" : "Copy message"}
-          onClick={() =>
-            copyMessage(
-              message.status === "error"
-                ? message.error || "Error occurred"
-                : message.content,
-            )
-          }
-        >
-          <CopyIcon className="size-4" />
-        </Action>
+    const messageId = parseInt(message.id);
 
-        {message.role === "assistant" && message.status !== "pending" && (
+    // For assistant messages, check if the parent has multiple children (branches)
+    let branchInfo = { count: 1, activeIndex: 0, hasMultiple: false };
+    let parentId = messageId;
+
+    if (
+      message.role === "assistant" &&
+      currentConversation?.backendConversation
+    ) {
+      // For assistant messages, we need to check the parent message for branches
+      // The parent message is what has multiple children (alternative assistant responses)
+      const assistantMessage =
+        currentConversation.backendConversation.messages[messageId];
+      if (assistantMessage?.parentId) {
+        parentId = assistantMessage.parentId;
+        branchInfo = getBranchInfo(parentId);
+      }
+    }
+
+    return (
+      <div className="flex items-center gap-2">
+        {/* Action buttons */}
+        <Actions className="opacity-60 hover:opacity-100 transition-opacity">
           <Action
-            tooltip={
-              message.status === "error"
-                ? "Retry getting response"
-                : "Regenerate response"
-            }
-            onClick={() => handleRetryMessage(message.id)}
-            disabled={retryingMessageId === message.id}
-            className={
-              message.status === "error"
-                ? "text-destructive hover:text-destructive-foreground hover:bg-destructive"
-                : ""
+            tooltip={message.status === "error" ? "Copy error" : "Copy message"}
+            onClick={() =>
+              copyMessage(
+                message.status === "error"
+                  ? message.error || "Error occurred"
+                  : message.content,
+              )
             }
           >
-            {retryingMessageId === message.id ? (
-              <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            ) : (
-              <RotateCcwIcon className="size-4" />
-            )}
+            <CopyIcon className="size-4" />
           </Action>
+
+          {message.role === "assistant" && message.status !== "pending" && (
+            <Action
+              tooltip={
+                message.status === "error"
+                  ? "Retry getting response"
+                  : "Regenerate response"
+              }
+              onClick={() => handleRetryMessage(message.id)}
+              disabled={retryingMessageId === message.id}
+              className={
+                message.status === "error"
+                  ? "text-destructive hover:text-destructive-foreground hover:bg-destructive"
+                  : ""
+              }
+            >
+              {retryingMessageId === message.id ? (
+                <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              ) : (
+                <RotateCcwIcon className="size-4" />
+              )}
+            </Action>
+          )}
+        </Actions>
+
+        {/* Branch navigation for assistant messages with multiple branches */}
+        {message.role === "assistant" && branchInfo.hasMultiple && (
+          <BranchNavigation
+            currentIndex={branchInfo.activeIndex}
+            totalCount={branchInfo.count}
+            onPrevious={() => {
+              const newIndex = Math.max(0, branchInfo.activeIndex - 1);
+              onSwitchBranch(parentId, newIndex);
+            }}
+            onNext={() => {
+              const newIndex = Math.min(
+                branchInfo.count - 1,
+                branchInfo.activeIndex + 1,
+              );
+              onSwitchBranch(parentId, newIndex);
+            }}
+            className="opacity-60 hover:opacity-100 transition-opacity"
+          />
         )}
-      </Actions>
+      </div>
     );
   };
 

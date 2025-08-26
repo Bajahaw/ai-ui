@@ -1,13 +1,13 @@
-import { ChatRequest, ChatResponse, generateConversationId } from "./types.ts";
-import { ApiErrorHandler, isChatResponse } from "./errorHandler.ts";
-import { getApiUrl } from "../config.ts";
+import {ChatRequest, ChatResponse, generateConversationId, RetryRequest, RetryResponse,} from "./types.ts";
+import {ApiErrorHandler, isChatResponse} from "./errorHandler.ts";
+import {getApiUrl} from "../config.ts";
 
 export class ChatAPI {
   constructor() {}
 
   async sendMessage(
     conversationId: string | null,
-    activeMessageId: number | null,
+    parentId: number | null,
     model: string,
     content: string,
     webSearch: boolean = false,
@@ -23,13 +23,13 @@ export class ChatAPI {
     return ApiErrorHandler.handleApiCall(async () => {
       const request: ChatRequest = {
         conversationId: conversationId || generateConversationId(),
-        activeMessageId: activeMessageId || 1,
+        parentId: parentId || 0,
         model,
         content,
         webSearch,
       };
 
-      const response = await fetch(getApiUrl("/api/chat"), {
+      const response = await fetch(getApiUrl("/api/chat/new"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -56,6 +56,50 @@ export class ChatAPI {
         conversationId: request.conversationId,
       };
     }, "sendMessage");
+  }
+
+  async retryMessage(
+    conversationId: string,
+    parentId: number,
+    model: string,
+  ): Promise<RetryResponse> {
+    if (!conversationId) {
+      throw new Error("Valid conversation ID is required");
+    }
+
+    if (!model) {
+      throw new Error("Valid model is required");
+    }
+
+    return ApiErrorHandler.handleApiCall(async () => {
+      const request: RetryRequest = {
+        conversationId,
+        parentId,
+        model,
+      };
+
+      const response = await fetch(getApiUrl("/api/chat/retry"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(request),
+      });
+
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(response, "Retry message");
+      }
+
+      const data = await response.json();
+
+      // Validate response structure
+      return ApiErrorHandler.validateResponse(
+          data,
+          isChatResponse, // Reuse the same validator since structure is the same
+          "Retry message",
+      );
+    }, "retryMessage");
   }
 }
 

@@ -120,7 +120,7 @@ func chat(w http.ResponseWriter, r *http.Request) {
 		ID:       -1,
 		Role:     "assistant",
 		Content:  completion.Choices[0].Message.Content,
-		ParentID: 0,
+		ParentID: userMessage.ID,
 		Children: []int{},
 	}
 
@@ -224,6 +224,7 @@ func retry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Messages[parent.ID], _ = conv.GetMessage(parent.ID)
+	response.Messages[responseMessage.ID], _ = conv.GetMessage(responseMessage.ID)
 
 	utils.RespondWithJSON(w, &response, http.StatusOK)
 }

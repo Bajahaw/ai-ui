@@ -80,6 +80,7 @@ export class ConversationsAPI {
         },
         root: [1],
         activeMessageId: 1,
+        activeBranches: {},
       };
 
       const request: CreateConversationRequest = {
