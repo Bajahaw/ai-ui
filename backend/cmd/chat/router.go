@@ -5,48 +5,30 @@ import (
 	"ai-client/cmd/provider"
 	"ai-client/cmd/utils"
 	"fmt"
-	"github.com/charmbracelet/log"
 	"net/http"
 	"time"
 )
 
+var log = utils.Log
 var repo = NewInMemoryConversationRepo()
 
 type Request struct {
 	ConversationID string `json:"conversationId"`
-	ActiveMessage  int    `json:"activeMessageId"`
+	ParentID       int    `json:"parentId"`
 	Model          string `json:"model"`
 	Content        string `json:"content"`
 	WebSearch      bool   `json:"webSearch,omitempty"`
+}
+type Response struct {
+	Messages map[int]*Message `json:"messages"`
 }
 
 func Handler() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /api/chat", chat)
+	mux.HandleFunc("POST /new", chat)
 
-	return auth.Authenticated(mux)
-}
-
-func SettingsHandler() http.Handler {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("GET /", getAllSettings)
-	mux.HandleFunc("POST /update", updateSettings)
-
-	return http.StripPrefix("/api/settings", auth.Authenticated(mux))
-}
-
-func ConvsHandler() http.Handler {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("GET     /", GetAllConversations)
-	mux.HandleFunc("POST 	  /add", AddConversation)
-	mux.HandleFunc("GET  	  /{id}", GetConversation)
-	mux.HandleFunc("DELETE  /{id}", DeleteConversation)
-	mux.HandleFunc("POST 	  /{id}/rename", RenameConversation)
-
-	return http.StripPrefix("/api/conversations", auth.Authenticated(mux))
+	return http.StripPrefix("/api/chat", auth.Authenticated(mux))
 }
 
 func chat(w http.ResponseWriter, r *http.Request) {
@@ -73,13 +55,11 @@ func chat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	conv.ActiveMessage = req.ActiveMessage
-
 	userMessage := Message{
 		ID:       -1,
 		Role:     "user",
 		Content:  req.Content,
-		ParentID: conv.ActiveMessage,
+		ParentID: req.ParentID,
 		Children: []int{},
 	}
 
@@ -151,122 +131,6 @@ func chat(w http.ResponseWriter, r *http.Request) {
 	response.Messages = make(map[int]*Message)
 	response.Messages[userMessage.ID], _ = conv.GetMessage(userMessage.ID)
 	response.Messages[responseMessage.ID], _ = conv.GetMessage(responseMessage.ID)
-
-	utils.RespondWithJSON(w, response, http.StatusOK)
-}
-
-func AddConversation(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Conv Conversation `json:"conversation"`
-	}
-	err := utils.ExtractJSONBody(r, &req)
-	if err != nil {
-		log.Error("Error unmarshalling request body", "err", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	conv := &req.Conv
-
-	// debug
-	log.Debug("Adding conversation", "conversation", conv)
-
-	err = repo.AddConversation(conv)
-	if err != nil {
-		log.Error("Error adding conversation", "err", err)
-		http.Error(w, fmt.Sprintf("Error adding conversation: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	utils.RespondWithJSON(w, conv, http.StatusCreated)
-}
-
-func GetConversation(w http.ResponseWriter, r *http.Request) {
-	convId := r.PathValue("id")
-	conv, err := repo.GetConversation(convId)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error retrieving conversation: %v", err), http.StatusInternalServerError)
-		return
-	}
-	utils.RespondWithJSON(w, &conv, http.StatusOK)
-}
-
-func GetAllConversations(w http.ResponseWriter, _ *http.Request) {
-	conversations, err := repo.GetAllConversations()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error retrieving conversations: %v", err), http.StatusInternalServerError)
-		return
-	}
-	utils.RespondWithJSON(w, conversations, http.StatusOK)
-}
-
-func DeleteConversation(w http.ResponseWriter, r *http.Request) {
-	convId := r.PathValue("id")
-	err := repo.DeleteConversation(convId)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error deleting conversation: %v", err), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func RenameConversation(w http.ResponseWriter, r *http.Request) {
-	convId := r.PathValue("id")
-	var req struct {
-		Title string `json:"title"`
-	}
-	err := utils.ExtractJSONBody(r, &req)
-	if err != nil {
-		log.Error("Error unmarshalling request body", "err", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	conv, err := repo.GetConversation(convId)
-	if err != nil {
-		log.Error("Error retrieving conversation", "err", err)
-		http.Error(w, fmt.Sprintf("Error retrieving conversation: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	conv.Title = req.Title
-
-	err = repo.UpdateConversation(conv)
-	if err != nil {
-		log.Error("Error updating conversation", "err", err)
-		http.Error(w, fmt.Sprintf("Error updating conversation: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	utils.RespondWithJSON(w, &conv, http.StatusOK)
-}
-
-func getAllSettings(w http.ResponseWriter, _ *http.Request) {
-	response := Settings{settings}
-	utils.RespondWithJSON(w, &response, http.StatusOK)
-}
-
-func updateSettings(w http.ResponseWriter, r *http.Request) {
-	var request Settings
-	err := utils.ExtractJSONBody(r, &request)
-	if err != nil {
-		log.Error("Error unmarshalling request body", "err", err)
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	for key, value := range request.Settings {
-
-		if key == "" {
-			log.Error("Empty setting key", "key", key, "value", value)
-			http.Error(w, "Invalid setting key", http.StatusBadRequest)
-			return
-		}
-
-		settings[key] = value
-	}
-
-	response := Settings{settings}
 
 	utils.RespondWithJSON(w, &response, http.StatusOK)
 }

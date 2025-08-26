@@ -4,9 +4,9 @@ import (
 	"ai-client/cmd/auth"
 	"ai-client/cmd/chat"
 	"ai-client/cmd/provider"
+	"ai-client/cmd/utils"
 	"context"
 	"errors"
-	logger "github.com/charmbracelet/log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,9 +14,7 @@ import (
 	"time"
 )
 
-var log = logger.NewWithOptions(os.Stdout, logger.Options{
-	ReportTimestamp: true,
-})
+var log = utils.Log
 
 type statusRecorder struct {
 	http.ResponseWriter
@@ -35,7 +33,7 @@ func StartServer() {
 	mux := http.NewServeMux()
 
 	mux.Handle("/", fs)
-	mux.Handle("/api/chat", chat.Handler())
+	mux.Handle("/api/chat/", chat.Handler())
 	mux.Handle("/api/conversations/", chat.ConvsHandler())
 	mux.Handle("/api/providers/", provider.Handler())
 	mux.Handle("/api/settings/", chat.SettingsHandler())
@@ -45,7 +43,7 @@ func StartServer() {
 
 	server := &http.Server{
 		Addr:         ":8080",
-		Handler:      logMiddleware(mux),
+		Handler:      utils.CORS(logMiddleware(mux)),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  120 * time.Second,

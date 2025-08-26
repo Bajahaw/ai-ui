@@ -14,11 +14,10 @@ type Message struct {
 }
 
 type Conversation struct {
-	ID            string           `json:"id"`
-	Title         string           `json:"title,omitempty"`
-	Messages      map[int]*Message `json:"messages"`
-	Root          []int            `json:"root"`
-	ActiveMessage int              `json:"activeMessageId"`
+	ID       string           `json:"id"`
+	Title    string           `json:"title,omitempty"`
+	Messages map[int]*Message `json:"messages"`
+	Root     []int            `json:"root"`
 
 	mu     sync.Mutex
 	NextID int
@@ -62,26 +61,18 @@ func (c *Conversation) AppendMessage(msg Message) int {
 		ID:       newID,
 		Role:     msg.Role,
 		Content:  msg.Content,
-		ParentID: 0,
+		ParentID: msg.ParentID,
 		Children: []int{},
 	}
 
-	// attach to active message if exists, otherwise treat as root
-	if c.ActiveMessage == 0 {
-		// no active -> root message
-		c.Root = append(c.Root, newID)
+	if parent, ok := c.Messages[msg.ParentID]; ok {
+		parent.Children = append(parent.Children, newID)
 	} else {
-		if parent, ok := c.Messages[c.ActiveMessage]; ok {
-			parent.Children = append(parent.Children, newID)
-			stored.ParentID = parent.ID
-		} else {
-			// active referenced a missing message -> treat as root
-			c.Root = append(c.Root, newID)
-		}
+		// active referenced a missing message -> treat as root
+		c.Root = append(c.Root, newID)
 	}
 
 	c.Messages[newID] = stored
-	c.ActiveMessage = newID
 
 	return newID
 }

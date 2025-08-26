@@ -4,11 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/alecthomas/jsonschema"
+	logger "github.com/charmbracelet/log"
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 )
+
+var Log = logger.NewWithOptions(os.Stdout, logger.Options{
+	ReportTimestamp: true,
+})
 
 //////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////// Helper Functions ////////////////////////////////
