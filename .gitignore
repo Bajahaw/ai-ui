@@ -9,6 +9,9 @@ backend/static
 dist/
 build/
 
+# temporary
+backend/tests
+
 # Environment variables
 .env
 frontend/.env.local
@@ -83,6 +86,7 @@ jspm_packages/
 *.njsproj
 *.sln
 *.sw?
+*.iml
 
 # OS generated files
 Thumbs.db
