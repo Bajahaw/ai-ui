@@ -1,9 +1,4 @@
-import {
-  Conversation,
-  Message,
-  FrontendMessage,
-  backendToFrontendMessage,
-} from "@/lib/api";
+import {backendToFrontendMessage, Conversation, FrontendMessage, Message,} from "@/lib/api";
 
 let tempIdCounter = -1;
 
@@ -466,24 +461,11 @@ export class ClientConversationManager {
   hasMultipleBranches(conversationId: string, messageId: number): boolean {
     const conversation = this.conversations.get(conversationId);
     if (!conversation?.backendConversation) {
-      console.log(
-        `hasMultipleBranches: No backend conversation for ${conversationId}`,
-      );
       return false;
     }
 
     const message = conversation.backendConversation.messages[messageId];
-    const hasMultiple = message?.children && message.children.length > 1;
-
-    console.log(`hasMultipleBranches(${messageId}):`, {
-      message: message
-        ? `${message.role}: ${message.content?.substring(0, 30)}...`
-        : "not found",
-      children: message?.children || [],
-      hasMultiple,
-    });
-
-    return hasMultiple;
+    return message?.children && message.children.length > 1;
   }
 
   getActiveBranchIndex(conversationId: string, messageId: number): number {
@@ -496,15 +478,7 @@ export class ClientConversationManager {
     const activeChildId = conversation.activeBranches.get(messageId);
     if (activeChildId === undefined) return 0;
 
-    const index = message.children.indexOf(activeChildId);
-
-    console.log(`getActiveBranchIndex(${messageId}):`, {
-      children: message.children,
-      activeChildId,
-      index,
-    });
-
-    return index;
+    return message.children.indexOf(activeChildId);
   }
 
   getBranchCount(conversationId: string, messageId: number): number {
@@ -512,17 +486,7 @@ export class ClientConversationManager {
     if (!conversation?.backendConversation) return 1;
 
     const message = conversation.backendConversation.messages[messageId];
-    const count = message?.children?.length || 1;
-
-    console.log(`getBranchCount(${messageId}):`, {
-      message: message
-        ? `${message.role}: ${message.content?.substring(0, 30)}...`
-        : "not found",
-      children: message?.children || [],
-      count,
-    });
-
-    return count;
+    return message?.children?.length || 1;
   }
 
   switchToBranch(

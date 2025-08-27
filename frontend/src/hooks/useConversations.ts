@@ -402,7 +402,6 @@ export const useConversations = () => {
   const getBranchInfo = useCallback(
     (messageId: number) => {
       if (!activeConversationId) {
-        console.log("getBranchInfo: No active conversation");
         return { count: 1, activeIndex: 0, hasMultiple: false };
       }
 
@@ -415,13 +414,6 @@ export const useConversations = () => {
         activeConversationId,
         messageId,
       );
-
-      console.log(`getBranchInfo for messageId ${messageId}:`, {
-        count,
-        activeIndex,
-        hasMultiple,
-        conversationId: activeConversationId,
-      });
 
       return {
         count,
