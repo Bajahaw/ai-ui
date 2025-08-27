@@ -8,6 +8,7 @@ import {
   useImperativeHandle,
 } from "react";
 import { Textarea } from "@/components/ui/textarea";
+import { Response } from "@/components/ai-elements/response";
 import { cn } from "@/lib/utils.ts";
 
 interface EditableMessageProps {
@@ -89,7 +90,7 @@ export const EditableMessage = forwardRef<
       );
     }
 
-    return <div className={className}>{content}</div>;
+    return <Response className={className}>{content}</Response>;
   },
 );
 
