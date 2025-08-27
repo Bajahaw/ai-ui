@@ -39,6 +39,16 @@ export interface RetryResponse {
   messages: Record<number, Message>;
 }
 
+export interface UpdateRequest {
+  conversationId: string;
+  messageId: number;
+  content: string;
+}
+
+export interface UpdateResponse {
+  messages: Record<number, Message>;
+}
+
 export interface CreateConversationRequest {
   conversation: Conversation;
 }

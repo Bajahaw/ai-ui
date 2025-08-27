@@ -1,6 +1,14 @@
-import {ChatRequest, ChatResponse, generateConversationId, RetryRequest, RetryResponse,} from "./types.ts";
-import {ApiErrorHandler, isChatResponse} from "./errorHandler.ts";
-import {getApiUrl} from "../config.ts";
+import {
+  ChatRequest,
+  ChatResponse,
+  generateConversationId,
+  RetryRequest,
+  RetryResponse,
+  UpdateRequest,
+  UpdateResponse,
+} from "./types.ts";
+import { ApiErrorHandler, isChatResponse } from "./errorHandler.ts";
+import { getApiUrl } from "../config.ts";
 
 export class ChatAPI {
   constructor() {}
@@ -95,11 +103,55 @@ export class ChatAPI {
 
       // Validate response structure
       return ApiErrorHandler.validateResponse(
-          data,
-          isChatResponse, // Reuse the same validator since structure is the same
-          "Retry message",
+        data,
+        isChatResponse, // Reuse the same validator since structure is the same
+        "Retry message",
       );
     }, "retryMessage");
+  }
+
+  async updateMessage(
+    conversationId: string,
+    messageId: number,
+    content: string,
+  ): Promise<UpdateResponse> {
+    if (!conversationId) {
+      throw new Error("Valid conversation ID is required");
+    }
+
+    if (!content) {
+      throw new Error("Valid message content is required");
+    }
+
+    return ApiErrorHandler.handleApiCall(async () => {
+      const request: UpdateRequest = {
+        conversationId,
+        messageId,
+        content,
+      };
+
+      const response = await fetch(getApiUrl("/api/chat/update"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(request),
+      });
+
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(response, "Update message");
+      }
+
+      const data = await response.json();
+
+      // Validate response structure
+      return ApiErrorHandler.validateResponse(
+        data,
+        isChatResponse, // Reuse the same validator since structure is the same
+        "Update message",
+      );
+    }, "updateMessage");
   }
 }
 

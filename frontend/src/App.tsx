@@ -57,6 +57,7 @@ function App() {
     renameConversation,
     switchBranch,
     getBranchInfo,
+    updateMessage,
   } = useConversations();
 
   const handleSendMessage = async (
@@ -119,6 +120,16 @@ function App() {
       }
     } catch (error) {
       console.error("Retry failed:", error);
+    }
+  };
+
+  const handleUpdateMessage = async (messageId: string, newContent: string) => {
+    if (!activeConversationId) return;
+
+    try {
+      await updateMessage(messageId, newContent);
+    } catch (error) {
+      console.error("Failed to update message:", error);
     }
   };
 
@@ -262,6 +273,7 @@ function App() {
           onRetryMessage={handleRetryMessage}
           onSwitchBranch={switchBranch}
           getBranchInfo={getBranchInfo}
+          onUpdateMessage={handleUpdateMessage}
         />
       </div>
 

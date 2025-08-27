@@ -432,6 +432,88 @@ export const useConversations = () => {
     [manager, activeConversationId],
   );
 
+  const updateMessage = useCallback(
+    async (messageId: string, newContent: string): Promise<void> => {
+      if (!activeConversationId) {
+        throw new Error("No active conversation");
+      }
+
+      const conversation = manager.getConversation(activeConversationId);
+      if (!conversation?.backendConversation) {
+        throw new Error("Conversation not ready");
+      }
+
+      const numericMessageId = parseInt(messageId);
+      if (isNaN(numericMessageId)) {
+        throw new Error("Invalid message ID");
+      }
+
+      // Find the message in backend conversation
+      const backendMessage =
+        conversation.backendConversation.messages[numericMessageId];
+      if (!backendMessage) {
+        throw new Error("Message not found");
+      }
+
+      const originalContent = backendMessage.content;
+
+      try {
+        setError(null);
+
+        // Optimistically update local state
+        backendMessage.content = newContent;
+
+        // Also update the frontend message
+        const frontendMessage = conversation.messages.find(
+          (m) => m.id === messageId,
+        );
+        if (frontendMessage) {
+          frontendMessage.content = newContent;
+        }
+
+        syncConversations();
+
+        // Call update API
+        const updateResponse = await chatAPI.updateMessage(
+          activeConversationId,
+          numericMessageId,
+          newContent,
+        );
+
+        // Update conversation with response (in case backend modified anything)
+        if (updateResponse.messages[numericMessageId]) {
+          conversation.backendConversation.messages[numericMessageId] =
+            updateResponse.messages[numericMessageId];
+
+          // Update frontend message as well
+          if (frontendMessage) {
+            frontendMessage.content =
+              updateResponse.messages[numericMessageId].content;
+          }
+        }
+
+        syncConversations();
+      } catch (err) {
+        console.error("Failed to update message:", err);
+
+        // On error, revert the changes
+        backendMessage.content = originalContent;
+        const frontendMessage = conversation.messages.find(
+          (m) => m.id === messageId,
+        );
+        if (frontendMessage) {
+          frontendMessage.content = originalContent;
+        }
+        syncConversations();
+
+        const errorMessage = ApiErrorHandler.getUserFriendlyMessage(err);
+        setError(errorMessage);
+        throw err;
+      }
+    },
+    [manager, activeConversationId, syncConversations],
+  );
+
   return {
     conversations,
     activeConversationId,
@@ -440,6 +522,7 @@ export const useConversations = () => {
     error,
     sendMessage,
     retryMessage,
+    updateMessage,
     getCurrentMessages,
     selectConversation,
     startNewChat,

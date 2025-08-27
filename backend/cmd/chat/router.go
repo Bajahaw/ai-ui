@@ -26,6 +26,12 @@ type Retry struct {
 	Model          string `json:"model"`
 }
 
+type Update struct {
+	ConversationID string `json:"conversationId"`
+	MessageID      int    `json:"messageId"`
+	Content        string `json:"content"`
+}
+
 type Response struct {
 	Messages map[int]*Message `json:"messages"`
 }
@@ -35,6 +41,7 @@ func Handler() http.Handler {
 
 	mux.HandleFunc("POST /new", chat)
 	mux.HandleFunc("POST /retry", retry)
+	mux.HandleFunc("POST /update", update)
 
 	return http.StripPrefix("/api/chat", auth.Authenticated(mux))
 }
@@ -227,4 +234,50 @@ func retry(w http.ResponseWriter, r *http.Request) {
 	response.Messages[responseMessage.ID], _ = conv.GetMessage(responseMessage.ID)
 
 	utils.RespondWithJSON(w, &response, http.StatusOK)
+}
+
+func update(W http.ResponseWriter, R *http.Request) {
+	var req Update
+	err := utils.ExtractJSONBody(R, &req)
+	if err != nil || req.ConversationID == "" || req.MessageID < 0 || req.Content == "" {
+		log.Error("Error unmarshalling request body", "err", err)
+		http.Error(W, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	conv, err := repo.GetConversation(req.ConversationID)
+	if err != nil {
+		log.Error("Error retrieving conversation", "err", err)
+		http.Error(W, fmt.Sprintf("Error retrieving conversation: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	msg, err := conv.GetMessage(req.MessageID)
+	if err != nil {
+		log.Error("Error retrieving message", "err", err)
+		http.Error(W, fmt.Sprintf("Error retrieving message: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	msg.Content = req.Content
+	err = conv.UpdateMessage(msg.ID, *msg)
+	if err != nil {
+		log.Error("Error updating message", "err", err)
+		http.Error(W, fmt.Sprintf("Error updating message: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	err = repo.UpdateConversation(conv)
+	if err != nil {
+		log.Error("Error updating conversation", "err", err)
+		http.Error(W, fmt.Sprintf("Error updating conversation: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	response := &Response{
+		Messages: make(map[int]*Message),
+	}
+	response.Messages[msg.ID] = msg
+
+	utils.RespondWithJSON(W, &response, http.StatusOK)
 }

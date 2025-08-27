@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useModels } from "@/hooks/useModels";
 import { useSettings } from "@/hooks/useSettings";
 
@@ -21,7 +21,7 @@ import {
 } from "@/components/ai-elements/prompt-input";
 
 import { Welcome } from "@/components/ai-elements/welcome";
-import { Response } from "@/components/ai-elements/response";
+
 import {
   Conversation,
   ConversationContent,
@@ -32,12 +32,19 @@ import {
   AlertCircleIcon,
   RotateCcwIcon,
   CopyIcon,
+  EditIcon,
+  CheckIcon,
+  XIcon,
 } from "lucide-react";
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
 import { FrontendMessage } from "@/lib/api/types";
 import { BranchNavigation } from "@/components/BranchNavigation";
 import { ClientConversation } from "@/lib/clientConversationManager";
+import {
+  EditableMessage,
+  EditableMessageRef,
+} from "@/components/ai-elements/editable-message";
 
 // Dynamic models are now loaded from providers via useModels hook
 
@@ -58,6 +65,7 @@ interface ChatInterfaceProps {
     activeIndex: number;
     hasMultiple: boolean;
   };
+  onUpdateMessage: (messageId: string, newContent: string) => Promise<void>;
 }
 
 export const ChatInterface = ({
@@ -69,6 +77,7 @@ export const ChatInterface = ({
   onRetryMessage,
   onSwitchBranch,
   getBranchInfo,
+  onUpdateMessage,
 }: ChatInterfaceProps) => {
   const { models, isLoading: modelsLoading } = useModels();
   const {
@@ -80,6 +89,13 @@ export const ChatInterface = ({
   const [input, setInput] = useState("");
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(
     null,
+  );
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [updatingMessageId, setUpdatingMessageId] = useState<string | null>(
+    null,
+  );
+  const editableMessageRefs = useRef<Record<string, EditableMessageRef | null>>(
+    {},
   );
 
   /**
@@ -169,6 +185,18 @@ export const ChatInterface = ({
     }
   };
 
+  const handleUpdateMessage = async (messageId: string, newContent: string) => {
+    setUpdatingMessageId(messageId);
+    try {
+      await onUpdateMessage(messageId, newContent);
+      setEditingMessageId(null);
+    } catch (error) {
+      console.error("Failed to update message:", error);
+    } finally {
+      setUpdatingMessageId(null);
+    }
+  };
+
   const renderMessageActions = (message: FrontendMessage) => {
     const messageId = parseInt(message.id);
 
@@ -194,6 +222,37 @@ export const ChatInterface = ({
       <div className="flex items-center gap-2">
         {/* Action buttons */}
         <Actions className="opacity-60 hover:opacity-100 transition-opacity">
+          {message.status !== "pending" && editingMessageId !== message.id && (
+            <Action
+              tooltip="Edit message"
+              onClick={() => setEditingMessageId(message.id)}
+              disabled={updatingMessageId === message.id}
+            >
+              <EditIcon className="size-4" />
+            </Action>
+          )}
+
+          {editingMessageId === message.id && (
+            <>
+              <Action
+                tooltip="Save changes"
+                onClick={() =>
+                  editableMessageRefs.current[message.id]?.triggerSave()
+                }
+                disabled={updatingMessageId === message.id}
+              >
+                <CheckIcon className="size-4" />
+              </Action>
+              <Action
+                tooltip="Cancel editing"
+                onClick={() => setEditingMessageId(null)}
+                disabled={updatingMessageId === message.id}
+              >
+                <XIcon className="size-4" />
+              </Action>
+            </>
+          )}
+
           <Action
             tooltip={message.status === "error" ? "Copy error" : "Copy message"}
             onClick={() =>
@@ -286,7 +345,20 @@ export const ChatInterface = ({
       );
     }
 
-    return <Response>{message.content}</Response>;
+    return (
+      <EditableMessage
+        ref={(ref) => {
+          if (ref) {
+            editableMessageRefs.current[message.id] = ref;
+          }
+        }}
+        content={message.content}
+        isEditing={editingMessageId === message.id}
+        onSave={(newContent) => handleUpdateMessage(message.id, newContent)}
+        onCancel={() => setEditingMessageId(null)}
+        disabled={updatingMessageId === message.id}
+      />
+    );
   };
 
   const renderMessage = (message: FrontendMessage) => {
