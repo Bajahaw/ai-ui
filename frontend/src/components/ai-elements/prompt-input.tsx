@@ -185,8 +185,14 @@ export const PromptInputModelSelectTrigger = ({
 }: PromptInputModelSelectTriggerProps) => (
   <SelectTrigger
     className={cn(
-      "border-none bg-transparent font-medium text-muted-foreground shadow-none transition-colors",
-      'hover:bg-accent hover:text-foreground [&[aria-expanded="true"]]:bg-accent [&[aria-expanded="true"]]:text-foreground',
+      "!border-none !bg-transparent !shadow-none !ring-0 !outline-none",
+      "!px-0 !py-0 !h-auto !min-h-0 !w-auto",
+      "font-medium text-muted-foreground cursor-pointer",
+      "hover:!bg-transparent hover:text-foreground",
+      "focus:!bg-transparent focus:!ring-0 focus-visible:!ring-0",
+      '[&[aria-expanded="true"]]:!bg-transparent [&[aria-expanded="true"]]:text-foreground',
+      "dark:!bg-transparent dark:hover:!bg-transparent",
+      "transition-colors",
       className,
     )}
     {...props}
@@ -204,7 +210,7 @@ export const PromptInputModelSelectContent = ({
   <SelectContent
     className={cn(
       "max-h-[300px] min-w-[250px] overflow-y-auto",
-      "bg-black/10 backdrop-blur-md border-border/20 shadow-xl rounded-2xl",
+      "bg-popover border shadow-lg rounded-lg",
       "data-[state=open]:animate-in data-[state=closed]:animate-out",
       "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
@@ -212,6 +218,7 @@ export const PromptInputModelSelectContent = ({
       "[&::-webkit-scrollbar-thumb]:bg-transparent",
       "[-ms-overflow-style:none] [scrollbar-width:none]",
       "supports-[scrollbar-width:none]:scrollbar-none",
+      "!ring-0 !outline-none focus:!ring-0 focus-visible:!ring-0",
       className,
     )}
     style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
@@ -233,6 +240,7 @@ export const PromptInputModelSelectItem = ({
       "data-[highlighted]:bg-muted/60 data-[highlighted]:text-foreground",
       "transition-all duration-200 ease-in-out",
       "font-medium",
+      "!ring-0 !outline-none focus:!ring-0 focus-visible:!ring-0",
       className,
     )}
     {...props}

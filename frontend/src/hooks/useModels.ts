@@ -55,8 +55,13 @@ export const useModels = (): UseModelsReturn => {
         }
       }
 
-      setModels(allModels);
-      cachedModels = allModels;
+      // Sort models alphabetically by name
+      const sortedModels = allModels.sort((a, b) =>
+        a.name.localeCompare(b.name),
+      );
+
+      setModels(sortedModels);
+      cachedModels = sortedModels;
       hasLoadedModels = true;
     } catch (err) {
       const errorMessage =

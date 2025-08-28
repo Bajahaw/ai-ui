@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import { AlertCircle, Save, Loader2, RotateCcw } from "lucide-react";
 import { useSettings } from "@/hooks/useSettings";
 import { useModels } from "@/hooks/useModels";
@@ -36,7 +35,7 @@ export const GlobalSettingsSection = () => {
   useEffect(() => {
     setLocalSystemPrompt(systemPrompt);
     const savedModel = getSingleSetting("defaultModel");
-    setLocalDefaultModel(savedModel || ""); // Handle case where setting doesn't exist yet
+    setLocalDefaultModel(savedModel || "");
     setHasChanges(false);
   }, [systemPrompt, getSingleSetting]);
 
@@ -61,7 +60,6 @@ export const GlobalSettingsSection = () => {
     try {
       await updateSystemPromptSetting(localSystemPrompt);
       if (localDefaultModel) {
-        // This will create the defaultModel setting if it doesn't exist
         await updateSingleSetting("defaultModel", localDefaultModel);
       }
       setHasChanges(false);
@@ -74,7 +72,7 @@ export const GlobalSettingsSection = () => {
 
   const handleResetSettings = () => {
     setLocalSystemPrompt(systemPrompt);
-    setLocalDefaultModel(getSingleSetting("defaultModel") || ""); // Handle missing setting
+    setLocalDefaultModel(getSingleSetting("defaultModel") || "");
     setHasChanges(false);
   };
 
@@ -83,12 +81,11 @@ export const GlobalSettingsSection = () => {
 
   if (isLoading || modelsLoading) {
     return (
-      <div className="space-y-4">
-        <h3 className="text-lg font-medium">Global Settings</h3>
-        <div className="flex items-center justify-center py-8">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span>
+      <div className="space-y-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="flex items-center gap-3 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm">
               {isLoading && modelsLoading
                 ? "Loading settings and models..."
                 : isLoading
@@ -102,137 +99,137 @@ export const GlobalSettingsSection = () => {
   }
 
   return (
-    <div className="space-y-8">
-      <h3 className="text-lg font-medium">Global Settings</h3>
+    <div className="space-y-8 max-w-2xl">
+      <div>
+        <h2 className="text-xl font-semibold text-foreground mb-2">
+          Global Settings
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Configure default behavior for all conversations
+        </p>
+      </div>
 
       {error && (
-        <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+        <div className="flex items-center gap-3 p-4 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
           <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          <span>{error}</span>
+          <span className="flex-1">{error}</span>
           <Button
             variant="ghost"
             size="sm"
             onClick={clearError}
-            className="ml-auto"
+            className="h-6 w-6 p-0 hover:bg-red-100 dark:hover:bg-red-800/30"
           >
             ✕
           </Button>
         </div>
       )}
 
-      <Card className="bg-transparent">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base">System Prompt</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-3">
-            <Label htmlFor="system-prompt">
-              Default system prompt for all conversations
+      <div className="space-y-8">
+        {/* System Prompt Section */}
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="system-prompt" className="text-base font-medium">
+              System Prompt
             </Label>
-            <Textarea
-              id="system-prompt"
-              placeholder={defaultSystemPrompt}
-              value={localSystemPrompt}
-              onChange={(e) => handleSystemPromptChange(e.target.value)}
-              className="min-h-[120px] resize-y"
-              disabled={isSaving}
-            />
           </div>
+
+          <Textarea
+            id="system-prompt"
+            placeholder={defaultSystemPrompt}
+            value={localSystemPrompt}
+            onChange={(e) => handleSystemPromptChange(e.target.value)}
+            className="min-h-[140px] resize-y bg-transparent border-border/50 focus-visible:border-border"
+            disabled={isSaving}
+          />
+        </div>
+
+        {/* Default Model Section */}
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="default-model" className="text-base font-medium">
+              Default Model
+            </Label>
+          </div>
+
+          <Select
+            value={localDefaultModel}
+            onValueChange={handleDefaultModelChange}
+            disabled={isSaving || models.length === 0 || modelsLoading}
+          >
+            <SelectTrigger
+              id="default-model"
+              className="bg-transparent border-border/50 focus:border-border"
+            >
+              <SelectValue
+                placeholder={
+                  modelsLoading
+                    ? "Loading models..."
+                    : models.length === 0
+                      ? "No models available"
+                      : "Select a model"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent className="max-h-60 overflow-y-auto">
+              {modelsLoading ? (
+                <div className="px-3 py-6 text-center">
+                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Loading models...
+                  </div>
+                </div>
+              ) : models.length === 0 ? (
+                <div className="px-3 py-6 text-center">
+                  <div className="text-sm text-muted-foreground">
+                    No models available
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Add AI providers in the Providers tab
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {!localDefaultModel && (
+                    <SelectItem value="" disabled>
+                      Select a default model
+                    </SelectItem>
+                  )}
+                  {models.map((model) => (
+                    <SelectItem key={model.id} value={model.id}>
+                      {model.name}
+                    </SelectItem>
+                  ))}
+                </>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3 pt-2">
+          <Button
+            onClick={handleSaveSettings}
+            disabled={!hasChanges || isSaving}
+            className="gap-2"
+          >
+            {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+            <Save className="h-4 w-4" />
+            Apply
+          </Button>
 
           {hasChanges && (
-            <div className="flex items-center gap-2 p-3 text-sm text-blue-600 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-              <span>You have unsaved changes</span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-3">
             <Button
-              onClick={handleSaveSettings}
-              disabled={!hasChanges || isSaving}
-              size="sm"
+              variant="outline"
+              onClick={handleResetSettings}
+              disabled={isSaving}
+              className="gap-2"
             >
-              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <Save className="mr-2 h-4 w-4" />
-              Save Changes
+              <RotateCcw className="h-4 w-4" />
+              Reset
             </Button>
-
-            {hasChanges && (
-              <Button
-                variant="outline"
-                onClick={handleResetSettings}
-                disabled={isSaving}
-                size="sm"
-              >
-                <RotateCcw className="mr-2 h-4 w-4" />
-                Reset
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="bg-transparent">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base">Default Model</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-3">
-            <Label htmlFor="default-model">
-              Default AI model for new conversations
-            </Label>
-            <Select
-              value={localDefaultModel}
-              onValueChange={handleDefaultModelChange}
-              disabled={isSaving || models.length === 0 || modelsLoading}
-            >
-              <SelectTrigger id="default-model">
-                <SelectValue
-                  placeholder={
-                    modelsLoading
-                      ? "Loading models..."
-                      : models.length === 0
-                        ? "No models available"
-                        : "Select a model"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {modelsLoading ? (
-                  <div className="px-3 py-4 text-center">
-                    <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Loading models...
-                    </div>
-                  </div>
-                ) : models.length === 0 ? (
-                  <div className="px-3 py-4 text-center">
-                    <div className="text-sm text-muted-foreground">
-                      No models available
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Add AI providers in the Providers tab
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {!localDefaultModel && (
-                      <SelectItem value="" disabled>
-                        Select a default model
-                      </SelectItem>
-                    )}
-                    {models.map((model) => (
-                      <SelectItem key={model.id} value={model.id}>
-                        {model.name}
-                      </SelectItem>
-                    ))}
-                  </>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

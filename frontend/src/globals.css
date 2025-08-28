@@ -145,12 +145,6 @@
             overflow-x: hidden;
         }
 
-        /* Prevent horizontal scrolling on mobile */
-        * {
-            max-width: 100vw !important;
-            box-sizing: border-box;
-        }
-
         /* Better code block handling on mobile */
         pre {
             overflow-x: auto !important;

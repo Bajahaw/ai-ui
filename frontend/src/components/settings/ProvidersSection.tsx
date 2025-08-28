@@ -151,21 +151,10 @@ export const ProvidersSection = () => {
             >
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-medium truncate">{provider.name}</h4>
-                      <Badge
-                        variant="secondary"
-                        className="text-xs flex-shrink-0"
-                      >
-                        {provider.id}
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                      <span className="truncate">{provider.baseUrl}</span>
-                    </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium truncate max-w-[50%]">
+                      {provider.name}
+                    </h4>
                   </div>
 
                   <div className="flex items-center gap-1 flex-shrink-0">
@@ -200,6 +189,16 @@ export const ProvidersSection = () => {
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                  <span
+                    className="truncate max-w-[175px] sm:max-w-[300px]"
+                    title={provider.baseUrl}
+                  >
+                    {provider.baseUrl}
+                  </span>
                 </div>
 
                 {provider.models && provider.models.length > 0 && (
