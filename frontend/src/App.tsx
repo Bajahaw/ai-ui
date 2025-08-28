@@ -265,16 +265,16 @@ function App() {
         )}
 
         <ChatInterface
-          messages={currentMessages}
-          webSearch={webSearch}
-          currentConversation={currentConversation}
-          onWebSearchToggle={handleWebSearchToggle}
-          onSendMessage={handleSendMessage}
-          onRetryMessage={handleRetryMessage}
-          onSwitchBranch={switchBranch}
-          getBranchInfo={getBranchInfo}
-          onUpdateMessage={handleUpdateMessage}
-        />
+            messages={currentMessages}
+            webSearch={webSearch}
+            currentConversation={currentConversation}
+            onWebSearchToggle={handleWebSearchToggle}
+            onSendMessage={handleSendMessage}
+            onRetryMessage={handleRetryMessage}
+            onSwitchBranch={switchBranch}
+            getBranchInfo={getBranchInfo}
+            onUpdateMessage={handleUpdateMessage}
+          />
       </div>
 
       {/* Settings Dialog */}

@@ -414,7 +414,7 @@ export const ChatInterface = ({
           status={message.status}
           className={message.role === "user" ? "pb-1" : ""}
         >
-          <MessageContent>
+          <MessageContent content={message.content}>
             {message.role === "user" ? (
               renderMessageContent(message)
             ) : (
