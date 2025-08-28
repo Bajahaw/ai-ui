@@ -476,7 +476,7 @@ export const ChatInterface = ({
                 onClick={() => onWebSearchToggle(!webSearch)}
               >
                 <GlobeIcon size={16} />
-                <span>Search</span>
+                <span className="hidden sm:inline">Search</span>
               </PromptInputButton>
               <PromptInputModelSelect
                 onValueChange={handleModelChange}

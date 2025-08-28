@@ -47,7 +47,7 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-[90vw] min-w-0 sm:min-w-[600px] md:min-w-[700px] lg:min-w-[800px] xl:min-w-[900px] h-[75vh] sm:h-[80vh] md:h-[85vh] p-0 flex flex-col">
+      <DialogContent className="w-[calc(100%-1rem)] sm:w-[calc(100%-3rem)] max-w-7xl sm:max-w-4xl h-[75vh] sm:h-[80vh] p-0 flex flex-col">
         <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
@@ -57,7 +57,7 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
 
         <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Sidebar */}
-          <div className="w-48 sm:w-56 md:w-64 lg:w-72 border-r flex-shrink-0">
+          <div className="w-16 sm:w-56 md:w-64 lg:w-72 border-r flex-shrink-0">
             <div className="p-3 sm:p-4 md:p-5 lg:p-6 h-full">
               <nav className="space-y-2">
                 {tabs.map((tab) => {
@@ -66,14 +66,14 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-left rounded-lg transition-colors ${
+                      className={`w-full flex items-center justify-center sm:justify-start gap-2 sm:gap-3 px-2 sm:px-3 md:px-4 py-2 sm:py-3 text-left rounded-lg transition-colors ${
                         activeTab === tab.id
                           ? "bg-primary text-primary-foreground"
                           : "hover:bg-muted text-muted-foreground hover:text-foreground"
                       }`}
                     >
                       <Icon className="h-4 w-4 flex-shrink-0" />
-                      <div className="text-xs sm:text-sm font-medium truncate">
+                      <div className="text-xs sm:text-sm font-medium truncate hidden sm:block">
                         {tab.label}
                       </div>
                     </button>
