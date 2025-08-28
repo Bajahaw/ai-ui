@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { AlertCircle, Save, Loader2, RotateCcw } from "lucide-react";
 import { useSettings } from "@/hooks/useSettings";
 import { useModels } from "@/hooks/useModels";
+import { useAutoSelectDefaultModel } from "@/hooks/useAutoSelectDefaultModel";
 import {
   Select,
   SelectContent,
@@ -25,6 +26,9 @@ export const GlobalSettingsSection = () => {
   } = useSettings();
 
   const { models, isLoading: modelsLoading } = useModels();
+
+  // Auto-select default model when models become available
+  useAutoSelectDefaultModel();
 
   const [localSystemPrompt, setLocalSystemPrompt] = useState("");
   const [localDefaultModel, setLocalDefaultModel] = useState("");
@@ -189,11 +193,6 @@ export const GlobalSettingsSection = () => {
                 </div>
               ) : (
                 <>
-                  {!localDefaultModel && (
-                    <SelectItem value="" disabled>
-                      Select a default model
-                    </SelectItem>
-                  )}
                   {models.map((model) => (
                     <SelectItem key={model.id} value={model.id}>
                       {model.name}

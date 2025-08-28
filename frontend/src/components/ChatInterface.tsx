@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useModels } from "@/hooks/useModels";
 import { useSettings } from "@/hooks/useSettings";
+import { useAutoSelectDefaultModel } from "@/hooks/useAutoSelectDefaultModel";
 
 import {
   Message as MessageComponent,
@@ -85,6 +86,9 @@ export const ChatInterface = ({
     getSingleSetting,
     isLoading: settingsLoading,
   } = useSettings();
+
+  // Auto-select default model when models become available
+  useAutoSelectDefaultModel();
   const [model, setModel] = useState<string>("");
   const [input, setInput] = useState("");
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(
