@@ -28,7 +28,7 @@ export const GlobalSettingsSection = () => {
   const { models, isLoading: modelsLoading } = useModels();
 
   // Auto-select default model when models become available
-  useAutoSelectDefaultModel();
+  const { autoSelectedModel } = useAutoSelectDefaultModel();
 
   const [localSystemPrompt, setLocalSystemPrompt] = useState("");
   const [localDefaultModel, setLocalDefaultModel] = useState("");
@@ -39,9 +39,9 @@ export const GlobalSettingsSection = () => {
   useEffect(() => {
     setLocalSystemPrompt(systemPrompt);
     const savedModel = getSingleSetting("defaultModel");
-    setLocalDefaultModel(savedModel || "");
+    setLocalDefaultModel(savedModel || autoSelectedModel || "");
     setHasChanges(false);
-  }, [systemPrompt, getSingleSetting]);
+  }, [systemPrompt, getSingleSetting, autoSelectedModel]);
 
   const handleSystemPromptChange = (value: string) => {
     setLocalSystemPrompt(value);

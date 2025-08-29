@@ -88,7 +88,7 @@ export const ChatInterface = ({
   } = useSettings();
 
   // Auto-select default model when models become available
-  useAutoSelectDefaultModel();
+  const { autoSelectedModel } = useAutoSelectDefaultModel();
   const [model, setModel] = useState<string>("");
   const [input, setInput] = useState("");
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(
@@ -103,46 +103,46 @@ export const ChatInterface = ({
   );
 
   /**
-   * Initialize model selection with persistence
-   * Prioritizes saved user preference, falls back to first available model
-   * Ensures model choice persists across page refreshes and sessions
+   * Synchronize local model state with the default model setting
+   * This ensures the prompt input always reflects the current default model
    */
   useEffect(() => {
-    if (models.length > 0 && !model && !settingsLoading) {
+    if (models.length > 0 && !settingsLoading) {
       const savedModel = getSingleSetting("defaultModel");
 
       // Check if saved model is still available in current providers
       const isModelAvailable =
         savedModel && models.find((m) => m.id === savedModel);
 
-      if (isModelAvailable) {
-        // Use saved model if it exists in available models
+      if (isModelAvailable && model !== savedModel) {
+        // Sync local state with the saved default model
         setModel(savedModel);
-      } else {
-        // Fallback to first available model when:
-        // - No saved model exists (backend doesn't have defaultModel setting)
-        // - Saved model is no longer available (provider removed/changed)
+      } else if (!savedModel && !model && models.length > 0) {
+        // No default model exists and no local model - let auto-select hook handle this
+        // This prevents race conditions between auto-select and this component
+      } else if (savedModel && !isModelAvailable && models.length > 0) {
+        // Saved model is no longer available, update to first available
         const fallbackModel = models[0].id;
         setModel(fallbackModel);
-
-        // Create/update the default model setting in backend
-        // This handles the case where backend doesn't have defaultModel setting yet
         updateSingleSetting("defaultModel", fallbackModel).catch((error) => {
-          console.error(
-            "Failed to create/update default model setting:",
-            error,
-          );
+          console.error("Failed to update default model setting:", error);
         });
-
-        // Log when we fall back due to unavailable model (but not for missing setting)
-        if (savedModel && !isModelAvailable) {
-          console.warn(
-            `Saved model "${savedModel}" is no longer available. Falling back to "${fallbackModel}".`,
-          );
-        }
+        console.warn(
+          `Saved model "${savedModel}" is no longer available. Falling back to "${fallbackModel}".`,
+        );
       }
     }
-  }, [models, model, settingsLoading, getSingleSetting, updateSingleSetting]);
+  }, [models, settingsLoading, getSingleSetting, updateSingleSetting, model]);
+
+  /**
+   * Sync with auto-selected model from the auto-select hook
+   * This ensures the prompt input gets updated when auto-select sets a default model
+   */
+  useEffect(() => {
+    if (autoSelectedModel && !model) {
+      setModel(autoSelectedModel);
+    }
+  }, [autoSelectedModel, model]);
 
   /**
    * Handle model selection change and persist to settings
