@@ -86,7 +86,7 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
           {/* Main Content */}
           <div className="flex-1 min-w-0 overflow-hidden">
             <ScrollArea className="h-full w-full">
-              <div className="p-8 max-w-full">{renderTabContent()}</div>
+              <div className="p-4 sm:p-8 max-w-full">{renderTabContent()}</div>
             </ScrollArea>
           </div>
         </div>
