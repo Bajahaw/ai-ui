@@ -188,7 +188,7 @@ function App() {
   }, [conversations]);
 
   return (
-    <div className="flex h-screen relative overflow-hidden">
+    <div className="flex h-[100dvh] relative overflow-hidden">
       {/* Overlay for mobile */}
       {!sidebarCollapsed && window.innerWidth < 768 && (
         <div className="sidebar-overlay" onClick={handleToggleSidebar} />
