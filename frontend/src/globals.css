@@ -155,15 +155,6 @@
             max-width: calc(100vw - 2rem) !important;
         }
 
-        /* Responsive tables */
-        table {
-            display: block;
-            overflow-x: auto;
-            white-space: nowrap;
-            max-width: 100%;
-            width: 100%;
-        }
-
         /* Long text handling */
         .prose,
         .prose * {
