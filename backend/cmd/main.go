@@ -16,11 +16,6 @@ import (
 
 var log = utils.Log
 
-type statusRecorder struct {
-	http.ResponseWriter
-	status int
-}
-
 func main() {
 	StartServer()
 }
@@ -43,7 +38,7 @@ func StartServer() {
 
 	server := &http.Server{
 		Addr:         ":8080",
-		Handler:      utils.CORS(logMiddleware(mux)),
+		Handler:      utils.LogMiddleware(mux),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  120 * time.Second,
@@ -71,17 +66,4 @@ func StartServer() {
 	}
 
 	log.Info("Server gracefully stopped")
-}
-
-func (r *statusRecorder) WriteHeader(code int) {
-	r.status = code
-	r.ResponseWriter.WriteHeader(code)
-}
-
-func logMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
-		next.ServeHTTP(recorder, r)
-		log.Info("Received request", "status", recorder.status, "method", r.Method, "path", r.URL.Path)
-	})
 }

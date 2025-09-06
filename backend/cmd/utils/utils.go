@@ -99,3 +99,32 @@ func ExtractProviderID(model string) (string, string) {
 
 	return provider, name
 }
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(code int) {
+	r.status = code
+	r.ResponseWriter.WriteHeader(code)
+}
+
+func LogMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+
+		next.ServeHTTP(recorder, r)
+
+		var level logger.Level
+		switch {
+		case recorder.status >= 500:
+			level = logger.ErrorLevel
+		case recorder.status >= 400:
+			level = logger.WarnLevel
+		default:
+			level = logger.InfoLevel
+		}
+		Log.Log(level, "Received request", "status", recorder.status, "method", r.Method, "path", r.URL.Path)
+	})
+}
