@@ -435,17 +435,6 @@ export const ChatInterface = ({
     );
   };
 
-  // Simple scroll to bottom when messages change
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const scrollContainer = document.querySelector('[role="log"]');
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      }
-    }, 50);
-    return () => clearTimeout(timer);
-  }, [messages]);
-
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <Conversation className="flex-1">
