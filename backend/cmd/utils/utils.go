@@ -13,15 +13,25 @@ import (
 )
 
 var Log = logger.NewWithOptions(os.Stdout, logger.Options{
+	Level:           loglevel,
 	ReportTimestamp: true,
 })
+
+var loglevel = func() logger.Level {
+	if os.Getenv("ENV") == "dev" {
+		fmt.Println("--- Development mode: setting log level to DEBUG ---")
+		return logger.DebugLevel
+	}
+	fmt.Println("--- Production mode: setting log level to INFO ---")
+	return logger.InfoLevel
+}()
 
 //////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////// Helper Functions ////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////
 
-// CORS currently used for local vite server
-func CORS(next http.Handler) http.Handler {
+// corsMiddleware currently used for local vite server
+func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 		w.Header().Set("Access-Control-Allow-Origin", origin)
@@ -110,7 +120,7 @@ func (r *statusRecorder) WriteHeader(code int) {
 	r.ResponseWriter.WriteHeader(code)
 }
 
-func LogMiddleware(next http.Handler) http.Handler {
+func logMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 
@@ -127,4 +137,18 @@ func LogMiddleware(next http.Handler) http.Handler {
 		}
 		Log.Log(level, "Received request", "status", recorder.status, "method", r.Method, "path", r.URL.Path)
 	})
+}
+
+func Middleware(next http.Handler) http.Handler {
+	middlewares := []func(http.Handler) http.Handler{}
+	if os.Getenv("ENV") == "dev" {
+		Log.Debug("Development mode CORS active")
+		middlewares = append(middlewares, corsMiddleware)
+	}
+	middlewares = append(middlewares, logMiddleware)
+
+	for _, m := range middlewares {
+		next = m(next)
+	}
+	return next
 }
