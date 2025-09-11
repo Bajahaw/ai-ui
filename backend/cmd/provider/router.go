@@ -3,8 +3,8 @@ package provider
 import (
 	"ai-client/cmd/auth"
 	"ai-client/cmd/utils"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
+	"github.com/openai/openai-go/v2"
+	"github.com/openai/openai-go/v2/option"
 	"net/http"
 	"time"
 )

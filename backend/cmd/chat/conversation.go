@@ -6,11 +6,12 @@ import (
 )
 
 type Message struct {
-	ID       int    `json:"id"`
-	Role     string `json:"role"`
-	Content  string `json:"content"`
-	ParentID int    `json:"parentId,omitempty"`
-	Children []int  `json:"children"`
+	ID         int    `json:"id"`
+	Role       string `json:"role"`
+	Content    string `json:"content"`
+	ParentID   int    `json:"parentId,omitempty"`
+	Children   []int  `json:"children"`
+	Attachment string `json:"attachment,omitempty"`
 }
 
 type Conversation struct {

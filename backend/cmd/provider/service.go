@@ -3,15 +3,17 @@ package provider
 import (
 	"ai-client/cmd/utils"
 	"context"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/option"
-	"log"
+	"github.com/openai/openai-go/v2"
+	"github.com/openai/openai-go/v2/option"
 	"time"
 )
 
+var log = utils.Log
+
 type SimpleMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string
+	Content string
+	Image   string
 }
 
 func SendChatCompletionRequest(messages []SimpleMessage, model string) (*openai.ChatCompletion, error) {
@@ -32,7 +34,17 @@ func SendChatCompletionRequest(messages []SimpleMessage, model string) (*openai.
 	params := openai.ChatCompletionNewParams{
 		Model:    model,
 		Messages: OpenAIMessageParams(messages),
+		//Tools: []openai.ChatCompletionToolUnionParam{
+		//	{
+		//		OfCustom: &openai.ChatCompletionCustomToolParam{
+		//			Type: "browser_search",
+		//		},
+		//	},
+		//},
 	}
+
+	//
+	log.Debug("Sending chat completion request", "params", params)
 
 	completion, err := client.Chat.Completions.New(ctx, params)
 	if err != nil {
@@ -56,9 +68,26 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 			openaiMessages[i] = openai.ChatCompletionMessageParamUnion{
 				OfUser: &openai.ChatCompletionUserMessageParam{
 					Content: openai.ChatCompletionUserMessageParamContentUnion{
-						OfString: openai.String(msg.Content),
+						OfArrayOfContentParts: []openai.ChatCompletionContentPartUnionParam{
+							{
+								OfText: &openai.ChatCompletionContentPartTextParam{
+									Text: msg.Content,
+								},
+							},
+						},
 					},
 				},
+			}
+			if msg.Image != "" {
+				file := openai.ChatCompletionContentPartUnionParam{
+					OfImageURL: &openai.ChatCompletionContentPartImageParam{
+						ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
+							URL: "https://example.com/image.png",
+						},
+					},
+				}
+				openaiMessages[i].OfUser.Content.OfArrayOfContentParts =
+					append(openaiMessages[i].OfUser.Content.OfArrayOfContentParts, file)
 			}
 		} else if msg.Role == "assistant" {
 			openaiMessages[i] = openai.ChatCompletionMessageParamUnion{

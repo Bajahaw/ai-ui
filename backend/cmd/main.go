@@ -20,15 +20,17 @@ func main() {
 	StartServer()
 }
 
-// TODO: Clean up before production use
-
 func StartServer() {
 
 	fs := http.FileServer(http.Dir("./static"))
+	dataFs := http.FileServer(http.Dir("./data"))
 	mux := http.NewServeMux()
 
 	mux.Handle("/", fs)
+	mux.Handle("/data/", auth.Authenticated(http.StripPrefix("/data/", dataFs)))
+
 	mux.Handle("/api/chat/", chat.Handler())
+	mux.Handle("/api/files/", chat.FileHandler())
 	mux.Handle("/api/conversations/", chat.ConvsHandler())
 	mux.Handle("/api/providers/", provider.Handler())
 	mux.Handle("/api/settings/", chat.SettingsHandler())

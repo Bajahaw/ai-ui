@@ -1,21 +1,28 @@
 package utils
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/alecthomas/jsonschema"
-	logger "github.com/charmbracelet/log"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
+
+	"github.com/alecthomas/jsonschema"
+	logger "github.com/charmbracelet/log"
 )
 
 var Log = logger.NewWithOptions(os.Stdout, logger.Options{
 	Level:           loglevel,
 	ReportTimestamp: true,
 })
+
+var ServerURL = ""
 
 var loglevel = func() logger.Level {
 	if os.Getenv("ENV") == "dev" {
@@ -151,4 +158,55 @@ func Middleware(next http.Handler) http.Handler {
 		next = m(next)
 	}
 	return next
+}
+
+func SaveUploadedFile(file multipart.File, handler *multipart.FileHeader) (string, error) {
+	const maxUploadSize = 10 << 20 // 10 MB
+	defer file.Close()
+
+	if handler.Size > 0 && handler.Size > maxUploadSize {
+		return "", fmt.Errorf("file too large: %d bytes (max %d)", handler.Size, maxUploadSize)
+	}
+
+	uploadDir := filepath.Join(".", "data", "uploads")
+	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
+		return "", err
+	}
+
+	ext := filepath.Ext(handler.Filename)
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	fileName := hex.EncodeToString(b) + ext
+	filePath := filepath.Join(uploadDir, fileName)
+
+	dst, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return "", err
+	}
+	defer dst.Close()
+
+	limitedReader := io.LimitReader(file, maxUploadSize+1)
+	n, err := io.Copy(dst, limitedReader)
+	if err != nil {
+		_ = os.Remove(filePath)
+		return "", err
+	}
+	if n > maxUploadSize {
+		_ = os.Remove(filePath)
+		return "", fmt.Errorf("file too large after copy: %d bytes (max %d)", n, maxUploadSize)
+	}
+
+	return filePath, nil
+}
+
+func GetServerURL(r *http.Request) string {
+	if ServerURL != "" {
+		return ServerURL
+	}
+	scheme := "http"
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	ServerURL = scheme + "://" + r.Host
+	return ServerURL
 }

@@ -5,7 +5,7 @@ go 1.24
 require (
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
 	github.com/charmbracelet/log v0.4.2
-	github.com/openai/openai-go v1.12.0
+	github.com/openai/openai-go/v2 v2.3.1
 )
 
 require (
