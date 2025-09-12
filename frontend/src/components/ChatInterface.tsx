@@ -46,6 +46,12 @@ import {
   EditableMessage,
   EditableMessageRef,
 } from "@/components/ai-elements/editable-message";
+import {
+  FileUpload,
+  FilePreview,
+  AttachmentMessage,
+  UploadedFile,
+} from "@/components/ui/file-upload";
 
 // Dynamic models are now loaded from providers via useModels hook
 
@@ -58,6 +64,7 @@ interface ChatInterfaceProps {
     message: string,
     webSearch: boolean,
     model: string,
+    attachment?: string,
   ) => Promise<void>;
   onRetryMessage: (messageId: string, model: string) => Promise<void>;
   onSwitchBranch: (messageId: number, branchIndex: number) => void;
@@ -98,6 +105,8 @@ export const ChatInterface = ({
   const [updatingMessageId, setUpdatingMessageId] = useState<string | null>(
     null,
   );
+  const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const editableMessageRefs = useRef<Record<string, EditableMessageRef | null>>(
     {},
   );
@@ -165,12 +174,30 @@ export const ChatInterface = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() && !uploadedFile) return;
 
     const message = input;
+    const attachment = uploadedFile?.url;
     setInput("");
-    await onSendMessage(message, webSearch, model);
+    setUploadedFile(null);
+    setUploadError(null);
+    await onSendMessage(message, webSearch, model, attachment);
   };
+
+  const handleFileUploaded = useCallback((fileUrl: string, file: File) => {
+    setUploadedFile({ file, url: fileUrl });
+    setUploadError(null);
+  }, []);
+
+  const handleFileUploadError = useCallback((error: string) => {
+    setUploadError(error);
+    setUploadedFile(null);
+  }, []);
+
+  const handleRemoveFile = useCallback(() => {
+    setUploadedFile(null);
+    setUploadError(null);
+  }, []);
 
   const copyMessage = async (content: string) => {
     try {
@@ -407,8 +434,28 @@ export const ChatInterface = ({
   };
 
   const renderMessage = (message: FrontendMessage) => {
+    const hasAttachment =
+      message.attachment && message.attachment.trim() !== "";
+
     return (
       <div key={message.id}>
+        {/* Render attachment message first if exists (not counted in conversation tree) */}
+        {hasAttachment && (
+          <MessageComponent
+            from={message.role}
+            status="success"
+            className="pb-1"
+          >
+            <MessageContent className="!p-2 ">
+              <AttachmentMessage
+                attachment={message.attachment!}
+                filename={message.attachment!.split("/").pop()}
+              />
+            </MessageContent>
+          </MessageComponent>
+        )}
+
+        {/* Render main message */}
         <MessageComponent
           from={message.role}
           status={message.status}
@@ -457,6 +504,29 @@ export const ChatInterface = ({
           onSubmit={handleSubmit}
           className="chat-interface w-full max-w-3xl mx-auto !px-4 !sm:px-6"
         >
+          {/* File preview area */}
+          {uploadedFile && (
+            <div className="py-3 border-b">
+              <FilePreview file={uploadedFile} onRemove={handleRemoveFile} />
+            </div>
+          )}
+
+          {/* Upload error display */}
+          {uploadError && (
+            <div className="p-3 border-b">
+              <div className="flex items-center gap-2 text-destructive text-sm">
+                <AlertCircleIcon size={16} />
+                <span>{uploadError}</span>
+                <button
+                  onClick={() => setUploadError(null)}
+                  className="ml-auto text-muted-foreground hover:text-foreground"
+                >
+                  <XIcon size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
           <PromptInputTextarea
             onChange={(e) => setInput(e.target.value)}
             value={input}
@@ -464,6 +534,11 @@ export const ChatInterface = ({
           />
           <PromptInputToolbar>
             <PromptInputTools>
+              <FileUpload
+                onFileUploaded={handleFileUploaded}
+                onError={handleFileUploadError}
+                disabled={hasPendingMessages}
+              />
               <PromptInputButton
                 variant={webSearch ? "default" : "ghost"}
                 onClick={() => onWebSearchToggle(!webSearch)}
@@ -518,7 +593,11 @@ export const ChatInterface = ({
               </PromptInputModelSelect>
             </PromptInputTools>
             <PromptInputSubmit
-              disabled={!input || !model || models.length === 0}
+              disabled={
+                (!input.trim() && !uploadedFile) ||
+                !model ||
+                models.length === 0
+              }
               status={hasPendingMessages ? "submitted" : undefined}
             />
           </PromptInputToolbar>

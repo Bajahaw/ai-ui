@@ -1,4 +1,9 @@
-import {backendToFrontendMessage, Conversation, FrontendMessage, Message,} from "@/lib/api";
+import {
+  backendToFrontendMessage,
+  Conversation,
+  FrontendMessage,
+  Message,
+} from "@/lib/api";
 
 let tempIdCounter = -1;
 
@@ -25,7 +30,10 @@ export class ClientConversationManager {
     return `conv-${date}-${time}`;
   }
 
-  createConversation(firstMessage: string): ClientConversation {
+  createConversation(
+    firstMessage: string,
+    attachment?: string,
+  ): ClientConversation {
     const conversationId = this.generateConversationId();
     const tempMessageId = this.generateTempId();
 
@@ -35,6 +43,7 @@ export class ClientConversationManager {
       content: firstMessage,
       status: "pending",
       timestamp: Date.now(),
+      attachment,
     };
 
     // Add placeholder assistant message immediately
@@ -62,7 +71,11 @@ export class ClientConversationManager {
     return conversation;
   }
 
-  addMessageOptimistically(conversationId: string, content: string): string {
+  addMessageOptimistically(
+    conversationId: string,
+    content: string,
+    attachment?: string,
+  ): string {
     const conversation = this.conversations.get(conversationId);
     if (!conversation)
       throw new Error(`Conversation ${conversationId} not found`);
@@ -74,6 +87,7 @@ export class ClientConversationManager {
       content,
       status: "pending",
       timestamp: Date.now(),
+      attachment,
     };
 
     // Add placeholder assistant message immediately

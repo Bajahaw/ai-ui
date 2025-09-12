@@ -6,6 +6,7 @@ export interface Message {
   content: string;
   parentId?: number;
   children: number[];
+  attachment?: string;
 }
 
 export interface Conversation {
@@ -23,6 +24,7 @@ export interface ChatRequest {
   model: string;
   content: string;
   webSearch?: boolean;
+  attachment?: string;
 }
 
 export interface ChatResponse {
@@ -65,6 +67,7 @@ export interface FrontendMessage {
   status?: "success" | "error" | "pending";
   error?: string;
   timestamp: number;
+  attachment?: string;
 }
 
 export interface FrontendConversation {
@@ -116,6 +119,7 @@ export const backendToFrontendMessage = (
     status,
     error,
     timestamp: Date.now(), // Backend doesn't provide timestamp, use current time
+    attachment: backendMsg.attachment,
   };
 };
 
@@ -148,6 +152,7 @@ export const frontendToBackendMessage = (
     content: frontendMsg.content,
     parentId: parentId !== undefined ? parentId : undefined,
     children: [],
+    attachment: frontendMsg.attachment,
   };
 };
 
@@ -183,4 +188,9 @@ export interface FrontendProvider {
   baseUrl: string;
   apiKey?: string; // Optional for display purposes
   models?: Model[];
+}
+
+// File upload types
+export interface FileUploadResponse {
+  fileUrl: string;
 }

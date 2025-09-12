@@ -64,6 +64,7 @@ function App() {
     message: string,
     webSearchEnabled: boolean,
     model: string,
+    attachment?: string,
   ) => {
     // Enhanced duplicate prevention for StrictMode and race conditions
     const currentTime = Date.now();
@@ -90,6 +91,7 @@ function App() {
         message,
         model,
         webSearchEnabled,
+        attachment,
       );
     } catch (error) {
       console.error("Error in message flow:", error);
@@ -265,16 +267,16 @@ function App() {
         )}
 
         <ChatInterface
-            messages={currentMessages}
-            webSearch={webSearch}
-            currentConversation={currentConversation}
-            onWebSearchToggle={handleWebSearchToggle}
-            onSendMessage={handleSendMessage}
-            onRetryMessage={handleRetryMessage}
-            onSwitchBranch={switchBranch}
-            getBranchInfo={getBranchInfo}
-            onUpdateMessage={handleUpdateMessage}
-          />
+          messages={currentMessages}
+          webSearch={webSearch}
+          currentConversation={currentConversation}
+          onWebSearchToggle={handleWebSearchToggle}
+          onSendMessage={handleSendMessage}
+          onRetryMessage={handleRetryMessage}
+          onSwitchBranch={switchBranch}
+          getBranchInfo={getBranchInfo}
+          onUpdateMessage={handleUpdateMessage}
+        />
       </div>
 
       {/* Settings Dialog */}

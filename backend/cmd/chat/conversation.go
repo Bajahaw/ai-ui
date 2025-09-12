@@ -59,11 +59,12 @@ func (c *Conversation) AppendMessage(msg Message) int {
 	newID := c.NextID
 
 	stored := &Message{
-		ID:       newID,
-		Role:     msg.Role,
-		Content:  msg.Content,
-		ParentID: msg.ParentID,
-		Children: []int{},
+		ID:         newID,
+		Role:       msg.Role,
+		Content:    msg.Content,
+		ParentID:   msg.ParentID,
+		Children:   []int{},
+		Attachment: msg.Attachment,
 	}
 
 	if parent, ok := c.Messages[msg.ParentID]; ok {

@@ -19,6 +19,7 @@ export class ChatAPI {
     model: string,
     content: string,
     webSearch: boolean = false,
+    attachment?: string,
   ): Promise<ChatResponse & { conversationId: string }> {
     if (!model) {
       throw new Error("Valid model is required");
@@ -35,6 +36,7 @@ export class ChatAPI {
         model,
         content,
         webSearch,
+        attachment,
       };
 
       const response = await fetch(getApiUrl("/api/chat/new"), {

@@ -60,6 +60,7 @@ export const useConversations = () => {
       message: string,
       model: string,
       webSearch: boolean = false,
+      attachment?: string,
     ): Promise<string> => {
       let tempMessageId: string | undefined;
       let clientConversationId = conversationId;
@@ -70,7 +71,10 @@ export const useConversations = () => {
         // Handle new conversation case
         if (!conversationId) {
           // Create conversation optimistically
-          const clientConversation = manager.createConversation(message);
+          const clientConversation = manager.createConversation(
+            message,
+            attachment,
+          );
           clientConversationId = clientConversation.id;
           syncConversations();
           setActiveConversationId(clientConversationId);
@@ -82,6 +86,7 @@ export const useConversations = () => {
             model,
             message,
             webSearch,
+            attachment,
           );
 
           // Set up backend conversation structure from chat response
@@ -130,6 +135,7 @@ export const useConversations = () => {
           tempMessageId = manager.addMessageOptimistically(
             conversationId,
             message,
+            attachment,
           );
           syncConversations();
         }
@@ -170,6 +176,7 @@ export const useConversations = () => {
           model,
           message,
           webSearch,
+          attachment,
         );
 
         manager.updateWithChatResponse(conversationId, chatResponse.messages);
