@@ -3,9 +3,10 @@ package provider
 import (
 	"ai-client/cmd/utils"
 	"context"
+	"time"
+
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
-	"time"
 )
 
 var log = utils.Log
@@ -82,7 +83,7 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 				file := openai.ChatCompletionContentPartUnionParam{
 					OfImageURL: &openai.ChatCompletionContentPartImageParam{
 						ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
-							URL: "https://example.com/image.png",
+							URL: msg.Image,
 						},
 					},
 				}

@@ -27,7 +27,7 @@ func StartServer() {
 	mux := http.NewServeMux()
 
 	mux.Handle("/", fs)
-	mux.Handle("/data/", auth.Authenticated(http.StripPrefix("/data/", dataFs)))
+	mux.Handle("/data/", http.StripPrefix("/data/", dataFs))
 
 	mux.Handle("/api/chat/", chat.Handler())
 	mux.Handle("/api/files/", chat.FileHandler())
