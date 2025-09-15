@@ -265,7 +265,10 @@ const components: Options["components"] = {
     </h6>
   ),
   p: ({ node, children, className, ...props }) => (
-    <p className={cn("mb-4 leading-relaxed break-words", className)} {...props}>
+    <p
+      className={cn("mb-4 break-words [line-height:1.75rem]", className)}
+      {...props}
+    >
       {children}
     </p>
   ),
@@ -325,7 +328,7 @@ export const Response = memo(
     return (
       <div
         className={cn(
-          "size-full w-full max-w-full overflow-hidden [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:mb-4 [&_p]:leading-relaxed [&_p]:break-words prose-p:mb-4 prose-p:leading-relaxed prose-p:break-words [&_table]:table-auto [&_table]:border-collapse [&_table]:w-full [&_table]:my-6 [&_table_th]:border [&_table_td]:border [&_table_td]:px-3 [&_table_td]:py-2 [&_table_th]:px-3 [&_table_th]:py-2 [&_hr]:mb-4",
+          "size-full w-full max-w-full overflow-hidden [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:mb-4 [&_p]:[line-height:1.75rem] [&_p]:break-words prose-p:mb-4 prose-p:[line-height:1.75rem] prose-p:break-words [&_table]:table-auto [&_table]:border-collapse [&_table]:w-full [&_table]:my-6 [&_table_th]:border [&_table_td]:border [&_table_td]:px-3 [&_table_td]:py-2 [&_table_th]:px-3 [&_table_th]:py-2 [&_hr]:mb-4",
           className,
         )}
         {...props}

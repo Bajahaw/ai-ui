@@ -49,7 +49,7 @@ export const ConversationSidebar = ({
   className,
   ...props
 }: ConversationSidebarProps) => {
-  const width = 320; // Fixed width in pixels
+  const width = 280; // Fixed width in pixels
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>("");
 

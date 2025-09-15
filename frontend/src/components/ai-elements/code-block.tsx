@@ -49,7 +49,7 @@ export const CodeBlock = ({
           customStyle={{
             margin: 0,
             padding: "1rem",
-            fontSize: "0.875rem",
+            fontSize: "1rem",
             background: "hsl(var(--background))",
             color: "hsl(var(--foreground))",
             overflowX: "auto",
@@ -62,7 +62,7 @@ export const CodeBlock = ({
             minWidth: "2.5rem",
           }}
           codeTagProps={{
-            className: "font-mono text-sm",
+            className: "font-mono text-base",
           }}
           className="dark:hidden overflow-x-auto"
           wrapLongLines={false}
@@ -75,7 +75,7 @@ export const CodeBlock = ({
           customStyle={{
             margin: 0,
             padding: "1rem",
-            fontSize: "0.875rem",
+            fontSize: "1rem",
             background: "hsl(var(--background))",
             color: "hsl(var(--foreground))",
             overflowX: "auto",
@@ -88,7 +88,7 @@ export const CodeBlock = ({
             minWidth: "2.5rem",
           }}
           codeTagProps={{
-            className: "font-mono text-sm",
+            className: "font-mono text-base",
           }}
           className="hidden dark:block overflow-x-auto"
           wrapLongLines={false}

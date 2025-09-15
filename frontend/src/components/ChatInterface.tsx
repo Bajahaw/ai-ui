@@ -397,7 +397,7 @@ export const ChatInterface = ({
                 : "Failed to send message"}
             </span>
           </div>
-          <div className="text-sm text-destructive/80">
+          <div className="text-base text-destructive/80">
             {message.error || "An unknown error occurred"}
           </div>
         </div>
@@ -412,7 +412,7 @@ export const ChatInterface = ({
       return (
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader size={16} />
-          <span className="text-sm">Thinking...</span>
+          <span className="text-base">Thinking...</span>
         </div>
       );
     }
@@ -502,7 +502,7 @@ export const ChatInterface = ({
       <div className="flex-shrink-0 flex justify-center !p-6 !pt-4">
         <PromptInput
           onSubmit={handleSubmit}
-          className="chat-interface w-full max-w-3xl mx-auto !px-4 !sm:px-6"
+          className="chat-interface w-full max-w-3xl mx-auto"
         >
           {/* File preview area */}
           {uploadedFile && (
@@ -514,7 +514,7 @@ export const ChatInterface = ({
           {/* Upload error display */}
           {uploadError && (
             <div className="p-3 border-b">
-              <div className="flex items-center gap-2 text-destructive text-sm">
+              <div className="flex items-center gap-2 text-destructive text-base">
                 <AlertCircleIcon size={16} />
                 <span>{uploadError}</span>
                 <button
@@ -563,7 +563,7 @@ export const ChatInterface = ({
                 <PromptInputModelSelectContent>
                   {models.length === 0 ? (
                     <div className="px-3 py-4 text-center">
-                      <div className="text-sm text-muted-foreground">
+                      <div className="text-base text-muted-foreground">
                         No models available
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">

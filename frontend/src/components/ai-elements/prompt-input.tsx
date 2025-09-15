@@ -184,13 +184,15 @@ export const PromptInputModelSelectTrigger = ({
   <SelectTrigger
     className={cn(
       "!border-none !bg-transparent !shadow-none !ring-0 !outline-none",
-      "!px-0 !py-0 !h-auto !min-h-0 !w-auto",
+      "!px-2 !py-1 !h-auto !min-h-0 !w-auto",
+      "max-sm:!max-w-48 max-sm:!flex max-sm:!items-center max-sm:!gap-1",
       "font-medium text-muted-foreground cursor-pointer",
       "hover:!bg-transparent hover:text-foreground",
       "focus:!bg-transparent focus:!ring-0 focus-visible:!ring-0",
       '[&[aria-expanded="true"]]:!bg-transparent [&[aria-expanded="true"]]:text-foreground',
       "dark:!bg-transparent dark:hover:!bg-transparent",
       "transition-colors",
+      "max-sm:[&>span]:!overflow-hidden max-sm:[&>span]:!text-ellipsis max-sm:[&>span]:!whitespace-nowrap max-sm:[&>span]:!flex-1 max-sm:[&>span]:!min-w-0",
       className,
     )}
     {...props}
@@ -232,7 +234,7 @@ export const PromptInputModelSelectItem = ({
 }: PromptInputModelSelectItemProps) => (
   <SelectItem
     className={cn(
-      "cursor-pointer rounded-xl px-3 py-2.5 text-sm mx-2 my-0.5",
+      "cursor-pointer rounded-xl px-1 py-2.5 text-base mx-2 my-0.5",
       "hover:bg-muted/60 hover:text-foreground",
       "focus:bg-muted/60 focus:text-foreground",
       "data-[highlighted]:bg-muted/60 data-[highlighted]:text-foreground",

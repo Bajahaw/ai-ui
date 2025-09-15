@@ -32,7 +32,7 @@
 
 .dark {
     --background: 240 0% 10%;
-    --foreground: 0 0% 98%;
+    --foreground: 0 0% 95%;
     --card: 240 10% 3.9%;
     --card-foreground: 0 0% 98%;
     --popover: 240 10% 3.9%;
@@ -127,9 +127,9 @@
             left: 0;
             z-index: 50;
             /*height: 100vh;*/
-            width: min(80vw, 320px) !important;
+            width: min(80vw, 280px) !important;
             min-width: 280px !important;
-            max-width: 320px !important;
+            max-width: 280px !important;
             box-shadow:
                 0 10px 15px -3px rgb(0 0 0 / 0.1),
                 0 4px 6px -4px rgb(0 0 0 / 0.1);
