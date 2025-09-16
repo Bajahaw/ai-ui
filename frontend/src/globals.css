@@ -163,15 +163,10 @@
         .chat-interface {
             width: 100% !important;
             max-width: 100% !important;
-            margin-left: 0 !important;
-            margin-right: 0 !important;
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
         }
 
         .chat-container {
             transition: none;
-            margin-left: 0 !important;
             overflow-x: hidden;
         }
 
@@ -230,8 +225,6 @@
     @media (max-width: 1024px) {
         .chat-interface {
             max-width: 100% !important;
-            padding-left: 1rem !important;
-            padding-right: 1rem !important;
         }
     }
 
@@ -264,4 +257,16 @@
             overflow-x: hidden;
         }
     }
+}
+
+.transition-colors {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+    transition-duration: 10ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transition-all {
+    transition-property: all;
+    transition-duration: 10ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }

@@ -61,7 +61,7 @@ export const PromptInputTextarea = ({
   return (
     <Textarea
       className={cn(
-        "w-full resize-none rounded-none border-none p-3 shadow-none outline-none ring-0",
+        "w-full resize-none rounded-none border-none py-3 px-5 shadow-none outline-none ring-0",
         "bg-transparent dark:bg-transparent field-sizing-content max-h-[6lh]",
         "focus-visible:ring-0",
         className,
@@ -84,7 +84,7 @@ export const PromptInputToolbar = ({
   ...props
 }: PromptInputToolbarProps) => (
   <div
-    className={cn("flex items-center justify-between p-1", className)}
+    className={cn("flex items-center justify-between py-1 px-1.5", className)}
     {...props}
   />
 );
@@ -210,15 +210,6 @@ export const PromptInputModelSelectContent = ({
   <SelectContent
     className={cn(
       "max-h-[300px] min-w-[250px] overflow-y-auto",
-      "bg-popover border shadow-lg rounded-lg",
-      "data-[state=open]:animate-in data-[state=closed]:animate-out",
-      "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-      "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-      "[&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:bg-transparent",
-      "[&::-webkit-scrollbar-thumb]:bg-transparent",
-      "[-ms-overflow-style:none] [scrollbar-width:none]",
-      "supports-[scrollbar-width:none]:scrollbar-none",
-      "!ring-0 !outline-none focus:!ring-0 focus-visible:!ring-0",
       className,
     )}
     style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
@@ -237,10 +228,8 @@ export const PromptInputModelSelectItem = ({
       "cursor-pointer rounded-xl px-1 py-2.5 text-base mx-2 my-0.5",
       "hover:bg-muted/60 hover:text-foreground",
       "focus:bg-muted/60 focus:text-foreground",
-      "data-[highlighted]:bg-muted/60 data-[highlighted]:text-foreground",
-      "transition-all duration-200 ease-in-out",
-      "font-medium",
-      "!ring-0 !outline-none focus:!ring-0 focus-visible:!ring-0",
+      "transition-all duration-0 ease-in-out",
+        "!ring-0 !outline-none focus:!ring-0 focus-visible:!ring-0",
       className,
     )}
     {...props}

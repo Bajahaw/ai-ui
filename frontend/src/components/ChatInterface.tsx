@@ -485,7 +485,7 @@ export const ChatInterface = ({
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <Conversation className="flex-1">
-        <ConversationContent className="chat-interface w-full max-w-3xl mx-auto !px-5 sm:!px-7">
+        <ConversationContent className="chat-interface w-full max-w-3xl mx-auto !px-5 lg:!px-3">
           {messages.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <Welcome />
@@ -571,7 +571,7 @@ export const ChatInterface = ({
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-1 p-1">
+                    <div className="space-y-1">
                       {models.map((modelItem) => (
                         <PromptInputModelSelectItem
                           key={modelItem.id}
