@@ -61,10 +61,10 @@ function SelectContent({
       <SelectPrimitive.Content
         data-slot="select-content"
         className={cn(
-          "bg-popover text-popover-foreground p-2",
+          "bg-secondary text-popover-foreground p-2 z-50 max-w-sm",
             " data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
             " data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-            " overflow-x-hidden overflow-y-auto rounded-md border shadow-md",
+            " overflow-x-hidden overflow-y-auto rounded-lg shadow-lg",
           position === "popper",
           className,
         )}

@@ -53,7 +53,7 @@ export const ConversationSidebar = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>("");
 
-  const truncateTitle = (title: string, maxLength: number = 30) => {
+  const truncateTitle = (title: string, maxLength: number = 28) => {
     return title.length > maxLength
       ? `${title.substring(0, maxLength)}...`
       : title;

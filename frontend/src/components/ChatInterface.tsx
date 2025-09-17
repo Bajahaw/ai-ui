@@ -506,7 +506,7 @@ export const ChatInterface = ({
         >
           {/* File preview area */}
           {uploadedFile && (
-            <div className="py-3 border-b">
+            <div className="p-3 border-b">
               <FilePreview file={uploadedFile} onRemove={handleRemoveFile} />
             </div>
           )}
@@ -577,7 +577,9 @@ export const ChatInterface = ({
                           key={modelItem.id}
                           value={modelItem.id}
                         >
+                            <div className="max-w-[300px] overflow-hidden text-ellipsis text-nowrap pr-2">
                           {modelItem.name}
+                            </div>
                         </PromptInputModelSelectItem>
                       ))}
                       {models.length > 5 && (
