@@ -9,11 +9,19 @@ let tempIdCounter = -1;
 
 export interface ClientConversation {
   id: string;
+
   title: string;
+
   messages: FrontendMessage[];
+
   backendConversation?: Conversation;
+
   pendingMessageIds: Set<string>;
+
   activeBranches: Map<number, number>; // messageId -> activeChildId for messages with multiple children
+
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export class ClientConversationManager {
@@ -133,74 +141,135 @@ export class ClientConversationManager {
 
   updateWithChatResponse(
     conversationId: string,
+
     backendMessages: Record<number, Message>,
   ): void {
     const conversation = this.conversations.get(conversationId);
+
     if (!conversation) return;
 
-    this.updateWithBackendMessages(conversationId, backendMessages);
+    // Determine real conversation ID from messages (backend provides convId)
 
-    if (conversation.backendConversation) {
-      conversation.backendConversation.messages = {
-        ...conversation.backendConversation.messages,
-        ...backendMessages,
-      };
+    const realConvId = Object.values(backendMessages)
+      .map((m) => m?.convId)
+      .find((id) => typeof id === "string" && id.trim().length > 0);
 
-      const messageIds = Object.keys(backendMessages).map(Number);
-      if (messageIds.length > 0) {
-        // Set active message to the last assistant message (response)
-        const assistantMessageId = messageIds.find(
-          (id) => backendMessages[id].role === "assistant",
-        );
-        if (assistantMessageId) {
-          conversation.backendConversation.activeMessageId = assistantMessageId;
+    if (realConvId && conversation.id !== realConvId) {
+      // Re-key the conversation map to use the real UUID
+      this.conversations.delete(conversationId);
+      conversation.id = realConvId;
 
-          // Update active branches when new assistant message is added
-          const assistantMessage = backendMessages[assistantMessageId];
-          if (assistantMessage && assistantMessage.parentId) {
-            // Update parent's children array if this is a new branch
-            const parentMessage =
-              conversation.backendConversation.messages[
-                assistantMessage.parentId
-              ];
-            if (
-              parentMessage &&
-              !parentMessage.children.includes(assistantMessageId)
-            ) {
+      if (!conversation.backendConversation) {
+        conversation.backendConversation = {
+          id: realConvId,
+          userId: "",
+          title: conversation.title,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          messages: {},
+        } as unknown as Conversation;
+      } else {
+        conversation.backendConversation.id = realConvId;
+      }
+
+      this.conversations.set(realConvId, conversation);
+    }
+
+    // Ensure backendConversation exists
+    if (!conversation.backendConversation) {
+      conversation.backendConversation = {
+        id: realConvId || conversation.id,
+        userId: "",
+        title: conversation.title,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messages: {},
+      } as unknown as Conversation;
+    }
+
+    // Ensure messages map exists
+    if (!conversation.backendConversation.messages) {
+      conversation.backendConversation.messages = {};
+    }
+
+    // Merge messages
+    this.updateWithBackendMessages(conversation.id, backendMessages);
+    conversation.backendConversation.messages = {
+      ...conversation.backendConversation.messages,
+      ...backendMessages,
+    };
+
+    const messageIds = Object.keys(backendMessages).map(Number);
+
+    if (messageIds.length > 0) {
+      // Set active message to the last assistant message (response) if available
+
+      const assistantMessageId = messageIds.find(
+        (id) => backendMessages[id].role === "assistant",
+      );
+      if (assistantMessageId) {
+        conversation.backendConversation.activeMessageId = assistantMessageId;
+
+        // Update active branches when new assistant message is added (client-side)
+
+        const assistantMessage = backendMessages[assistantMessageId];
+
+        if (assistantMessage && assistantMessage.parentId) {
+          // Update parent's children array if this is a new branch
+
+          const parentMessage =
+            conversation.backendConversation.messages[
+              assistantMessage.parentId
+            ];
+
+          if (parentMessage) {
+            if (!Array.isArray(parentMessage.children)) {
+              parentMessage.children = [];
+            }
+            if (!parentMessage.children.includes(assistantMessageId)) {
               parentMessage.children.push(assistantMessageId);
             }
-
-            // Set this as the active branch for the parent
-            conversation.activeBranches.set(
-              assistantMessage.parentId,
-              assistantMessageId,
-            );
-            if (!conversation.backendConversation.activeBranches) {
-              conversation.backendConversation.activeBranches = {};
-            }
-            conversation.backendConversation.activeBranches[
-              assistantMessage.parentId
-            ] = assistantMessageId;
           }
-        } else {
-          conversation.backendConversation.activeMessageId = Math.max(
-            ...messageIds,
+
+          // Set this as the active branch for the parent
+
+          conversation.activeBranches.set(
+            assistantMessage.parentId,
+
+            assistantMessageId,
           );
         }
+      } else {
+        conversation.backendConversation.activeMessageId = Math.max(
+          ...messageIds,
+        );
       }
     }
+
+    // Touch updatedAt
+    const nowIso = new Date().toISOString();
+    conversation.backendConversation.updatedAt = nowIso;
+    (conversation as any).updatedAt = nowIso;
   }
 
   /**
    * Handle retry response which contains both the parent message (with updated children)
    * and the new assistant message. This ensures proper conversation tree state.
    */
+
   updateWithRetryResponse(
     conversationId: string,
+
     retryMessages: Record<number, Message>,
   ): void {
     const conversation = this.conversations.get(conversationId);
+
     if (!conversation?.backendConversation) return;
+
+    // Ensure messages map exists
+    if (!conversation.backendConversation.messages) {
+      conversation.backendConversation.messages = {};
+    }
 
     // Process all messages from retry response (parent + new assistant)
     for (const [messageId, message] of Object.entries(retryMessages)) {
@@ -210,23 +279,27 @@ export class ClientConversationManager {
       conversation.backendConversation.messages[numericId] = message;
 
       // If this is the new assistant message, set it as active
-      if (message.role === "assistant" && message.parentId) {
-        // Set as active message and active branch
-        conversation.backendConversation.activeMessageId = numericId;
-        conversation.activeBranches.set(message.parentId, numericId);
 
-        if (!conversation.backendConversation.activeBranches) {
-          conversation.backendConversation.activeBranches = {};
-        }
-        conversation.backendConversation.activeBranches[message.parentId] =
-          numericId;
+      if (message.role === "assistant" && message.parentId) {
+        // Set as active message and active branch (client-side)
+
+        conversation.backendConversation.activeMessageId = numericId;
+
+        conversation.activeBranches.set(message.parentId, numericId);
       }
     }
 
+    // Touch updatedAt
+    const nowIso = new Date().toISOString();
+    conversation.backendConversation.updatedAt = nowIso;
+    (conversation as any).updatedAt = nowIso;
+
     // Update frontend messages to reflect the changes
+
     this.updateWithBackendMessages(conversationId, retryMessages);
 
     // Rebuild the conversation view to ensure proper branch display
+
     conversation.messages = this.buildMessagesFromBackend(
       conversation.backendConversation,
     );
@@ -335,7 +408,25 @@ export class ClientConversationManager {
   }
 
   getAllConversations(): ClientConversation[] {
-    return Array.from(this.conversations.values());
+    const list = Array.from(this.conversations.values());
+
+    return list.sort((a, b) => {
+      const aTime = new Date(
+        a.backendConversation?.updatedAt ||
+          (a as any).updatedAt ||
+          a.backendConversation?.createdAt ||
+          (a as any).createdAt ||
+          0,
+      ).getTime();
+      const bTime = new Date(
+        b.backendConversation?.updatedAt ||
+          (b as any).updatedAt ||
+          b.backendConversation?.createdAt ||
+          (b as any).createdAt ||
+          0,
+      ).getTime();
+      return bTime - aTime;
+    });
   }
 
   loadBackendConversations(backendConversations: Conversation[]): void {
@@ -343,32 +434,29 @@ export class ClientConversationManager {
       const existingConv = this.conversations.get(backendConv.id);
 
       if (existingConv) {
-        existingConv.backendConversation = backendConv;
-        if (existingConv.messages.length === 0) {
-          existingConv.messages = this.buildMessagesFromBackend(backendConv);
-        }
+        // Merge minimal backend conversation fields (messages may be fetched separately)
+        existingConv.backendConversation = {
+          ...(existingConv.backendConversation || {}),
+          ...backendConv,
+        } as Conversation;
+        existingConv.title = backendConv.title || existingConv.title;
+        (existingConv as any).createdAt = backendConv.createdAt;
+        (existingConv as any).updatedAt = backendConv.updatedAt;
       } else {
-        const firstMsg = backendConv.root?.[0]
-          ? backendConv.messages[backendConv.root[0]]?.content
-          : "New Chat";
         const clientConv: ClientConversation = {
           id: backendConv.id,
-          title:
-            backendConv.title ||
-            (firstMsg?.length > 50
-              ? firstMsg.substring(0, 47) + "..."
-              : firstMsg || "New Chat"),
-          messages: this.buildMessagesFromBackend(backendConv),
+
+          title: backendConv.title || "New Chat",
+
+          messages: [], // messages are loaded via chat responses or messages endpoint
           backendConversation: backendConv,
+
           pendingMessageIds: new Set(),
-          activeBranches: new Map(
-            backendConv.activeBranches
-              ? Object.entries(backendConv.activeBranches).map(([k, v]) => [
-                  parseInt(k),
-                  v,
-                ])
-              : [],
-          ),
+
+          activeBranches: new Map(),
+
+          createdAt: backendConv.createdAt,
+          updatedAt: backendConv.updatedAt,
         };
         this.conversations.set(backendConv.id, clientConv);
       }
@@ -380,64 +468,68 @@ export class ClientConversationManager {
   ): FrontendMessage[] {
     if (!backendConv.messages) return [];
 
-    // Build the conversation path by following parent-child relationships
-    // and respecting active branch selections
-    const path: Message[] = [];
     const conversation = this.conversations.get(backendConv.id);
 
-    // If we have an activeMessageId, trace back to build the path
-    if (
-      backendConv.activeMessageId &&
-      backendConv.messages[backendConv.activeMessageId]
-    ) {
+    const messages = backendConv.messages;
+    // Build children relationships on the fly since backend may omit them
+    for (const msg of Object.values(messages)) {
+      if (!msg) continue;
+      const pid = (msg as Message).parentId;
+      if (pid && messages[pid]) {
+        const parent = messages[pid] as Message;
+        if (!Array.isArray(parent.children)) parent.children = [];
+        if (!parent.children.includes(msg.id)) {
+          parent.children.push(msg.id);
+        }
+      }
+    }
+
+    // Helper: find roots (messages without a valid parent)
+    const isRoot = (m: Message) =>
+      !("parentId" in m) || !m.parentId || m.parentId === 0;
+
+    const all = Object.values(messages);
+    if (all.length === 0) return [];
+
+    // Prefer tracing back from activeMessageId if set (client-maintained)
+    const path: Message[] = [];
+    if (backendConv.activeMessageId && messages[backendConv.activeMessageId]) {
       let currentId: number | undefined = backendConv.activeMessageId;
 
       while (currentId !== undefined) {
-        const message: Message = backendConv.messages[currentId];
-        if (!message) break;
-        path.unshift(message);
-        currentId = message.parentId;
+        const msg = messages[currentId];
+        if (!msg) break;
+        path.unshift(msg);
+        currentId = msg.parentId;
       }
-    } else if (backendConv.root && backendConv.root.length > 0) {
-      // Build from root following active branches
-      const visited = new Set<number>();
-      const buildPath = (messageId: number) => {
-        if (visited.has(messageId)) return;
-        visited.add(messageId);
-
-        const message = backendConv.messages[messageId];
-        if (!message) return;
-
-        path.push(message);
-
-        // Follow active branch if message has multiple children
-        if (message.children && message.children.length > 0) {
-          let nextChildId = message.children[0]; // Default to first child
-
-          // Check if there's an active branch selection for this message
-          if (conversation?.activeBranches.has(messageId)) {
-            const activeChildId = conversation.activeBranches.get(messageId);
-            if (activeChildId && message.children.includes(activeChildId)) {
-              nextChildId = activeChildId;
-            }
-          } else if (
-            backendConv.activeBranches &&
-            backendConv.activeBranches[messageId]
-          ) {
-            const activeChildId = backendConv.activeBranches[messageId];
-            if (message.children.includes(activeChildId)) {
-              nextChildId = activeChildId;
-            }
-          }
-
-          buildPath(nextChildId);
-        }
-      };
-
-      buildPath(backendConv.root[0]);
+      return path.map((m) => backendToFrontendMessage(m, "success"));
     }
 
-    return path.map((msg) => backendToFrontendMessage(msg, "success"));
+    // Otherwise, start from one of the roots (pick the latest by id)
+    const roots = all.filter(isRoot).sort((a, b) => b.id - a.id);
+    const start = roots[0] || all.sort((a, b) => a.id - b.id)[0];
+    if (!start) return [];
+
+    // Walk down following client-side activeBranches when available,
+    // otherwise pick the last child (most recent) if multiple
+    let current: Message | undefined = start;
+    while (current) {
+      path.push(current);
+      if (!current.children || current.children.length === 0) break;
+
+      let nextChildId = current.children[current.children.length - 1];
+      if (conversation?.activeBranches.has(current.id)) {
+        const activeChildId = conversation.activeBranches.get(current.id)!;
+        if (current.children.includes(activeChildId)) {
+          nextChildId = activeChildId;
+        }
+      }
+
+      current = messages[nextChildId];
+      if (!current) break;
+    }
+
+    return path.map((m) => backendToFrontendMessage(m, "success"));
   }
 
   hasPendingMessages(conversationId: string): boolean {
@@ -455,9 +547,11 @@ export class ClientConversationManager {
     }
 
     // Fallback: find the latest assistant message
-    const assistantMessages = Object.values(
-      conversation.backendConversation.messages,
-    ).filter((msg) => msg.role === "assistant");
+
+    const allMessages = conversation.backendConversation.messages || {};
+    const assistantMessages = Object.values(allMessages).filter(
+      (msg) => msg && msg.role === "assistant",
+    );
 
     if (assistantMessages.length > 0) {
       const latestAssistant = assistantMessages.reduce((latest, current) =>
@@ -505,29 +599,27 @@ export class ClientConversationManager {
 
   switchToBranch(
     conversationId: string,
+
     messageId: number,
+
     branchIndex: number,
   ): void {
     const conversation = this.conversations.get(conversationId);
+
     if (!conversation?.backendConversation) return;
 
     const message = conversation.backendConversation.messages[messageId];
+
     if (!message?.children || branchIndex >= message.children.length) return;
 
     const newActiveChildId = message.children[branchIndex];
+
     conversation.activeBranches.set(messageId, newActiveChildId);
 
-    // Update backend conversation
-    if (conversation.backendConversation.activeBranches) {
-      conversation.backendConversation.activeBranches[messageId] =
-        newActiveChildId;
-    } else {
-      conversation.backendConversation.activeBranches = {
-        [messageId]: newActiveChildId,
-      };
-    }
+    // Active branch is tracked client-side via activeBranches Map
 
     // Update activeMessageId to the new branch if it's the current active path
+
     if (
       conversation.backendConversation.activeMessageId === messageId ||
       this.isMessageInActivePath(conversation.backendConversation, messageId)
@@ -536,7 +628,9 @@ export class ClientConversationManager {
     }
 
     // Always rebuild messages to reflect the new active branch selection
+
     // This ensures the conversation view updates to show the selected branch
+
     conversation.messages = this.buildMessagesFromBackend(
       conversation.backendConversation,
     );

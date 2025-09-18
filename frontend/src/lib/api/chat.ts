@@ -1,12 +1,12 @@
 import {
   ChatRequest,
   ChatResponse,
-  generateConversationId,
   RetryRequest,
   RetryResponse,
   UpdateRequest,
   UpdateResponse,
 } from "./types.ts";
+
 import { ApiErrorHandler, isChatResponse } from "./errorHandler.ts";
 import { getApiUrl } from "../config.ts";
 
@@ -31,7 +31,7 @@ export class ChatAPI {
 
     return ApiErrorHandler.handleApiCall(async () => {
       const request: ChatRequest = {
-        conversationId: conversationId || generateConversationId(),
+        conversationId: conversationId,
         parentId: parentId || 0,
         model,
         content,
@@ -61,8 +61,13 @@ export class ChatAPI {
         "Send message",
       );
 
+      const convIdFromMessages =
+        validatedData && validatedData.messages
+          ? ((Object.values(validatedData.messages)[0] as any)?.convId ?? "")
+          : "";
       return {
         ...validatedData,
+
         conversationId: request.conversationId,
       };
     }, "sendMessage");

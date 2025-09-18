@@ -178,13 +178,26 @@ function App() {
     ? getCurrentMessages(currentConversation)
     : [];
 
-  // Fallback handling for empty or invalid conversations and sort by recency
   const safeConversations = useMemo(() => {
     return Array.isArray(conversations)
       ? [...conversations].sort((a, b) => {
-          const timestampA = getConversationTimestamp(a.id);
-          const timestampB = getConversationTimestamp(b.id);
-          return timestampB - timestampA; // Most recent first
+          const aUpdated = a.backendConversation?.updatedAt;
+          const aCreated = a.backendConversation?.createdAt;
+          const bUpdated = b.backendConversation?.updatedAt;
+          const bCreated = b.backendConversation?.createdAt;
+
+          const aTime = aUpdated
+            ? new Date(aUpdated).getTime()
+            : aCreated
+              ? new Date(aCreated).getTime()
+              : 0;
+          const bTime = bUpdated
+            ? new Date(bUpdated).getTime()
+            : bCreated
+              ? new Date(bCreated).getTime()
+              : 0;
+
+          return bTime - aTime; // Most recent first
         })
       : [];
   }, [conversations]);

@@ -1,15 +1,12 @@
-import {
-  Conversation,
-  CreateConversationRequest,
-  frontendToBackendMessage,
-  generateConversationId,
-} from "./types.ts";
+import { Conversation, Message } from "./types.ts";
+
 import {
   ApiErrorHandler,
   isConversation,
   isConversationArray,
-  isCreateConversationResponse,
+  isMessagesMap,
 } from "./errorHandler.ts";
+
 import { getApiUrl } from "../config.ts";
 
 // API client for conversation endpoints
@@ -45,55 +42,45 @@ export class ConversationsAPI {
   }
 
   // POST /api/conversations/add
-  async createConversation(
-    title: string,
-    firstMessage: string,
-  ): Promise<string> {
+
+  async createConversation(title: string): Promise<Conversation> {
     if (!title) {
       throw new Error("Valid conversation title is required");
     }
 
-    if (!firstMessage) {
-      throw new Error("Valid first message is required");
-    }
+    // Local UUIDv4 generator (fallback if crypto.randomUUID is unavailable)
+    const genUuid = (): string => {
+      const anyCrypto: any = (globalThis as any).crypto;
+      if (anyCrypto && typeof anyCrypto.randomUUID === "function") {
+        return anyCrypto.randomUUID();
+      }
+      return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    };
 
     return ApiErrorHandler.handleApiCall(async () => {
-      const conversationId = generateConversationId();
-
-      // Create initial conversation structure with first user message
-      const userMessage = frontendToBackendMessage(
-        {
-          id: "1",
-          role: "user",
-          content: firstMessage,
-          status: "success",
-          timestamp: Date.now(),
-        },
-        1, // First message gets ID 1
-      );
-
+      const now = new Date().toISOString();
       const conversation: Conversation = {
-        id: conversationId,
-        title,
-        messages: {
-          1: userMessage,
-        },
-        root: [1],
-        activeMessageId: 1,
-        activeBranches: {},
-      };
-
-      const request: CreateConversationRequest = {
-        conversation,
+        id: genUuid(),
+        userId: "admin",
+        title: title.trim(),
+        createdAt: now,
+        updatedAt: now,
       };
 
       const response = await fetch(getApiUrl("/api/conversations/add"), {
         method: "POST",
+
         headers: {
           "Content-Type": "application/json",
         },
+
         credentials: "include",
-        body: JSON.stringify(request),
+
+        body: JSON.stringify({ conversation }),
       });
 
       if (!response.ok) {
@@ -102,14 +89,14 @@ export class ConversationsAPI {
 
       const result = await response.json();
 
-      // Validate response structure
-      const validatedResult = ApiErrorHandler.validateResponse(
+      // Validate response structure (backend returns the created conversation)
+
+      return ApiErrorHandler.validateResponse(
         result,
-        isCreateConversationResponse,
+
+        isConversation,
         "Create conversation",
       );
-
-      return validatedResult.id;
     }, "createConversation");
   }
 
@@ -149,7 +136,46 @@ export class ConversationsAPI {
     }, `fetchConversation(${id})`);
   }
 
+  // GET /api/conversations/{id}/messages
+  async fetchConversationMessages(
+    id: string,
+  ): Promise<Record<number, Message>> {
+    if (!id) {
+      throw new Error("Invalid conversation ID provided");
+    }
+
+    return ApiErrorHandler.handleApiCall(async () => {
+      const response = await fetch(
+        getApiUrl(`/api/conversations/${encodeURIComponent(id)}/messages`),
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(
+          response,
+          `Fetch conversation ${id} messages`,
+        );
+      }
+
+      const data = await response.json();
+
+      // Validate messages map structure
+      return ApiErrorHandler.validateResponse(
+        data,
+        isMessagesMap,
+        `Fetch conversation ${id} messages`,
+      );
+    }, `fetchConversationMessages(${id})`);
+  }
+
   // DELETE /api/conversations/{id}
+
   async deleteConversation(id: string): Promise<void> {
     if (!id) {
       throw new Error("Invalid conversation ID provided");

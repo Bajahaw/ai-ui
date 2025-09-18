@@ -2,20 +2,33 @@
 
 export interface Message {
   id: number;
+
+  convId: string;
   role: string;
+
   content: string;
+
   parentId?: number;
+
   children: number[];
+
   attachment?: string;
 }
 
 export interface Conversation {
   id: string;
+
+  userId: string;
   title?: string;
-  messages: Record<number, Message>;
-  root: number[];
-  activeMessageId: number;
-  activeBranches: Record<number, number>; // messageId -> activeChildId mapping
+
+  createdAt: string;
+  updatedAt: string;
+
+  // Client-only compatibility fields
+  messages?: Record<number, Message>;
+  root?: number[];
+  activeMessageId?: number;
+  activeBranches?: Record<number, number>; // messageId -> activeChildId mapping
 }
 
 export interface ChatRequest {
@@ -55,9 +68,7 @@ export interface CreateConversationRequest {
   conversation: Conversation;
 }
 
-export interface CreateConversationResponse {
-  id: string;
-}
+export type CreateConversationResponse = Conversation;
 
 // Frontend types for compatibility
 export interface FrontendMessage {
@@ -77,13 +88,22 @@ export interface FrontendConversation {
   backendConversation: Conversation;
 }
 
-// Utility function to generate conversation ID
-export const generateConversationId = (): string => {
+// Utility function to generate optimistic client-only conversation ID (placeholder)
+
+// Note: Backend now uses UUIDs. When creating a new conversation implicitly,
+// read the real UUID from the returned messages' convId.
+export const generateOptimisticConversationId = (): string => {
   const now = new Date();
+
   const date = now.toISOString().split("T")[0].replace(/-/g, "");
+
   const time = now.toTimeString().split(" ")[0].replace(/:/g, "");
+
   return `conv-${date}-${time}`;
 };
+
+// Backward-compat export alias (deprecated): will be removed later.
+export const generateConversationId = generateOptimisticConversationId;
 
 // Convert backend message to frontend message
 export const backendToFrontendMessage = (
@@ -148,10 +168,16 @@ export const frontendToBackendMessage = (
 
   return {
     id: numericId,
+
+    convId: "",
     role: frontendMsg.role,
+
     content: frontendMsg.content,
+
     parentId: parentId !== undefined ? parentId : undefined,
+
     children: [],
+
     attachment: frontendMsg.attachment,
   };
 };

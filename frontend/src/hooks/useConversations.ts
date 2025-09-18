@@ -79,49 +79,47 @@ export const useConversations = () => {
           syncConversations();
           setActiveConversationId(clientConversationId);
 
-          // Send message to server - server will create conversation on the fly
+          // Create conversation on server first to get real UUID
+          const title =
+            message.length > 50 ? message.substring(0, 47) + "..." : message;
+          const createdConv = await conversationsAPI.createConversation(title);
+
+          // Send first message using the real conversation UUID
           const chatResponse = await chatAPI.sendMessage(
-            null, // null conversationId triggers server-side conversation creation
+            createdConv.id,
             null, // null parentId for new conversation
+
             model,
+
             message,
+
             webSearch,
+
             attachment,
           );
 
-          // Set up backend conversation structure from chat response
-          const messageIds = Object.keys(chatResponse.messages).map(Number);
-
-          // Find the assistant message to set as active (it should be the latest response)
-          const assistantMessageId = messageIds.find(
-            (id) => chatResponse.messages[id].role === "assistant",
-          );
-          const activeMessageId =
-            assistantMessageId ||
-            (messageIds.length > 0 ? Math.max(...messageIds) : 1);
-
-          const backendConversation = {
-            id: chatResponse.conversationId,
-            title: clientConversation.title,
-            messages: chatResponse.messages,
-            root: messageIds.length > 0 ? [Math.min(...messageIds)] : [1],
-            activeMessageId: activeMessageId,
-            activeBranches: {},
-          };
-
-          // Set backend conversation and process messages in one go
-          const conversation = manager.getConversation(clientConversationId);
-          if (conversation) {
-            conversation.backendConversation = backendConversation;
-          }
-
+          // Update local state with returned messages; manager will re-key if needed
           manager.updateWithChatResponse(
             clientConversationId,
+
             chatResponse.messages,
           );
+
+          // Optionally fetch full conversation messages (empty map if none)
+          try {
+            const allMessages =
+              await conversationsAPI.fetchConversationMessages(createdConv.id);
+            manager.updateWithChatResponse(createdConv.id, allMessages);
+          } catch (e) {
+            console.warn("Failed to fetch conversation messages:", e);
+          }
+
+          // Switch active conversation to the real UUID
+
+          setActiveConversationId(createdConv.id);
           syncConversations();
 
-          return clientConversationId;
+          return createdConv.id;
         }
 
         // Handle existing conversation case
@@ -144,13 +142,16 @@ export const useConversations = () => {
         if (activeMessageId === undefined) {
           // Fallback: if no activeMessageId, use the latest assistant message
           const backendConv = conversation.backendConversation;
+
           if (backendConv) {
-            const assistantMessages = Object.values(
-              backendConv.messages,
-            ).filter((msg) => msg.role === "assistant");
+            const msgs = backendConv.messages || {};
+            const assistantMessages = Object.values(msgs).filter(
+              (msg) => msg.role === "assistant",
+            );
             if (assistantMessages.length > 0) {
               const latestAssistant =
                 assistantMessages[assistantMessages.length - 1];
+
               const fallbackActiveId = latestAssistant.id;
               // Update the conversation's activeMessageId
               backendConv.activeMessageId = fallbackActiveId;
@@ -291,9 +292,24 @@ export const useConversations = () => {
     [],
   );
 
-  const selectConversation = useCallback((conversationId: string) => {
-    setActiveConversationId(conversationId);
-  }, []);
+  const selectConversation = useCallback(
+    (conversationId: string) => {
+      setActiveConversationId(conversationId);
+
+      // Lazy-load messages for the selected conversation
+      (async () => {
+        try {
+          const msgs =
+            await conversationsAPI.fetchConversationMessages(conversationId);
+          manager.updateWithChatResponse(conversationId, msgs);
+          syncConversations();
+        } catch (err) {
+          console.error("Failed to load conversation messages:", err);
+        }
+      })();
+    },
+    [manager, syncConversations],
+  );
 
   const startNewChat = useCallback(() => {
     setActiveConversationId(null);
@@ -479,8 +495,10 @@ export const useConversations = () => {
           newContent,
         );
 
-        // Update conversation with response (in case backend modified anything)
         if (updateResponse.messages[numericMessageId]) {
+          if (!conversation.backendConversation.messages) {
+            conversation.backendConversation.messages = {};
+          }
           conversation.backendConversation.messages[numericMessageId] =
             updateResponse.messages[numericMessageId];
 
