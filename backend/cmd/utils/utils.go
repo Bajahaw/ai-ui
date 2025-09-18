@@ -1,8 +1,6 @@
 package utils
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +13,7 @@ import (
 
 	"github.com/alecthomas/jsonschema"
 	logger "github.com/charmbracelet/log"
+	"github.com/google/uuid"
 )
 
 var Log = logger.NewWithOptions(os.Stdout, logger.Options{
@@ -148,11 +147,12 @@ func logMiddleware(next http.Handler) http.Handler {
 
 func Middleware(next http.Handler) http.Handler {
 	middlewares := []func(http.Handler) http.Handler{}
+	middlewares = append(middlewares, logMiddleware)
+
 	if os.Getenv("ENV") == "dev" {
 		Log.Debug("Development mode CORS active")
 		middlewares = append(middlewares, corsMiddleware)
 	}
-	middlewares = append(middlewares, logMiddleware)
 
 	for _, m := range middlewares {
 		next = m(next)
@@ -168,15 +168,12 @@ func SaveUploadedFile(file multipart.File, handler *multipart.FileHeader) (strin
 		return "", fmt.Errorf("file too large: %d bytes (max %d)", handler.Size, maxUploadSize)
 	}
 
-	uploadDir := filepath.Join(".", "data", "uploads")
+	uploadDir := filepath.Join(".", "data", "resources")
 	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
 		return "", err
 	}
 
-	ext := filepath.Ext(handler.Filename)
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	fileName := hex.EncodeToString(b) + ext
+	fileName := uuid.New().String() + filepath.Ext(handler.Filename)
 	filePath := filepath.Join(uploadDir, fileName)
 
 	dst, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)

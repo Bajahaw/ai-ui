@@ -3,6 +3,7 @@ package main
 import (
 	"ai-client/cmd/auth"
 	"ai-client/cmd/chat"
+	"ai-client/cmd/datasource"
 	"ai-client/cmd/provider"
 	"ai-client/cmd/utils"
 	"context"
@@ -17,17 +18,26 @@ import (
 var log = utils.Log
 
 func main() {
+	StartDataSource()
 	StartServer()
+}
+
+func StartDataSource() {
+	err := datasource.InitDataSource("./data/ai-ui.db")
+	if err != nil {
+		log.Fatal("Failed to initialize data source", "err", err)
+	}
+	log.Info("Data source initialized successfully")
 }
 
 func StartServer() {
 
 	fs := http.FileServer(http.Dir("./static"))
-	dataFs := http.FileServer(http.Dir("./data"))
+	dataFs := http.FileServer(http.Dir("./data/resources"))
 	mux := http.NewServeMux()
 
 	mux.Handle("/", fs)
-	mux.Handle("/data/", http.StripPrefix("/data/", dataFs))
+	mux.Handle("/data/resources/", http.StripPrefix("/data/resources/", dataFs))
 
 	mux.Handle("/api/chat/", chat.Handler())
 	mux.Handle("/api/files/", chat.FileHandler())

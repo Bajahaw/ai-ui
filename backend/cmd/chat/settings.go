@@ -1,7 +1,6 @@
 package chat
 
 import (
-	"ai-client/cmd/auth"
 	"ai-client/cmd/utils"
 	"net/http"
 )
@@ -10,22 +9,29 @@ type Settings struct {
 	Settings map[string]string `json:"settings"`
 }
 
-var settings = func() map[string]string {
-	return map[string]string{
-		"systemPrompt": "You are a helpful assistant.",
-	}
-}()
-
-func SettingsHandler() http.Handler {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("GET /", getAllSettings)
-	mux.HandleFunc("POST /update", updateSettings)
-
-	return http.StripPrefix("/api/settings", auth.Authenticated(mux))
-}
+var settings = make(map[string]string)
 
 func getAllSettings(w http.ResponseWriter, _ *http.Request) {
+	sql := "SELECT key, value FROM Settings"
+	rows, err := db.Query(sql)
+	if err != nil {
+		log.Error("Error querying settings", "err", err)
+		http.Error(w, "Error querying settings", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	settings = make(map[string]string)
+	for rows.Next() {
+		var key, value string
+		if err = rows.Scan(&key, &value); err != nil {
+			log.Error("Error scanning setting", "err", err)
+			http.Error(w, "Error scanning settings", http.StatusInternalServerError)
+			return
+		}
+		settings[key] = value
+	}
+
 	response := Settings{settings}
 	utils.RespondWithJSON(w, &response, http.StatusOK)
 }
@@ -47,6 +53,13 @@ func updateSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		sql := "INSERT INTO Settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
+		_, err = db.Exec(sql, key, value)
+		if err != nil {
+			log.Error("Error updating setting", "key", key, "value", value, "err", err)
+			http.Error(w, "Error updating settings", http.StatusInternalServerError)
+			return
+		}
 		settings[key] = value
 	}
 

@@ -1,25 +1,21 @@
 package chat
 
 import (
-	"ai-client/cmd/auth"
 	"ai-client/cmd/utils"
 	"fmt"
 	"net/http"
+	"time"
 )
 
-func ConvsHandler() http.Handler {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("GET     /", GetAllConversations)
-	mux.HandleFunc("POST 	  /add", AddConversation)
-	mux.HandleFunc("GET  	  /{id}", GetConversation)
-	mux.HandleFunc("DELETE  /{id}", DeleteConversation)
-	mux.HandleFunc("POST 	  /{id}/rename", RenameConversation)
-
-	return http.StripPrefix("/api/conversations", auth.Authenticated(mux))
+type Conversation struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"userId"`
+	Title     string    `json:"title,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-func AddConversation(w http.ResponseWriter, r *http.Request) {
+func saveConversation(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Conv Conversation `json:"conversation"`
 	}
@@ -35,7 +31,7 @@ func AddConversation(w http.ResponseWriter, r *http.Request) {
 	// debug
 	log.Debug("Adding conversation", "conversation", conv)
 
-	err = repo.AddConversation(conv)
+	err = repo.addConversation(conv)
 	if err != nil {
 		log.Error("Error adding conversation", "err", err)
 		http.Error(w, fmt.Sprintf("Error adding conversation: %v", err), http.StatusInternalServerError)
@@ -45,9 +41,9 @@ func AddConversation(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, conv, http.StatusCreated)
 }
 
-func GetConversation(w http.ResponseWriter, r *http.Request) {
+func getConversation(w http.ResponseWriter, r *http.Request) {
 	convId := r.PathValue("id")
-	conv, err := repo.GetConversation(convId)
+	conv, err := repo.getConversation(convId)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error retrieving conversation: %v", err), http.StatusInternalServerError)
 		return
@@ -55,8 +51,8 @@ func GetConversation(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, &conv, http.StatusOK)
 }
 
-func GetAllConversations(w http.ResponseWriter, _ *http.Request) {
-	conversations, err := repo.GetAllConversations()
+func getAllConversations(w http.ResponseWriter, _ *http.Request) {
+	conversations, err := repo.getAllConversations()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error retrieving conversations: %v", err), http.StatusInternalServerError)
 		return
@@ -64,9 +60,9 @@ func GetAllConversations(w http.ResponseWriter, _ *http.Request) {
 	utils.RespondWithJSON(w, conversations, http.StatusOK)
 }
 
-func DeleteConversation(w http.ResponseWriter, r *http.Request) {
+func deleteConversation(w http.ResponseWriter, r *http.Request) {
 	convId := r.PathValue("id")
-	err := repo.DeleteConversation(convId)
+	err := repo.deleteConversation(convId)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error deleting conversation: %v", err), http.StatusInternalServerError)
 		return
@@ -74,7 +70,7 @@ func DeleteConversation(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func RenameConversation(w http.ResponseWriter, r *http.Request) {
+func renameConversation(w http.ResponseWriter, r *http.Request) {
 	convId := r.PathValue("id")
 	var req struct {
 		Title string `json:"title"`
@@ -86,7 +82,7 @@ func RenameConversation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conv, err := repo.GetConversation(convId)
+	conv, err := repo.getConversation(convId)
 	if err != nil {
 		log.Error("Error retrieving conversation", "err", err)
 		http.Error(w, fmt.Sprintf("Error retrieving conversation: %v", err), http.StatusInternalServerError)
@@ -95,7 +91,7 @@ func RenameConversation(w http.ResponseWriter, r *http.Request) {
 
 	conv.Title = req.Title
 
-	err = repo.UpdateConversation(conv)
+	err = repo.updateConversation(conv)
 	if err != nil {
 		log.Error("Error updating conversation", "err", err)
 		http.Error(w, fmt.Sprintf("Error updating conversation: %v", err), http.StatusInternalServerError)
@@ -103,4 +99,10 @@ func RenameConversation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, &conv, http.StatusOK)
+}
+
+func getConversationMessages(w http.ResponseWriter, r *http.Request) {
+	convId := r.PathValue("id")
+	messages := getAllConversationMessages(convId)
+	utils.RespondWithJSON(w, &messages, http.StatusOK)
 }

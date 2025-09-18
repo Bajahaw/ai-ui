@@ -1,0 +1,92 @@
+package datasource
+
+import (
+	"database/sql"
+	"os"
+	"path/filepath"
+
+	_ "github.com/mattn/go-sqlite3"
+)
+
+var DB *sql.DB
+
+func InitDataSource(dataSourceName string) error {
+	var err error
+	// validate dataSourceName
+	dir := filepath.Dir(dataSourceName)
+	if err = os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	DB, err = sql.Open("sqlite3", dataSourceName)
+	if err != nil {
+		return err
+	}
+
+	if err = DB.Ping(); err != nil {
+		_ = DB.Close()
+		DB = nil
+		return err
+	}
+
+	if _, err = DB.Exec(`PRAGMA foreign_keys = ON;`); err != nil {
+		_ = DB.Close()
+		return err
+	}
+
+	schema := `
+	CREATE TABLE IF NOT EXISTS Users (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		role TEXT NOT NULL,
+		token_hash TEXT NOT NULL
+	);
+	
+	CREATE TABLE IF NOT EXISTS Conversations (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		title TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES Users(id) ON DELETE CASCADE
+	);
+	
+	CREATE TABLE IF NOT EXISTS Attachments (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		type TEXT NOT NULL,
+		url TEXT NOT NULL
+	);
+	
+	CREATE TABLE IF NOT EXISTS Messages (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		conv_id INTEGER NOT NULL,
+		role TEXT NOT NULL,
+		model TEXT NOT NULL,
+		parent_id INTEGER,
+		attachment_id INTEGER,
+		content TEXT NOT NULL,
+		FOREIGN KEY (conv_id) REFERENCES Conversations(id) ON DELETE CASCADE,
+		FOREIGN KEY (parent_id) REFERENCES Messages(id) ON DELETE SET NULL,
+		FOREIGN KEY (attachment_id) REFERENCES Attachments(id) ON DELETE SET NULL
+	);
+	
+	CREATE TABLE IF NOT EXISTS Providers (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		url TEXT NOT NULL,
+		key TEXT NOT NULL
+	);
+
+	CREATE TABLE IF NOT EXISTS Models (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		provider_id INTEGER NOT NULL,
+		name TEXT NOT NULL,
+		FOREIGN KEY (provider_id) REFERENCES Providers(id) ON DELETE CASCADE
+	);
+
+	CREATE TABLE IF NOT EXISTS Settings (
+		key TEXT PRIMARY KEY,
+		value TEXT NOT NULL
+	);
+	`
+
+	_, err = DB.Exec(schema)
+	return err
+}

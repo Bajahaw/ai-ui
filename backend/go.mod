@@ -5,6 +5,8 @@ go 1.24
 require (
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
 	github.com/charmbracelet/log v0.4.2
+	github.com/google/uuid v1.6.0
+	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/openai/openai-go/v2 v2.3.1
 )
 
