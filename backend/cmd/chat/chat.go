@@ -46,7 +46,7 @@ func chat(w http.ResponseWriter, r *http.Request) {
 	err = repo.touchConversation(req.ConversationID)
 	if err != nil {
 		conv := newConversation("admin")
-		if err = repo.addConversation(conv); err != nil {
+		if err = repo.saveConversation(conv); err != nil {
 			log.Error("Error creating conversation", "err", err)
 			http.Error(w, fmt.Sprintf("Error creating conversation: %v", err), http.StatusInternalServerError)
 			return

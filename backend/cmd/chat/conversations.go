@@ -31,7 +31,7 @@ func saveConversation(w http.ResponseWriter, r *http.Request) {
 	// debug
 	log.Debug("Adding conversation", "conversation", conv)
 
-	err = repo.addConversation(conv)
+	err = repo.saveConversation(conv)
 	if err != nil {
 		log.Error("Error adding conversation", "err", err)
 		http.Error(w, fmt.Sprintf("Error adding conversation: %v", err), http.StatusInternalServerError)

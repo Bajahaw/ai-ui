@@ -3,7 +3,7 @@ package main
 import (
 	"ai-client/cmd/auth"
 	"ai-client/cmd/chat"
-	"ai-client/cmd/datasource"
+	"ai-client/cmd/data"
 	"ai-client/cmd/provider"
 	"ai-client/cmd/utils"
 	"context"
@@ -23,7 +23,7 @@ func main() {
 }
 
 func StartDataSource() {
-	err := datasource.InitDataSource("./data/ai-ui.db")
+	err := data.InitDataSource("./data/ai-ui.db")
 	if err != nil {
 		log.Fatal("Failed to initialize data source", "err", err)
 	}

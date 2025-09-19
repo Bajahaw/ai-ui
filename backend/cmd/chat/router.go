@@ -2,13 +2,11 @@ package chat
 
 import (
 	"ai-client/cmd/auth"
-	"ai-client/cmd/datasource"
 	"ai-client/cmd/utils"
 	"net/http"
 )
 
 var log = utils.Log
-var db = datasource.DB
 var repo = newConversationRepository()
 
 func Handler() http.Handler {

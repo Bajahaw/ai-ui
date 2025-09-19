@@ -1,4 +1,4 @@
-package datasource
+package data
 
 import (
 	"database/sql"
@@ -36,17 +36,16 @@ func InitDataSource(dataSourceName string) error {
 	schema := `
 	CREATE TABLE IF NOT EXISTS Users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		role TEXT NOT NULL,
-		token_hash TEXT NOT NULL
+		username TEXT NOT NULL,
+		token TEXT NOT NULL
 	);
 	
 	CREATE TABLE IF NOT EXISTS Conversations (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		user_id INTEGER NOT NULL,
+		id TEXT NOT NULL,
+		user TEXT,
 		title TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (user_id) REFERENCES Users(id) ON DELETE CASCADE
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 	
 	CREATE TABLE IF NOT EXISTS Attachments (

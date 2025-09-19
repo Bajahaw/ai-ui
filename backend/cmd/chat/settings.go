@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"ai-client/cmd/data"
 	"ai-client/cmd/utils"
 	"net/http"
 )
@@ -13,7 +14,7 @@ var settings = make(map[string]string)
 
 func getAllSettings(w http.ResponseWriter, _ *http.Request) {
 	sql := "SELECT key, value FROM Settings"
-	rows, err := db.Query(sql)
+	rows, err := data.DB.Query(sql)
 	if err != nil {
 		log.Error("Error querying settings", "err", err)
 		http.Error(w, "Error querying settings", http.StatusInternalServerError)
@@ -54,7 +55,7 @@ func updateSettings(w http.ResponseWriter, r *http.Request) {
 		}
 
 		sql := "INSERT INTO Settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
-		_, err = db.Exec(sql, key, value)
+		_, err = data.DB.Exec(sql, key, value)
 		if err != nil {
 			log.Error("Error updating setting", "key", key, "value", value, "err", err)
 			http.Error(w, "Error updating settings", http.StatusInternalServerError)
