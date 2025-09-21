@@ -12,6 +12,10 @@ RUN npm run build
 
 FROM golang:1.24.4-alpine AS backend-builder
 
+RUN apk add --no-cache gcc musl-dev
+
+ENV CGO_ENABLED=1
+
 WORKDIR /app
 
 COPY backend/go.mod backend/go.sum ./

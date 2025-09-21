@@ -1,0 +1,9 @@
+.git
+frontend/node_modules
+frontend/dist
+backend/static
+backend/data
+vendor
+bin
+*.log
+*.tmp
