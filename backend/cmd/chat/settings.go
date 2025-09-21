@@ -3,6 +3,7 @@ package chat
 import (
 	"ai-client/cmd/data"
 	"ai-client/cmd/utils"
+	"fmt"
 	"net/http"
 )
 
@@ -46,25 +47,58 @@ func updateSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for key, value := range request.Settings {
-
-		if key == "" {
-			log.Error("Empty setting key", "key", key, "value", value)
-			http.Error(w, "Invalid setting key", http.StatusBadRequest)
-			return
-		}
-
-		sql := "INSERT INTO Settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
-		_, err = data.DB.Exec(sql, key, value)
-		if err != nil {
-			log.Error("Error updating setting", "key", key, "value", value, "err", err)
-			http.Error(w, "Error updating settings", http.StatusInternalServerError)
-			return
-		}
-		settings[key] = value
+	err = saveUpdatedSettings(request)
+	if err != nil {
+		log.Error("Error updating settings", "err", err)
+		http.Error(w, "Error updating settings", http.StatusInternalServerError)
+		return
 	}
 
 	response := Settings{settings}
 
 	utils.RespondWithJSON(w, &response, http.StatusOK)
+}
+
+func saveUpdatedSettings(s Settings) error {
+	for key, value := range s.Settings {
+		if key == "" {
+			return fmt.Errorf("empty key in settings")
+		}
+
+		sql := "INSERT INTO Settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
+		_, err := data.DB.Exec(sql, key, value)
+		if err != nil {
+			return err
+		}
+		settings[key] = value
+	}
+	return nil
+}
+
+func setDefaultSettings() {
+	defaults := map[string]string{
+		"model":             "gpt-4o",
+		"temperature":       "0.7",
+		"max_tokens":        "2048",
+		"top_p":             "1",
+		"frequency_penalty": "0",
+		"presence_penalty":  "0",
+		"systemPrompt":      "You are a helpful assistant. Provide clear accurate and helpful responses to the user questions.",
+	}
+
+	err := saveUpdatedSettings(Settings{defaults})
+	if err != nil {
+		log.Error("Error setting default settings", "err", err)
+	}
+
+	settings = defaults
+}
+
+func getSystemPrompt() string {
+	systemPrompt, ok := settings["systemPrompt"]
+	if !ok || systemPrompt == "" {
+		setDefaultSettings()
+		systemPrompt = settings["systemPrompt"]
+	}
+	return systemPrompt
 }

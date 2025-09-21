@@ -86,10 +86,11 @@ func chat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var messages []provider.SimpleMessage
+	systemPrompt := getSystemPrompt()
 
 	messages = append(messages, provider.SimpleMessage{
 		Role:    "system",
-		Content: settings["systemPrompt"],
+		Content: systemPrompt,
 	})
 
 	for i := len(path) - 1; i >= 0; i-- {
@@ -118,7 +119,9 @@ func chat(w http.ResponseWriter, r *http.Request) {
 
 	responseMessage := Message{
 		ID:       -1,
+		ConvID:   convID,
 		Role:     "assistant",
+		Model:    req.Model,
 		Content:  completion.Choices[0].Message.Content,
 		ParentID: userMessage.ID,
 		Children: []int{},
@@ -181,7 +184,7 @@ func retry(w http.ResponseWriter, r *http.Request) {
 
 	messages = append(messages, provider.SimpleMessage{
 		Role:    "system",
-		Content: settings["systemPrompt"],
+		Content: getSystemPrompt(),
 	})
 
 	for i := len(path) - 1; i >= 0; i-- {

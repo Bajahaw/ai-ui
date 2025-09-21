@@ -41,7 +41,7 @@ func InitDataSource(dataSourceName string) error {
 	);
 	
 	CREATE TABLE IF NOT EXISTS Conversations (
-		id TEXT NOT NULL,
+		id TEXT PRIMARY KEY,
 		user TEXT,
 		title TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -56,15 +56,15 @@ func InitDataSource(dataSourceName string) error {
 	
 	CREATE TABLE IF NOT EXISTS Messages (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		conv_id INTEGER NOT NULL,
+		conv_id TEXT NOT NULL,
 		role TEXT NOT NULL,
 		model TEXT NOT NULL,
 		parent_id INTEGER,
-		attachment_id INTEGER,
+		attachment TEXT,
 		content TEXT NOT NULL,
-		FOREIGN KEY (conv_id) REFERENCES Conversations(id) ON DELETE CASCADE,
-		FOREIGN KEY (parent_id) REFERENCES Messages(id) ON DELETE SET NULL,
-		FOREIGN KEY (attachment_id) REFERENCES Attachments(id) ON DELETE SET NULL
+		FOREIGN KEY (conv_id) REFERENCES Conversations(id) ON DELETE CASCADE
+-- 		FOREIGN KEY (parent_id) REFERENCES Messages(id) ON DELETE SET NULL
+-- 		FOREIGN KEY (attachment_id) REFERENCES Attachments(id) ON DELETE SET NULL
 	);
 	
 	CREATE TABLE IF NOT EXISTS Providers (

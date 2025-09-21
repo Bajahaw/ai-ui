@@ -6,9 +6,10 @@ type Message struct {
 	ID         int    `json:"id"`
 	ConvID     string `json:"convId"`
 	Role       string `json:"role"`
+	Model      string `json:"model,omitempty"`
 	Content    string `json:"content"`
 	ParentID   int    `json:"parentId,omitempty"`
-	Children   []int  `json:"children,omitempty"`
+	Children   []int  `json:"children"`
 	Attachment string `json:"attachment,omitempty"`
 }
 
@@ -42,14 +43,12 @@ func getMessage(id int) (*Message, error) {
 
 func saveMessage(msg Message) (int, error) {
 	sql := `INSERT INTO Messages (conv_id, role, model, parent_id, attachment, content) VALUES (?, ?, ?, ?, ?, ?)`
-	result, err := data.DB.Exec(sql, msg.ConvID, msg.Role, "gpt-3.5-turbo", nil, msg.Attachment, msg.Content)
+	result, err := data.DB.Exec(sql, msg.ConvID, msg.Role, msg.Model, msg.ParentID, msg.Attachment, msg.Content)
 	if err != nil {
-		log.Error("Error inserting message", "err", err)
 		return 0, err
 	}
 	id, err := result.LastInsertId()
 	if err != nil {
-		log.Error("Error getting last insert id", "err", err)
 		return 0, err
 	}
 
@@ -67,7 +66,7 @@ func updateMessage(id int, msg Message) error {
 
 func getAllConversationMessages(convID string) map[int]*Message {
 	messages := make(map[int]*Message)
-	sql := `SELECT * FROM Messages WHERE conv_id = ? ORDER BY id ASC`
+	sql := `SELECT id, conv_id, role, model, content, parent_id, attachment FROM Messages WHERE conv_id = ?`
 	rows, err := data.DB.Query(sql, convID)
 	if err != nil {
 		log.Error("Error querying messages", "err", err)
@@ -77,7 +76,7 @@ func getAllConversationMessages(convID string) map[int]*Message {
 
 	for rows.Next() {
 		var msg Message
-		err := rows.Scan(&msg.ID, &msg.ConvID, &msg.Role, &msg.Content, &msg.ParentID, &msg.Attachment)
+		err := rows.Scan(&msg.ID, &msg.ConvID, &msg.Role, &msg.Model, &msg.Content, &msg.ParentID, &msg.Attachment)
 		if err != nil {
 			log.Error("Error scanning message", "err", err)
 			continue
