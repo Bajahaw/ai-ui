@@ -193,16 +193,37 @@ export class ClientConversationManager {
     }
 
     // Ensure messages map exists (defensive)
+    // Ensure messages map exists
     if (!conversation.backendConversation.messages) {
       conversation.backendConversation.messages = {};
     }
 
-    // Merge messages
+    // existingIds removed; we now detect new/edited messages by comparing stored message objects
+
+    // Merge messages into frontend state first
     this.updateWithBackendMessages(conversation.id, backendMessages);
-    conversation.backendConversation.messages = {
-      ...conversation.backendConversation.messages,
-      ...backendMessages,
-    };
+
+    // Merge into backendConversation.messages while detecting newly added IDs
+    // Also treat edited messages (content changed) as an update that should bump updatedAt.
+    let newMessageAdded = false;
+    for (const [idStr, msg] of Object.entries(backendMessages)) {
+      const idNum = Number(idStr);
+      const existingMsg = conversation.backendConversation.messages[idNum];
+
+      // If the message ID is completely new, mark as added
+      if (!existingMsg) {
+        newMessageAdded = true;
+      } else {
+        // If the message content changed compared to stored copy, treat as an update
+        // (server typically updates timestamp on edited messages)
+        if (existingMsg.content !== msg.content) {
+          newMessageAdded = true;
+        }
+      }
+
+      // Ensure the backend messages map is updated with the latest message
+      conversation.backendConversation.messages[idNum] = msg;
+    }
 
     const messageIds = Object.keys(backendMessages).map(Number);
 
@@ -251,10 +272,12 @@ export class ClientConversationManager {
       }
     }
 
-    // Touch updatedAt
-    const nowIso = new Date().toISOString();
-    conversation.backendConversation.updatedAt = nowIso;
-    (conversation as any).updatedAt = nowIso;
+    // Touch updatedAt when new messages are added or when existing message contents changed.
+    if (newMessageAdded) {
+      const nowIso = new Date().toISOString();
+      conversation.backendConversation.updatedAt = nowIso;
+      (conversation as any).updatedAt = nowIso;
+    }
   }
 
   /**
