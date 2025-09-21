@@ -84,5 +84,17 @@ func getAllConversationMessages(convID string) map[int]*Message {
 		messages[msg.ID] = &msg
 	}
 
+	for _, msg := range messages {
+		if msg.Children == nil {
+			msg.Children = make([]int, 0)
+		}
+		if msg.ParentID != 0 {
+			if parent, exists := messages[msg.ParentID]; exists {
+				parent.Children = make([]int, 0)
+				parent.Children = append(parent.Children, msg.ID)
+			}
+		}
+	}
+
 	return messages
 }
