@@ -61,14 +61,10 @@ export class ChatAPI {
         "Send message",
       );
 
-      const convIdFromMessages =
-        validatedData && validatedData.messages
-          ? ((Object.values(validatedData.messages)[0] as any)?.convId ?? "")
-          : "";
       return {
         ...validatedData,
-
-        conversationId: request.conversationId,
+        // Ensure we always return a string for conversationId (use empty string when null)
+        conversationId: request.conversationId || "",
       };
     }, "sendMessage");
   }

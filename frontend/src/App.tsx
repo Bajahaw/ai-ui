@@ -8,27 +8,6 @@ import { SettingsDialog } from "@/components/settings";
 
 import { MessageSquareIcon, SettingsIcon } from "lucide-react";
 
-// Utility function to extract timestamp from conversation ID (conv-20250815-182253)
-// Example: conv-20250815-182253 → August 15, 2025 at 18:22:53 → timestamp for sorting
-const getConversationTimestamp = (conversationId: string): number => {
-  try {
-    const match = conversationId.match(/^conv-(\d{8})-(\d{6})$/);
-    if (!match) return 0;
-
-    const [, dateStr, timeStr] = match;
-    const year = parseInt(dateStr.substring(0, 4));
-    const month = parseInt(dateStr.substring(4, 6)) - 1; // Month is 0-indexed
-    const day = parseInt(dateStr.substring(6, 8));
-    const hour = parseInt(timeStr.substring(0, 2));
-    const minute = parseInt(timeStr.substring(2, 4));
-    const second = parseInt(timeStr.substring(4, 6));
-
-    return new Date(year, month, day, hour, minute, second).getTime();
-  } catch {
-    return 0;
-  }
-};
-
 function App() {
   const [webSearch, setWebSearch] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(

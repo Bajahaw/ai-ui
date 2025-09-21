@@ -32,7 +32,7 @@ export interface Conversation {
 }
 
 export interface ChatRequest {
-  conversationId: string;
+  conversationId: string | null;
   parentId: number;
   model: string;
   content: string;

@@ -133,9 +133,10 @@ export class ClientConversationManager {
     } else {
       conversation.activeBranches = new Map();
     }
+    // Use an empty object fallback to avoid 'undefined' message maps
     this.updateWithBackendMessages(
       conversationId,
-      backendConversation.messages,
+      backendConversation.messages || {},
     );
   }
 
@@ -148,11 +149,15 @@ export class ClientConversationManager {
 
     if (!conversation) return;
 
-    // Determine real conversation ID from messages (backend provides convId)
-
-    const realConvId = Object.values(backendMessages)
+    // Determine real conversation ID from messages (backend provides convId).
+    // Coerce to string when available, otherwise leave undefined so the
+    // existing optimistic id remains.
+    const foundConvId = Object.values(backendMessages)
       .map((m) => m?.convId)
       .find((id) => typeof id === "string" && id.trim().length > 0);
+    const realConvId: string | undefined = foundConvId
+      ? String(foundConvId)
+      : undefined;
 
     if (realConvId && conversation.id !== realConvId) {
       // Re-key the conversation map to use the real UUID
@@ -187,7 +192,7 @@ export class ClientConversationManager {
       } as unknown as Conversation;
     }
 
-    // Ensure messages map exists
+    // Ensure messages map exists (defensive)
     if (!conversation.backendConversation.messages) {
       conversation.backendConversation.messages = {};
     }
@@ -218,7 +223,7 @@ export class ClientConversationManager {
           // Update parent's children array if this is a new branch
 
           const parentMessage =
-            conversation.backendConversation.messages[
+            conversation.backendConversation.messages?.[
               assistantMessage.parentId
             ];
 
@@ -470,12 +475,14 @@ export class ClientConversationManager {
 
     const conversation = this.conversations.get(backendConv.id);
 
-    const messages = backendConv.messages;
+    const messages = (backendConv.messages || {}) as Record<number, Message>;
     // Build children relationships on the fly since backend may omit them
-    for (const msg of Object.values(messages)) {
+    // Extract the object values into a typed array first to avoid implicit 'any'
+    const messageList: Message[] = Object.values(messages) as Message[];
+    for (const msg of messageList) {
       if (!msg) continue;
-      const pid = (msg as Message).parentId;
-      if (pid && messages[pid]) {
+      const pid = msg.parentId;
+      if (typeof pid === "number" && messages[pid]) {
         const parent = messages[pid] as Message;
         if (!Array.isArray(parent.children)) parent.children = [];
         if (!parent.children.includes(msg.id)) {
@@ -485,10 +492,13 @@ export class ClientConversationManager {
     }
 
     // Helper: find roots (messages without a valid parent)
-    const isRoot = (m: Message) =>
-      !("parentId" in m) || !m.parentId || m.parentId === 0;
+    // A message is considered a root when it has no numeric parentId (undefined/null)
+    // or when parentId is explicitly 0. Use explicit type checks instead of truthiness.
+    const isRoot = (m: Message): boolean => {
+      return typeof m.parentId !== "number" || m.parentId === 0;
+    };
 
-    const all = Object.values(messages);
+    const all: Message[] = Object.values(messages) as Message[];
     if (all.length === 0) return [];
 
     // Prefer tracing back from activeMessageId if set (client-maintained)
@@ -497,7 +507,7 @@ export class ClientConversationManager {
       let currentId: number | undefined = backendConv.activeMessageId;
 
       while (currentId !== undefined) {
-        const msg = messages[currentId];
+        const msg: Message | undefined = messages[currentId];
         if (!msg) break;
         path.unshift(msg);
         currentId = msg.parentId;
@@ -517,8 +527,8 @@ export class ClientConversationManager {
       path.push(current);
       if (!current.children || current.children.length === 0) break;
 
-      let nextChildId = current.children[current.children.length - 1];
-      if (conversation?.activeBranches.has(current.id)) {
+      let nextChildId: number = current.children[current.children.length - 1];
+      if (conversation && conversation.activeBranches.has(current.id)) {
         const activeChildId = conversation.activeBranches.get(current.id)!;
         if (current.children.includes(activeChildId)) {
           nextChildId = activeChildId;
@@ -572,15 +582,15 @@ export class ClientConversationManager {
       return false;
     }
 
-    const message = conversation.backendConversation.messages[messageId];
-    return message?.children && message.children.length > 1;
+    const message = conversation.backendConversation.messages?.[messageId];
+    return (message?.children?.length ?? 0) > 1;
   }
 
   getActiveBranchIndex(conversationId: string, messageId: number): number {
     const conversation = this.conversations.get(conversationId);
     if (!conversation?.backendConversation) return 0;
 
-    const message = conversation.backendConversation.messages[messageId];
+    const message = conversation.backendConversation.messages?.[messageId];
     if (!message?.children || message.children.length <= 1) return 0;
 
     const activeChildId = conversation.activeBranches.get(messageId);
@@ -593,7 +603,7 @@ export class ClientConversationManager {
     const conversation = this.conversations.get(conversationId);
     if (!conversation?.backendConversation) return 1;
 
-    const message = conversation.backendConversation.messages[messageId];
+    const message = conversation.backendConversation.messages?.[messageId];
     return message?.children?.length || 1;
   }
 
@@ -608,7 +618,7 @@ export class ClientConversationManager {
 
     if (!conversation?.backendConversation) return;
 
-    const message = conversation.backendConversation.messages[messageId];
+    const message = conversation.backendConversation.messages?.[messageId];
 
     if (!message?.children || branchIndex >= message.children.length) return;
 
@@ -648,7 +658,7 @@ export class ClientConversationManager {
     const messageId = parseInt(assistantMessageId);
     if (!isNaN(messageId)) {
       const assistantMessage =
-        conversation.backendConversation.messages[messageId];
+        conversation.backendConversation.messages?.[messageId];
 
       if (assistantMessage && assistantMessage.role === "assistant") {
         return assistantMessage.parentId;
@@ -662,9 +672,9 @@ export class ClientConversationManager {
 
     if (!frontendMessage) return undefined;
 
-    // Find matching backend message by content
+    // Find matching backend message by content (safely handle undefined messages map)
     const backendMessages = Object.values(
-      conversation.backendConversation.messages,
+      conversation.backendConversation.messages || {},
     );
     const matchingBackendMessage = backendMessages.find(
       (msg) =>
@@ -678,7 +688,7 @@ export class ClientConversationManager {
     // Last resort: Use the current activeMessageId if it's an assistant message
     if (conversation.backendConversation.activeMessageId) {
       const activeMessage =
-        conversation.backendConversation.messages[
+        conversation.backendConversation.messages?.[
           conversation.backendConversation.activeMessageId
         ];
       if (activeMessage && activeMessage.role === "assistant") {
@@ -699,7 +709,7 @@ export class ClientConversationManager {
     let currentId: number | undefined = backendConv.activeMessageId;
     while (currentId !== undefined) {
       if (currentId === messageId) return true;
-      const message: Message = backendConv.messages[currentId];
+      const message: Message | undefined = backendConv.messages?.[currentId];
       if (!message) break;
       currentId = message.parentId;
     }

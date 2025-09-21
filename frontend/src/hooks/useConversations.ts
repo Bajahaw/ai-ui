@@ -463,9 +463,9 @@ export const useConversations = () => {
         throw new Error("Invalid message ID");
       }
 
-      // Find the message in backend conversation
+      // Find the message in backend conversation (defensive: messages may not be loaded yet)
       const backendMessage =
-        conversation.backendConversation.messages[numericMessageId];
+        conversation.backendConversation.messages?.[numericMessageId];
       if (!backendMessage) {
         throw new Error("Message not found");
       }
@@ -495,17 +495,17 @@ export const useConversations = () => {
           newContent,
         );
 
-        if (updateResponse.messages[numericMessageId]) {
+        if (updateResponse.messages?.[numericMessageId]) {
+          const updatedMsg = updateResponse.messages[numericMessageId];
           if (!conversation.backendConversation.messages) {
             conversation.backendConversation.messages = {};
           }
           conversation.backendConversation.messages[numericMessageId] =
-            updateResponse.messages[numericMessageId];
+            updatedMsg;
 
           // Update frontend message as well
           if (frontendMessage) {
-            frontendMessage.content =
-              updateResponse.messages[numericMessageId].content;
+            frontendMessage.content = updatedMsg.content;
           }
         }
 

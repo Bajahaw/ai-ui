@@ -240,8 +240,9 @@ export const ChatInterface = ({
     for (const message of messages) {
       if (message.role === "assistant") {
         const messageId = parseInt(message.id);
+        // messages may be undefined until fetched — use optional chaining
         const assistantMessage =
-          currentConversation.backendConversation.messages[messageId];
+          currentConversation.backendConversation.messages?.[messageId];
 
         if (assistantMessage?.parentId) {
           const parentId = assistantMessage.parentId;
@@ -577,9 +578,9 @@ export const ChatInterface = ({
                           key={modelItem.id}
                           value={modelItem.id}
                         >
-                            <div className="max-w-[300px] overflow-hidden text-ellipsis text-nowrap pr-2">
-                          {modelItem.name}
-                            </div>
+                          <div className="max-w-[300px] overflow-hidden text-ellipsis text-nowrap pr-2">
+                            {modelItem.name}
+                          </div>
                         </PromptInputModelSelectItem>
                       ))}
                       {models.length > 5 && (
