@@ -172,6 +172,11 @@ export const ChatInterface = ({
     (message) => message.status === "pending",
   );
 
+  // Check if there are recent error messages (within last 2 messages)
+  const hasRecentError = messages
+    .slice(-2)
+    .some((message) => message.status === "error");
+
   // Validate selected model exists in the loaded models list
   const isModelValid = useMemo(() => {
     return !!model && models.some((m) => m.id === model);
@@ -194,6 +199,7 @@ export const ChatInterface = ({
     setInput("");
     setUploadedFile(null);
     setUploadError(null);
+
     await onSendMessage(message, webSearch, model, attachment);
   };
 
@@ -629,7 +635,13 @@ export const ChatInterface = ({
                 !model ||
                 models.length === 0
               }
-              status={hasPendingMessages ? "submitted" : undefined}
+              status={
+                hasPendingMessages
+                  ? "submitted"
+                  : hasRecentError
+                    ? "error"
+                    : undefined
+              }
             />
           </PromptInputToolbar>
         </PromptInput>

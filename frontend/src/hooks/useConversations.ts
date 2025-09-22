@@ -76,6 +76,13 @@ export const useConversations = () => {
             attachment,
           );
           clientConversationId = clientConversation.id;
+
+          // Extract the user message ID for error handling
+          const userMessage = clientConversation.messages.find(
+            (m) => m.role === "user" && m.content === message,
+          );
+          tempMessageId = userMessage?.id;
+
           syncConversations();
           setActiveConversationId(clientConversationId);
 

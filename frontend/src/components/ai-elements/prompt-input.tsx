@@ -226,8 +226,8 @@ export const PromptInputModelSelectItem = ({
   <SelectItem
     className={cn(
       "cursor-pointer rounded-xl px-1 py-2.5 text-base mx-2 my-0.5",
-      "hover:bg-muted/60 hover:text-foreground",
-      "focus:bg-muted/60 focus:text-foreground",
+      "hover:bg-muted-foreground/10 hover:text-foreground",
+      "focus:bg-muted-foreground/10 focus:text-foreground",
       "transition-all duration-0 ease-in-out",
         "!ring-0 !outline-none focus:!ring-0 focus-visible:!ring-0",
       className,

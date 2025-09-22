@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {cn} from "@/lib/utils.ts";
 
 export const GlobalSettingsSection = () => {
   const {
@@ -208,7 +209,14 @@ export const GlobalSettingsSection = () => {
               ) : (
                 <>
                   {models.map((model) => (
-                    <SelectItem key={model.id} value={model.id}>
+                    <SelectItem
+                        className={cn(
+                            "cursor-pointer rounded-xl px-1 py-2.5 text-base mx-2 my-0.5",
+                            "hover:bg-muted-foreground/10 hover:text-foreground",
+                            "focus:bg-muted-foreground/10 focus:text-foreground",
+                            "transition-all duration-0 ease-in-out",
+                            "!ring-0 !outline-none focus:!ring-0 focus-visible:!ring-0",)}
+                        key={model.id} value={model.id}>
                       {model.name}
                     </SelectItem>
                   ))}

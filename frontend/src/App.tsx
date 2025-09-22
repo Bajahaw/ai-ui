@@ -72,8 +72,6 @@ function App() {
         webSearchEnabled,
         attachment,
       );
-    } catch (error) {
-      console.error("Error in message flow:", error);
     } finally {
       setIsProcessing(false);
     }
