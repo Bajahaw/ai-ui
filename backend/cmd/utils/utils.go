@@ -104,7 +104,7 @@ func Structure(t interface{}) string {
 }
 
 func ExtractProviderID(model string) (string, string) {
-	// Example: "provider-20250817-025038/whisper-large-v3-turbo" -> "provider-20250817-025038"
+	// Example: "provider-5dx6/whisper-large-v3-turbo" -> "provider-5dx6", "whisper-large-v3-turbo"
 	parts := strings.Split(model, "/")
 	if len(parts) < 2 {
 		return "", ""
@@ -206,4 +206,23 @@ func GetServerURL(r *http.Request) string {
 	}
 	ServerURL = scheme + "://" + r.Host
 	return ServerURL
+}
+
+func ExtractProviderName(url string) string {
+	// "https://api.openai.com/v1" -> "openai"
+	parts := strings.Split(url, ".")
+	if len(parts) < 2 {
+		return "provider"
+	}
+	name := parts[len(parts)-2]
+	return name
+}
+
+func ExtractModelName(id string) string {
+	// "openai/gpt-4-turbo" -> "gpt-4-turbo"
+	parts := strings.Split(id, "/")
+	if len(parts) < 2 {
+		return id
+	}
+	return parts[len(parts)-1]
 }

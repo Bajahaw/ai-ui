@@ -2,6 +2,7 @@ package data
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -68,14 +69,14 @@ func InitDataSource(dataSourceName string) error {
 	);
 	
 	CREATE TABLE IF NOT EXISTS Providers (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		id TEXT PRIMARY KEY,
 		url TEXT NOT NULL,
-		key TEXT NOT NULL
+		api_key TEXT NOT NULL
 	);
 
 	CREATE TABLE IF NOT EXISTS Models (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		provider_id INTEGER NOT NULL,
+		provider_id TEXT NOT NULL,
 		name TEXT NOT NULL,
 		FOREIGN KEY (provider_id) REFERENCES Providers(id) ON DELETE CASCADE
 	);
@@ -87,5 +88,29 @@ func InitDataSource(dataSourceName string) error {
 	`
 
 	_, err = DB.Exec(schema)
+
+	migrations := []string{
+		// change Providers id to TEXT PRIMARY KEY from INTEGER PRIMARY KEY AUTOINCREMENT
+		// change Models provider_id to TEXT NOT NULL from INTEGER NOT NULL
+		// change Providers column name key to api_key
+		`ALTER TABLE Providers RENAME TO old_Providers;
+		 CREATE TABLE IF NOT EXISTS Providers (
+			id TEXT PRIMARY KEY,
+			url TEXT NOT NULL,
+			api_key TEXT NOT NULL
+		 );
+		 INSERT INTO Providers (id, url, api_key)
+		 SELECT id, url, api_key FROM old_Providers;
+		 DROP TABLE old_Providers;`,
+	}
+
+	for _, m := range migrations {
+		_, migErr := DB.Exec(m)
+		if migErr != nil {
+			fmt.Println("Migration error (can be ignored if already applied):", migErr)
+			continue
+		}
+	}
+
 	return err
 }
