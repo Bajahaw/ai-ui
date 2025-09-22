@@ -34,14 +34,28 @@ export const GlobalSettingsSection = () => {
   const [localDefaultModel, setLocalDefaultModel] = useState("");
   const [isSaving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const isLocalModelValid = models.some(
+    (model) => model.id === localDefaultModel,
+  );
 
   // Update local state when settings change
   useEffect(() => {
     setLocalSystemPrompt(systemPrompt);
     const savedModel = getSingleSetting("defaultModel");
-    setLocalDefaultModel(savedModel || autoSelectedModel || "");
+    if (!modelsLoading && models.length === 0) {
+      // When no models are available, clear the selection so the placeholder is rendered
+      setLocalDefaultModel("");
+    } else {
+      setLocalDefaultModel(savedModel || autoSelectedModel || "");
+    }
     setHasChanges(false);
-  }, [systemPrompt, getSingleSetting, autoSelectedModel]);
+  }, [
+    systemPrompt,
+    getSingleSetting,
+    autoSelectedModel,
+    models,
+    modelsLoading,
+  ]);
 
   const handleSystemPromptChange = (value: string) => {
     setLocalSystemPrompt(value);
@@ -156,7 +170,7 @@ export const GlobalSettingsSection = () => {
           </div>
 
           <Select
-            value={localDefaultModel}
+            value={isLocalModelValid ? localDefaultModel : undefined}
             onValueChange={handleDefaultModelChange}
             disabled={isSaving || models.length === 0 || modelsLoading}
           >

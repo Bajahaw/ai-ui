@@ -26,7 +26,6 @@ export const ProvidersSection = () => {
     loadModels,
     clearError,
     refreshProviders,
-    clearCache,
   } = useProviders();
 
   const [showAddForm, setShowAddForm] = useState(false);
@@ -35,6 +34,7 @@ export const ProvidersSection = () => {
   const [loadingModels, setLoadingModels] = useState<string | null>(null);
 
   const handleAddProvider = async (data: ProviderRequest) => {
+    // Add provider; providers context will refresh and models will flow down
     await addProvider(data);
   };
 
@@ -63,8 +63,7 @@ export const ProvidersSection = () => {
   };
 
   const handleRefreshProviders = async () => {
-    clearCache();
-    await refreshProviders(true);
+    await refreshProviders();
   };
 
   if (isLoading) {
@@ -247,3 +246,5 @@ export const ProvidersSection = () => {
     </div>
   );
 };
+
+export default ProvidersSection;

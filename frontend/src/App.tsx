@@ -157,28 +157,11 @@ function App() {
     ? getCurrentMessages(currentConversation)
     : [];
 
+  // Use the ordering provided by the conversation manager directly.
+  // The manager tracks createdAt/updatedAt and maintains the intended order,
+  // so avoid re-sorting here which can ignore client-side timestamps or temporary ids.
   const safeConversations = useMemo(() => {
-    return Array.isArray(conversations)
-      ? [...conversations].sort((a, b) => {
-          const aUpdated = a.backendConversation?.updatedAt;
-          const aCreated = a.backendConversation?.createdAt;
-          const bUpdated = b.backendConversation?.updatedAt;
-          const bCreated = b.backendConversation?.createdAt;
-
-          const aTime = aUpdated
-            ? new Date(aUpdated).getTime()
-            : aCreated
-              ? new Date(aCreated).getTime()
-              : 0;
-          const bTime = bUpdated
-            ? new Date(bUpdated).getTime()
-            : bCreated
-              ? new Date(bCreated).getTime()
-              : 0;
-
-          return bTime - aTime; // Most recent first
-        })
-      : [];
+    return Array.isArray(conversations) ? [...conversations] : [];
   }, [conversations]);
 
   return (

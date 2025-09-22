@@ -64,6 +64,8 @@ export class ClientConversationManager {
       timestamp: Date.now(),
     };
 
+    const nowIso = new Date().toISOString();
+
     const conversation: ClientConversation = {
       id: conversationId,
       title:
@@ -73,6 +75,9 @@ export class ClientConversationManager {
       messages: [userMessage, assistantPlaceholder],
       pendingMessageIds: new Set([tempMessageId, assistantPlaceholderId]),
       activeBranches: new Map(),
+      // Track timestamps on the client conversation so sorting works immediately
+      createdAt: nowIso,
+      updatedAt: nowIso,
     };
 
     this.conversations.set(conversationId, conversation);
@@ -111,6 +116,14 @@ export class ClientConversationManager {
     conversation.messages.push(userMessage, assistantPlaceholder);
     conversation.pendingMessageIds.add(tempMessageId);
     conversation.pendingMessageIds.add(assistantPlaceholderId);
+
+    // Update timestamps so sorting reflects recent activity immediately
+    const nowIso = new Date().toISOString();
+    (conversation as any).updatedAt = nowIso;
+    if (!(conversation as any).createdAt) {
+      (conversation as any).createdAt = nowIso;
+    }
+
     return tempMessageId;
   }
 
@@ -138,6 +151,16 @@ export class ClientConversationManager {
       conversationId,
       backendConversation.messages || {},
     );
+
+    // Ensure client-side timestamps reflect the backend values so sorting is consistent
+    (conversation as any).createdAt =
+      backendConversation.createdAt ||
+      (conversation as any).createdAt ||
+      new Date().toISOString();
+    (conversation as any).updatedAt =
+      backendConversation.updatedAt ||
+      (conversation as any).updatedAt ||
+      new Date().toISOString();
   }
 
   updateWithChatResponse(
@@ -176,6 +199,16 @@ export class ClientConversationManager {
       } else {
         conversation.backendConversation.id = realConvId;
       }
+
+      // Ensure client-side createdAt/updatedAt reflect backend conversation timestamps
+      (conversation as any).createdAt =
+        conversation.backendConversation.createdAt ||
+        (conversation as any).createdAt ||
+        new Date().toISOString();
+      (conversation as any).updatedAt =
+        conversation.backendConversation.updatedAt ||
+        (conversation as any).updatedAt ||
+        new Date().toISOString();
 
       this.conversations.set(realConvId, conversation);
     }

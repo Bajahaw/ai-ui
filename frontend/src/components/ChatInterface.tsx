@@ -172,9 +172,22 @@ export const ChatInterface = ({
     (message) => message.status === "pending",
   );
 
+  // Validate selected model exists in the loaded models list
+  const isModelValid = useMemo(() => {
+    return !!model && models.some((m) => m.id === model);
+  }, [model, models]);
+
+  // Clear inline warning when model becomes valid
+  // (no-op — model warning state removed)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() && !uploadedFile) return;
+
+    // Prevent sending when model is not selected or invalid
+    if (!isModelValid) {
+      return;
+    }
 
     const message = input;
     const attachment = uploadedFile?.url;
@@ -208,6 +221,11 @@ export const ChatInterface = ({
   };
 
   const handleRetryMessage = async (messageId: string) => {
+    // Prevent retry when model is invalid
+    if (!isModelValid) {
+      return;
+    }
+
     setRetryingMessageId(messageId);
     try {
       await onRetryMessage(messageId, model);
@@ -336,7 +354,11 @@ export const ChatInterface = ({
                     : "Regenerate response"
                 }
                 onClick={() => handleRetryMessage(message.id)}
-                disabled={retryingMessageId === message.id}
+                disabled={
+                  retryingMessageId === message.id ||
+                  !isModelValid ||
+                  models.length === 0
+                }
                 className={
                   message.status === "error"
                     ? "text-destructive hover:text-destructive-foreground hover:bg-destructive"
@@ -547,20 +569,26 @@ export const ChatInterface = ({
                 <GlobeIcon size={16} />
                 <span className="hidden sm:inline">Search</span>
               </PromptInputButton>
+
               <PromptInputModelSelect
                 onValueChange={handleModelChange}
-                value={model}
+                value={isModelValid ? model : undefined}
                 disabled={
-                  modelsLoading || models.length === 0 || settingsLoading
+                  modelsLoading || settingsLoading || models.length === 0
                 }
               >
                 <PromptInputModelSelectTrigger>
                   <PromptInputModelSelectValue
                     placeholder={
-                      modelsLoading ? "Loading models..." : "Select a model"
+                      modelsLoading
+                        ? "Loading models..."
+                        : models.length === 0
+                          ? "No models available"
+                          : "Select a model"
                     }
                   />
                 </PromptInputModelSelectTrigger>
+
                 <PromptInputModelSelectContent>
                   {models.length === 0 ? (
                     <div className="px-3 py-4 text-center">
