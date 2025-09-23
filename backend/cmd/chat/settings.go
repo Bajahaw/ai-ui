@@ -11,8 +11,6 @@ type Settings struct {
 	Settings map[string]string `json:"settings"`
 }
 
-var settings = make(map[string]string)
-
 func getAllSettings(w http.ResponseWriter, _ *http.Request) {
 	sql := "SELECT key, value FROM Settings"
 	rows, err := data.DB.Query(sql)
@@ -23,7 +21,7 @@ func getAllSettings(w http.ResponseWriter, _ *http.Request) {
 	}
 	defer rows.Close()
 
-	settings = make(map[string]string)
+	settings := make(map[string]string)
 	for rows.Next() {
 		var key, value string
 		if err = rows.Scan(&key, &value); err != nil {
@@ -54,7 +52,7 @@ func updateSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := Settings{settings}
+	response := request
 
 	utils.RespondWithJSON(w, &response, http.StatusOK)
 }
@@ -70,7 +68,6 @@ func saveUpdatedSettings(s Settings) error {
 		if err != nil {
 			return err
 		}
-		settings[key] = value
 	}
 	return nil
 }
@@ -90,15 +87,18 @@ func setDefaultSettings() {
 	if err != nil {
 		log.Error("Error setting default settings", "err", err)
 	}
-
-	settings = defaults
 }
 
 func getSystemPrompt() string {
-	systemPrompt, ok := settings["systemPrompt"]
-	if !ok || systemPrompt == "" {
+	sql := "SELECT value FROM Settings WHERE key = ?"
+	row := data.DB.QueryRow(sql, "systemPrompt")
+
+	var systemPrompt string
+	err := row.Scan(&systemPrompt)
+	if err != nil {
+		log.Error("Error retrieving system prompt", "err", err)
 		setDefaultSettings()
-		systemPrompt = settings["systemPrompt"]
+		return "You are a helpful assistant. Provide clear accurate and helpful responses to the user questions."
 	}
 	return systemPrompt
 }
