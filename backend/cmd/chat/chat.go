@@ -207,6 +207,8 @@ func retry(w http.ResponseWriter, r *http.Request) {
 
 	responseMessage := Message{
 		ID:       -1,
+		ConvID:   req.ConversationID,
+		Model:    req.Model,
 		Role:     "assistant",
 		Content:  completion.Choices[0].Message.Content,
 		ParentID: parent.ID,

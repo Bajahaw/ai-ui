@@ -146,13 +146,14 @@ func logMiddleware(next http.Handler) http.Handler {
 }
 
 func Middleware(next http.Handler) http.Handler {
-	middlewares := []func(http.Handler) http.Handler{}
-	middlewares = append(middlewares, logMiddleware)
+	var middlewares []func(http.Handler) http.Handler
 
 	if os.Getenv("ENV") == "dev" {
 		Log.Debug("Development mode CORS active")
 		middlewares = append(middlewares, corsMiddleware)
 	}
+
+	middlewares = append(middlewares, logMiddleware)
 
 	for _, m := range middlewares {
 		next = m(next)

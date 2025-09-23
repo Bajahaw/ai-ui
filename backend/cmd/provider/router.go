@@ -47,7 +47,11 @@ func Handler() http.Handler {
 func getAllModels(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	provider, err := repo.getProvider(id)
-	whenError(w, "Provider not found", err, http.StatusNotFound)
+	if err != nil {
+		log.Error("Provider not found", "err", err)
+		http.Error(w, "Provider not found", http.StatusNotFound)
+		return
+	}
 
 	client := openai.NewClient(
 		option.WithAPIKey(provider.APIKey),
@@ -55,7 +59,11 @@ func getAllModels(w http.ResponseWriter, r *http.Request) {
 	)
 
 	list, err := client.Models.List(r.Context())
-	whenError(w, "Error fetching models from provider", err, http.StatusInternalServerError)
+	if err != nil {
+		log.Error("Error fetching models", "err", err)
+		http.Error(w, "Error fetching models: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	var models []Model
 	for _, model := range list.Data {
@@ -86,7 +94,11 @@ func getProvidersList(w http.ResponseWriter, _ *http.Request) {
 func getProvider(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	provider, err := repo.getProvider(id)
-	whenError(w, "Provider not found", err, http.StatusNotFound)
+	if err != nil {
+		log.Error("Provider not found", "err", err)
+		http.Error(w, "Provider not found", http.StatusNotFound)
+		return
+	}
 
 	response := Response{
 		ID:      provider.ID,
@@ -99,7 +111,11 @@ func getProvider(w http.ResponseWriter, r *http.Request) {
 func saveProvider(w http.ResponseWriter, r *http.Request) {
 	var req Request
 	err := utils.ExtractJSONBody(r, &req)
-	whenError(w, "Invalid request body", err, http.StatusBadRequest)
+	if err != nil || req.BaseURL == "" || req.APIKey == "" {
+		log.Error("Error unmarshalling request body", "err", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
 
 	provider := &Provider{
 		ID:      utils.ExtractProviderName(req.BaseURL) + "-" + uuid.New().String()[:4],
@@ -108,7 +124,11 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = repo.saveProvider(provider)
-	whenError(w, "Error saving provider", err, http.StatusInternalServerError)
+	if err != nil {
+		log.Error("Error saving provider", "err", err)
+		http.Error(w, "Error saving provider", http.StatusInternalServerError)
+		return
+	}
 
 	response := Response{
 		ID:      provider.ID,
@@ -121,14 +141,10 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 func deleteProvider(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	err := repo.deleteProvider(id)
-	whenError(w, "Error deleting provider", err, http.StatusInternalServerError)
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func whenError(w http.ResponseWriter, msg string, err error, code int) {
 	if err != nil {
-		log.Error(msg, "err", err)
-		http.Error(w, msg+": "+err.Error(), code)
+		log.Error("Error deleting provider", "err", err)
+		http.Error(w, "Error deleting provider", http.StatusInternalServerError)
+		return
 	}
+	w.WriteHeader(http.StatusNoContent)
 }

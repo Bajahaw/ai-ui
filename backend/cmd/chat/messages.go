@@ -17,7 +17,9 @@ func getMessage(id int) (*Message, error) {
 	sql := `SELECT id, conv_id, role, content, parent_id, attachment FROM Messages WHERE id = ?`
 	row := data.DB.QueryRow(sql, id)
 
-	var msg Message
+	var msg = Message{
+		Children: make([]int, 0),
+	}
 	err := row.Scan(&msg.ID, &msg.ConvID, &msg.Role, &msg.Content, &msg.ParentID, &msg.Attachment)
 	if err != nil {
 		return nil, err
@@ -90,7 +92,9 @@ func getAllConversationMessages(convID string) map[int]*Message {
 		}
 		if msg.ParentID != 0 {
 			if parent, exists := messages[msg.ParentID]; exists {
-				parent.Children = make([]int, 0)
+				if parent.Children == nil {
+					parent.Children = make([]int, 0)
+				}
 				parent.Children = append(parent.Children, msg.ID)
 			}
 		}

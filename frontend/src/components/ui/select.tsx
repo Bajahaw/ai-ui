@@ -44,7 +44,7 @@ function SelectTrigger({
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronDownIcon className="size-4 opacity-50" />
+        <ChevronDownIcon className="size-4" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );
@@ -61,10 +61,10 @@ function SelectContent({
       <SelectPrimitive.Content
         data-slot="select-content"
         className={cn(
-          "bg-secondary text-popover-foreground p-2 z-50 max-w-sm",
+          "bg-secondary text-popover-foreground my-2 p-2 z-50 max-w-sm",
             " data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
             " data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-            " overflow-x-hidden overflow-y-auto rounded-lg shadow-lg",
+            " overflow-x-hidden overflow-y-auto rounded-xl shadow-xl border border-border",
           position === "popper",
           className,
         )}
