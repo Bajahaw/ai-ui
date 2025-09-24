@@ -294,7 +294,9 @@ export const useConversations = () => {
 
   const getCurrentMessages = useCallback(
     (conversation: ClientConversation): FrontendMessage[] => {
-      return conversation.messages || [];
+      // Return a new array reference to ensure React detects changes
+      // This is needed because messages are mutated in place in updateWithBackendMessages
+      return [...(conversation.messages || [])];
     },
     [],
   );

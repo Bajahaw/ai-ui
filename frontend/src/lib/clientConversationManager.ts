@@ -374,56 +374,131 @@ export class ClientConversationManager {
     if (!conversation) return;
 
     for (const backendMsg of Object.values(backendMessages)) {
-      // Find matching pending message
-      const pendingMessage = conversation.messages.find(
-        (m) =>
-          conversation.pendingMessageIds.has(m.id) &&
-          m.content === backendMsg.content &&
-          m.role === backendMsg.role,
+      let messageUpdated = false;
+
+      // Try to find and update existing message with same ID first
+      const existingMessage = conversation.messages.find(
+        (m) => m.id === backendMsg.id.toString(),
       );
 
-      if (pendingMessage) {
-        // Update pending message with real ID
-        const oldId = pendingMessage.id;
-        pendingMessage.id = backendMsg.id.toString();
-        pendingMessage.status = "success";
-        conversation.pendingMessageIds.delete(oldId);
-      } else if (backendMsg.role === "assistant") {
-        // Find pending assistant placeholder to replace
-        const placeholderMessage = conversation.messages.find(
+      if (existingMessage) {
+        // Update existing message
+
+        existingMessage.content = backendMsg.content;
+        existingMessage.status = "success";
+        existingMessage.attachment = backendMsg.attachment;
+        messageUpdated = true;
+      } else {
+        // Find matching pending message by content and role
+        const pendingMessage = conversation.messages.find(
           (m) =>
             conversation.pendingMessageIds.has(m.id) &&
-            m.role === "assistant" &&
-            m.content === "" &&
-            m.status === "pending",
+            m.content === backendMsg.content &&
+            m.role === backendMsg.role,
         );
 
-        if (placeholderMessage) {
-          // Replace placeholder with actual response
-          const oldId = placeholderMessage.id;
-          placeholderMessage.id = backendMsg.id.toString();
-          placeholderMessage.content = backendMsg.content;
-          placeholderMessage.status = "success";
+        if (pendingMessage) {
+          // Update pending message with real ID
+          const oldId = pendingMessage.id;
+
+          pendingMessage.id = backendMsg.id.toString();
+          pendingMessage.status = "success";
+          pendingMessage.attachment = backendMsg.attachment;
           conversation.pendingMessageIds.delete(oldId);
-        } else {
-          // Add new message if no placeholder found
-          const exists = conversation.messages.some(
-            (m) => m.id === backendMsg.id.toString(),
+          messageUpdated = true;
+        } else if (backendMsg.role === "assistant") {
+          // Find pending assistant placeholder to replace
+          const placeholderMessage = conversation.messages.find(
+            (m) =>
+              conversation.pendingMessageIds.has(m.id) &&
+              m.role === "assistant" &&
+              m.content === "" &&
+              m.status === "pending",
           );
-          if (!exists) {
-            conversation.messages.push(
-              backendToFrontendMessage(backendMsg, "success"),
-            );
+
+          if (placeholderMessage) {
+            // Replace placeholder with actual response
+            const oldId = placeholderMessage.id;
+
+            placeholderMessage.id = backendMsg.id.toString();
+            placeholderMessage.content = backendMsg.content;
+            placeholderMessage.status = "success";
+            placeholderMessage.attachment = backendMsg.attachment;
+            conversation.pendingMessageIds.delete(oldId);
+            messageUpdated = true;
           }
         }
-      } else {
-        // Add new message (non-assistant)
+      }
+
+      // If no existing message was updated, add new message
+      if (!messageUpdated) {
         const exists = conversation.messages.some(
           (m) => m.id === backendMsg.id.toString(),
         );
         if (!exists) {
           conversation.messages.push(
             backendToFrontendMessage(backendMsg, "success"),
+          );
+        }
+      }
+    }
+
+    // Clean up any remaining pending messages that should now be successful
+    // This handles edge cases where matching failed but messages should be marked as successful
+    const remainingPendingMessages = conversation.messages.filter(
+      (m) => conversation.pendingMessageIds.has(m.id) && m.status === "pending",
+    );
+
+    for (const message of remainingPendingMessages) {
+      // Check if this message matches any backend message that we just processed
+      const matchingBackendMsg = Object.values(backendMessages).find(
+        (backendMsg) =>
+          backendMsg.role === message.role &&
+          (backendMsg.content === message.content ||
+            (message.role === "assistant" &&
+              message.content === "" &&
+              backendMsg.content !== "")),
+      );
+
+      if (matchingBackendMsg) {
+        message.status = "success";
+        if (message.role === "assistant" && message.content === "") {
+          message.content = matchingBackendMsg.content;
+          message.id = matchingBackendMsg.id.toString();
+        }
+        conversation.pendingMessageIds.delete(message.id);
+      } else {
+        // Fallback: if no exact match found, try to update similar messages
+        // This prevents messages from staying in pending state forever
+        const backendMsgArray = Object.values(backendMessages);
+        const similarBackendMsg = backendMsgArray.find(
+          (backendMsg) => backendMsg.role === message.role,
+        );
+
+        if (
+          similarBackendMsg &&
+          message.role === "assistant" &&
+          message.content === ""
+        ) {
+          // For empty assistant placeholders, update with any assistant response
+
+          message.status = "success";
+          message.content = similarBackendMsg.content;
+          message.id = similarBackendMsg.id.toString();
+          conversation.pendingMessageIds.delete(message.id);
+        } else if (similarBackendMsg && message.role === "user") {
+          // For user messages, if we have a user message in the backend response, mark as success
+
+          message.status = "success";
+          conversation.pendingMessageIds.delete(message.id);
+        } else {
+          console.warn(
+            `[ConversationManager] Warning: pending message ${message.id} (${message.role}) could not be matched with backend response`,
+            {
+              messageContent: message.content.substring(0, 50) + "...",
+              backendMessageIds: Object.keys(backendMessages),
+              backendRoles: backendMsgArray.map((m) => m.role),
+            },
           );
         }
       }

@@ -256,23 +256,20 @@ export const ChatInterface = ({
   const branchInfoCache = useMemo(() => {
     const cache = new Map<string, { branchInfo: any; parentId: number }>();
 
-    if (!currentConversation?.backendConversation) {
-      return cache;
-    }
-
     // Pre-compute branch info for all messages to avoid repeated calculations
     for (const message of messages) {
       if (message.role === "assistant") {
         const messageId = parseInt(message.id);
         // messages may be undefined until fetched — use optional chaining
         const assistantMessage =
-          currentConversation.backendConversation.messages?.[messageId];
+          currentConversation?.backendConversation?.messages?.[messageId];
 
         if (assistantMessage?.parentId) {
           const parentId = assistantMessage.parentId;
           const branchInfo = getBranchInfo(parentId);
           cache.set(message.id, { branchInfo, parentId });
         } else {
+          // For messages not yet in backend conversation (newly added), provide default info
           cache.set(message.id, {
             branchInfo: { count: 1, activeIndex: 0, hasMultiple: false },
             parentId: messageId,
