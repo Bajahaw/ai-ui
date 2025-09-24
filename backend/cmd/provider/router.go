@@ -88,7 +88,7 @@ func getProvidersList(w http.ResponseWriter, _ *http.Request) {
 		})
 	}
 
-	utils.RespondWithJSON(w, &providers, http.StatusOK)
+	utils.RespondWithJSON(w, &response, http.StatusOK)
 }
 
 func getProvider(w http.ResponseWriter, r *http.Request) {
