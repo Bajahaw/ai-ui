@@ -170,8 +170,8 @@ export class ClientConversationManager {
 
   updateWithChatResponse(
     conversationId: string,
-
     backendMessages: Record<number, Message>,
+    isLazyLoad: boolean = false,
   ): void {
     const conversation = this.conversations.get(conversationId);
 
@@ -311,7 +311,8 @@ export class ClientConversationManager {
     }
 
     // Touch updatedAt when new messages are added or when existing message contents changed.
-    if (newMessageAdded) {
+    // Don't update timestamps during lazy loading of existing messages
+    if (newMessageAdded && !isLazyLoad) {
       const nowIso = new Date().toISOString();
       conversation.backendConversation.updatedAt = nowIso;
       (conversation as any).updatedAt = nowIso;
@@ -551,6 +552,14 @@ export class ClientConversationManager {
 
   getConversation(id: string): ClientConversation | undefined {
     return this.conversations.get(id);
+  }
+
+  hasLoadedMessages(conversationId: string): boolean {
+    const conversation = this.conversations.get(conversationId);
+    return !!(
+      conversation?.backendConversation?.messages &&
+      Object.keys(conversation.backendConversation.messages).length > 0
+    );
   }
 
   getAllConversations(): ClientConversation[] {

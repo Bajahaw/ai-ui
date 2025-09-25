@@ -108,15 +108,15 @@ export const useConversations = () => {
           // Update local state with returned messages; manager will re-key if needed
           manager.updateWithChatResponse(
             clientConversationId,
-
             chatResponse.messages,
+            false,
           );
 
           // Optionally fetch full conversation messages (empty map if none)
           try {
             const allMessages =
               await conversationsAPI.fetchConversationMessages(createdConv.id);
-            manager.updateWithChatResponse(createdConv.id, allMessages);
+            manager.updateWithChatResponse(createdConv.id, allMessages, true);
           } catch (e) {
             console.warn("Failed to fetch conversation messages:", e);
           }
@@ -187,7 +187,11 @@ export const useConversations = () => {
           attachment,
         );
 
-        manager.updateWithChatResponse(conversationId, chatResponse.messages);
+        manager.updateWithChatResponse(
+          conversationId,
+          chatResponse.messages,
+          false,
+        );
         syncConversations();
 
         return conversationId;
@@ -305,17 +309,20 @@ export const useConversations = () => {
     (conversationId: string) => {
       setActiveConversationId(conversationId);
 
-      // Lazy-load messages for the selected conversation
-      (async () => {
-        try {
-          const msgs =
-            await conversationsAPI.fetchConversationMessages(conversationId);
-          manager.updateWithChatResponse(conversationId, msgs);
-          syncConversations();
-        } catch (err) {
-          console.error("Failed to load conversation messages:", err);
-        }
-      })();
+      // Only lazy-load messages if they haven't been loaded yet
+      if (!manager.hasLoadedMessages(conversationId)) {
+        (async () => {
+          try {
+            const msgs =
+              await conversationsAPI.fetchConversationMessages(conversationId);
+            manager.updateWithChatResponse(conversationId, msgs, true);
+            // Sync conversations to update UI with loaded messages (but timestamps won't be updated)
+            syncConversations();
+          } catch (err) {
+            console.error("Failed to load conversation messages:", err);
+          }
+        })();
+      }
     },
     [manager, syncConversations],
   );
