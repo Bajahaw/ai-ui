@@ -152,6 +152,11 @@ export class ClientConversationManager {
       backendConversation.messages || {},
     );
 
+    // Rebuild the visible message list to ensure only the active path is rendered
+    conversation.messages = this.buildMessagesFromBackend(
+      conversation.backendConversation,
+    );
+
     // Ensure client-side timestamps reflect the backend values so sorting is consistent
     (conversation as any).createdAt =
       backendConversation.createdAt ||
@@ -311,6 +316,11 @@ export class ClientConversationManager {
       conversation.backendConversation.updatedAt = nowIso;
       (conversation as any).updatedAt = nowIso;
     }
+
+    // Rebuild the visible message list to reflect the active branch only
+    conversation.messages = this.buildMessagesFromBackend(
+      conversation.backendConversation,
+    );
   }
 
   /**
@@ -632,23 +642,28 @@ export class ClientConversationManager {
     const all: Message[] = Object.values(messages) as Message[];
     if (all.length === 0) return [];
 
-    // Prefer tracing back from activeMessageId if set (client-maintained)
+    // Prefer to render only the active path from the root down to the leaf.
     const path: Message[] = [];
+    // Determine the starting root of the active path.
+    // If an active message is set, walk up to the root of its chain.
+    // Otherwise, pick the most recent root.
+    let start: Message | undefined;
+
     if (backendConv.activeMessageId && messages[backendConv.activeMessageId]) {
       let currentId: number | undefined = backendConv.activeMessageId;
-
+      let topMost: Message | undefined;
       while (currentId !== undefined) {
         const msg: Message | undefined = messages[currentId];
         if (!msg) break;
-        path.unshift(msg);
+        topMost = msg;
         currentId = msg.parentId;
       }
-      return path.map((m) => backendToFrontendMessage(m, "success"));
+      start = topMost;
+    } else {
+      // Start from one of the roots (pick the latest by id)
+      const roots = all.filter(isRoot).sort((a, b) => b.id - a.id);
+      start = roots[0] || all.sort((a, b) => a.id - b.id)[0];
     }
-
-    // Otherwise, start from one of the roots (pick the latest by id)
-    const roots = all.filter(isRoot).sort((a, b) => b.id - a.id);
-    const start = roots[0] || all.sort((a, b) => a.id - b.id)[0];
     if (!start) return [];
 
     // Walk down following client-side activeBranches when available,
