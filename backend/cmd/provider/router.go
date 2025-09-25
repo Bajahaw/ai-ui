@@ -21,8 +21,9 @@ type Response struct {
 }
 
 type Model struct {
-	Name string `json:"name"`
-	ID   string `json:"id"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	ProviderID string `json:"provider"`
 }
 
 type ModelsResponse struct {
@@ -68,8 +69,9 @@ func getAllModels(w http.ResponseWriter, r *http.Request) {
 	var models []Model
 	for _, model := range list.Data {
 		models = append(models, Model{
-			Name: provider.ID + "/" + utils.ExtractModelName(model.ID),
-			ID:   provider.ID + "/" + model.ID,
+			ID:         provider.ID + "/" + model.ID,
+			Name:       utils.ExtractModelName(model.ID),
+			ProviderID: provider.ID,
 		})
 	}
 
@@ -111,7 +113,7 @@ func getProvider(w http.ResponseWriter, r *http.Request) {
 func saveProvider(w http.ResponseWriter, r *http.Request) {
 	var req Request
 	err := utils.ExtractJSONBody(r, &req)
-	if err != nil || req.BaseURL == "" || req.APIKey == "" {
+	if err != nil || req.BaseURL == "" {
 		log.Error("Error unmarshalling request body", "err", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return

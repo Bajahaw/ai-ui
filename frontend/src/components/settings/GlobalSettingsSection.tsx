@@ -119,14 +119,9 @@ export const GlobalSettingsSection = () => {
 
   return (
     <div className="space-y-8 max-w-2xl">
-      <div>
-        <h2 className="text-xl font-semibold text-foreground mb-2">
+        <h2 className="text-xl text-foreground mb-2">
           Global Settings
         </h2>
-        <p className="text-sm text-muted-foreground">
-          Configure default behavior for all conversations
-        </p>
-      </div>
 
       {error && (
         <div className="flex items-center gap-3 p-4 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -157,7 +152,7 @@ export const GlobalSettingsSection = () => {
             placeholder={defaultSystemPrompt}
             value={localSystemPrompt}
             onChange={(e) => handleSystemPromptChange(e.target.value)}
-            className="min-h-[140px] resize-y bg-transparent border-border/50 focus-visible:border-border"
+            className="min-h-[140px] resize-y bg-transparent rounded-xl border-border/50 focus-visible:border-border"
             disabled={isSaving}
           />
         </div>

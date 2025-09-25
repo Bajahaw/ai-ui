@@ -152,7 +152,7 @@ export const ProvidersSection = () => {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <h4 className="sm:font-medium truncate max-w-[75px] sm:max-w-[300px]">
-                      {provider.name}
+                      {provider.id}
                     </h4>
                   </div>
 

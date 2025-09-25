@@ -610,12 +610,13 @@ export const ChatInterface = ({
                           value={modelItem.id}
                         >
                           <div className="max-w-[300px] overflow-hidden text-ellipsis text-nowrap pr-2">
-                            {modelItem.name}
+                            <span className="text-sm text-muted-foreground">{modelItem.provider} - </span>
+                              {modelItem.name}
                           </div>
                         </PromptInputModelSelectItem>
                       ))}
                       {models.length > 5 && (
-                        <div className="border-t pt-2 mt-2">
+                        <div className="border-t py-2 mt-2">
                           <div className="text-xs text-muted-foreground text-center px-2">
                             {models.length} models available
                           </div>

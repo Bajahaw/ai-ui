@@ -194,8 +194,9 @@ export interface ProviderResponse {
 }
 
 export interface Model {
-  name: string; // original name from provider
   id: string; // provider id + name (for quick finding) e.g: provider-123/meta/llama-3b
+  name: string; // original name from provider
+  provider: string; // provider id
 }
 
 export interface ModelsResponse {
