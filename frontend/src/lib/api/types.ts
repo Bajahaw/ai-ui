@@ -195,8 +195,12 @@ export interface ProviderResponse {
 
 export interface Model {
   id: string; // provider id + name (for quick finding) e.g: provider-123/meta/llama-3b
+
   name: string; // original name from provider
+
   provider: string; // provider id
+
+  is_enabled: boolean; // whether the model is enabled (shown/usable)
 }
 
 export interface ModelsResponse {

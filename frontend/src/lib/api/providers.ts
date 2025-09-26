@@ -96,7 +96,36 @@ export const getProviderModels = async (
   return response.json();
 };
 
+// Fetch all models (across all providers)
+export const getAllModels = async (): Promise<ModelsResponse> => {
+  const response = await fetch(getApiUrl("/api/providers/models"), {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch all models: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+// Bulk update model enabled flags
+export const updateModelsEnabled = async (
+  updates: { id: string; is_enabled: boolean }[],
+): Promise<void> => {
+  const response = await fetch(getApiUrl("/api/providers/models"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ models: updates }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update models: ${response.statusText}`);
+  }
+};
+
 // Utility function to create a display name for providers
+
 export const getProviderDisplayName = (provider: ProviderResponse): string => {
   try {
     const url = new URL(provider.base_url);
@@ -113,8 +142,16 @@ export const backendToFrontendProvider = (
 ): FrontendProvider => {
   return {
     id: backendProvider.id,
+
     name: getProviderDisplayName(backendProvider),
+
     baseUrl: backendProvider.base_url,
-    models: models?.models || [],
+
+    models: (models?.models || []).map((m) => ({
+      ...m,
+
+      // Normalize: if backend omits is_enabled or it's true, treat as enabled
+      is_enabled: m.is_enabled !== false,
+    })),
   };
 };

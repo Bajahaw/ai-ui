@@ -7,16 +7,17 @@ import {
 } from "@/components/ui/dialog";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Settings, Database } from "lucide-react";
+import { Settings, Database, ListChecks } from "lucide-react";
 import { ProvidersSection } from "./ProvidersSection";
 import { GlobalSettingsSection } from "./GlobalSettingsSection";
+import { ModelsSection } from "./ModelsSection";
 
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-type SettingsTab = "providers" | "global";
+type SettingsTab = "providers" | "models" | "global";
 
 export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>("providers");
@@ -24,12 +25,21 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
   const tabs = [
     {
       id: "providers" as const,
+
       label: "AI Providers",
+
       icon: Database,
+    },
+
+    {
+      id: "models" as const,
+      label: "Models",
+      icon: ListChecks,
     },
     {
       id: "global" as const,
       label: "Global Settings",
+
       icon: Settings,
     },
   ];
@@ -38,8 +48,12 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
     switch (activeTab) {
       case "providers":
         return <ProvidersSection />;
+
+      case "models":
+        return <ModelsSection />;
       case "global":
         return <GlobalSettingsSection />;
+
       default:
         return null;
     }

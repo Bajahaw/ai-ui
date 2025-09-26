@@ -15,6 +15,9 @@ type Repository interface {
 	getProvider(id string) (*Provider, error)
 	saveProvider(provider *Provider) error
 	deleteProvider(id string) error
+	saveModels(id string, models []Model) error
+	getProviderModels(provider *Provider) ([]Model, error)
+	getAllModels() []Model
 }
 
 type Repo struct {
@@ -89,4 +92,78 @@ func (repo *Repo) deleteProvider(id string) error {
 	}
 
 	return err
+}
+
+func (repo *Repo) saveModels(models []Model) error {
+	// on conflict, replace
+	sql := `
+	INSERT INTO Models (id, provider_id, name, is_enabled) VALUES (?, ?, ?, ?)
+	ON CONFLICT(id) DO UPDATE SET provider_id=excluded.provider_id, name=excluded.name, is_enabled=excluded.is_enabled`
+	for _, model := range models {
+		_, err := data.DB.Exec(sql, model.ID, model.ProviderID, model.Name, model.IsEnabled)
+		if err != nil {
+			log.Error("Error saving model", "err", err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (repo *Repo) getProviderModels(provider *Provider) ([]Model, error) {
+	var models = make([]Model, 0)
+	sql := `SELECT id, provider_id, name, is_enabled FROM Models WHERE provider_id = ?`
+	rows, err := data.DB.Query(sql, provider.ID)
+	if err != nil {
+		log.Error("Error querying models", "err", err)
+		return models, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var m Model
+		if err = rows.Scan(&m.ID, &m.ProviderID, &m.Name, &m.IsEnabled); err != nil {
+			log.Error("Error scanning model", "err", err)
+			continue
+		}
+		models = append(models, Model{
+			ID:         m.ID,
+			Name:       m.Name,
+			ProviderID: m.ProviderID,
+			IsEnabled:  m.IsEnabled,
+		})
+	}
+	if err = rows.Err(); err != nil {
+		log.Error("Error iterating over model rows", "err", err)
+		// return models, err
+	}
+	return models, nil
+}
+
+func (repo *Repo) getAllModels() []Model {
+	var models = make([]Model, 0)
+	sql := `SELECT id, provider_id, name, is_enabled FROM Models`
+	rows, err := data.DB.Query(sql)
+	if err != nil {
+		log.Error("Error querying models", "err", err)
+		return models
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var m Model
+		if err = rows.Scan(&m.ID, &m.ProviderID, &m.Name, &m.IsEnabled); err != nil {
+			log.Error("Error scanning model", "err", err)
+			continue
+		}
+		models = append(models, Model{
+			ID:         m.ID,
+			Name:       m.Name,
+			ProviderID: m.ProviderID,
+			IsEnabled:  m.IsEnabled,
+		})
+	}
+	if err = rows.Err(); err != nil {
+		log.Error("Error iterating over model rows", "err", err)
+	}
+
+	return models
 }

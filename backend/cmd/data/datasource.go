@@ -74,9 +74,10 @@ func InitDataSource(dataSourceName string) error {
 	);
 
 	CREATE TABLE IF NOT EXISTS Models (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		id TEXT PRIMARY KEY,
 		provider_id TEXT NOT NULL,
 		name TEXT NOT NULL,
+		is_enabled BOOLEAN NOT NULL DEFAULT 1,
 		FOREIGN KEY (provider_id) REFERENCES Providers(id) ON DELETE CASCADE
 	);
 

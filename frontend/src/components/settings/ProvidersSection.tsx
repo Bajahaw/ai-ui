@@ -70,7 +70,7 @@ export const ProvidersSection = () => {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-medium">AI Providers</h3>
+          <h3 className="text-lg font-medium">Providers</h3>
         </div>
         <div className="flex items-center justify-center py-8">
           <div className="flex items-center gap-2 text-muted-foreground">

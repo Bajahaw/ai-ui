@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  ReactNode,
+} from "react";
 import {
   getProviders,
   saveProvider,
@@ -28,13 +36,19 @@ export interface UseProvidersReturn {
   // Loads models for a specific provider and updates local state.
   loadModels: (providerId: string) => Promise<Model[]>;
 
+  // Synchronize (merge) model enable/disable states coming from a global models update.
+  // Only updates the is_enabled flag of models that exist in providers' current model lists.
+  syncModels: (models: Model[]) => void;
+
   clearError: () => void;
 
   // Backward-compat no-op: caching has been removed.
   clearCache: () => void;
 }
 
-const ProvidersContext = createContext<UseProvidersReturn | undefined>(undefined);
+const ProvidersContext = createContext<UseProvidersReturn | undefined>(
+  undefined,
+);
 
 interface ProvidersProviderProps {
   children: ReactNode;
@@ -75,7 +89,10 @@ export const ProvidersProvider = ({ children }: ProvidersProviderProps) => {
             return backendToFrontendProvider(provider, modelsResponse);
           } catch (modelErr) {
             // If models fail to load, still include provider without models.
-            console.warn(`Failed to load models for provider ${provider.id}:`, modelErr);
+            console.warn(
+              `Failed to load models for provider ${provider.id}:`,
+              modelErr,
+            );
             return backendToFrontendProvider(provider);
           }
         }),
@@ -83,7 +100,8 @@ export const ProvidersProvider = ({ children }: ProvidersProviderProps) => {
 
       setProviders(frontendProviders);
     } catch (err: any) {
-      const msg = err instanceof Error ? err.message : "Failed to load providers";
+      const msg =
+        err instanceof Error ? err.message : "Failed to load providers";
       setError(msg);
       console.error("Error loading providers:", err);
     } finally {
@@ -140,6 +158,24 @@ export const ProvidersProvider = ({ children }: ProvidersProviderProps) => {
     [],
   );
 
+  // Merge updated model enable flags (and other fields) coming from global model management.
+  // We only touch models already present under each provider; unknown models are ignored
+  // to avoid accidentally inflating provider model lists if global list contains supersets.
+  const syncModels = useCallback((updated: Model[]) => {
+    if (!updated || updated.length === 0) return;
+    const updatedMap = new Map<string, Model>(updated.map((m) => [m.id, m]));
+    setProviders((prev) =>
+      prev.map((p) => {
+        if (!p.models || p.models.length === 0) return p;
+        const nextModels = p.models.map((m) => {
+          const incoming = updatedMap.get(m.id);
+          return incoming ? { ...m, is_enabled: incoming.is_enabled } : m;
+        });
+        return { ...p, models: nextModels };
+      }),
+    );
+  }, []);
+
   // Initial load
   useEffect(() => {
     refreshProviders();
@@ -155,6 +191,7 @@ export const ProvidersProvider = ({ children }: ProvidersProviderProps) => {
       updateProvider,
       removeProvider,
       loadModels,
+      syncModels,
       clearError,
       clearCache, // still exposed for backward-compat (no-op)
     }),
@@ -167,12 +204,17 @@ export const ProvidersProvider = ({ children }: ProvidersProviderProps) => {
       updateProvider,
       removeProvider,
       loadModels,
+      syncModels,
       clearError,
       clearCache,
     ],
   );
 
-  return <ProvidersContext.Provider value={value}>{children}</ProvidersContext.Provider>;
+  return (
+    <ProvidersContext.Provider value={value}>
+      {children}
+    </ProvidersContext.Provider>
+  );
 };
 
 /**
