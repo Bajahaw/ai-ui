@@ -7,6 +7,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	url2 "net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -211,7 +212,12 @@ func GetServerURL(r *http.Request) string {
 
 func ExtractProviderName(url string) string {
 	// "https://api.openai.com/v1" -> "openai"
-	parts := strings.Split(url, ".")
+	parsed, err := url2.Parse(url)
+	if err != nil || parsed.Host == "" {
+		return "provider"
+	}
+	host := parsed.Hostname()
+	parts := strings.Split(host, ".")
 	if len(parts) < 2 {
 		return "provider"
 	}
