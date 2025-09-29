@@ -63,8 +63,8 @@ func StartServer() {
 	server := &http.Server{
 		Addr:         ":8080",
 		Handler:      utils.Middleware(mux),
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  120 * time.Second,
+		WriteTimeout: 120 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 
