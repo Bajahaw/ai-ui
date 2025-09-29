@@ -610,8 +610,8 @@ export const ChatInterface = ({
                           value={modelItem.id}
                         >
                           <div className="max-w-[300px] overflow-hidden text-ellipsis text-nowrap pr-2">
-                            <span className="text-sm text-muted-foreground">{modelItem.provider} - </span>
                               {modelItem.name}
+                            <span className="text-sm text-muted-foreground"> - {modelItem.provider}</span>
                           </div>
                         </PromptInputModelSelectItem>
                       ))}

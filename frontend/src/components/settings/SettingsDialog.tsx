@@ -24,10 +24,13 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
 
   const tabs = [
     {
+      id: "global" as const,
+      label: "General",
+      icon: Settings,
+    },
+    {
       id: "providers" as const,
-
-      label: "AI Providers",
-
+      label: "Providers",
       icon: Database,
     },
 
@@ -35,12 +38,6 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
       id: "models" as const,
       label: "Models",
       icon: ListChecks,
-    },
-    {
-      id: "global" as const,
-      label: "Global Settings",
-
-      icon: Settings,
     },
   ];
 

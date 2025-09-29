@@ -6,8 +6,6 @@ import { Input } from "@/components/ui/input";
 
 import { Card } from "@/components/ui/card";
 
-import { Badge } from "@/components/ui/badge";
-
 import {
   RefreshCw,
   CheckSquare,
@@ -60,7 +58,7 @@ export const ModelsSection: React.FC = () => {
 
   const [bulkBusy, setBulkBusy] = useState(false);
   const fetchModels = useCallback(async (): Promise<Model[]> => {
-    setLoading(true);
+    // setLoading(true);
 
     setError(null);
 
@@ -70,7 +68,7 @@ export const ModelsSection: React.FC = () => {
       const normalized = res.models.map((m) => ({
         ...m,
 
-        is_enabled: m.is_enabled !== false,
+        is_enabled: m.is_enabled,
       }));
 
       setModels(normalized);
@@ -204,7 +202,7 @@ export const ModelsSection: React.FC = () => {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => fetchModels()}
+              onClick={() => {setLoading(true); fetchModels()}}
               disabled={bulkBusy || loading}
               title="Refresh models"
               className="h-8"
@@ -337,22 +335,14 @@ export const ModelsSection: React.FC = () => {
                   <div className="flex-1 min-h-0 overflow-hidden">
                     <div className="flex items-center gap-2">
                       <span
-                        className="font-medium truncate max-w-[220px]"
+                        className="font-medium truncate max-w-[200px] sm:max-w-[300px]"
                         title={model.name}
                       >
                         {model.name}
                       </span>
-
-                      <Badge
-                        variant="outline"
-                        className="text-[10px] tracking-wide"
-                        title={`Provider: ${model.provider}`}
-                      >
-                        {model.provider}
-                      </Badge>
                     </div>
 
-                    <div className="text-[11px] text-muted-foreground truncate max-w-[260px]">
+                    <div className="text-[11px] text-muted-foreground truncate max-w-[200px] sm:max-w-[300px]">
                       {model.id}
                     </div>
                   </div>
