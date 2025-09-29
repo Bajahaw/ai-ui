@@ -9,7 +9,7 @@ import (
 	"net/http"
 	url2 "net/url"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 
 	"github.com/alecthomas/jsonschema"
@@ -170,13 +170,13 @@ func SaveUploadedFile(file multipart.File, handler *multipart.FileHeader) (strin
 		return "", fmt.Errorf("file too large: %d bytes (max %d)", handler.Size, maxUploadSize)
 	}
 
-	uploadDir := filepath.Join(".", "data", "resources")
+	uploadDir := path.Join(".", "data", "resources")
 	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
 		return "", err
 	}
 
-	fileName := uuid.New().String() + filepath.Ext(handler.Filename)
-	filePath := filepath.Join(uploadDir, fileName)
+	fileName := uuid.New().String() + path.Ext(handler.Filename)
+	filePath := path.Join(uploadDir, fileName)
 
 	dst, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {

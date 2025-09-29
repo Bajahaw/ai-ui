@@ -3,7 +3,7 @@ package data
 import (
 	"database/sql"
 	"os"
-	"path/filepath"
+	"path"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -13,7 +13,7 @@ var DB *sql.DB
 func InitDataSource(dataSourceName string) error {
 	var err error
 	// validate dataSourceName
-	dir := filepath.Dir(dataSourceName)
+	dir := path.Dir(dataSourceName)
 	if err = os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
