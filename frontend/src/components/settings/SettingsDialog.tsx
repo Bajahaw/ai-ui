@@ -20,7 +20,7 @@ interface SettingsDialogProps {
 type SettingsTab = "providers" | "models" | "global";
 
 export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("providers");
+  const [activeTab, setActiveTab] = useState<SettingsTab>("global");
 
   const tabs = [
     {
