@@ -34,10 +34,12 @@ export const PromptInput = ({ className, ...props }: PromptInputProps) => (
 export type PromptInputTextareaProps = ComponentProps<typeof Textarea> & {
   minHeight?: number;
   maxHeight?: number;
+  onFilesPasted?: (files: File[]) => void;
 };
 
 export const PromptInputTextarea = ({
   onChange,
+  onFilesPasted,
   className,
   placeholder = "What would you like to know?",
   ...props
@@ -58,6 +60,17 @@ export const PromptInputTextarea = ({
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const clipboardData = e.clipboardData;
+    if (!clipboardData || !onFilesPasted) return;
+
+    const files = Array.from(clipboardData.files);
+    if (files.length > 0) {
+      e.preventDefault();
+      onFilesPasted(files);
+    }
+  };
+
   return (
     <Textarea
       className={cn(
@@ -71,6 +84,7 @@ export const PromptInputTextarea = ({
         onChange?.(e);
       }}
       onKeyDown={handleKeyDown}
+      onPaste={handlePaste}
       placeholder={placeholder}
       {...props}
     />
@@ -208,10 +222,7 @@ export const PromptInputModelSelectContent = ({
   ...props
 }: PromptInputModelSelectContentProps) => (
   <SelectContent
-    className={cn(
-      "max-h-[300px] min-w-[250px] overflow-y-auto",
-      className,
-    )}
+    className={cn("max-h-[300px] min-w-[250px] overflow-y-auto", className)}
     style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
     {...props}
   />
@@ -229,7 +240,7 @@ export const PromptInputModelSelectItem = ({
       "hover:bg-muted-foreground/10",
       "focus:bg-muted-foreground/10",
       "transition-all duration-0 ease-in-out",
-        "!ring-0 !outline-none focus:!ring-0 focus-visible:!ring-0",
+      "!ring-0 !outline-none focus:!ring-0 focus-visible:!ring-0",
       className,
     )}
     {...props}

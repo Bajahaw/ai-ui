@@ -52,6 +52,7 @@ import {
   AttachmentMessage,
   UploadedFile,
 } from "@/components/ui/file-upload";
+import { uploadFile, FileUploadError } from "@/lib/api/files";
 
 // Dynamic models are now loaded from providers via useModels hook
 
@@ -217,6 +218,29 @@ export const ChatInterface = ({
     setUploadedFile(null);
     setUploadError(null);
   }, []);
+
+  const handleFilesPasted = useCallback(
+    async (files: File[]) => {
+      if (hasPendingMessages || files.length === 0) return;
+
+      // Only handle the first file for now to match current single-file upload behavior
+      const file = files[0];
+
+      try {
+        setUploadError(null);
+        const fileUrl = await uploadFile(file);
+        setUploadedFile({ file, url: fileUrl });
+      } catch (error) {
+        const errorMessage =
+          error instanceof FileUploadError
+            ? error.message
+            : "Failed to upload pasted file";
+        setUploadError(errorMessage);
+        setUploadedFile(null);
+      }
+    },
+    [hasPendingMessages],
+  );
 
   const copyMessage = async (content: string) => {
     try {
@@ -557,6 +581,7 @@ export const ChatInterface = ({
             onChange={(e) => setInput(e.target.value)}
             value={input}
             placeholder="Ask anything here ..."
+            onFilesPasted={handleFilesPasted}
           />
           <PromptInputToolbar>
             <PromptInputTools>
@@ -610,8 +635,11 @@ export const ChatInterface = ({
                           value={modelItem.id}
                         >
                           <div className="max-w-[300px] overflow-hidden text-ellipsis text-nowrap pr-2">
-                              {modelItem.name}
-                            <span className="text-sm text-muted-foreground"> - {modelItem.provider}</span>
+                            {modelItem.name}
+                            <span className="text-sm text-muted-foreground">
+                              {" "}
+                              - {modelItem.provider}
+                            </span>
                           </div>
                         </PromptInputModelSelectItem>
                       ))}
