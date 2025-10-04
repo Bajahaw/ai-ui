@@ -29,7 +29,6 @@ func InitDataSource(dataSourceName string) error {
 	}
 
 	if _, err = DB.Exec(`PRAGMA foreign_keys = ON;`); err != nil {
-		_ = DB.Close()
 		return err
 	}
 
