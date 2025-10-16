@@ -97,8 +97,8 @@
     }
 
     ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
+        width: 4px;
+        height: 4px;
     }
 
     ::-webkit-scrollbar-track {
@@ -106,12 +106,16 @@
     }
 
     ::-webkit-scrollbar-thumb {
-        background: rgba(100, 100, 100, 0.5);
-        border-radius: 10px;
+        background: rgba(100, 100, 100, 0.3);
+        border-radius: 8px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-        background: #888;
+        background: rgba(100, 100, 100, 0.6);
+    }
+
+    ::-webkit-scrollbar-corner {
+        background: transparent;
     }
 
     .sidebar {
