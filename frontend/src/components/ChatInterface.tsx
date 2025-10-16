@@ -643,7 +643,7 @@ export const ChatInterface = ({
                           </div>
                         </PromptInputModelSelectItem>
                       ))}
-                      {models.length > 5 && (
+                      {models.length > 0 && (
                         <div className="border-t py-2 mt-2">
                           <div className="text-xs text-muted-foreground text-center px-2">
                             {models.length} models available
