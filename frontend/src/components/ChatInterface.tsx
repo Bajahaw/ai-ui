@@ -11,10 +11,6 @@ import {
   PromptInput,
   PromptInputButton,
   PromptInputModelSelect,
-  PromptInputModelSelectContent,
-  PromptInputModelSelectItem,
-  PromptInputModelSelectTrigger,
-  PromptInputModelSelectValue,
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputToolbar,
@@ -599,61 +595,17 @@ export const ChatInterface = ({
               </PromptInputButton>
 
               <PromptInputModelSelect
-                onValueChange={handleModelChange}
-                value={isModelValid ? model : undefined}
-                disabled={
-                  modelsLoading || settingsLoading || models.length === 0
-                }
-              >
-                <PromptInputModelSelectTrigger>
-                  <PromptInputModelSelectValue
-                    placeholder={
-                      modelsLoading
-                        ? "Loading models..."
-                        : models.length === 0
-                          ? "No models available"
-                          : "Select a model"
-                    }
-                  />
-                </PromptInputModelSelectTrigger>
-
-                <PromptInputModelSelectContent>
-                  {models.length === 0 ? (
-                    <div className="px-3 py-4 text-center">
-                      <div className="text-base text-muted-foreground">
-                        No models available
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Add AI providers in settings
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      {models.map((modelItem) => (
-                        <PromptInputModelSelectItem
-                          key={modelItem.id}
-                          value={modelItem.id}
-                        >
-                          <div className="max-w-[300px] overflow-hidden text-ellipsis text-nowrap pr-2">
-                            {modelItem.name}
-                            <span className="text-sm text-muted-foreground">
-                              {" "}
-                              - {modelItem.provider}
-                            </span>
-                          </div>
-                        </PromptInputModelSelectItem>
-                      ))}
-                      {models.length > 0 && (
-                        <div className="border-t py-2 mt-2">
-                          <div className="text-xs text-muted-foreground text-center px-2">
-                            {models.length} models available
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </PromptInputModelSelectContent>
-              </PromptInputModelSelect>
+                models={models}
+                value={isModelValid ? model : null}
+                onChange={handleModelChange}
+                loading={modelsLoading}
+                disabled={settingsLoading}
+                helperMessage="Add AI providers in settings"
+                variant="ghost"
+                size="sm"
+                showCount={models.length > 0}
+                triggerClassName="max-sm:max-w-[200px] max-sm:flex max-sm:items-center max-sm:gap-1 font-medium max-sm:[&>span]:min-w-0 max-sm:[&>span]:flex-1 max-sm:[&>span]:truncate"
+              />
             </PromptInputTools>
             <PromptInputSubmit
               disabled={

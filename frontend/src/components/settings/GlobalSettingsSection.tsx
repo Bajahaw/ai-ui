@@ -6,14 +6,7 @@ import {AlertCircle, Save, Loader2, RotateCcw} from "lucide-react";
 import {useSettings} from "@/hooks/useSettings";
 import {useModels} from "@/hooks/useModels";
 import {useAutoSelectDefaultModel} from "@/hooks/useAutoSelectDefaultModel";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import {cn} from "@/lib/utils.ts";
+import {ModelSelect} from "@/components/ai-elements/model-select.tsx";
 
 export const GlobalSettingsSection = () => {
     const {
@@ -149,66 +142,20 @@ export const GlobalSettingsSection = () => {
                         </Label>
                     </div>
                     <div className="">
-                        <Select
-                            value={isLocalModelValid ? localDefaultModel : undefined}
-                            onValueChange={handleDefaultModelChange}
-                            disabled={isSaving || models.length === 0 || modelsLoading}
-                        >
-                            <SelectTrigger
-                                id="default-model"
-                                className="!bg-transparent border-none max-sm:max-w-[180px] max-sm:mr-4"
-                            >
-                                <SelectValue
-                                    placeholder={
-                                        modelsLoading
-                                            ? "Loading models..."
-                                            : models.length === 0
-                                                ? "No models available"
-                                                : "Select a model"
-                                    }
-                                />
-                            </SelectTrigger>
-                            <SelectContent className="max-h-60 overflow-y-auto">
-                                {modelsLoading ? (
-                                    <div className="px-3 py-6 text-center">
-                                        <div
-                                            className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                                            <Loader2 className="h-3 w-3 animate-spin"/>
-                                            Loading models...
-                                        </div>
-                                    </div>
-                                ) : models.length === 0 ? (
-                                    <div className="px-3 py-6 text-center">
-                                        <div className="text-sm text-muted-foreground">
-                                            No models available
-                                        </div>
-                                        <div className="text-xs text-muted-foreground mt-1">
-                                            Add AI providers in the Providers tab
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <>
-                                        {models.map((model) => (
-                                            <SelectItem
-                                                className={cn(
-                                                    "cursor-pointer rounded-xl px-1 py-2.5 text-base mx-2 my-0.5",
-                                                    "hover:bg-muted-foreground/10 hover:text-foreground",
-                                                    "focus:bg-muted-foreground/10 focus:text-foreground",
-                                                    "transition-all duration-0 ease-in-out",
-                                                    "!ring-0 !outline-none focus:!ring-0 focus-visible:!ring-0",)}
-                                                key={model.id} value={model.id}>
-                                                <div
-                                                    className="max-w-[300px] overflow-hidden text-ellipsis text-nowrap pr-2">
-                                                    {model.name}
-                                                    <span
-                                                        className="text-sm text-muted-foreground"> - {model.provider}</span>
-                                                </div>
-                                            </SelectItem>
-                                        ))}
-                                    </>
-                                )}
-                            </SelectContent>
-                        </Select>
+                        <ModelSelect
+                            models={models}
+                            value={isLocalModelValid ? localDefaultModel : null}
+                            onChange={handleDefaultModelChange}
+                            loading={modelsLoading}
+                            disabled={isSaving}
+                            helperMessage="Add AI providers in the Providers tab"
+                            size="sm"
+                            triggerId="default-model"
+                            triggerAriaLabel="Default model"
+                            triggerClassName="max-sm:max-w-[180px] max-sm:mr-4"
+                            contentClassName="max-h-60"
+                            showCount={models.length > 0}
+                        />
                     </div>
 
                 </div>

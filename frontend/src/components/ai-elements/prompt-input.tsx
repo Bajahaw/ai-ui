@@ -7,14 +7,11 @@ import type {
   KeyboardEventHandler,
 } from "react";
 import { Children } from "react";
-import { Button } from "@/components/ui/button.tsx";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select.tsx";
+  ModelSelect,
+  type ModelSelectProps,
+} from "@/components/ai-elements/model-select.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import { Textarea } from "@/components/ui/textarea.tsx";
 import { cn } from "@/lib/utils.ts";
 import type { ChatStatus } from "ai";
@@ -181,79 +178,6 @@ export const PromptInputSubmit = ({
   );
 };
 
-export type PromptInputModelSelectProps = ComponentProps<typeof Select>;
+export type PromptInputModelSelectProps = ModelSelectProps;
 
-export const PromptInputModelSelect = (props: PromptInputModelSelectProps) => (
-  <Select {...props} />
-);
-
-export type PromptInputModelSelectTriggerProps = ComponentProps<
-  typeof SelectTrigger
->;
-
-export const PromptInputModelSelectTrigger = ({
-  className,
-  ...props
-}: PromptInputModelSelectTriggerProps) => (
-  <SelectTrigger
-    className={cn(
-      "!border-none !bg-transparent !shadow-none !ring-0 !outline-none",
-      "!px-2 !py-1 !h-auto !min-h-0 !w-auto",
-      "max-sm:!max-w-48 max-sm:!flex max-sm:!items-center max-sm:!gap-1",
-      "font-medium text-muted-foreground cursor-pointer",
-      "hover:!bg-transparent hover:text-foreground",
-      "focus:!bg-transparent focus:!ring-0 focus-visible:!ring-0",
-      '[&[aria-expanded="true"]]:!bg-transparent [&[aria-expanded="true"]]:text-foreground',
-      "dark:!bg-transparent dark:hover:!bg-transparent",
-      "transition-colors",
-      "max-sm:[&>span]:!overflow-hidden max-sm:[&>span]:!text-ellipsis max-sm:[&>span]:!whitespace-nowrap max-sm:[&>span]:!flex-1 max-sm:[&>span]:!min-w-0",
-      className,
-    )}
-    {...props}
-  />
-);
-
-export type PromptInputModelSelectContentProps = ComponentProps<
-  typeof SelectContent
->;
-
-export const PromptInputModelSelectContent = ({
-  className,
-  ...props
-}: PromptInputModelSelectContentProps) => (
-  <SelectContent
-    className={cn("max-h-[300px] min-w-[250px] overflow-y-auto", className)}
-    style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-    {...props}
-  />
-);
-
-export type PromptInputModelSelectItemProps = ComponentProps<typeof SelectItem>;
-
-export const PromptInputModelSelectItem = ({
-  className,
-  ...props
-}: PromptInputModelSelectItemProps) => (
-  <SelectItem
-    className={cn(
-      "cursor-pointer rounded-xl px-1 py-2.5 text-base mx-2 my-0.5",
-      "hover:bg-muted-foreground/10",
-      "focus:bg-muted-foreground/10",
-      "transition-all duration-0 ease-in-out",
-      "!ring-0 !outline-none focus:!ring-0 focus-visible:!ring-0",
-      className,
-    )}
-    {...props}
-  />
-);
-
-export type PromptInputModelSelectValueProps = ComponentProps<
-  typeof SelectValue
->;
-
-export const PromptInputModelSelectValue = ({
-  className,
-  ...props
-}: PromptInputModelSelectValueProps) => (
-  <SelectValue className={cn(className)} {...props} />
-);
+export const PromptInputModelSelect = ModelSelect;
