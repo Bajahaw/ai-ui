@@ -5,10 +5,20 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
-var token = os.Getenv("APP_TOKEN")
+var token string
 var authCookie = "auth_token"
+
+func init() {
+	token = os.Getenv("APP_TOKEN")
+	if token == "" {
+		godotenv.Load("../.env")
+		token = os.Getenv("APP_TOKEN")
+	}
+}
 
 func Login() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

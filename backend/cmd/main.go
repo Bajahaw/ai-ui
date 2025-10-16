@@ -13,24 +13,13 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
-	"github.com/joho/godotenv"
 )
 
-var log = utils.Log
+var log = utils.GetLogger()
 
 func main() {
-	SetupEnv()
 	StartDataSource()
 	StartServer()
-}
-
-func SetupEnv() {
-	// Load environment variables from .env file
-	err := godotenv.Load("../.env")
-	if err != nil {
-		return
-	}
 }
 
 func StartDataSource() {

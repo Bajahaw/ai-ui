@@ -9,7 +9,7 @@ import (
 	"github.com/openai/openai-go/v2/option"
 )
 
-var log = utils.Log
+var log = utils.GetLogger()
 
 type SimpleMessage struct {
 	Role    string

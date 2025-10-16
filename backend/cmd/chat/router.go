@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-var log = utils.Log
+var log = utils.GetLogger()
 var repo = newConversationRepository()
 
 func Handler() http.Handler {
