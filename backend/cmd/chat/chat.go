@@ -71,46 +71,10 @@ func chat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// build context
-	convMessages := getAllConversationMessages(convID) // todo: cache or something
-	var path []int
-	var current = userMessage.ID
-	log.Debug("Current message ID", "id", current)
-	for {
-		leaf, ok := convMessages[current]
-		if !ok {
-			break
-		}
-		path = append(path, current)
-		current = leaf.ParentID
-	}
+	ctx := buildContext(convID, userMessage.ID)
 
-	var messages []provider.SimpleMessage
-	systemPrompt := getSystemPrompt()
-
-	messages = append(messages, provider.SimpleMessage{
-		Role:    "system",
-		Content: systemPrompt,
-	})
-
-	for i := len(path) - 1; i >= 0; i-- {
-		msg, ok := convMessages[path[i]]
-		if !ok {
-			break
-		}
-		messages = append(messages, provider.SimpleMessage{
-			Role:    msg.Role,
-			Content: msg.Content,
-			Image:   msg.Attachment,
-		})
-	}
-
-	//debug
-	log.Debug("Path", "path", path)
-	log.Debug("Messages", "messages", messages)
-	//
-
-	completion, err := provider.SendChatCompletionRequest(messages, req.Model)
+	// send to provider
+	completion, err := provider.SendChatCompletionRequest(ctx, req.Model)
 	if err != nil {
 		log.Error("Error sending chat completion request", "err", err)
 		http.Error(w, fmt.Sprintf("Chat completion error: %v", err), http.StatusInternalServerError)
@@ -134,10 +98,9 @@ func chat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := struct {
-		Messages map[int]*Message `json:"messages"`
-	}{}
-	response.Messages = make(map[int]*Message)
+	response := &Response{
+		Messages: make(map[int]*Message),
+	}
 	response.Messages[userMessage.ID] = &userMessage
 	response.Messages[responseMessage.ID] = &responseMessage
 
@@ -167,38 +130,9 @@ func retry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var convMessages = getAllConversationMessages(req.ConversationID) // todo: cache or something
-	var path []int
-	var current = parent.ID
-	log.Debug("Current message ID", "id", current)
-	for {
-		leaf, ok := convMessages[current]
-		if !ok {
-			break
-		}
-		path = append(path, current)
-		current = leaf.ParentID
-	}
+	ctx := buildContext(req.ConversationID, parent.ID)
 
-	var messages []provider.SimpleMessage
-
-	messages = append(messages, provider.SimpleMessage{
-		Role:    "system",
-		Content: getSystemPrompt(),
-	})
-
-	for i := len(path) - 1; i >= 0; i-- {
-		msg, ok := convMessages[path[i]]
-		if !ok {
-			break
-		}
-		messages = append(messages, provider.SimpleMessage{
-			Role:    msg.Role,
-			Content: msg.Content,
-		})
-	}
-
-	completion, err := provider.SendChatCompletionRequest(messages, req.Model)
+	completion, err := provider.SendChatCompletionRequest(ctx, req.Model)
 	if err != nil {
 		log.Error("Error sending chat completion request", "err", err)
 		http.Error(w, fmt.Sprintf("Chat completion error: %v", err), http.StatusInternalServerError)
@@ -243,7 +177,7 @@ func update(W http.ResponseWriter, R *http.Request) {
 		return
 	}
 
-	err = updateMessage(req.MessageID, Message{Content: req.Content})
+	msg, err := updateMessage(req.MessageID, Message{Content: req.Content})
 	if err != nil {
 		log.Error("Error updating message", "err", err)
 		http.Error(W, fmt.Sprintf("Error updating message: %v", err), http.StatusInternalServerError)
@@ -258,12 +192,43 @@ func update(W http.ResponseWriter, R *http.Request) {
 	response := &Response{
 		Messages: make(map[int]*Message),
 	}
-	response.Messages[req.MessageID], err = getMessage(req.MessageID)
-	if err != nil {
-		log.Error("Error retrieving updated message", "err", err)
-		http.Error(W, fmt.Sprintf("Error retrieving updated message: %v", err), http.StatusInternalServerError)
-		return
-	}
+	response.Messages[msg.ID] = msg
 
 	utils.RespondWithJSON(W, &response, http.StatusOK)
+}
+
+// Helper
+func buildContext(convID string, start int) []provider.SimpleMessage {
+	var convMessages = getAllConversationMessages(convID) // todo: cache or something
+	var path []int
+	var current = start
+	log.Debug("Current message ID", "id", current)
+	for {
+		leaf, ok := convMessages[current]
+		if !ok {
+			break
+		}
+		path = append(path, current)
+		current = leaf.ParentID
+	}
+
+	var messages = []provider.SimpleMessage{
+		{
+			Role:    "system",
+			Content: getSystemPrompt(),
+		},
+	}
+
+	for i := len(path) - 1; i >= 0; i-- {
+		msg, ok := convMessages[path[i]]
+		if !ok {
+			break
+		}
+		messages = append(messages, provider.SimpleMessage{
+			Role:    msg.Role,
+			Content: msg.Content,
+			Image:   msg.Attachment,
+		})
+	}
+	return messages
 }

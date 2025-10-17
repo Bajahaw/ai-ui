@@ -57,13 +57,26 @@ func saveMessage(msg Message) (int, error) {
 	return int(id), nil
 }
 
-func updateMessage(id int, msg Message) error {
-	sql := `UPDATE Messages SET content = ? WHERE id = ?`
-	_, err := data.DB.Exec(sql, msg.Content, id)
+func updateMessage(id int, msg Message) (*Message, error) {
+	sql := `UPDATE Messages SET content = ? WHERE id = ? RETURNING id, conv_id, role, model, content, parent_id, attachment`
+	row := data.DB.QueryRow(sql, msg.Content, id)
+
+	var updatedMsg Message
+	err := row.Scan(
+		&updatedMsg.ID,
+		&updatedMsg.ConvID,
+		&updatedMsg.Role,
+		&updatedMsg.Model,
+		&updatedMsg.Content,
+		&updatedMsg.ParentID,
+		&updatedMsg.Attachment,
+	)
+
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+
+	return &updatedMsg, nil
 }
 
 func getAllConversationMessages(convID string) map[int]*Message {
