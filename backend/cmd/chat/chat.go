@@ -3,6 +3,7 @@ package chat
 import (
 	"ai-client/cmd/provider"
 	"ai-client/cmd/utils"
+	"encoding/json"
 	"fmt"
 	"net/http"
 )
@@ -231,4 +232,105 @@ func buildContext(convID string, start int) []provider.SimpleMessage {
 		})
 	}
 	return messages
+}
+
+func chatStream(w http.ResponseWriter, r *http.Request) {
+	var req Request
+	err := utils.ExtractJSONBody(r, &req)
+	if err != nil || req.ConversationID == "" || req.Content == "" {
+		log.Error("Error unmarshalling request body", "err", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Find or create conversation
+	convID := req.ConversationID
+	err = repo.touchConversation(req.ConversationID)
+	if err != nil {
+		conv := newConversation("admin")
+		if err = repo.saveConversation(conv); err != nil {
+			log.Error("Error creating conversation", "err", err)
+			http.Error(w, fmt.Sprintf("Error creating conversation: %v", err), http.StatusInternalServerError)
+			return
+		}
+		convID = conv.ID
+	}
+
+	// Save user message
+	userMessage := Message{
+		ID:         -1,
+		ConvID:     convID,
+		Role:       "user",
+		Content:    req.Content,
+		ParentID:   req.ParentID,
+		Children:   []int{},
+		Attachment: req.Attachment,
+	}
+
+	userMessage.ID, err = saveMessage(userMessage)
+	if err != nil {
+		log.Error("Error saving user message", "err", err)
+		http.Error(w, fmt.Sprintf("Error saving user message: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		log.Error("Streaming not supported")
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Send metadata first (conversation ID, user message ID)
+	metadata := provider.StreamMetadata{
+		ConversationID: convID,
+		UserMessageID:  userMessage.ID,
+	}
+	metadataJSON, _ := json.Marshal(metadata)
+	fmt.Fprintf(w, "event: metadata\ndata: %s\n\n", metadataJSON)
+	flusher.Flush()
+
+	// Build context and stream response
+	ctx := buildContext(convID, userMessage.ID)
+	fullContent, err := provider.SendChatCompletionStreamRequest(ctx, req.Model, w)
+	if err != nil {
+		log.Error("Error streaming chat completion", "err", err)
+		fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
+		flusher.Flush()
+		return
+	}
+
+	// Save assistant message after streaming completes
+	responseMessage := Message{
+		ID:       -1,
+		ConvID:   convID,
+		Role:     "assistant",
+		Model:    req.Model,
+		Content:  fullContent,
+		ParentID: userMessage.ID,
+		Children: []int{},
+	}
+
+	responseMessage.ID, err = saveMessage(responseMessage)
+	if err != nil {
+		log.Error("Error saving response message", "err", err)
+		// Continue anyway - client has the content
+	}
+
+	// Send completion event with message IDs
+	completionData := provider.StreamComplete{
+		UserMessageID:      userMessage.ID,
+		AssistantMessageID: responseMessage.ID,
+	}
+	completionJSON, _ := json.Marshal(completionData)
+	fmt.Fprintf(w, "event: complete\ndata: %s\n\n", completionJSON)
+	flusher.Flush()
+
+	log.Debug("Stream completed successfully", "convID", convID, "assistantMsgID", responseMessage.ID)
 }

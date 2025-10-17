@@ -547,6 +547,329 @@ export const useConversations = () => {
     [manager, activeConversationId, syncConversations],
   );
 
+  const sendMessageStream = useCallback(
+    async (
+      conversationId: string | null,
+      message: string,
+      model: string,
+      webSearch: boolean = false,
+      attachment?: string,
+    ): Promise<string> => {
+      let tempMessageId: string | undefined;
+      let assistantPlaceholderId: string | undefined;
+      let clientConversationId = conversationId;
+
+      try {
+        setError(null);
+
+        // Handle new conversation case
+        if (!conversationId) {
+          // Create conversation optimistically
+          const clientConversation = manager.createConversation(
+            message,
+            attachment,
+          );
+          clientConversationId = clientConversation.id;
+
+          // Get IDs for streaming updates
+          const userMessage = clientConversation.messages.find(
+            (m) => m.role === "user" && m.content === message,
+          );
+          tempMessageId = userMessage?.id;
+
+          const assistantPlaceholder = clientConversation.messages.find(
+            (m) => m.role === "assistant" && m.status === "pending",
+          );
+          assistantPlaceholderId = assistantPlaceholder?.id;
+
+          syncConversations();
+          setActiveConversationId(clientConversationId);
+
+          // Create conversation on server first to get real UUID
+          const title =
+            message.length > 50 ? message.substring(0, 47) + "..." : message;
+          const createdConv = await conversationsAPI.createConversation(title);
+
+          // Use a simple variable to accumulate content
+          let accumulatedContent = "";
+          let realConvId = createdConv.id;
+          let rafId: number | null = null;
+          let realAssistantMessageId: number | null = null;
+
+          // Stream the message
+          await chatAPI.sendMessageStream(
+            createdConv.id,
+            null,
+            model,
+            message,
+            webSearch,
+            attachment,
+            // onChunk - Update content and request animation frame for smooth rendering
+            (chunk: string) => {
+              accumulatedContent += chunk;
+              
+              // Update content immediately (no sync yet)
+              if (assistantPlaceholderId && clientConversationId) {
+                manager.updateMessageContent(
+                  clientConversationId,
+                  assistantPlaceholderId,
+                  accumulatedContent,
+                );
+              }
+              
+              // Cancel previous frame request if any
+              if (rafId !== null) {
+                cancelAnimationFrame(rafId);
+              }
+              
+              // Schedule sync on next animation frame (60fps max)
+              rafId = requestAnimationFrame(() => {
+                syncConversations();
+                rafId = null;
+              });
+            },
+            // onMetadata - Get the real backend ID and update user message immediately
+            (metadata) => {
+              realConvId = metadata.conversationId;
+              
+              // User message is saved! Update its ID and status immediately
+              if (tempMessageId && clientConversationId) {
+                const conv = manager.getConversation(clientConversationId);
+                if (conv) {
+                  const userMsg = conv.messages.find(m => m.id === tempMessageId);
+                  if (userMsg) {
+                    userMsg.id = metadata.userMessageId.toString();
+                    userMsg.status = "success"; // Message is saved, show actions now!
+                    conv.pendingMessageIds.delete(tempMessageId);
+                    syncConversations(); // Sync to show action buttons
+                  }
+                }
+              }
+            },
+            // onComplete - Update IDs and sync ONCE
+            (data) => {
+              // Cancel any pending animation frame
+              if (rafId !== null) {
+                cancelAnimationFrame(rafId);
+                rafId = null;
+              }
+              
+              // Store the real assistant message ID
+              realAssistantMessageId = data.assistantMessageId;
+              
+              // Re-key conversation from temp to real ID
+              if (clientConversationId && realConvId !== clientConversationId) {
+                manager.rekeyConversation(clientConversationId, realConvId);
+                
+                // Update assistant message ID and status
+                if (assistantPlaceholderId) {
+                  const conv = manager.getConversation(realConvId);
+                  if (conv) {
+                    const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
+                    if (assistMsg) {
+                      assistMsg.id = data.assistantMessageId.toString();
+                      assistMsg.status = "success";
+                      // Ensure final content is set (in case last RAF was cancelled)
+                      assistMsg.content = accumulatedContent;
+                      conv.pendingMessageIds.delete(assistantPlaceholderId);
+                    }
+                  }
+                }
+              }
+            },
+            // onError
+            (error) => {
+              console.error("Stream error:", error);
+              if (assistantPlaceholderId && clientConversationId) {
+                manager.markAssistantFailed(
+                  clientConversationId,
+                  assistantPlaceholderId,
+                  error,
+                );
+              }
+            },
+          );
+
+          // After streaming completes, set up the backend conversation properly
+          try {
+            // Fetch the full conversation to set up backend structure
+            const fullConversation = await conversationsAPI.fetchConversation(realConvId);
+            const conv = manager.getConversation(realConvId);
+            if (conv && realAssistantMessageId) {
+              conv.backendConversation = fullConversation;
+              // Set activeMessageId to the assistant message so next message can be sent
+              conv.backendConversation.activeMessageId = realAssistantMessageId;
+            }
+          } catch (e) {
+            console.error("Failed to fetch conversation after streaming:", e);
+          }
+
+          // Final sync ONCE after streaming completes
+          setActiveConversationId(realConvId);
+          syncConversations();
+
+          return realConvId;
+        }
+
+        // Handle existing conversation case
+        const conversation = manager.getConversation(conversationId);
+        if (!conversation) {
+          throw new Error("Conversation not found");
+        }
+
+        // Add user message optimistically
+        if (conversation.backendConversation) {
+          tempMessageId = manager.addMessageOptimistically(
+            conversationId,
+            message,
+            attachment,
+          );
+          
+          // Get assistant placeholder ID
+          const assistantPlaceholder = conversation.messages.find(
+            (m) => m.role === "assistant" && m.status === "pending" && !m.content,
+          );
+          assistantPlaceholderId = assistantPlaceholder?.id;
+          
+          syncConversations();
+        }
+
+        const activeMessageId = manager.getActiveMessageId(conversationId);
+        if (activeMessageId === undefined) {
+          // Fallback logic
+          const backendConv = conversation.backendConversation;
+          if (backendConv) {
+            const msgs = backendConv.messages || {};
+            const assistantMessages = Object.values(msgs).filter(
+              (msg) => msg.role === "assistant",
+            );
+            if (assistantMessages.length > 0) {
+              const latestAssistant =
+                assistantMessages[assistantMessages.length - 1];
+              backendConv.activeMessageId = latestAssistant.id;
+            } else {
+              throw new Error("Cannot send message: conversation not ready");
+            }
+          } else {
+            throw new Error("Cannot send message: conversation not ready");
+          }
+        }
+
+        const finalActiveMessageId = manager.getActiveMessageId(conversationId);
+        if (finalActiveMessageId === undefined) {
+          throw new Error("Cannot determine active message ID");
+        }
+
+        // Use a simple variable to accumulate content
+        let accumulatedContent = "";
+        let rafId: number | null = null;
+
+        // Stream the message
+        await chatAPI.sendMessageStream(
+          conversationId,
+          finalActiveMessageId,
+          model,
+          message,
+          webSearch,
+          attachment,
+          // onChunk - Update on animation frame for smooth rendering
+          (chunk: string) => {
+            accumulatedContent += chunk;
+            
+            // Update content immediately (no sync yet)
+            if (assistantPlaceholderId) {
+              manager.updateMessageContent(
+                conversationId,
+                assistantPlaceholderId,
+                accumulatedContent,
+              );
+            }
+            
+            // Cancel previous frame request if any
+            if (rafId !== null) {
+              cancelAnimationFrame(rafId);
+            }
+            
+            // Schedule sync on next animation frame (60fps max)
+            rafId = requestAnimationFrame(() => {
+              syncConversations();
+              rafId = null;
+            });
+          },
+          // onMetadata - Update user message immediately
+          (metadata) => {
+            // User message is saved! Update its ID and status immediately
+            if (tempMessageId) {
+              const conv = manager.getConversation(conversationId);
+              if (conv) {
+                const userMsg = conv.messages.find(m => m.id === tempMessageId);
+                if (userMsg) {
+                  userMsg.id = metadata.userMessageId.toString();
+                  userMsg.status = "success"; // Message is saved, show actions now!
+                  conv.pendingMessageIds.delete(tempMessageId);
+                  syncConversations(); // Sync to show action buttons
+                }
+              }
+            }
+          },
+          // onComplete - Update IDs and sync ONCE
+          (data) => {
+            // Cancel any pending animation frame
+            if (rafId !== null) {
+              cancelAnimationFrame(rafId);
+              rafId = null;
+            }
+            
+            // Update assistant message ID and status
+            if (assistantPlaceholderId) {
+              const conv = manager.getConversation(conversationId);
+              if (conv) {
+                const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
+                if (assistMsg) {
+                  assistMsg.id = data.assistantMessageId.toString();
+                  assistMsg.status = "success";
+                  // Ensure final content is set (in case last RAF was cancelled)
+                  assistMsg.content = accumulatedContent;
+                  conv.pendingMessageIds.delete(assistantPlaceholderId);
+                }
+              }
+            }
+          },
+          // onError
+          (error) => {
+            console.error("Stream error:", error);
+            if (assistantPlaceholderId) {
+              manager.markAssistantFailed(
+                conversationId,
+                assistantPlaceholderId,
+                error,
+              );
+            }
+          },
+        );
+
+        // Final sync ONCE after streaming completes
+        syncConversations();
+        return conversationId;
+      } catch (err) {
+        console.error("Failed to send message:", err);
+
+        if (assistantPlaceholderId && clientConversationId) {
+          const errorMsg = ApiErrorHandler.getUserFriendlyMessage(err);
+          manager.markAssistantFailed(
+            clientConversationId,
+            assistantPlaceholderId,
+            errorMsg,
+          );
+          syncConversations();
+        }
+
+        throw err;
+      }
+    },
+    [manager, syncConversations],
+  );
+
   return {
     conversations,
     activeConversationId,
@@ -554,6 +877,7 @@ export const useConversations = () => {
     isLoading,
     error,
     sendMessage,
+    sendMessageStream,
     retryMessage,
     updateMessage,
     getCurrentMessages,

@@ -134,7 +134,15 @@ export class ClientConversationManager {
     const conversation = this.conversations.get(conversationId);
     if (!conversation) return;
 
+    // Re-key the conversation if the backend ID is different
+    if (backendConversation.id && conversation.id !== backendConversation.id) {
+      this.conversations.delete(conversationId);
+      conversation.id = backendConversation.id;
+      this.conversations.set(backendConversation.id, conversation);
+    }
+
     conversation.backendConversation = backendConversation;
+    
     // Initialize activeBranches from backend data
     if (backendConversation.activeBranches) {
       conversation.activeBranches = new Map(
@@ -146,16 +154,20 @@ export class ClientConversationManager {
     } else {
       conversation.activeBranches = new Map();
     }
+    
     // Use an empty object fallback to avoid 'undefined' message maps
     this.updateWithBackendMessages(
-      conversationId,
+      backendConversation.id,
       backendConversation.messages || {},
     );
 
-    // Rebuild the visible message list to ensure only the active path is rendered
-    conversation.messages = this.buildMessagesFromBackend(
-      conversation.backendConversation,
-    );
+    // Only rebuild messages from backend if backend has messages
+    // Otherwise preserve the streaming messages we already have
+    if (backendConversation.messages && Object.keys(backendConversation.messages).length > 0) {
+      conversation.messages = this.buildMessagesFromBackend(
+        conversation.backendConversation,
+      );
+    }
 
     // Ensure client-side timestamps reflect the backend values so sorting is consistent
     (conversation as any).createdAt =
@@ -883,5 +895,70 @@ export class ClientConversationManager {
         conversation.backendConversation.title = newTitle;
       }
     }
+  }
+
+  // Update message content (for streaming)
+  updateMessageContent(
+    conversationId: string,
+    messageId: string,
+    newContent: string,
+  ): void {
+    const conversation = this.conversations.get(conversationId);
+    if (!conversation) return;
+
+    const message = conversation.messages.find((m) => m.id === messageId);
+    if (message) {
+      message.content = newContent;
+      message.status = "success";
+    }
+  }
+
+  // Confirm messages with real IDs from backend (after streaming completes)
+  confirmMessages(
+    conversationId: string,
+    idMapping: Record<string, number>,
+  ): void {
+    const conversation = this.conversations.get(conversationId);
+    if (!conversation) {
+      console.warn(`Conversation ${conversationId} not found for confirmMessages`);
+      return;
+    }
+
+    // Update frontend message IDs
+    for (const [tempId, realId] of Object.entries(idMapping)) {
+      const message = conversation.messages.find((m) => m.id === tempId);
+      if (message) {
+        message.id = realId.toString();
+        conversation.pendingMessageIds.delete(tempId);
+      }
+    }
+
+    // Also update backend conversation structure if it exists
+    if (conversation.backendConversation?.messages) {
+      for (const [tempId, realId] of Object.entries(idMapping)) {
+        // If backend messages were added with temp IDs, update them
+        const tempIdNum = Number(tempId);
+        if (!isNaN(tempIdNum) && conversation.backendConversation.messages[tempIdNum]) {
+          const msg = conversation.backendConversation.messages[tempIdNum];
+          delete conversation.backendConversation.messages[tempIdNum];
+          conversation.backendConversation.messages[realId] = msg;
+          
+          // Update the message's own id field
+          if (msg) {
+            msg.id = realId;
+          }
+        }
+      }
+    }
+  }
+
+  // Re-key conversation from temporary ID to real backend ID
+  rekeyConversation(oldId: string, newId: string): void {
+    const conversation = this.conversations.get(oldId);
+    if (!conversation) return;
+
+    this.conversations.delete(oldId);
+    conversation.id = newId;
+    this.conversations.set(newId, conversation);
   }
 }

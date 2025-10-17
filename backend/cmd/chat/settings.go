@@ -81,6 +81,7 @@ func setDefaultSettings() {
 		"frequency_penalty": "0",
 		"presence_penalty":  "0",
 		"systemPrompt":      "You are a helpful assistant. Provide clear accurate and helpful responses to the user questions.",
+		"responseType":      "stream",
 	}
 
 	err := saveUpdatedSettings(Settings{defaults})
