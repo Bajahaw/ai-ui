@@ -64,6 +64,21 @@ export interface UpdateResponse {
   messages: Record<number, Message>;
 }
 
+// Streaming types
+export interface StreamMetadata {
+  conversationId: string;
+  userMessageId: number;
+}
+
+export interface StreamChunk {
+  content: string;
+}
+
+export interface StreamComplete {
+  userMessageId: number;
+  assistantMessageId: number;
+}
+
 export interface CreateConversationRequest {
   conversation: Conversation;
 }

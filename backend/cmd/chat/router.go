@@ -13,6 +13,7 @@ func Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /new", chat)
+	mux.HandleFunc("POST /stream", chatStream)
 	mux.HandleFunc("POST /retry", retry)
 	mux.HandleFunc("POST /update", update)
 

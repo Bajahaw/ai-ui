@@ -25,6 +25,7 @@ function App() {
     currentConversation,
     activeConversationId,
     sendMessage: sendChatMessage,
+    sendMessageStream,
     retryMessage,
     selectConversation,
     startNewChat,
@@ -65,7 +66,8 @@ function App() {
     setLastMessageTime(currentTime);
 
     try {
-      await sendChatMessage(
+      // Use streaming for better UX
+      await sendMessageStream(
         activeConversationId,
         message,
         model,

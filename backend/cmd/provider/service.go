@@ -3,6 +3,9 @@ package provider
 import (
 	"ai-client/cmd/utils"
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/openai/openai-go/v2"
@@ -104,4 +107,106 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 		}
 	}
 	return openaiMessages
+}
+
+// StreamChunk represents a chunk of streamed content
+type StreamChunk struct {
+	Content string `json:"content"`
+}
+
+// StreamMetadata represents metadata sent at the beginning of a stream
+type StreamMetadata struct {
+	ConversationID string `json:"conversationId"`
+	UserMessageID  int    `json:"userMessageId"`
+}
+
+// StreamComplete represents the final data sent when stream is complete
+type StreamComplete struct {
+	UserMessageID      int `json:"userMessageId"`
+	AssistantMessageID int `json:"assistantMessageId"`
+}
+
+// SendChatCompletionStreamRequest handles streaming chat completions and returns the full content
+func SendChatCompletionStreamRequest(messages []SimpleMessage, model string, w http.ResponseWriter) (string, error) {
+	providerID, model := utils.ExtractProviderID(model)
+	provider, err := repo.getProvider(providerID)
+	if err != nil {
+		return "", err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+	defer cancel()
+
+	client := openai.NewClient(
+		option.WithAPIKey(provider.APIKey),
+		option.WithBaseURL(provider.BaseURL),
+	)
+
+	params := openai.ChatCompletionNewParams{
+		Model:    model,
+		Messages: OpenAIMessageParams(messages),
+	}
+
+	log.Debug("Sending streaming chat completion request", "model", model)
+
+	// Set headers for SSE (Server-Sent Events)
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering if behind proxy
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		return "", fmt.Errorf("streaming not supported")
+	}
+
+	stream := client.Chat.Completions.NewStreaming(ctx, params)
+	acc := openai.ChatCompletionAccumulator{}
+
+	for stream.Next() {
+		chunk := stream.Current()
+		acc.AddChunk(chunk)
+
+		// Stream content deltas to client
+		if len(chunk.Choices) > 0 {
+			delta := chunk.Choices[0].Delta.Content
+			if delta != "" {
+				// Send as SSE data event
+				chunkData := StreamChunk{Content: delta}
+				chunkJSON, _ := json.Marshal(chunkData)
+				fmt.Fprintf(w, "data: %s\n\n", chunkJSON)
+				flusher.Flush()
+			}
+		}
+
+		// Handle finished content
+		if content, ok := acc.JustFinishedContent(); ok {
+			log.Debug("Content stream finished", "length", len(content))
+		}
+
+		// Handle tool calls if needed in the future
+		if tool, ok := acc.JustFinishedToolCall(); ok {
+			log.Debug("Tool call stream finished", "index", tool.Index, "name", tool.Name)
+		}
+
+		// Handle refusals
+		if refusal, ok := acc.JustFinishedRefusal(); ok {
+			log.Debug("Refusal stream finished", "refusal", refusal)
+		}
+	}
+
+	if err := stream.Err(); err != nil {
+		log.Error("Stream error", "err", err)
+		return "", err
+	}
+
+	// Get the complete content from accumulator
+	fullContent := ""
+	if len(acc.Choices) > 0 {
+		fullContent = acc.Choices[0].Message.Content
+	}
+
+	log.Debug("Stream completed", "total_length", len(fullContent))
+
+	return fullContent, nil
 }
