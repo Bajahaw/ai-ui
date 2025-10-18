@@ -1,9 +1,4 @@
-import {
-  backendToFrontendMessage,
-  Conversation,
-  FrontendMessage,
-  Message,
-} from "@/lib/api";
+import {backendToFrontendMessage, Conversation, FrontendMessage, Message,} from "@/lib/api";
 
 let tempIdCounter = -1;
 
@@ -278,12 +273,12 @@ export class ClientConversationManager {
     const messageIds = Object.keys(backendMessages).map(Number);
 
     if (messageIds.length > 0) {
-      // Set active message to the last assistant message (response) if available
-
-      const assistantMessageId = messageIds.find(
+      // Set active message to the latest assistant message (highest id) if available
+      const assistantIds = messageIds.filter(
         (id) => backendMessages[id].role === "assistant",
       );
-      if (assistantMessageId) {
+      const assistantMessageId = assistantIds.length > 0 ? Math.max(...assistantIds) : undefined;
+      if (assistantMessageId !== undefined) {
         conversation.backendConversation.activeMessageId = assistantMessageId;
 
         // Update active branches when new assistant message is added (client-side)
@@ -315,10 +310,6 @@ export class ClientConversationManager {
             assistantMessageId,
           );
         }
-      } else {
-        conversation.backendConversation.activeMessageId = Math.max(
-          ...messageIds,
-        );
       }
     }
 
@@ -718,28 +709,10 @@ export class ClientConversationManager {
     const conversation = this.conversations.get(conversationId);
     if (!conversation?.backendConversation) return undefined;
 
-    // Return the stored activeMessageId if it exists
-    if (conversation.backendConversation.activeMessageId) {
-      return conversation.backendConversation.activeMessageId;
-    }
-
-    // Fallback: find the latest assistant message
-
-    const allMessages = conversation.backendConversation.messages || {};
-    const assistantMessages = Object.values(allMessages).filter(
-      (msg) => msg && msg.role === "assistant",
-    );
-
-    if (assistantMessages.length > 0) {
-      const latestAssistant = assistantMessages.reduce((latest, current) =>
-        current.id > latest.id ? current : latest,
-      );
-      // Update the activeMessageId with the fallback
-      conversation.backendConversation.activeMessageId = latestAssistant.id;
-      return latestAssistant.id;
-    }
-
-    return undefined;
+    // Only return the explicitly tracked activeMessageId.
+    // Do NOT guess or fallback here; callers must ensure this is set correctly
+    // (e.g., after message send/stream completion or messages load).
+    return conversation.backendConversation.activeMessageId;
   }
 
   // Branch navigation methods
