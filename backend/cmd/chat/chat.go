@@ -334,3 +334,94 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug("Stream completed successfully", "convID", convID, "assistantMsgID", responseMessage.ID)
 }
+
+// retryStream streams an alternative assistant response for a given user parent message.
+// It does not create a new user message; it uses the provided ParentID as context root.
+func retryStream(w http.ResponseWriter, r *http.Request) {
+	var req Retry
+	err := utils.ExtractJSONBody(r, &req)
+	if err != nil || req.ConversationID == "" || req.ParentID <= 0 {
+		log.Error("Error unmarshalling retry stream body", "err", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Ensure conversation exists
+	if err = repo.touchConversation(req.ConversationID); err != nil {
+		log.Error("Error retrieving conversation", "err", err)
+		http.Error(w, fmt.Sprintf("Error retrieving conversation: %v", err), http.StatusNotFound)
+		return
+	}
+
+	// Load parent user message
+	parent, err := getMessage(req.ParentID)
+	if err != nil || parent.Role != "user" {
+		log.Error("Invalid parent message for retry stream", "err", err)
+		http.Error(w, "Invalid parent message", http.StatusBadRequest)
+		return
+	}
+
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		log.Error("Streaming not supported")
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Metadata: no new user message; client already knows conversation
+	// We can still send conversationId and echo parent id in userMessageId for consistency if needed.
+	metadata := provider.StreamMetadata{
+		ConversationID: req.ConversationID,
+		UserMessageID:  parent.ID,
+	}
+	metadataJSON, _ := json.Marshal(metadata)
+	fmt.Fprintf(w, "event: metadata\ndata: %s\n\n", metadataJSON)
+	flusher.Flush()
+
+	// Build context from the parent message
+	ctx := buildContext(req.ConversationID, parent.ID)
+
+	// Stream assistant content
+	fullContent, err := provider.SendChatCompletionStreamRequest(ctx, req.Model, w)
+	if err != nil {
+		log.Error("Error streaming retry completion", "err", err)
+		fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
+		flusher.Flush()
+		return
+	}
+
+	// Save assistant message after streaming completes
+	responseMessage := Message{
+		ID:       -1,
+		ConvID:   req.ConversationID,
+		Role:     "assistant",
+		Model:    req.Model,
+		Content:  fullContent,
+		ParentID: parent.ID,
+		Children: []int{},
+	}
+
+	responseID, saveErr := saveMessage(responseMessage)
+	if saveErr != nil {
+		log.Error("Error saving retry response message", "err", saveErr)
+	} else {
+		responseMessage.ID = responseID
+		// Update parent's children in memory (DB linkage already by parent_id)
+		parent.Children = append(parent.Children, responseID)
+	}
+
+	// Send completion event with the new assistant message id
+	completionData := provider.StreamComplete{
+		UserMessageID:      parent.ID,
+		AssistantMessageID: responseMessage.ID,
+	}
+	completionJSON, _ := json.Marshal(completionData)
+	fmt.Fprintf(w, "event: complete\ndata: %s\n\n", completionJSON)
+	flusher.Flush()
+}

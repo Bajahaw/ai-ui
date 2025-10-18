@@ -15,6 +15,7 @@ func Handler() http.Handler {
 	mux.HandleFunc("POST /new", chat)
 	mux.HandleFunc("POST /stream", chatStream)
 	mux.HandleFunc("POST /retry", retry)
+	mux.HandleFunc("POST /retry/stream", retryStream)
 	mux.HandleFunc("POST /update", update)
 
 	return http.StripPrefix("/api/chat", auth.Authenticated(mux))

@@ -825,6 +825,23 @@ export class ClientConversationManager {
       return matchingBackendMessage.parentId;
     }
 
+    // Fallback: infer from the visible messages path (frontend list)
+    // Find the assistant message in the current conversation.messages array
+    const idx = conversation.messages.findIndex(
+        (m) => m.id === assistantMessageId && m.role === "assistant",
+    );
+    if (idx > 0) {
+      // Search backwards for the nearest user message
+      for (let i = idx - 1; i >= 0; i--) {
+        const prev = conversation.messages[i];
+        if (prev.role === "user") {
+          const pid = parseInt(prev.id, 10);
+          if (!Number.isNaN(pid)) return pid;
+          break;
+        }
+      }
+    }
+
     // Last resort: Use the current activeMessageId if it's an assistant message
     if (conversation.backendConversation.activeMessageId) {
       const activeMessage =

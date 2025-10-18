@@ -51,143 +51,7 @@ export const useConversations = () => {
         }
     }, [manager, syncConversations]);
 
-    const sendMessage = useCallback(
-        async (
-            conversationId: string | null,
-            message: string,
-            model: string,
-            webSearch: boolean = false,
-            attachment?: string,
-        ): Promise<string> => {
-            let tempMessageId: string | undefined;
-            let clientConversationId = conversationId;
-
-            try {
-                setError(null);
-
-                // Handle new conversation case
-                if (!conversationId) {
-                    // Create conversation optimistically
-                    const clientConversation = manager.createConversation(
-                        message,
-                        attachment,
-                    );
-                    clientConversationId = clientConversation.id;
-
-                    // Extract the user message ID for error handling
-                    const userMessage = clientConversation.messages.find(
-                        (m) => m.role === "user" && m.content === message,
-                    );
-                    tempMessageId = userMessage?.id;
-
-                    syncConversations();
-                    setActiveConversationId(clientConversationId);
-
-                    // Create conversation on server first to get real UUID
-                    const title =
-                        message.length > 50 ? message.substring(0, 47) + "..." : message;
-                    const createdConv = await conversationsAPI.createConversation(title);
-
-                    // Send first message using the real conversation UUID
-                    const chatResponse = await chatAPI.sendMessage(
-                        createdConv.id,
-                        null, // null parentId for new conversation
-
-                        model,
-
-                        message,
-
-                        webSearch,
-
-                        attachment,
-                    );
-
-                    // Update local state with returned messages; manager will re-key if needed
-                    manager.updateWithChatResponse(
-                        clientConversationId,
-                        chatResponse.messages,
-                        false,
-                    );
-
-                    // Optionally fetch full conversation messages (empty map if none)
-                    try {
-                        const allMessages =
-                            await conversationsAPI.fetchConversationMessages(createdConv.id);
-                        manager.updateWithChatResponse(createdConv.id, allMessages, true);
-                    } catch (e) {
-                        console.warn("Failed to fetch conversation messages:", e);
-                    }
-
-                    // Switch active conversation to the real UUID
-
-                    setActiveConversationId(createdConv.id);
-                    syncConversations();
-
-                    return createdConv.id;
-                }
-
-                // Handle existing conversation case
-                const conversation = manager.getConversation(conversationId);
-                if (!conversation) {
-                    throw new Error("Conversation not found");
-                }
-
-                // Add user message optimistically for existing conversations
-                if (conversation.backendConversation) {
-                    tempMessageId = manager.addMessageOptimistically(
-                        conversationId,
-                        message,
-                        attachment,
-                    );
-                    syncConversations();
-                }
-
-                const activeMessageId = manager.getActiveMessageId(conversationId);
-                if (activeMessageId === undefined) {
-                    // No active message means the conversation tree is not established yet
-                    throw new Error("Cannot send message: conversation not ready");
-                }
-
-                const finalActiveMessageId = manager.getActiveMessageId(conversationId);
-                if (finalActiveMessageId === undefined) {
-                    throw new Error("Cannot determine active message ID for conversation");
-                }
-
-                const chatResponse = await chatAPI.sendMessage(
-                    conversationId,
-                    finalActiveMessageId, // Use activeMessageId as parentId for the new message
-                    model,
-                    message,
-                    webSearch,
-                    attachment,
-                );
-
-                manager.updateWithChatResponse(
-                    conversationId,
-                    chatResponse.messages,
-                    false,
-                );
-                syncConversations();
-
-                return conversationId;
-            } catch (err) {
-                console.error("Failed to send message:", err);
-
-                if (tempMessageId && clientConversationId) {
-                    const errorMsg = ApiErrorHandler.getUserFriendlyMessage(err);
-                    manager.markAssistantFailed(
-                        clientConversationId,
-                        tempMessageId,
-                        errorMsg,
-                    );
-                    syncConversations();
-                }
-
-                throw err;
-            }
-        },
-        [manager, syncConversations],
-    );
+    // Removed non-streaming sendMessage: use sendMessageStream exclusively
 
     /**
      * Retry an assistant message to generate an alternative response.
@@ -199,7 +63,10 @@ export const useConversations = () => {
      * - Users can navigate between branches using the branch navigation controls
      * - Backend returns both the parent message (with updated children) and new assistant message
      */
-    const retryMessage = useCallback(
+        // Removed non-streaming retryMessage: use retryMessageStream exclusively
+
+        // Streamed retry to generate an alternative assistant response with chunks
+    const retryMessageStream = useCallback(
         async (messageId: string, model: string): Promise<void> => {
             if (!activeConversationId) {
                 throw new Error("No active conversation");
@@ -213,7 +80,7 @@ export const useConversations = () => {
             try {
                 setError(null);
 
-                // Get the parent ID for retry (the user message before the assistant response)
+                // Determine the parent user message for retry
                 const parentId = manager.getRetryParentId(
                     activeConversationId,
                     messageId,
@@ -222,7 +89,7 @@ export const useConversations = () => {
                     throw new Error("Cannot determine parent message for retry");
                 }
 
-                // Add optimistic placeholder for new assistant response
+                // Add optimistic assistant placeholder
                 const assistantPlaceholderId = manager.generateTempId();
                 const assistantPlaceholder: FrontendMessage = {
                     id: assistantPlaceholderId,
@@ -232,39 +99,127 @@ export const useConversations = () => {
                     timestamp: Date.now(),
                 };
 
-                // Add placeholder to conversation
                 conversation.messages.push(assistantPlaceholder);
                 conversation.pendingMessageIds.add(assistantPlaceholderId);
                 syncConversations();
 
-                // Call retry API - this returns both parent and new assistant messages
-                const retryResponse = await chatAPI.retryMessage(
+                // Accumulate streamed content
+                let accumulatedContent = "";
+                let rafId: number | null = null;
+
+                let completedAssistantId: number | null = null;
+                await chatAPI.retryMessageStream(
                     activeConversationId,
                     parentId,
                     model,
+                    // onChunk
+                    (chunk: string) => {
+                        accumulatedContent += chunk;
+                        const conv = manager.getConversation(activeConversationId);
+                        if (conv) {
+                            manager.updateMessageContent(
+                                activeConversationId,
+                                assistantPlaceholderId,
+                                accumulatedContent,
+                            );
+                        }
+                        if (rafId !== null) cancelAnimationFrame(rafId);
+                        rafId = requestAnimationFrame(() => {
+                            syncConversations();
+                            rafId = null;
+                        });
+                    },
+                    // onMetadata (not strictly needed here)
+                    () => {
+                    },
+                    // onComplete
+                    (data) => {
+                        // Capture assistant message id for post-stream refresh
+                        completedAssistantId = data.assistantMessageId;
+                        if (rafId !== null) {
+                            cancelAnimationFrame(rafId);
+                            rafId = null;
+                        }
+                        const conv = manager.getConversation(activeConversationId);
+                        if (!conv) return;
+
+                        const assistMsg = conv.messages.find(
+                            (m) => m.id === assistantPlaceholderId,
+                        );
+                        if (assistMsg) {
+                            assistMsg.id = data.assistantMessageId.toString();
+                            assistMsg.status = "success";
+                            assistMsg.content = accumulatedContent;
+                            conv.pendingMessageIds.delete(assistantPlaceholderId);
+                        }
+
+                        if (conv.backendConversation) {
+                            if (!conv.backendConversation.messages) {
+                                conv.backendConversation.messages = {} as any;
+                            }
+                            const backendMsgs = conv.backendConversation.messages as any;
+                            if (!backendMsgs[parentId]) {
+                                backendMsgs[parentId] = {
+                                    id: parentId,
+                                    convId: activeConversationId,
+                                    role: "user",
+                                    content: "",
+                                    parentId: undefined,
+                                    children: [],
+                                };
+                            }
+                            backendMsgs[data.assistantMessageId] = {
+                                id: data.assistantMessageId,
+                                convId: activeConversationId,
+                                role: "assistant",
+                                content: accumulatedContent,
+                                parentId: parentId,
+                                children: [],
+                            };
+                            const parent = backendMsgs[parentId];
+                            if (parent) {
+                                if (!Array.isArray(parent.children)) parent.children = [];
+                                if (!parent.children.includes(data.assistantMessageId)) {
+                                    parent.children.push(data.assistantMessageId);
+                                }
+                            }
+                            conv.backendConversation.activeMessageId = data.assistantMessageId;
+                        }
+                    },
+                    // onError
+                    (err) => {
+                        console.error("Retry stream error:", err);
+                        const conv = manager.getConversation(activeConversationId);
+                        if (conv) {
+                            manager.markAssistantFailed(
+                                activeConversationId,
+                                assistantPlaceholderId,
+                                err,
+                            );
+                        }
+                    },
                 );
 
-                // Update conversation with both messages (parent with updated children + new assistant)
-                manager.updateWithRetryResponse(
-                    activeConversationId,
-                    retryResponse.messages,
-                );
-
-                // Force a conversation refresh to ensure branch navigation appears
-                syncConversations();
-            } catch (err) {
-                console.error("Failed to retry message:", err);
-
-                // Remove placeholder on error
-                const conversation = manager.getConversation(activeConversationId);
-                if (conversation) {
-                    conversation.messages = conversation.messages.filter(
-                        (m) => !conversation.pendingMessageIds.has(m.id),
-                    );
-                    conversation.pendingMessageIds.clear();
-                    syncConversations();
+                // After stream completes, refresh full conversation to rebuild tree/branches accurately
+                try {
+                    const msgs = await conversationsAPI.fetchConversationMessages(activeConversationId);
+                    manager.updateWithChatResponse(activeConversationId, msgs, true);
+                    // Ensure activeMessageId remains set to the latest assistant we just created
+                    if (completedAssistantId !== null) {
+                        const refreshed = manager.getConversation(activeConversationId);
+                        if (refreshed?.backendConversation) {
+                            refreshed.backendConversation.activeMessageId = completedAssistantId;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to refresh conversation after retry stream:", e);
                 }
 
+                syncConversations();
+            } catch (err) {
+                console.error("Failed to retry message (stream):", err);
+                const errorMessage = ApiErrorHandler.getUserFriendlyMessage(err);
+                setError(errorMessage);
                 throw err;
             }
         },
@@ -839,9 +794,8 @@ export const useConversations = () => {
         currentConversation,
         isLoading,
         error,
-        sendMessage,
         sendMessageStream,
-        retryMessage,
+        retryMessageStream,
         updateMessage,
         getCurrentMessages,
         selectConversation,

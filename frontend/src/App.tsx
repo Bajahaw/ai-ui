@@ -1,12 +1,12 @@
-import { useState, useMemo } from "react";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { Button } from "@/components/ui/button";
-import { ConversationSidebar } from "@/components/ai-elements/conversation-sidebar";
-import { ChatInterface } from "@/components/ChatInterface";
-import { useConversations } from "@/hooks/useConversations";
-import { SettingsDialog } from "@/components/settings";
+import {useMemo, useState} from "react";
+import {ThemeToggle} from "@/components/theme-toggle";
+import {Button} from "@/components/ui/button";
+import {ConversationSidebar} from "@/components/ai-elements/conversation-sidebar";
+import {ChatInterface} from "@/components/ChatInterface";
+import {useConversations} from "@/hooks/useConversations";
+import {SettingsDialog} from "@/components/settings";
 
-import { MessageSquareIcon, SettingsIcon } from "lucide-react";
+import {MessageSquareIcon, SettingsIcon} from "lucide-react";
 
 function App() {
   const [webSearch, setWebSearch] = useState(false);
@@ -24,9 +24,8 @@ function App() {
     conversations,
     currentConversation,
     activeConversationId,
-    sendMessage: sendChatMessage,
     sendMessageStream,
-    retryMessage,
+    retryMessageStream,
     selectConversation,
     startNewChat,
     getCurrentMessages,
@@ -89,15 +88,15 @@ function App() {
       if (!failedMessage) return;
 
       if (failedMessage.role === "user") {
-        await sendChatMessage(
+        await sendMessageStream(
           activeConversationId,
           failedMessage.content,
           model,
           webSearch,
         );
       } else if (failedMessage.role === "assistant") {
-        // Use retry API for assistant messages
-        await retryMessage(messageId, model);
+        // Use streaming retry for assistant messages
+        await retryMessageStream(messageId, model);
       }
     } catch (error) {
       console.error("Retry failed:", error);
