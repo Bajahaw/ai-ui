@@ -14,9 +14,6 @@ export interface ClientConversation {
   pendingMessageIds: Set<string>;
 
   activeBranches: Map<number, number>; // messageId -> activeChildId for messages with multiple children
-
-  createdAt?: string;
-  updatedAt?: string;
 }
 
 export class ClientConversationManager {
@@ -59,20 +56,18 @@ export class ClientConversationManager {
       timestamp: Date.now(),
     };
 
-    const nowIso = new Date().toISOString();
+    const title =
+        firstMessage.length > 50
+            ? firstMessage.substring(0, 47) + "..."
+            : firstMessage;
 
     const conversation: ClientConversation = {
       id: conversationId,
-      title:
-        firstMessage.length > 50
-          ? firstMessage.substring(0, 47) + "..."
-          : firstMessage,
+      title,
       messages: [userMessage, assistantPlaceholder],
+      // Do not create a fake backendConversation here; we will populate it when real data arrives
       pendingMessageIds: new Set([tempMessageId, assistantPlaceholderId]),
       activeBranches: new Map(),
-      // Track timestamps on the client conversation so sorting works immediately
-      createdAt: nowIso,
-      updatedAt: nowIso,
     };
 
     this.conversations.set(conversationId, conversation);
@@ -112,73 +107,14 @@ export class ClientConversationManager {
     conversation.pendingMessageIds.add(tempMessageId);
     conversation.pendingMessageIds.add(assistantPlaceholderId);
 
-    // Update timestamps so sorting reflects recent activity immediately
-    const nowIso = new Date().toISOString();
-    (conversation as any).updatedAt = nowIso;
-    if (!(conversation as any).createdAt) {
-      (conversation as any).createdAt = nowIso;
-    }
+    // Do not mutate backend timestamps client-side; rely on backend updates when available
 
     return tempMessageId;
-  }
-
-  confirmConversationCreated(
-    conversationId: string,
-    backendConversation: Conversation,
-  ): void {
-    const conversation = this.conversations.get(conversationId);
-    if (!conversation) return;
-
-    // Re-key the conversation if the backend ID is different
-    if (backendConversation.id && conversation.id !== backendConversation.id) {
-      this.conversations.delete(conversationId);
-      conversation.id = backendConversation.id;
-      this.conversations.set(backendConversation.id, conversation);
-    }
-
-    conversation.backendConversation = backendConversation;
-    
-    // Initialize activeBranches from backend data
-    if (backendConversation.activeBranches) {
-      conversation.activeBranches = new Map(
-        Object.entries(backendConversation.activeBranches).map(([k, v]) => [
-          parseInt(k),
-          v,
-        ]),
-      );
-    } else {
-      conversation.activeBranches = new Map();
-    }
-    
-    // Use an empty object fallback to avoid 'undefined' message maps
-    this.updateWithBackendMessages(
-      backendConversation.id,
-      backendConversation.messages || {},
-    );
-
-    // Only rebuild messages from backend if backend has messages
-    // Otherwise preserve the streaming messages we already have
-    if (backendConversation.messages && Object.keys(backendConversation.messages).length > 0) {
-      conversation.messages = this.buildMessagesFromBackend(
-        conversation.backendConversation,
-      );
-    }
-
-    // Ensure client-side timestamps reflect the backend values so sorting is consistent
-    (conversation as any).createdAt =
-      backendConversation.createdAt ||
-      (conversation as any).createdAt ||
-      new Date().toISOString();
-    (conversation as any).updatedAt =
-      backendConversation.updatedAt ||
-      (conversation as any).updatedAt ||
-      new Date().toISOString();
   }
 
   updateWithChatResponse(
     conversationId: string,
     backendMessages: Record<number, Message>,
-    isLazyLoad: boolean = false,
   ): void {
     const conversation = this.conversations.get(conversationId);
 
@@ -199,74 +135,34 @@ export class ClientConversationManager {
       this.conversations.delete(conversationId);
       conversation.id = realConvId;
 
-      if (!conversation.backendConversation) {
-        conversation.backendConversation = {
-          id: realConvId,
-          userId: "",
-          title: conversation.title,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          messages: {},
-        } as unknown as Conversation;
-      } else {
+      if (conversation.backendConversation) {
         conversation.backendConversation.id = realConvId;
       }
-
-      // Ensure client-side createdAt/updatedAt reflect backend conversation timestamps
-      (conversation as any).createdAt =
-        conversation.backendConversation.createdAt ||
-        (conversation as any).createdAt ||
-        new Date().toISOString();
-      (conversation as any).updatedAt =
-        conversation.backendConversation.updatedAt ||
-        (conversation as any).updatedAt ||
-        new Date().toISOString();
 
       this.conversations.set(realConvId, conversation);
     }
 
-    // Ensure backendConversation exists
+    // Ensure backendConversation exists (minimal shape); don't set or mutate timestamps client-side
     if (!conversation.backendConversation) {
       conversation.backendConversation = {
         id: realConvId || conversation.id,
         userId: "",
         title: conversation.title,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
         messages: {},
       } as unknown as Conversation;
     }
 
-    // Ensure messages map exists (defensive)
     // Ensure messages map exists
     if (!conversation.backendConversation.messages) {
       conversation.backendConversation.messages = {};
     }
 
-    // existingIds removed; we now detect new/edited messages by comparing stored message objects
-
     // Merge messages into frontend state first
     this.updateWithBackendMessages(conversation.id, backendMessages);
 
-    // Merge into backendConversation.messages while detecting newly added IDs
-    // Also treat edited messages (content changed) as an update that should bump updatedAt.
-    let newMessageAdded = false;
+    // Merge into backendConversation.messages
     for (const [idStr, msg] of Object.entries(backendMessages)) {
       const idNum = Number(idStr);
-      const existingMsg = conversation.backendConversation.messages[idNum];
-
-      // If the message ID is completely new, mark as added
-      if (!existingMsg) {
-        newMessageAdded = true;
-      } else {
-        // If the message content changed compared to stored copy, treat as an update
-        // (server typically updates timestamp on edited messages)
-        if (existingMsg.content !== msg.content) {
-          newMessageAdded = true;
-        }
-      }
-
-      // Ensure the backend messages map is updated with the latest message
       conversation.backendConversation.messages[idNum] = msg;
     }
 
@@ -282,12 +178,10 @@ export class ClientConversationManager {
         conversation.backendConversation.activeMessageId = assistantMessageId;
 
         // Update active branches when new assistant message is added (client-side)
-
         const assistantMessage = backendMessages[assistantMessageId];
 
         if (assistantMessage && assistantMessage.parentId) {
           // Update parent's children array if this is a new branch
-
           const parentMessage =
             conversation.backendConversation.messages?.[
               assistantMessage.parentId
@@ -303,78 +197,17 @@ export class ClientConversationManager {
           }
 
           // Set this as the active branch for the parent
-
           conversation.activeBranches.set(
             assistantMessage.parentId,
-
             assistantMessageId,
           );
         }
       }
     }
 
-    // Touch updatedAt when new messages are added or when existing message contents changed.
-    // Don't update timestamps during lazy loading of existing messages
-    if (newMessageAdded && !isLazyLoad) {
-      const nowIso = new Date().toISOString();
-      conversation.backendConversation.updatedAt = nowIso;
-      (conversation as any).updatedAt = nowIso;
-    }
+    // Do not touch updatedAt/createdAt here; backend is the source of truth.
 
     // Rebuild the visible message list to reflect the active branch only
-    conversation.messages = this.buildMessagesFromBackend(
-      conversation.backendConversation,
-    );
-  }
-
-  /**
-   * Handle retry response which contains both the parent message (with updated children)
-   * and the new assistant message. This ensures proper conversation tree state.
-   */
-
-  updateWithRetryResponse(
-    conversationId: string,
-
-    retryMessages: Record<number, Message>,
-  ): void {
-    const conversation = this.conversations.get(conversationId);
-
-    if (!conversation?.backendConversation) return;
-
-    // Ensure messages map exists
-    if (!conversation.backendConversation.messages) {
-      conversation.backendConversation.messages = {};
-    }
-
-    // Process all messages from retry response (parent + new assistant)
-    for (const [messageId, message] of Object.entries(retryMessages)) {
-      const numericId = parseInt(messageId);
-
-      // Update the message in backend conversation
-      conversation.backendConversation.messages[numericId] = message;
-
-      // If this is the new assistant message, set it as active
-
-      if (message.role === "assistant" && message.parentId) {
-        // Set as active message and active branch (client-side)
-
-        conversation.backendConversation.activeMessageId = numericId;
-
-        conversation.activeBranches.set(message.parentId, numericId);
-      }
-    }
-
-    // Touch updatedAt
-    const nowIso = new Date().toISOString();
-    conversation.backendConversation.updatedAt = nowIso;
-    (conversation as any).updatedAt = nowIso;
-
-    // Update frontend messages to reflect the changes
-
-    this.updateWithBackendMessages(conversationId, retryMessages);
-
-    // Rebuild the conversation view to ensure proper branch display
-
     conversation.messages = this.buildMessagesFromBackend(
       conversation.backendConversation,
     );
@@ -397,7 +230,6 @@ export class ClientConversationManager {
 
       if (existingMessage) {
         // Update existing message
-
         existingMessage.content = backendMsg.content;
         existingMessage.status = "success";
         existingMessage.attachment = backendMsg.attachment;
@@ -495,14 +327,12 @@ export class ClientConversationManager {
           message.content === ""
         ) {
           // For empty assistant placeholders, update with any assistant response
-
           message.status = "success";
           message.content = similarBackendMsg.content;
           message.id = similarBackendMsg.id.toString();
           conversation.pendingMessageIds.delete(message.id);
         } else if (similarBackendMsg && message.role === "user") {
           // For user messages, if we have a user message in the backend response, mark as success
-
           message.status = "success";
           conversation.pendingMessageIds.delete(message.id);
         } else {
@@ -568,21 +398,33 @@ export class ClientConversationManager {
   getAllConversations(): ClientConversation[] {
     const list = Array.from(this.conversations.values());
 
+    const parseTime = (s?: string): number => {
+      if (!s) return 0;
+      const t = Date.parse(s);
+      return Number.isNaN(t) ? 0 : t;
+    };
+
     return list.sort((a, b) => {
-      const aTime = new Date(
-        a.backendConversation?.updatedAt ||
-          (a as any).updatedAt ||
-          a.backendConversation?.createdAt ||
-          (a as any).createdAt ||
-          0,
-      ).getTime();
-      const bTime = new Date(
-        b.backendConversation?.updatedAt ||
-          (b as any).updatedAt ||
-          b.backendConversation?.createdAt ||
-          (b as any).createdAt ||
-          0,
-      ).getTime();
+      // Use backend updatedAt/createdAt when present; otherwise fallback to latest local message timestamp
+      const aBackendTime =
+          parseTime(a.backendConversation?.updatedAt) ||
+          parseTime(a.backendConversation?.createdAt);
+      const bBackendTime =
+          parseTime(b.backendConversation?.updatedAt) ||
+          parseTime(b.backendConversation?.createdAt);
+
+      const aLocalTime =
+          a.messages.length > 0
+              ? a.messages[a.messages.length - 1].timestamp
+              : 0;
+      const bLocalTime =
+          b.messages.length > 0
+              ? b.messages[b.messages.length - 1].timestamp
+              : 0;
+
+      const aTime = aBackendTime > 0 ? aBackendTime : aLocalTime;
+      const bTime = bBackendTime > 0 ? bBackendTime : bLocalTime;
+
       return bTime - aTime;
     });
   }
@@ -598,8 +440,6 @@ export class ClientConversationManager {
           ...backendConv,
         } as Conversation;
         existingConv.title = backendConv.title || existingConv.title;
-        (existingConv as any).createdAt = backendConv.createdAt;
-        (existingConv as any).updatedAt = backendConv.updatedAt;
       } else {
         const clientConv: ClientConversation = {
           id: backendConv.id,
@@ -612,9 +452,6 @@ export class ClientConversationManager {
           pendingMessageIds: new Set(),
 
           activeBranches: new Map(),
-
-          createdAt: backendConv.createdAt,
-          updatedAt: backendConv.updatedAt,
         };
         this.conversations.set(backendConv.id, clientConv);
       }
@@ -900,45 +737,6 @@ export class ClientConversationManager {
     if (message) {
       message.content = newContent;
       message.status = "success";
-    }
-  }
-
-  // Confirm messages with real IDs from backend (after streaming completes)
-  confirmMessages(
-    conversationId: string,
-    idMapping: Record<string, number>,
-  ): void {
-    const conversation = this.conversations.get(conversationId);
-    if (!conversation) {
-      console.warn(`Conversation ${conversationId} not found for confirmMessages`);
-      return;
-    }
-
-    // Update frontend message IDs
-    for (const [tempId, realId] of Object.entries(idMapping)) {
-      const message = conversation.messages.find((m) => m.id === tempId);
-      if (message) {
-        message.id = realId.toString();
-        conversation.pendingMessageIds.delete(tempId);
-      }
-    }
-
-    // Also update backend conversation structure if it exists
-    if (conversation.backendConversation?.messages) {
-      for (const [tempId, realId] of Object.entries(idMapping)) {
-        // If backend messages were added with temp IDs, update them
-        const tempIdNum = Number(tempId);
-        if (!isNaN(tempIdNum) && conversation.backendConversation.messages[tempIdNum]) {
-          const msg = conversation.backendConversation.messages[tempIdNum];
-          delete conversation.backendConversation.messages[tempIdNum];
-          conversation.backendConversation.messages[realId] = msg;
-          
-          // Update the message's own id field
-          if (msg) {
-            msg.id = realId;
-          }
-        }
-      }
     }
   }
 

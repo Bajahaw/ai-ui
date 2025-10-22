@@ -203,7 +203,7 @@ export const useConversations = () => {
                 // After stream completes, refresh full conversation to rebuild tree/branches accurately
                 try {
                     const msgs = await conversationsAPI.fetchConversationMessages(activeConversationId);
-                    manager.updateWithChatResponse(activeConversationId, msgs, true);
+                    manager.updateWithChatResponse(activeConversationId, msgs);
                     // Ensure activeMessageId remains set to the latest assistant we just created
                     if (completedAssistantId !== null) {
                         const refreshed = manager.getConversation(activeConversationId);
@@ -245,7 +245,7 @@ export const useConversations = () => {
                     try {
                         const msgs =
                             await conversationsAPI.fetchConversationMessages(conversationId);
-                        manager.updateWithChatResponse(conversationId, msgs, true);
+                        manager.updateWithChatResponse(conversationId, msgs);
                         // Sync conversations to update UI with loaded messages (but timestamps won't be updated)
                         syncConversations();
                     } catch (err) {
