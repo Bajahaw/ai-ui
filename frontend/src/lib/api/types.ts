@@ -117,9 +117,6 @@ export const generateOptimisticConversationId = (): string => {
   return `conv-${date}-${time}`;
 };
 
-// Backward-compat export alias (deprecated): will be removed later.
-export const generateConversationId = generateOptimisticConversationId;
-
 // Convert backend message to frontend message
 export const backendToFrontendMessage = (
   backendMsg: Message,
@@ -155,45 +152,6 @@ export const backendToFrontendMessage = (
     error,
     timestamp: Date.now(), // Backend doesn't provide timestamp, use current time
     attachment: backendMsg.attachment,
-  };
-};
-
-// Convert frontend message to backend message
-export const frontendToBackendMessage = (
-  frontendMsg: FrontendMessage,
-  numericId: number,
-  parentId?: number,
-): Message => {
-  // Safety checks for null/undefined message
-  if (!frontendMsg || typeof frontendMsg !== "object") {
-    console.error("Invalid frontend message provided:", frontendMsg);
-    throw new Error("Invalid frontend message data");
-  }
-
-  // Validate required fields
-  if (!frontendMsg.role) {
-    console.error("Frontend message missing valid role:", frontendMsg);
-    throw new Error("Frontend message missing valid role");
-  }
-
-  if (numericId < 0) {
-    console.error("Invalid numeric ID provided:", numericId);
-    throw new Error("Invalid numeric ID for backend message");
-  }
-
-  return {
-    id: numericId,
-
-    convId: "",
-    role: frontendMsg.role,
-
-    content: frontendMsg.content,
-
-    parentId: parentId !== undefined ? parentId : undefined,
-
-    children: [],
-
-    attachment: frontendMsg.attachment,
   };
 };
 

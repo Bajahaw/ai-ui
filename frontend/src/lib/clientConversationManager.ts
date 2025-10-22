@@ -57,7 +57,7 @@ export class ClientConversationManager {
     };
 
     const title =
-        firstMessage.length > 50
+        firstMessage.length > 47
             ? firstMessage.substring(0, 47) + "..."
             : firstMessage;
 
@@ -120,15 +120,10 @@ export class ClientConversationManager {
 
     if (!conversation) return;
 
-    // Determine real conversation ID from messages (backend provides convId).
-    // Coerce to string when available, otherwise leave undefined so the
-    // existing optimistic id remains.
-    const foundConvId = Object.values(backendMessages)
+    // Determine real conversation ID from messages (backend provides convId)
+    const realConvId = Object.values(backendMessages)
       .map((m) => m?.convId)
-      .find((id) => typeof id === "string" && id.trim().length > 0);
-    const realConvId: string | undefined = foundConvId
-      ? String(foundConvId)
-      : undefined;
+        .find((id) => id.trim().length > 0);
 
     if (realConvId && conversation.id !== realConvId) {
       // Re-key the conversation map to use the real UUID
@@ -177,26 +172,10 @@ export class ClientConversationManager {
       if (assistantMessageId !== undefined) {
         conversation.backendConversation.activeMessageId = assistantMessageId;
 
-        // Update active branches when new assistant message is added (client-side)
+        // Set this as the active branch for the parent (backend already provides children relationships)
         const assistantMessage = backendMessages[assistantMessageId];
 
         if (assistantMessage && assistantMessage.parentId) {
-          // Update parent's children array if this is a new branch
-          const parentMessage =
-            conversation.backendConversation.messages?.[
-              assistantMessage.parentId
-            ];
-
-          if (parentMessage) {
-            if (!Array.isArray(parentMessage.children)) {
-              parentMessage.children = [];
-            }
-            if (!parentMessage.children.includes(assistantMessageId)) {
-              parentMessage.children.push(assistantMessageId);
-            }
-          }
-
-          // Set this as the active branch for the parent
           conversation.activeBranches.set(
             assistantMessage.parentId,
             assistantMessageId,
@@ -204,8 +183,6 @@ export class ClientConversationManager {
         }
       }
     }
-
-    // Do not touch updatedAt/createdAt here; backend is the source of truth.
 
     // Rebuild the visible message list to reflect the active branch only
     conversation.messages = this.buildMessagesFromBackend(
@@ -398,32 +375,10 @@ export class ClientConversationManager {
   getAllConversations(): ClientConversation[] {
     const list = Array.from(this.conversations.values());
 
-    const parseTime = (s?: string): number => {
-      if (!s) return 0;
-      const t = Date.parse(s);
-      return Number.isNaN(t) ? 0 : t;
-    };
-
     return list.sort((a, b) => {
-      // Use backend updatedAt/createdAt when present; otherwise fallback to latest local message timestamp
-      const aBackendTime =
-          parseTime(a.backendConversation?.updatedAt) ||
-          parseTime(a.backendConversation?.createdAt);
-      const bBackendTime =
-          parseTime(b.backendConversation?.updatedAt) ||
-          parseTime(b.backendConversation?.createdAt);
-
-      const aLocalTime =
-          a.messages.length > 0
-              ? a.messages[a.messages.length - 1].timestamp
-              : 0;
-      const bLocalTime =
-          b.messages.length > 0
-              ? b.messages[b.messages.length - 1].timestamp
-              : 0;
-
-      const aTime = aBackendTime > 0 ? aBackendTime : aLocalTime;
-      const bTime = bBackendTime > 0 ? bBackendTime : bLocalTime;
+      // Backend always provides updatedAt, sort by that only
+      const aTime = a.backendConversation?.updatedAt ? new Date(a.backendConversation.updatedAt).getTime() : 0;
+      const bTime = b.backendConversation?.updatedAt ? new Date(b.backendConversation.updatedAt).getTime() : 0;
 
       return bTime - aTime;
     });
@@ -466,20 +421,6 @@ export class ClientConversationManager {
     const conversation = this.conversations.get(backendConv.id);
 
     const messages = (backendConv.messages || {}) as Record<number, Message>;
-    // Build children relationships on the fly since backend may omit them
-    // Extract the object values into a typed array first to avoid implicit 'any'
-    const messageList: Message[] = Object.values(messages) as Message[];
-    for (const msg of messageList) {
-      if (!msg) continue;
-      const pid = msg.parentId;
-      if (typeof pid === "number" && messages[pid]) {
-        const parent = messages[pid] as Message;
-        if (!Array.isArray(parent.children)) parent.children = [];
-        if (!parent.children.includes(msg.id)) {
-          parent.children.push(msg.id);
-        }
-      }
-    }
 
     // Helper: find roots (messages without a valid parent)
     // A message is considered a root when it has no numeric parentId (undefined/null)
@@ -545,10 +486,6 @@ export class ClientConversationManager {
   getActiveMessageId(conversationId: string): number | undefined {
     const conversation = this.conversations.get(conversationId);
     if (!conversation?.backendConversation) return undefined;
-
-    // Only return the explicitly tracked activeMessageId.
-    // Do NOT guess or fallback here; callers must ensure this is set correctly
-    // (e.g., after message send/stream completion or messages load).
     return conversation.backendConversation.activeMessageId;
   }
 

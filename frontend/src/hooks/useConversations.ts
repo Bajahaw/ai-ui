@@ -155,9 +155,9 @@ export const useConversations = () => {
 
                         if (conv.backendConversation) {
                             if (!conv.backendConversation.messages) {
-                                conv.backendConversation.messages = {} as any;
+                                conv.backendConversation.messages = {};
                             }
-                            const backendMsgs = conv.backendConversation.messages as any;
+                            const backendMsgs = conv.backendConversation.messages;
                             if (!backendMsgs[parentId]) {
                                 backendMsgs[parentId] = {
                                     id: parentId,
