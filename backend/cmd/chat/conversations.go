@@ -51,13 +51,12 @@ func getConversation(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, &conv, http.StatusOK)
 }
 
-func getAllConversations(w http.ResponseWriter, _ *http.Request) {
-	conversations, err := repo.getAllConversations()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error retrieving conversations: %v", err), http.StatusInternalServerError)
-		return
-	}
-	utils.RespondWithJSON(w, conversations, http.StatusOK)
+func getAllConversations(writer http.ResponseWriter, _ *http.Request) {
+	utils.RespondWithJSON(
+		writer,
+		repo.getAllConversations(),
+		http.StatusOK,
+	)
 }
 
 func deleteConversation(w http.ResponseWriter, r *http.Request) {

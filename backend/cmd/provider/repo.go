@@ -2,6 +2,7 @@ package provider
 
 import (
 	"ai-client/cmd/data"
+	"strings"
 )
 
 type Provider struct {
@@ -15,8 +16,8 @@ type Repository interface {
 	getProvider(id string) (*Provider, error)
 	saveProvider(provider *Provider) error
 	deleteProvider(id string) error
-	saveModels(id string, models []Model) error
-	getProviderModels(provider *Provider) ([]Model, error)
+	saveModels(models []Model) error
+	getProviderModels(provider *Provider) []Model
 	getAllModels() []Model
 }
 
@@ -87,36 +88,41 @@ func (repo *Repo) saveProvider(provider *Provider) error {
 func (repo *Repo) deleteProvider(id string) error {
 	sql := `DELETE FROM Providers WHERE id = ?`
 	_, err := data.DB.Exec(sql, id)
-	if err != nil {
-		log.Error("Error deleting provider", "err", err)
-	}
-
 	return err
 }
 
 func (repo *Repo) saveModels(models []Model) error {
-	// on conflict, replace
-	sql := `
-	INSERT INTO Models (id, provider_id, name, is_enabled) VALUES (?, ?, ?, ?)
-	ON CONFLICT(id) DO UPDATE SET provider_id=excluded.provider_id, name=excluded.name, is_enabled=excluded.is_enabled`
-	for _, model := range models {
-		_, err := data.DB.Exec(sql, model.ID, model.ProviderID, model.Name, model.IsEnabled)
-		if err != nil {
-			log.Error("Error saving model", "err", err)
-			return err
-		}
+	if len(models) == 0 {
+		return nil
 	}
 
-	return nil
+	var sb strings.Builder
+	sb.WriteString("INSERT INTO Models (id, provider_id, name, is_enabled) VALUES ")
+
+	args := make([]any, 0, len(models)*4)
+	for i, m := range models {
+		if i > 0 {
+			sb.WriteString(",")
+		}
+		sb.WriteString("(?, ?, ?, ?)")
+		args = append(args, m.ID, m.ProviderID, m.Name, m.IsEnabled)
+	}
+
+	// on conflict, replace
+	sb.WriteString(" ON CONFLICT(id) DO UPDATE SET is_enabled=excluded.is_enabled")
+
+	_, err := data.DB.Exec(sb.String(), args...)
+
+	return err
 }
 
-func (repo *Repo) getProviderModels(provider *Provider) ([]Model, error) {
+func (repo *Repo) getProviderModels(provider *Provider) []Model {
 	var models = make([]Model, 0)
 	sql := `SELECT id, provider_id, name, is_enabled FROM Models WHERE provider_id = ?`
 	rows, err := data.DB.Query(sql, provider.ID)
 	if err != nil {
-		log.Error("Error querying models", "err", err)
-		return models, err
+		log.Error("Error querying provider models", "err", err)
+		return models
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -134,9 +140,9 @@ func (repo *Repo) getProviderModels(provider *Provider) ([]Model, error) {
 	}
 	if err = rows.Err(); err != nil {
 		log.Error("Error iterating over model rows", "err", err)
-		// return models, err
 	}
-	return models, nil
+
+	return models
 }
 
 func (repo *Repo) getAllModels() []Model {

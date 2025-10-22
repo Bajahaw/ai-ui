@@ -60,7 +60,7 @@ func ModelsHandler() http.Handler {
 	return http.StripPrefix("/api/models", auth.Authenticated(mux))
 }
 
-func getAllModels(w http.ResponseWriter, r *http.Request) {
+func getAllModels(w http.ResponseWriter, _ *http.Request) {
 	models := repo.getAllModels()
 	response := ModelsResponse{
 		Models: models,
@@ -96,12 +96,7 @@ func getProviderModels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	models, err := repo.getProviderModels(provider)
-	if err != nil {
-		log.Error("Error fetching models for provider", "err", err)
-		http.Error(w, "Error fetching models for provider", http.StatusInternalServerError)
-		return
-	}
+	models := repo.getProviderModels(provider)
 
 	response := ModelsResponse{
 		Models: models,
@@ -110,7 +105,8 @@ func getProviderModels(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, &response, http.StatusOK)
 }
 
-func fetchAllModels(provider *Provider) ([]Model, error) {
+func fetchAllModels(provider *Provider) []Model {
+	models := make([]Model, 0)
 	client := openai.NewClient(
 		option.WithAPIKey(provider.APIKey),
 		option.WithBaseURL(provider.BaseURL),
@@ -118,11 +114,10 @@ func fetchAllModels(provider *Provider) ([]Model, error) {
 
 	list, err := client.Models.List(context.Background())
 	if err != nil {
-		log.Error("Error fetching models", "err", err)
-		return nil, err
+		log.Error("Error fetching models", "provider", provider.ID, "err", err)
+		return models
 	}
 
-	var models []Model
 	for _, model := range list.Data {
 		models = append(models, Model{
 			ID:         provider.ID + "/" + model.ID,
@@ -132,7 +127,7 @@ func fetchAllModels(provider *Provider) ([]Model, error) {
 		})
 	}
 
-	return models, nil
+	return models
 }
 
 func getProvidersList(w http.ResponseWriter, _ *http.Request) {
@@ -188,10 +183,7 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	models, err := fetchAllModels(provider)
-	if err != nil {
-		log.Error("Error fetching models for provider", "err", err)
-	}
+	models := fetchAllModels(provider)
 
 	err = repo.saveModels(models)
 	if err != nil {

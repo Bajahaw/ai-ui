@@ -11,7 +11,7 @@ import (
 type ConversationRepo interface {
 	getConversation(id string) (*Conversation, error)
 	touchConversation(id string) error
-	getAllConversations() ([]*Conversation, error)
+	getAllConversations() []*Conversation
 	saveConversation(conversation *Conversation) error
 	updateConversation(conversation *Conversation) error
 	deleteConversation(id string) error
@@ -71,16 +71,17 @@ func (repo *ConversationRepository) touchConversation(id string) error {
 	return nil
 }
 
-func (repo *ConversationRepository) getAllConversations() ([]*Conversation, error) {
+func (repo *ConversationRepository) getAllConversations() []*Conversation {
 	sql := `SELECT * FROM Conversations`
+	var conversations = make([]*Conversation, 0)
 
 	rows, err := data.DB.Query(sql)
 	if err != nil {
-		return nil, err
+		log.Error("Error querying conversations", "err", err)
+		return conversations
 	}
 	defer rows.Close()
 
-	var conversations = make([]*Conversation, 0)
 	for rows.Next() {
 		var conv Conversation
 		err := rows.Scan(
@@ -91,12 +92,12 @@ func (repo *ConversationRepository) getAllConversations() ([]*Conversation, erro
 			&conv.UpdatedAt,
 		)
 		if err != nil {
-			return nil, err
+			return conversations
 		}
 		conversations = append(conversations, &conv)
 	}
 
-	return conversations, nil
+	return conversations
 }
 
 func (repo *ConversationRepository) saveConversation(conversation *Conversation) error {
