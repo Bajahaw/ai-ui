@@ -5,7 +5,6 @@ import {Label} from "@/components/ui/label";
 import {AlertCircle, Save, Loader2, RotateCcw} from "lucide-react";
 import {useSettings} from "@/hooks/useSettings";
 import {useModels} from "@/hooks/useModels";
-import {useAutoSelectDefaultModel} from "@/hooks/useAutoSelectDefaultModel";
 import {ModelSelect} from "@/components/ai-elements/model-select.tsx";
 
 export const GlobalSettingsSection = () => {
@@ -22,7 +21,6 @@ export const GlobalSettingsSection = () => {
     const {models, isLoading: modelsLoading} = useModels();
 
     // Auto-select default model when models become available
-    const {autoSelectedModel} = useAutoSelectDefaultModel();
 
     const [localSystemPrompt, setLocalSystemPrompt] = useState("");
     const [localDefaultModel, setLocalDefaultModel] = useState("");
@@ -40,13 +38,12 @@ export const GlobalSettingsSection = () => {
             // When no models are available, clear the selection so the placeholder is rendered
             setLocalDefaultModel("");
         } else {
-            setLocalDefaultModel(savedModel || autoSelectedModel || "");
+            setLocalDefaultModel(savedModel || "");
         }
         setHasChanges(false);
     }, [
         systemPrompt,
         getSingleSetting,
-        autoSelectedModel,
         models,
         modelsLoading,
     ]);

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useModels } from "@/hooks/useModels";
 import { useSettings } from "@/hooks/useSettings";
-import { useAutoSelectDefaultModel } from "@/hooks/useAutoSelectDefaultModel";
 
 import {
   Message as MessageComponent,
@@ -92,7 +91,6 @@ export const ChatInterface = ({
   } = useSettings();
 
   // Auto-select default model when models become available
-  const { autoSelectedModel } = useAutoSelectDefaultModel();
   const [model, setModel] = useState<string>("");
   const [input, setInput] = useState("");
   const [retryingMessageId, setRetryingMessageId] = useState<string | null>(
@@ -140,15 +138,6 @@ export const ChatInterface = ({
     }
   }, [models, settingsLoading, getSingleSetting, updateSingleSetting, model]);
 
-  /**
-   * Sync with auto-selected model from the auto-select hook
-   * This ensures the prompt input gets updated when auto-select sets a default model
-   */
-  useEffect(() => {
-    if (autoSelectedModel && !model) {
-      setModel(autoSelectedModel);
-    }
-  }, [autoSelectedModel, model]);
 
   /**
    * Handle model selection change and persist to settings
