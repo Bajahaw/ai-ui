@@ -71,7 +71,8 @@ export interface StreamMetadata {
 }
 
 export interface StreamChunk {
-  content: string;
+  content?: string;
+  reasoning?: string;
 }
 
 export interface StreamComplete {

@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/openai/openai-go/v2"
-	"github.com/openai/openai-go/v2/option"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
 )
 
 var log = utils.GetLogger()
@@ -38,6 +38,7 @@ func SendChatCompletionRequest(messages []SimpleMessage, model string) (*openai.
 	params := openai.ChatCompletionNewParams{
 		Model:    model,
 		Messages: OpenAIMessageParams(messages),
+
 		//Tools: []openai.ChatCompletionToolUnionParam{
 		//	{
 		//		OfCustom: &openai.ChatCompletionCustomToolParam{
@@ -60,15 +61,10 @@ func SendChatCompletionRequest(messages []SimpleMessage, model string) (*openai.
 func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessageParamUnion {
 	openaiMessages := make([]openai.ChatCompletionMessageParamUnion, len(messages))
 	for i, msg := range messages {
-		if msg.Role == "system" {
-			openaiMessages[i] = openai.ChatCompletionMessageParamUnion{
-				OfSystem: &openai.ChatCompletionSystemMessageParam{
-					Content: openai.ChatCompletionSystemMessageParamContentUnion{
-						OfString: openai.String(msg.Content),
-					},
-				},
-			}
-		} else if msg.Role == "user" {
+		switch msg.Role {
+		case "system":
+			openaiMessages[i] = openai.SystemMessage(msg.Content)
+		case "user":
 			openaiMessages[i] = openai.ChatCompletionMessageParamUnion{
 				OfUser: &openai.ChatCompletionUserMessageParam{
 					Content: openai.ChatCompletionUserMessageParamContentUnion{
@@ -93,16 +89,10 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 				openaiMessages[i].OfUser.Content.OfArrayOfContentParts =
 					append(openaiMessages[i].OfUser.Content.OfArrayOfContentParts, file)
 			}
-		} else if msg.Role == "assistant" {
-			openaiMessages[i] = openai.ChatCompletionMessageParamUnion{
-				OfAssistant: &openai.ChatCompletionAssistantMessageParam{
-					Content: openai.ChatCompletionAssistantMessageParamContentUnion{
-						OfString: openai.String(msg.Content),
-					},
-				},
-			}
-		} else {
-			log.Printf("Unknown role %s in message, skipping", msg.Role)
+		case "assistant":
+			openaiMessages[i] = openai.AssistantMessage(msg.Content)
+		default:
+			log.Warn("Unknown role %s in message, skipping", msg.Role)
 			continue
 		}
 	}
@@ -111,7 +101,8 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 
 // StreamChunk represents a chunk of streamed content
 type StreamChunk struct {
-	Content string `json:"content"`
+	Content   string `json:"content,omitempty"`
+	Reasoning string `json:"reasoning,omitempty"`
 }
 
 // StreamMetadata represents metadata sent at the beginning of a stream
@@ -140,6 +131,7 @@ func SendChatCompletionStreamRequest(messages []SimpleMessage, model string, w h
 	client := openai.NewClient(
 		option.WithAPIKey(provider.APIKey),
 		option.WithBaseURL(provider.BaseURL),
+		option.WithDebugLog(log.StandardLog()),
 	)
 
 	params := openai.ChatCompletionNewParams{
@@ -167,12 +159,17 @@ func SendChatCompletionStreamRequest(messages []SimpleMessage, model string, w h
 		chunk := stream.Current()
 		acc.AddChunk(chunk)
 
-		// Stream content deltas to client
+		// Stream content and reasoning deltas to client
 		if len(chunk.Choices) > 0 {
-			delta := chunk.Choices[0].Delta.Content
-			if delta != "" {
+			contentDelta := chunk.Choices[0].Delta.Content
+			reasoningDelta := chunk.Choices[0].Delta.Reasoning
+
+			if contentDelta != "" || reasoningDelta != "" {
 				// Send as SSE data event
-				chunkData := StreamChunk{Content: delta}
+				chunkData := StreamChunk{
+					Content:   contentDelta,
+					Reasoning: reasoningDelta,
+				}
 				chunkJSON, _ := json.Marshal(chunkData)
 				fmt.Fprintf(w, "data: %s\n\n", chunkJSON)
 				flusher.Flush()
@@ -196,13 +193,13 @@ func SendChatCompletionStreamRequest(messages []SimpleMessage, model string, w h
 	}
 
 	if err := stream.Err(); err != nil {
-		log.Error("Stream error", "err", err)
 		return "", err
 	}
 
 	// Get the complete content from accumulator
 	fullContent := ""
 	if len(acc.Choices) > 0 {
+		log.Debug("Stream completed", "message", acc.Choices[0])
 		fullContent = acc.Choices[0].Message.Content
 	}
 

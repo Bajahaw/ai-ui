@@ -165,7 +165,10 @@ export class ChatAPI {
                             // Regular content chunk (no event prefix)
                             try {
                                 const chunk: StreamChunk = JSON.parse(data);
-                                onChunk(chunk.content);
+                                // Only emit if content is present (skip reasoning-only chunks)
+                                if (chunk.content) {
+                                    onChunk(chunk.content);
+                                }
                             } catch (e) {
                                 console.error("Failed to parse chunk:", e);
                             }
@@ -279,7 +282,10 @@ export class ChatAPI {
                 // Regular content chunk (no event prefix)
                 try {
                   const chunk: StreamChunk = JSON.parse(data);
-                  onChunk(chunk.content);
+                  // Only emit if content is present (skip reasoning-only chunks)
+                  if (chunk.content) {
+                    onChunk(chunk.content);
+                  }
                 } catch (e) {
                   console.error("Failed to parse chunk:", e);
                 }

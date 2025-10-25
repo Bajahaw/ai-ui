@@ -7,7 +7,7 @@ require (
 	github.com/charmbracelet/log v0.4.2
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.32
-	github.com/openai/openai-go/v2 v2.3.1
+	github.com/openai/openai-go/v3 v3.6.1
 )
 
 require (
@@ -33,3 +33,5 @@ require (
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
 	golang.org/x/sys v0.30.0 // indirect
 )
+
+replace github.com/openai/openai-go/v3 => github.com/bajahaw/openai-go/v3 v3.0.0-20251025182939-e8a13f1b97ec

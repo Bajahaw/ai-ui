@@ -66,165 +66,6 @@ export const useConversations = () => {
         // Removed non-streaming retryMessage: use retryMessageStream exclusively
 
         // Streamed retry to generate an alternative assistant response with chunks
-    const retryMessageStream = useCallback(
-        async (messageId: string, model: string): Promise<void> => {
-            if (!activeConversationId) {
-                throw new Error("No active conversation");
-            }
-
-            const conversation = manager.getConversation(activeConversationId);
-            if (!conversation?.backendConversation) {
-                throw new Error("Conversation not ready");
-            }
-
-            try {
-                setError(null);
-
-                // Determine the parent user message for retry
-                const parentId = manager.getRetryParentId(
-                    activeConversationId,
-                    messageId,
-                );
-                if (parentId === undefined) {
-                    throw new Error("Cannot determine parent message for retry");
-                }
-
-                // Add optimistic assistant placeholder
-                const assistantPlaceholderId = manager.generateTempId();
-                const assistantPlaceholder: FrontendMessage = {
-                    id: assistantPlaceholderId,
-                    role: "assistant",
-                    content: "",
-                    status: "pending",
-                    timestamp: Date.now(),
-                };
-
-                conversation.messages.push(assistantPlaceholder);
-                conversation.pendingMessageIds.add(assistantPlaceholderId);
-                syncConversations();
-
-                // Accumulate streamed content
-                let accumulatedContent = "";
-                let rafId: number | null = null;
-
-                let completedAssistantId: number | null = null;
-                await chatAPI.retryMessageStream(
-                    activeConversationId,
-                    parentId,
-                    model,
-                    // onChunk
-                    (chunk: string) => {
-                        accumulatedContent += chunk;
-                        const conv = manager.getConversation(activeConversationId);
-                        if (conv) {
-                            manager.updateMessageContent(
-                                activeConversationId,
-                                assistantPlaceholderId,
-                                accumulatedContent,
-                            );
-                        }
-                        if (rafId !== null) cancelAnimationFrame(rafId);
-                        rafId = requestAnimationFrame(() => {
-                            syncConversations();
-                            rafId = null;
-                        });
-                    },
-                    // onMetadata (not strictly needed here)
-                    () => {
-                    },
-                    // onComplete
-                    (data) => {
-                        // Capture assistant message id for post-stream refresh
-                        completedAssistantId = data.assistantMessageId;
-                        if (rafId !== null) {
-                            cancelAnimationFrame(rafId);
-                            rafId = null;
-                        }
-                        const conv = manager.getConversation(activeConversationId);
-                        if (!conv) return;
-
-                        const assistMsg = conv.messages.find(
-                            (m) => m.id === assistantPlaceholderId,
-                        );
-                        if (assistMsg) {
-                            assistMsg.id = data.assistantMessageId.toString();
-                            assistMsg.status = "success";
-                            assistMsg.content = accumulatedContent;
-                            conv.pendingMessageIds.delete(assistantPlaceholderId);
-                        }
-
-                        if (conv.backendConversation) {
-                            if (!conv.backendConversation.messages) {
-                                conv.backendConversation.messages = {};
-                            }
-                            const backendMsgs = conv.backendConversation.messages;
-                            if (!backendMsgs[parentId]) {
-                                backendMsgs[parentId] = {
-                                    id: parentId,
-                                    convId: activeConversationId,
-                                    role: "user",
-                                    content: "",
-                                    parentId: undefined,
-                                    children: [],
-                                };
-                            }
-                            backendMsgs[data.assistantMessageId] = {
-                                id: data.assistantMessageId,
-                                convId: activeConversationId,
-                                role: "assistant",
-                                content: accumulatedContent,
-                                parentId: parentId,
-                                children: [],
-                            };
-                            const parent = backendMsgs[parentId];
-                            if (parent) {
-                                if (!Array.isArray(parent.children)) parent.children = [];
-                                if (!parent.children.includes(data.assistantMessageId)) {
-                                    parent.children.push(data.assistantMessageId);
-                                }
-                            }
-                            conv.backendConversation.activeMessageId = data.assistantMessageId;
-                        }
-                    },
-                    // onError
-                    (err) => {
-                        console.error("Retry stream error:", err);
-                        const conv = manager.getConversation(activeConversationId);
-                        if (conv) {
-                            manager.markAssistantFailed(
-                                activeConversationId,
-                                assistantPlaceholderId,
-                                err,
-                            );
-                        }
-                    },
-                );
-
-                // After stream completes, refresh full conversation to rebuild tree/branches accurately
-                try {
-                    const msgs = await conversationsAPI.fetchConversationMessages(activeConversationId);
-                    manager.updateWithChatResponse(activeConversationId, msgs);
-                    // Ensure activeMessageId remains set to the latest assistant we just created
-                    if (completedAssistantId !== null) {
-                        const refreshed = manager.getConversation(activeConversationId);
-                        if (refreshed?.backendConversation) {
-                            refreshed.backendConversation.activeMessageId = completedAssistantId;
-                        }
-                    }
-                } catch (e) {
-                    console.error("Failed to refresh conversation after retry stream:", e);
-                }
-
-                syncConversations();
-            } catch (err) {
-                console.error("Failed to retry message (stream):", err);
-                const errorMessage = ApiErrorHandler.getUserFriendlyMessage(err);
-                setError(errorMessage);
-                throw err;
-            }
-        },
-        [manager, activeConversationId, syncConversations],
-    );
 
     const getCurrentMessages = useCallback(
         (conversation: ClientConversation): FrontendMessage[] => {
@@ -786,6 +627,166 @@ export const useConversations = () => {
             }
         },
         [manager, syncConversations],
+    );
+
+    const retryMessageStream = useCallback(
+        async (messageId: string, model: string): Promise<void> => {
+            if (!activeConversationId) {
+                throw new Error("No active conversation");
+            }
+
+            const conversation = manager.getConversation(activeConversationId);
+            if (!conversation?.backendConversation) {
+                throw new Error("Conversation not ready");
+            }
+
+            try {
+                setError(null);
+
+                // Determine the parent user message for retry
+                const parentId = manager.getRetryParentId(
+                    activeConversationId,
+                    messageId,
+                );
+                if (parentId === undefined) {
+                    throw new Error("Cannot determine parent message for retry");
+                }
+
+                // Add optimistic assistant placeholder
+                const assistantPlaceholderId = manager.generateTempId();
+                const assistantPlaceholder: FrontendMessage = {
+                    id: assistantPlaceholderId,
+                    role: "assistant",
+                    content: "",
+                    status: "pending",
+                    timestamp: Date.now(),
+                };
+
+                conversation.messages.push(assistantPlaceholder);
+                conversation.pendingMessageIds.add(assistantPlaceholderId);
+                syncConversations();
+
+                // Accumulate streamed content
+                let accumulatedContent = "";
+                let rafId: number | null = null;
+
+                let completedAssistantId: number | null = null;
+                await chatAPI.retryMessageStream(
+                    activeConversationId,
+                    parentId,
+                    model,
+                    // onChunk
+                    (chunk: string) => {
+                        accumulatedContent += chunk;
+                        const conv = manager.getConversation(activeConversationId);
+                        if (conv) {
+                            manager.updateMessageContent(
+                                activeConversationId,
+                                assistantPlaceholderId,
+                                accumulatedContent,
+                            );
+                        }
+                        if (rafId !== null) cancelAnimationFrame(rafId);
+                        rafId = requestAnimationFrame(() => {
+                            syncConversations();
+                            rafId = null;
+                        });
+                    },
+                    // onMetadata (not strictly needed here)
+                    () => {
+                    },
+                    // onComplete
+                    (data) => {
+                        // Capture assistant message id for post-stream refresh
+                        completedAssistantId = data.assistantMessageId;
+                        if (rafId !== null) {
+                            cancelAnimationFrame(rafId);
+                            rafId = null;
+                        }
+                        const conv = manager.getConversation(activeConversationId);
+                        if (!conv) return;
+
+                        const assistMsg = conv.messages.find(
+                            (m) => m.id === assistantPlaceholderId,
+                        );
+                        if (assistMsg) {
+                            assistMsg.id = data.assistantMessageId.toString();
+                            assistMsg.status = "success";
+                            assistMsg.content = accumulatedContent;
+                            conv.pendingMessageIds.delete(assistantPlaceholderId);
+                        }
+
+                        if (conv.backendConversation) {
+                            if (!conv.backendConversation.messages) {
+                                conv.backendConversation.messages = {};
+                            }
+                            const backendMsgs = conv.backendConversation.messages;
+                            if (!backendMsgs[parentId]) {
+                                backendMsgs[parentId] = {
+                                    id: parentId,
+                                    convId: activeConversationId,
+                                    role: "user",
+                                    content: "",
+                                    parentId: undefined,
+                                    children: [],
+                                };
+                            }
+                            backendMsgs[data.assistantMessageId] = {
+                                id: data.assistantMessageId,
+                                convId: activeConversationId,
+                                role: "assistant",
+                                content: accumulatedContent,
+                                parentId: parentId,
+                                children: [],
+                            };
+                            const parent = backendMsgs[parentId];
+                            if (parent) {
+                                if (!Array.isArray(parent.children)) parent.children = [];
+                                if (!parent.children.includes(data.assistantMessageId)) {
+                                    parent.children.push(data.assistantMessageId);
+                                }
+                            }
+                            conv.backendConversation.activeMessageId = data.assistantMessageId;
+                        }
+                    },
+                    // onError
+                    (err) => {
+                        console.error("Retry stream error:", err);
+                        const conv = manager.getConversation(activeConversationId);
+                        if (conv) {
+                            manager.markAssistantFailed(
+                                activeConversationId,
+                                assistantPlaceholderId,
+                                err,
+                            );
+                        }
+                    },
+                );
+
+                // After stream completes, refresh full conversation to rebuild tree/branches accurately
+                try {
+                    const msgs = await conversationsAPI.fetchConversationMessages(activeConversationId);
+                    manager.updateWithChatResponse(activeConversationId, msgs);
+                    // Ensure activeMessageId remains set to the latest assistant we just created
+                    if (completedAssistantId !== null) {
+                        const refreshed = manager.getConversation(activeConversationId);
+                        if (refreshed?.backendConversation) {
+                            refreshed.backendConversation.activeMessageId = completedAssistantId;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to refresh conversation after retry stream:", e);
+                }
+
+                syncConversations();
+            } catch (err) {
+                console.error("Failed to retry message (stream):", err);
+                const errorMessage = ApiErrorHandler.getUserFriendlyMessage(err);
+                setError(errorMessage);
+                throw err;
+            }
+        },
+        [manager, activeConversationId, syncConversations],
     );
 
     return {

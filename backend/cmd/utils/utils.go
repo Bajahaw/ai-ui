@@ -122,6 +122,7 @@ func Structure(t interface{}) string {
 
 func ExtractProviderID(model string) (string, string) {
 	// Example: "provider-5dx6/whisper-large-v3-turbo" -> "provider-5dx6", "whisper-large-v3-turbo"
+	// provider-1234/open-ai/gpt-4 -> "provider-1234", "open-ai/gpt-4"
 	parts := strings.Split(model, "/")
 	if len(parts) < 2 {
 		return "", ""
