@@ -33,6 +33,7 @@ type Response struct {
 	Messages map[int]*Message `json:"messages"`
 }
 
+// deprecated
 func chat(w http.ResponseWriter, r *http.Request) {
 	var req Request
 	err := utils.ExtractJSONBody(r, &req)
@@ -83,13 +84,14 @@ func chat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	responseMessage := Message{
-		ID:       -1,
-		ConvID:   convID,
-		Role:     "assistant",
-		Model:    req.Model,
-		Content:  completion.Choices[0].Message.Content,
-		ParentID: userMessage.ID,
-		Children: []int{},
+		ID:        -1,
+		ConvID:    convID,
+		Role:      "assistant",
+		Model:     req.Model,
+		Content:   completion.Choices[0].Message.Content,
+		Reasoning: completion.Choices[0].Message.Reasoning,
+		ParentID:  userMessage.ID,
+		Children:  []int{},
 	}
 
 	responseMessage.ID, err = saveMessage(responseMessage)
@@ -108,6 +110,7 @@ func chat(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, &response, http.StatusOK)
 }
 
+// deprecated
 func retry(w http.ResponseWriter, r *http.Request) {
 	var req Retry
 	err := utils.ExtractJSONBody(r, &req)
@@ -141,13 +144,14 @@ func retry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	responseMessage := Message{
-		ID:       -1,
-		ConvID:   req.ConversationID,
-		Model:    req.Model,
-		Role:     "assistant",
-		Content:  completion.Choices[0].Message.Content,
-		ParentID: parent.ID,
-		Children: []int{},
+		ID:        -1,
+		ConvID:    req.ConversationID,
+		Model:     req.Model,
+		Role:      "assistant",
+		Content:   completion.Choices[0].Message.Content,
+		Reasoning: completion.Choices[0].Message.Reasoning,
+		ParentID:  parent.ID,
+		Children:  []int{},
 	}
 
 	responseMessage.ID, err = saveMessage(responseMessage)
@@ -296,9 +300,8 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "event: metadata\ndata: %s\n\n", metadataJSON)
 	flusher.Flush()
 
-	// Build context and stream response
 	ctx := buildContext(convID, userMessage.ID)
-	fullContent, err := provider.SendChatCompletionStreamRequest(ctx, req.Model, w)
+	completion, err := provider.SendChatCompletionStreamRequest(ctx, req.Model, w)
 	if err != nil {
 		log.Error("Error streaming chat completion", "err", err)
 		fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
@@ -308,19 +311,19 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 
 	// Save assistant message after streaming completes
 	responseMessage := Message{
-		ID:       -1,
-		ConvID:   convID,
-		Role:     "assistant",
-		Model:    req.Model,
-		Content:  fullContent,
-		ParentID: userMessage.ID,
-		Children: []int{},
+		ID:        -1,
+		ConvID:    convID,
+		Role:      "assistant",
+		Model:     req.Model,
+		Content:   completion.Content,
+		Reasoning: completion.Reasoning,
+		ParentID:  userMessage.ID,
+		Children:  []int{},
 	}
 
 	responseMessage.ID, err = saveMessage(responseMessage)
 	if err != nil {
 		log.Error("Error saving response message", "err", err)
-		// Continue anyway - client has the content
 	}
 
 	// Send completion event with message IDs
@@ -332,7 +335,6 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "event: complete\ndata: %s\n\n", completionJSON)
 	flusher.Flush()
 
-	log.Debug("Stream completed successfully", "convID", convID, "assistantMsgID", responseMessage.ID)
 }
 
 // retryStream streams an alternative assistant response for a given user parent message.
@@ -388,7 +390,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	ctx := buildContext(req.ConversationID, parent.ID)
 
 	// Stream assistant content
-	fullContent, err := provider.SendChatCompletionStreamRequest(ctx, req.Model, w)
+	completion, err := provider.SendChatCompletionStreamRequest(ctx, req.Model, w)
 	if err != nil {
 		log.Error("Error streaming retry completion", "err", err)
 		fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
@@ -398,13 +400,14 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 
 	// Save assistant message after streaming completes
 	responseMessage := Message{
-		ID:       -1,
-		ConvID:   req.ConversationID,
-		Role:     "assistant",
-		Model:    req.Model,
-		Content:  fullContent,
-		ParentID: parent.ID,
-		Children: []int{},
+		ID:        -1,
+		ConvID:    req.ConversationID,
+		Role:      "assistant",
+		Model:     req.Model,
+		Content:   completion.Content,
+		Reasoning: completion.Reasoning,
+		ParentID:  parent.ID,
+		Children:  []int{},
 	}
 
 	responseID, saveErr := saveMessage(responseMessage)

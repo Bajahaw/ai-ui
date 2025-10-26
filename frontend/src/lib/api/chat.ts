@@ -75,6 +75,7 @@ export class ChatAPI {
     webSearch: boolean = false,
     attachment?: string,
     onChunk?: (chunk: string) => void,
+    onReasoning?: (reasoning: string) => void,
     onMetadata?: (metadata: StreamMetadata) => void,
     onComplete?: (data: StreamComplete) => void,
     onError?: (error: string) => void,
@@ -165,9 +166,13 @@ export class ChatAPI {
                             // Regular content chunk (no event prefix)
                             try {
                                 const chunk: StreamChunk = JSON.parse(data);
-                                // Only emit if content is present (skip reasoning-only chunks)
-                                if (chunk.content) {
+                                // Emit content if present
+                                if (chunk.content && onChunk) {
                                     onChunk(chunk.content);
+                                }
+                                // Emit reasoning if present
+                                if (chunk.reasoning && onReasoning) {
+                                    onReasoning(chunk.reasoning);
                                 }
                             } catch (e) {
                                 console.error("Failed to parse chunk:", e);
@@ -196,6 +201,7 @@ export class ChatAPI {
         parentId: number,
         model: string,
         onChunk?: (chunk: string) => void,
+        onReasoning?: (reasoning: string) => void,
         onMetadata?: (metadata: StreamMetadata) => void,
         onComplete?: (data: StreamComplete) => void,
         onError?: (error: string) => void,
@@ -282,9 +288,13 @@ export class ChatAPI {
                 // Regular content chunk (no event prefix)
                 try {
                   const chunk: StreamChunk = JSON.parse(data);
-                  // Only emit if content is present (skip reasoning-only chunks)
-                  if (chunk.content) {
+                  // Emit content if present
+                  if (chunk.content && onChunk) {
                     onChunk(chunk.content);
+                  }
+                  // Emit reasoning if present
+                  if (chunk.reasoning && onReasoning) {
+                    onReasoning(chunk.reasoning);
                   }
                 } catch (e) {
                   console.error("Failed to parse chunk:", e);

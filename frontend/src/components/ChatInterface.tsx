@@ -24,6 +24,11 @@ import {
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
 import {
+  Reasoning,
+  ReasoningTrigger,
+  ReasoningContent,
+} from "@/components/ai-elements/reasoning";
+import {
   GlobeIcon,
   AlertCircleIcon,
   RotateCcwIcon,
@@ -501,6 +506,15 @@ export const ChatInterface = ({
               renderMessageContent(message)
             ) : (
               <div className="space-y-4">
+                {message.reasoning && (
+                  <Reasoning
+                    isStreaming={message.status === "pending"}
+                    defaultOpen={false}
+                  >
+                    <ReasoningTrigger />
+                    <ReasoningContent>{message.reasoning}</ReasoningContent>
+                  </Reasoning>
+                )}
                 {renderMessageContent(message)}
                 {message.status !== "pending" && renderMessageActions(message)}
               </div>

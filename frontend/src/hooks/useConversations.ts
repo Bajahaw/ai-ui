@@ -361,8 +361,9 @@ export const useConversations = () => {
                         message.length > 50 ? message.substring(0, 47) + "..." : message;
                     const createdConv = await conversationsAPI.createConversation(title);
 
-                    // Use a simple variable to accumulate content
+                    // Use a simple variable to accumulate content and reasoning
                     let accumulatedContent = "";
+                    let accumulatedReasoning = "";
                     let realConvId = createdConv.id;
                     let rafId: number | null = null;
                     let realAssistantMessageId: number | null = null;
@@ -386,6 +387,32 @@ export const useConversations = () => {
                                     assistantPlaceholderId,
                                     accumulatedContent,
                                 );
+                            }
+
+                            // Cancel previous frame request if any
+                            if (rafId !== null) {
+                                cancelAnimationFrame(rafId);
+                            }
+
+                            // Schedule sync on next animation frame (60fps max)
+                            rafId = requestAnimationFrame(() => {
+                                syncConversations();
+                                rafId = null;
+                            });
+                        },
+                        // onReasoning - Update reasoning and request animation frame for smooth rendering
+                        (reasoning: string) => {
+                            accumulatedReasoning += reasoning;
+
+                            // Update reasoning immediately (no sync yet)
+                            if (assistantPlaceholderId && clientConversationId) {
+                                const conv = manager.getConversation(clientConversationId);
+                                if (conv) {
+                                    const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
+                                    if (assistMsg) {
+                                        assistMsg.reasoning = accumulatedReasoning;
+                                    }
+                                }
                             }
 
                             // Cancel previous frame request if any
@@ -440,8 +467,9 @@ export const useConversations = () => {
                                         if (assistMsg) {
                                             assistMsg.id = data.assistantMessageId.toString();
                                             assistMsg.status = "success";
-                                            // Ensure final content is set (in case last RAF was cancelled)
+                                            // Ensure final content and reasoning are set (in case last RAF was cancelled)
                                             assistMsg.content = accumulatedContent;
+                                            assistMsg.reasoning = accumulatedReasoning;
                                             conv.pendingMessageIds.delete(assistantPlaceholderId);
                                         }
                                     }
@@ -515,8 +543,9 @@ export const useConversations = () => {
                     throw new Error("Cannot determine active message ID");
                 }
 
-                // Use a simple variable to accumulate content
+                // Use a simple variable to accumulate content and reasoning
                 let accumulatedContent = "";
+                let accumulatedReasoning = "";
                 let rafId: number | null = null;
 
                 // Stream the message
@@ -538,6 +567,32 @@ export const useConversations = () => {
                                 assistantPlaceholderId,
                                 accumulatedContent,
                             );
+                        }
+
+                        // Cancel previous frame request if any
+                        if (rafId !== null) {
+                            cancelAnimationFrame(rafId);
+                        }
+
+                        // Schedule sync on next animation frame (60fps max)
+                        rafId = requestAnimationFrame(() => {
+                            syncConversations();
+                            rafId = null;
+                        });
+                    },
+                    // onReasoning - Update reasoning on animation frame for smooth rendering
+                    (reasoning: string) => {
+                        accumulatedReasoning += reasoning;
+
+                        // Update reasoning immediately (no sync yet)
+                        if (assistantPlaceholderId) {
+                            const conv = manager.getConversation(conversationId);
+                            if (conv) {
+                                const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
+                                if (assistMsg) {
+                                    assistMsg.reasoning = accumulatedReasoning;
+                                }
+                            }
                         }
 
                         // Cancel previous frame request if any
@@ -583,8 +638,9 @@ export const useConversations = () => {
                                 if (assistMsg) {
                                     assistMsg.id = data.assistantMessageId.toString();
                                     assistMsg.status = "success";
-                                    // Ensure final content is set (in case last RAF was cancelled)
+                                    // Ensure final content and reasoning are set (in case last RAF was cancelled)
                                     assistMsg.content = accumulatedContent;
+                                    assistMsg.reasoning = accumulatedReasoning;
                                     conv.pendingMessageIds.delete(assistantPlaceholderId);
                                     // Critical: set the active parent to the latest assistant message
                                     if (conv.backendConversation) {
@@ -666,8 +722,9 @@ export const useConversations = () => {
                 conversation.pendingMessageIds.add(assistantPlaceholderId);
                 syncConversations();
 
-                // Accumulate streamed content
+                // Accumulate streamed content and reasoning
                 let accumulatedContent = "";
+                let accumulatedReasoning = "";
                 let rafId: number | null = null;
 
                 let completedAssistantId: number | null = null;
@@ -685,6 +742,22 @@ export const useConversations = () => {
                                 assistantPlaceholderId,
                                 accumulatedContent,
                             );
+                        }
+                        if (rafId !== null) cancelAnimationFrame(rafId);
+                        rafId = requestAnimationFrame(() => {
+                            syncConversations();
+                            rafId = null;
+                        });
+                    },
+                    // onReasoning
+                    (reasoning: string) => {
+                        accumulatedReasoning += reasoning;
+                        const conv = manager.getConversation(activeConversationId);
+                        if (conv) {
+                            const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
+                            if (assistMsg) {
+                                assistMsg.reasoning = accumulatedReasoning;
+                            }
                         }
                         if (rafId !== null) cancelAnimationFrame(rafId);
                         rafId = requestAnimationFrame(() => {
@@ -713,6 +786,7 @@ export const useConversations = () => {
                             assistMsg.id = data.assistantMessageId.toString();
                             assistMsg.status = "success";
                             assistMsg.content = accumulatedContent;
+                            assistMsg.reasoning = accumulatedReasoning;
                             conv.pendingMessageIds.delete(assistantPlaceholderId);
                         }
 
@@ -736,6 +810,7 @@ export const useConversations = () => {
                                 convId: activeConversationId,
                                 role: "assistant",
                                 content: accumulatedContent,
+                                reasoning: accumulatedReasoning,
                                 parentId: parentId,
                                 children: [],
                             };

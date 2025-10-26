@@ -7,6 +7,7 @@ export interface Message {
   role: string;
 
   content: string;
+  reasoning?: string;
 
   parentId?: number;
 
@@ -91,6 +92,7 @@ export interface FrontendMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  reasoning?: string;
   status?: "success" | "error" | "pending";
   error?: string;
   timestamp: number;
@@ -149,6 +151,7 @@ export const backendToFrontendMessage = (
         ? backendMsg.role
         : "assistant",
     content: backendMsg.content || "",
+    reasoning: backendMsg.reasoning,
     status,
     error,
     timestamp: Date.now(), // Backend doesn't provide timestamp, use current time

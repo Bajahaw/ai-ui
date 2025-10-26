@@ -20,6 +20,22 @@ type SimpleMessage struct {
 	Image   string
 }
 
+type StreamChunk struct {
+	Content   string `json:"content,omitempty"`
+	Reasoning string `json:"reasoning,omitempty"`
+}
+
+type StreamMetadata struct {
+	ConversationID string `json:"conversationId"`
+	UserMessageID  int    `json:"userMessageId"`
+}
+
+// StreamComplete sent when stream is complete
+type StreamComplete struct {
+	UserMessageID      int `json:"userMessageId"`
+	AssistantMessageID int `json:"assistantMessageId"`
+}
+
 func SendChatCompletionRequest(messages []SimpleMessage, model string) (*openai.ChatCompletion, error) {
 	providerID, model := utils.ExtractProviderID(model)
 	provider, err := repo.getProvider(providerID)
@@ -99,30 +115,12 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 	return openaiMessages
 }
 
-// StreamChunk represents a chunk of streamed content
-type StreamChunk struct {
-	Content   string `json:"content,omitempty"`
-	Reasoning string `json:"reasoning,omitempty"`
-}
-
-// StreamMetadata represents metadata sent at the beginning of a stream
-type StreamMetadata struct {
-	ConversationID string `json:"conversationId"`
-	UserMessageID  int    `json:"userMessageId"`
-}
-
-// StreamComplete represents the final data sent when stream is complete
-type StreamComplete struct {
-	UserMessageID      int `json:"userMessageId"`
-	AssistantMessageID int `json:"assistantMessageId"`
-}
-
-// SendChatCompletionStreamRequest handles streaming chat completions and returns the full content
-func SendChatCompletionStreamRequest(messages []SimpleMessage, model string, w http.ResponseWriter) (string, error) {
+// SendChatCompletionStreamRequest streams chat completions and returns the full content
+func SendChatCompletionStreamRequest(messages []SimpleMessage, model string, w http.ResponseWriter) (*openai.ChatCompletionMessage, error) {
 	providerID, model := utils.ExtractProviderID(model)
 	provider, err := repo.getProvider(providerID)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
@@ -131,7 +129,6 @@ func SendChatCompletionStreamRequest(messages []SimpleMessage, model string, w h
 	client := openai.NewClient(
 		option.WithAPIKey(provider.APIKey),
 		option.WithBaseURL(provider.BaseURL),
-		option.WithDebugLog(log.StandardLog()),
 	)
 
 	params := openai.ChatCompletionNewParams{
@@ -139,17 +136,15 @@ func SendChatCompletionStreamRequest(messages []SimpleMessage, model string, w h
 		Messages: OpenAIMessageParams(messages),
 	}
 
-	log.Debug("Sending streaming chat completion request", "model", model)
-
-	// Set headers for SSE (Server-Sent Events)
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering if behind proxy
+	// // Set headers for SSE (Server-Sent Events)
+	// w.Header().Set("Content-Type", "text/event-stream")
+	// w.Header().Set("Cache-Control", "no-cache")
+	// w.Header().Set("Connection", "keep-alive")
+	// w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering if behind proxy
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		return "", fmt.Errorf("streaming not supported")
+		return nil, fmt.Errorf("streaming not supported")
 	}
 
 	stream := client.Chat.Completions.NewStreaming(ctx, params)
@@ -159,51 +154,32 @@ func SendChatCompletionStreamRequest(messages []SimpleMessage, model string, w h
 		chunk := stream.Current()
 		acc.AddChunk(chunk)
 
-		// Stream content and reasoning deltas to client
 		if len(chunk.Choices) > 0 {
 			contentDelta := chunk.Choices[0].Delta.Content
 			reasoningDelta := chunk.Choices[0].Delta.Reasoning
 
 			if contentDelta != "" || reasoningDelta != "" {
-				// Send as SSE data event
+
 				chunkData := StreamChunk{
 					Content:   contentDelta,
 					Reasoning: reasoningDelta,
 				}
+
 				chunkJSON, _ := json.Marshal(chunkData)
 				fmt.Fprintf(w, "data: %s\n\n", chunkJSON)
 				flusher.Flush()
 			}
 		}
-
-		// Handle finished content
-		if content, ok := acc.JustFinishedContent(); ok {
-			log.Debug("Content stream finished", "length", len(content))
-		}
-
-		// Handle tool calls if needed in the future
-		if tool, ok := acc.JustFinishedToolCall(); ok {
-			log.Debug("Tool call stream finished", "index", tool.Index, "name", tool.Name)
-		}
-
-		// Handle refusals
-		if refusal, ok := acc.JustFinishedRefusal(); ok {
-			log.Debug("Refusal stream finished", "refusal", refusal)
-		}
 	}
 
 	if err := stream.Err(); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	// Get the complete content from accumulator
-	fullContent := ""
-	if len(acc.Choices) > 0 {
-		log.Debug("Stream completed", "message", acc.Choices[0])
-		fullContent = acc.Choices[0].Message.Content
+	if !(len(acc.Choices) > 0) {
+		log.Debug("Stream completed with no choices")
+		return nil, fmt.Errorf("no choices in completion")
 	}
 
-	log.Debug("Stream completed", "total_length", len(fullContent))
-
-	return fullContent, nil
+	return &acc.Choices[0].Message, nil
 }
