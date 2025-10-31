@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-    --background: 0 0% 98%;
+    --background: 0 10% 98%;
     --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
     --card-foreground: 240 10% 3.9%;
@@ -19,7 +19,7 @@
     --accent-foreground: 240 5.9% 10%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
+    --border: 240 5.9% 70%;
     --input: 240 5.9% 90%;
     --ring: 240 10% 3.9%;
     --radius: 0.5rem;
@@ -31,7 +31,7 @@
 }
 
 .dark {
-    --background: 240 0% 10%;
+    --background: 240 2% 10%;
     --foreground: 0 0% 95%;
     --card: 240 10% 3.9%;
     --card-foreground: 0 0% 98%;
@@ -93,7 +93,7 @@
 @layer components {
     /* Responsive layout utilities */
     .chat-container {
-        @apply flex-1 flex flex-col min-h-0;
+        @apply flex-1 flex flex-col min-h-0 bg-background;
     }
 
     ::-webkit-scrollbar {
@@ -112,6 +112,63 @@
 
     ::-webkit-scrollbar-thumb:hover {
         background: rgba(100, 100, 100, 0.6);
+    }
+
+    /* Dialog animations - pop in from center only */
+    .dialog-overlay-animation {
+        animation: dialog-overlay-fade 0.1s ease-out;
+    }
+
+    .dialog-overlay-animation[data-state="closed"] {
+        animation: dialog-overlay-fade-out 0.1s ease-out;
+    }
+
+    .dialog-content-animation {
+        animation: dialog-content-zoom 0.1s ease-out;
+    }
+
+    .dialog-content-animation[data-state="closed"] {
+        animation: dialog-content-zoom-out 0.1s ease-out;
+    }
+
+    @keyframes dialog-overlay-fade {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+
+    @keyframes dialog-overlay-fade-out {
+        from {
+            opacity: 1;
+        }
+        to {
+            opacity: 0;
+        }
+    }
+
+    @keyframes dialog-content-zoom {
+        from {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+    }
+
+    @keyframes dialog-content-zoom-out {
+        from {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        to {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.95);
+        }
     }
 
     ::-webkit-scrollbar-corner {
@@ -172,6 +229,7 @@
         .chat-container {
             transition: none;
             overflow-x: hidden;
+            background-color: hsl(var(--background));
         }
 
         /* Better code block handling on mobile */
@@ -259,6 +317,7 @@
         .chat-container {
             min-width: 0;
             overflow-x: hidden;
+            background-color: hsl(var(--background));
         }
     }
 }
