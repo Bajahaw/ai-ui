@@ -78,6 +78,22 @@ func updateMessage(id int, msg Message) (*Message, error) {
 		return nil, err
 	}
 
+	updatedMsg.Children = make([]int, 0)
+	childrenSql := `SELECT id FROM Messages WHERE parent_id = ?`
+	rows, err := data.DB.Query(childrenSql, id)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		var childID int
+		if err := rows.Scan(&childID); err != nil {
+			return nil, err
+		}
+		updatedMsg.Children = append(updatedMsg.Children, childID)
+	}
+
 	return &updatedMsg, nil
 }
 
