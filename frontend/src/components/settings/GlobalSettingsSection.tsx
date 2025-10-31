@@ -32,6 +32,7 @@ export const GlobalSettingsSection = () => {
     const [localSystemPrompt, setLocalSystemPrompt] = useState("");
     const [localDefaultModel, setLocalDefaultModel] = useState("");
     const [localReasoningEffort, setLocalReasoningEffort] = useState("");
+    const [localEnterBehavior, setLocalEnterBehavior] = useState("");
     const [isSaving, setSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
     const isLocalModelValid = models.some(
@@ -43,6 +44,7 @@ export const GlobalSettingsSection = () => {
         setLocalSystemPrompt(systemPrompt);
         const savedModel = getSingleSetting("defaultModel");
         const savedReasoningEffort = getSingleSetting("reasoningEffort");
+        const savedEnterBehavior = getSingleSetting("enterBehavior");
         if (!modelsLoading && models.length === 0) {
             // When no models are available, clear the selection so the placeholder is rendered
             setLocalDefaultModel("");
@@ -50,6 +52,7 @@ export const GlobalSettingsSection = () => {
             setLocalDefaultModel(savedModel || "");
         }
         setLocalReasoningEffort(savedReasoningEffort || "medium");
+        setLocalEnterBehavior(savedEnterBehavior || "send");
         setHasChanges(false);
     }, [
         systemPrompt,
@@ -63,7 +66,8 @@ export const GlobalSettingsSection = () => {
         setHasChanges(
             value !== systemPrompt ||
             localDefaultModel !== getSingleSetting("defaultModel") ||
-            localReasoningEffort !== getSingleSetting("reasoningEffort"),
+            localReasoningEffort !== getSingleSetting("reasoningEffort") ||
+            localEnterBehavior !== getSingleSetting("enterBehavior"),
         );
     };
 
@@ -72,7 +76,8 @@ export const GlobalSettingsSection = () => {
         setHasChanges(
             localSystemPrompt !== systemPrompt ||
             value !== getSingleSetting("defaultModel") ||
-            localReasoningEffort !== getSingleSetting("reasoningEffort"),
+            localReasoningEffort !== getSingleSetting("reasoningEffort") ||
+            localEnterBehavior !== getSingleSetting("enterBehavior"),
         );
     };
 
@@ -81,7 +86,18 @@ export const GlobalSettingsSection = () => {
         setHasChanges(
             localSystemPrompt !== systemPrompt ||
             localDefaultModel !== getSingleSetting("defaultModel") ||
-            value !== getSingleSetting("reasoningEffort"),
+            value !== getSingleSetting("reasoningEffort") ||
+            localEnterBehavior !== getSingleSetting("enterBehavior"),
+        );
+    };
+
+    const handleEnterBehaviorChange = (value: string) => {
+        setLocalEnterBehavior(value);
+        setHasChanges(
+            localSystemPrompt !== systemPrompt ||
+            localDefaultModel !== getSingleSetting("defaultModel") ||
+            localReasoningEffort !== getSingleSetting("reasoningEffort") ||
+            value !== getSingleSetting("enterBehavior"),
         );
     };
 
@@ -95,6 +111,9 @@ export const GlobalSettingsSection = () => {
             if (localReasoningEffort) {
                 await updateSingleSetting("reasoningEffort", localReasoningEffort);
             }
+            if (localEnterBehavior) {
+                await updateSingleSetting("enterBehavior", localEnterBehavior);
+            }
             setHasChanges(false);
         } catch (error) {
             console.error("Failed to save settings:", error);
@@ -107,6 +126,7 @@ export const GlobalSettingsSection = () => {
         setLocalSystemPrompt(systemPrompt);
         setLocalDefaultModel(getSingleSetting("defaultModel") || "");
         setLocalReasoningEffort(getSingleSetting("reasoningEffort") || "medium");
+        setLocalEnterBehavior(getSingleSetting("enterBehavior") || "send");
         setHasChanges(false);
     };
 
@@ -206,6 +226,37 @@ export const GlobalSettingsSection = () => {
                                 <SelectItem value="low">Low</SelectItem>
                                 <SelectItem value="medium">Medium</SelectItem>
                                 <SelectItem value="high">High</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+
+                {/* Enter Key Behavior Section */}
+                <div className="border-b border-border flex justify-between items-center !my-0 pb-2">
+                    <div>
+                        <Label htmlFor="enter-behavior" className="font-medium text-nowrap">
+                            Enter Key Action
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Shift+Enter always adds new line
+                        </p>
+                    </div>
+                    <div>
+                        <Select
+                            value={localEnterBehavior}
+                            onValueChange={handleEnterBehaviorChange}
+                            disabled={isSaving}
+                        >
+                            <SelectTrigger
+                                id="enter-behavior"
+                                className="flex items-center justify-between gap-2 rounded-lg !border-none !bg-transparent transition-colors data-[placeholder]:text-muted-foreground"
+                            >
+                                <SelectValue placeholder="Select enter behavior" />
+                            </SelectTrigger>
+                            <SelectContent
+                                className="rounded-xl min-w-[140px] border border-border/70 p-1 shadow-xl">
+                                <SelectItem value="send">Send</SelectItem>
+                                <SelectItem value="newline">New Line</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

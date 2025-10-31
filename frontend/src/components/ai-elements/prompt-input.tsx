@@ -6,7 +6,7 @@ import type {
   HTMLAttributes,
   KeyboardEventHandler,
 } from "react";
-import { Children, useState } from "react";
+import { Children, useState, useCallback } from "react";
 import {
   ModelSelect,
   type ModelSelectProps,
@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea.tsx";
 import { cn } from "@/lib/utils.ts";
 import { getTextDirection } from "@/lib/rtl-utils.ts";
 import type { ChatStatus } from "ai";
+import { useSettings } from "@/hooks/useSettings";
 
 export type PromptInputProps = HTMLAttributes<HTMLFormElement>;
 
@@ -44,22 +45,31 @@ export const PromptInputTextarea = ({
   ...props
 }: PromptInputTextareaProps) => {
   const [input, setInput] = useState(value as string || "");
+  const { settings } = useSettings();
 
-  const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
+  const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = useCallback((e) => {
     if (e.key === "Enter") {
+      // Get the enter behavior setting (default: "send")
+      const enterBehavior = settings?.enterBehavior || "send";
+      
       if (e.shiftKey) {
-        // Allow newline
+        // Always allow newline with Shift+Enter
         return;
       }
 
-      // Submit on Enter (without Shift)
+      if (enterBehavior === "newline") {
+        // Allow newline on plain Enter when setting is "newline"
+        return;
+      }
+
+      // Submit on Enter (without Shift) when setting is "send" (default)
       e.preventDefault();
       const form = e.currentTarget.form;
       if (form) {
         form.requestSubmit();
       }
     }
-  };
+  }, [settings]);
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const clipboardData = e.clipboardData;
