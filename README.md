@@ -6,7 +6,8 @@ Lightweight AI chat interface with React and Golang.
 
 - Conversation management with history, edits, and branching
 - Multi-provider AI support (OpenAI compatible ones)
-- Web search integration (soon)
+- Tools/MCP integration (soon)
+- Built-in S3 Backups (planned) 
 - Single user authentication
 - Dark/light themes
 - Responsive design with Shadcn UI
