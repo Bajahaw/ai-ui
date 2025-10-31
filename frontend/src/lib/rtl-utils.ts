@@ -36,3 +36,10 @@ export function containsArabic(text: string): boolean {
 export function getTextAlignment(text: string): string {
   return containsArabic(text) ? "text-right" : "text-left";
 }
+
+/**
+ * Get text direction class for content
+ */
+export function getTextDirection(text: string): string {
+  return containsArabic(text) ? "rtl" : "ltr";
+}

@@ -2,7 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { ComponentProps, HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 import type { UIMessage } from "ai";
-import { getTextAlignment } from "@/lib/rtl-utils";
+import { getTextAlignment, getTextDirection } from "@/lib/rtl-utils";
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage["role"];
@@ -47,6 +47,7 @@ export const MessageContent = ({
       "group-[.is-assistant]:bg-transparent group-[.is-assistant]:text-foreground group-[.is-assistant]:px-0 group-[.is-assistant]:py-0 group-[.is-assistant]:w-full group-[.is-assistant]:min-w-0",
       "group-[.is-error]:bg-destructive/10 group-[.is-error]:border group-[.is-error]:border-destructive/20 group-[.is-error]:rounded-lg group-[.is-error]:px-3 group-[.is-error]:py-2 sm:group-[.is-error]:px-4 sm:group-[.is-error]:py-3 group-[.is-error]:w-fit group-[.is-error]:min-w-0",
       getTextAlignment(content),
+      getTextDirection(content),
       className,
     )}
     {...props}
