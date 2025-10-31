@@ -6,6 +6,13 @@ import {AlertCircle, Save, Loader2, RotateCcw} from "lucide-react";
 import {useSettings} from "@/hooks/useSettings";
 import {useModels} from "@/hooks/useModels";
 import {ModelSelect} from "@/components/ai-elements/model-select.tsx";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 export const GlobalSettingsSection = () => {
     const {
@@ -24,6 +31,7 @@ export const GlobalSettingsSection = () => {
 
     const [localSystemPrompt, setLocalSystemPrompt] = useState("");
     const [localDefaultModel, setLocalDefaultModel] = useState("");
+    const [localReasoningEffort, setLocalReasoningEffort] = useState("");
     const [isSaving, setSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
     const isLocalModelValid = models.some(
@@ -34,12 +42,14 @@ export const GlobalSettingsSection = () => {
     useEffect(() => {
         setLocalSystemPrompt(systemPrompt);
         const savedModel = getSingleSetting("defaultModel");
+        const savedReasoningEffort = getSingleSetting("reasoningEffort");
         if (!modelsLoading && models.length === 0) {
             // When no models are available, clear the selection so the placeholder is rendered
             setLocalDefaultModel("");
         } else {
             setLocalDefaultModel(savedModel || "");
         }
+        setLocalReasoningEffort(savedReasoningEffort || "medium");
         setHasChanges(false);
     }, [
         systemPrompt,
@@ -52,7 +62,8 @@ export const GlobalSettingsSection = () => {
         setLocalSystemPrompt(value);
         setHasChanges(
             value !== systemPrompt ||
-            localDefaultModel !== getSingleSetting("defaultModel"),
+            localDefaultModel !== getSingleSetting("defaultModel") ||
+            localReasoningEffort !== getSingleSetting("reasoningEffort"),
         );
     };
 
@@ -60,7 +71,17 @@ export const GlobalSettingsSection = () => {
         setLocalDefaultModel(value);
         setHasChanges(
             localSystemPrompt !== systemPrompt ||
-            value !== getSingleSetting("defaultModel"),
+            value !== getSingleSetting("defaultModel") ||
+            localReasoningEffort !== getSingleSetting("reasoningEffort"),
+        );
+    };
+
+    const handleReasoningEffortChange = (value: string) => {
+        setLocalReasoningEffort(value);
+        setHasChanges(
+            localSystemPrompt !== systemPrompt ||
+            localDefaultModel !== getSingleSetting("defaultModel") ||
+            value !== getSingleSetting("reasoningEffort"),
         );
     };
 
@@ -70,6 +91,9 @@ export const GlobalSettingsSection = () => {
             await updateSystemPromptSetting(localSystemPrompt);
             if (localDefaultModel) {
                 await updateSingleSetting("defaultModel", localDefaultModel);
+            }
+            if (localReasoningEffort) {
+                await updateSingleSetting("reasoningEffort", localReasoningEffort);
             }
             setHasChanges(false);
         } catch (error) {
@@ -82,6 +106,7 @@ export const GlobalSettingsSection = () => {
     const handleResetSettings = () => {
         setLocalSystemPrompt(systemPrompt);
         setLocalDefaultModel(getSingleSetting("defaultModel") || "");
+        setLocalReasoningEffort(getSingleSetting("reasoningEffort") || "medium");
         setHasChanges(false);
     };
 
@@ -132,7 +157,7 @@ export const GlobalSettingsSection = () => {
             <div className="space-y-4">
 
                 {/* Default Model Section */}
-                <div className="border-b border-border flex justify-between items-center pb-2">
+                <div className="flex justify-between items-center pb-2">
                     <div>
                         <Label htmlFor="default-model" className="font-medium text-nowrap">
                             Default Model
@@ -155,6 +180,35 @@ export const GlobalSettingsSection = () => {
                         />
                     </div>
 
+                </div>
+
+                {/* Reasoning Effort Section */}
+                <div className="border-b border-border flex justify-between items-center !my-0 pb-2">
+                    <div>
+                        <Label htmlFor="reasoning-effort" className="font-medium text-nowrap">
+                            Reasoning Effort
+                        </Label>
+                    </div>
+                    <div>
+                        <Select
+                            value={localReasoningEffort}
+                            onValueChange={handleReasoningEffortChange}
+                            disabled={isSaving}
+                        >
+                            <SelectTrigger
+                                id="reasoning-effort"
+                                className="flex items-center justify-between gap-2 rounded-lg !border-none !bg-transparent transition-colors data-[placeholder]:text-muted-foreground"
+                            >
+                                <SelectValue placeholder="Select reasoning effort" />
+                            </SelectTrigger>
+                            <SelectContent
+                                className="rounded-xl min-w-[120px] border border-border/70 p-1 shadow-xl">
+                                <SelectItem value="low">Low</SelectItem>
+                                <SelectItem value="medium">Medium</SelectItem>
+                                <SelectItem value="high">High</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
 
                 {/* System Prompt Section */}

@@ -82,6 +82,7 @@ func setDefaultSettings() {
 		"presence_penalty":  "0",
 		"systemPrompt":      "You are a helpful assistant. Provide clear accurate and helpful responses to the user questions.",
 		"responseType":      "stream",
+		"reasoningEffort":   "medium",
 	}
 
 	err := saveUpdatedSettings(Settings{defaults})

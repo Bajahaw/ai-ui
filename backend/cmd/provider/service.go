@@ -20,6 +20,12 @@ type SimpleMessage struct {
 	Image   string
 }
 
+type ProviderRequestParams struct {
+	Messages        []SimpleMessage
+	Model           string
+	ReasoningEffort openai.ReasoningEffort
+}
+
 type StreamChunk struct {
 	Content   string `json:"content,omitempty"`
 	Reasoning string `json:"reasoning,omitempty"`
@@ -36,8 +42,8 @@ type StreamComplete struct {
 	AssistantMessageID int `json:"assistantMessageId"`
 }
 
-func SendChatCompletionRequest(messages []SimpleMessage, model string) (*openai.ChatCompletion, error) {
-	providerID, model := utils.ExtractProviderID(model)
+func SendChatCompletionRequest(params ProviderRequestParams) (*openai.ChatCompletion, error) {
+	providerID, model := utils.ExtractProviderID(params.Model)
 	provider, err := repo.getProvider(providerID)
 	if err != nil {
 		return nil, err
@@ -51,9 +57,10 @@ func SendChatCompletionRequest(messages []SimpleMessage, model string) (*openai.
 		option.WithBaseURL(provider.BaseURL),
 	)
 
-	params := openai.ChatCompletionNewParams{
-		Model:    model,
-		Messages: OpenAIMessageParams(messages),
+	openAIparams := openai.ChatCompletionNewParams{
+		Model:           model,
+		Messages:        OpenAIMessageParams(params.Messages),
+		ReasoningEffort: params.ReasoningEffort,
 
 		//Tools: []openai.ChatCompletionToolUnionParam{
 		//	{
@@ -65,9 +72,9 @@ func SendChatCompletionRequest(messages []SimpleMessage, model string) (*openai.
 	}
 
 	//
-	log.Debug("Sending chat completion request", "params", params)
+	log.Debug("Sending chat completion request", "params", openAIparams)
 
-	completion, err := client.Chat.Completions.New(ctx, params)
+	completion, err := client.Chat.Completions.New(ctx, openAIparams)
 	if err != nil {
 		return nil, err
 	}
@@ -115,9 +122,24 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 	return openaiMessages
 }
 
+func ReasoningEffort(level string) openai.ReasoningEffort {
+	switch level {
+	case "minimal":
+		return openai.ReasoningEffortMinimal
+	case "low":
+		return openai.ReasoningEffortLow
+	case "medium":
+		return openai.ReasoningEffortMedium
+	case "high":
+		return openai.ReasoningEffortHigh
+	default:
+		return openai.ReasoningEffortMedium
+	}
+}
+
 // SendChatCompletionStreamRequest streams chat completions and returns the full content
-func SendChatCompletionStreamRequest(messages []SimpleMessage, model string, w http.ResponseWriter) (*openai.ChatCompletionMessage, error) {
-	providerID, model := utils.ExtractProviderID(model)
+func SendChatCompletionStreamRequest(params ProviderRequestParams, w http.ResponseWriter) (*openai.ChatCompletionMessage, error) {
+	providerID, model := utils.ExtractProviderID(params.Model)
 	provider, err := repo.getProvider(providerID)
 	if err != nil {
 		return nil, err
@@ -131,9 +153,10 @@ func SendChatCompletionStreamRequest(messages []SimpleMessage, model string, w h
 		option.WithBaseURL(provider.BaseURL),
 	)
 
-	params := openai.ChatCompletionNewParams{
-		Model:    model,
-		Messages: OpenAIMessageParams(messages),
+	openAIparams := openai.ChatCompletionNewParams{
+		Model:           model,
+		Messages:        OpenAIMessageParams(params.Messages),
+		ReasoningEffort: params.ReasoningEffort,
 	}
 
 	// // Set headers for SSE (Server-Sent Events)
@@ -147,7 +170,7 @@ func SendChatCompletionStreamRequest(messages []SimpleMessage, model string, w h
 		return nil, fmt.Errorf("streaming not supported")
 	}
 
-	stream := client.Chat.Completions.NewStreaming(ctx, params)
+	stream := client.Chat.Completions.NewStreaming(ctx, openAIparams)
 	acc := openai.ChatCompletionAccumulator{}
 
 	for stream.Next() {

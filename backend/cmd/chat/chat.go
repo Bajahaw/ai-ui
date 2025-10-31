@@ -75,8 +75,14 @@ func chat(w http.ResponseWriter, r *http.Request) {
 
 	ctx := buildContext(convID, userMessage.ID)
 
+	providerParams := provider.ProviderRequestParams{
+		Messages:        ctx,
+		Model:           req.Model,
+		ReasoningEffort: provider.ReasoningEffort("medium"),
+	}
+
 	// send to provider
-	completion, err := provider.SendChatCompletionRequest(ctx, req.Model)
+	completion, err := provider.SendChatCompletionRequest(providerParams)
 	if err != nil {
 		log.Error("Error sending chat completion request", "err", err)
 		http.Error(w, fmt.Sprintf("Chat completion error: %v", err), http.StatusInternalServerError)
@@ -136,7 +142,13 @@ func retry(w http.ResponseWriter, r *http.Request) {
 
 	ctx := buildContext(req.ConversationID, parent.ID)
 
-	completion, err := provider.SendChatCompletionRequest(ctx, req.Model)
+	providerParams := provider.ProviderRequestParams{
+		Messages:        ctx,
+		Model:           req.Model,
+		ReasoningEffort: provider.ReasoningEffort("medium"),
+	}
+
+	completion, err := provider.SendChatCompletionRequest(providerParams)
 	if err != nil {
 		log.Error("Error sending chat completion request", "err", err)
 		http.Error(w, fmt.Sprintf("Chat completion error: %v", err), http.StatusInternalServerError)
@@ -301,7 +313,14 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	flusher.Flush()
 
 	ctx := buildContext(convID, userMessage.ID)
-	completion, err := provider.SendChatCompletionStreamRequest(ctx, req.Model, w)
+
+	providerParams := provider.ProviderRequestParams{
+		Messages:        ctx,
+		Model:           req.Model,
+		ReasoningEffort: provider.ReasoningEffort("medium"),
+	}
+
+	completion, err := provider.SendChatCompletionStreamRequest(providerParams, w)
 	if err != nil {
 		log.Error("Error streaming chat completion", "err", err)
 		fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
@@ -389,8 +408,14 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	// Build context from the parent message
 	ctx := buildContext(req.ConversationID, parent.ID)
 
+	providerParams := provider.ProviderRequestParams{
+		Messages:        ctx,
+		Model:           req.Model,
+		ReasoningEffort: provider.ReasoningEffort("medium"),
+	}
+
 	// Stream assistant content
-	completion, err := provider.SendChatCompletionStreamRequest(ctx, req.Model, w)
+	completion, err := provider.SendChatCompletionStreamRequest(providerParams, w)
 	if err != nil {
 		log.Error("Error streaming retry completion", "err", err)
 		fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
