@@ -94,12 +94,12 @@
     /* RTL/LTR text direction utilities */
     .rtl {
         direction: rtl;
-        unicode-bidi: bidi-override;
+        unicode-bidi: embed;
     }
 
     .ltr {
         direction: ltr;
-        unicode-bidi: bidi-override;
+        unicode-bidi: embed;
     }
 
     /* Responsive layout utilities */

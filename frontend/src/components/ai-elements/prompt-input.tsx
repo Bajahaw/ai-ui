@@ -6,7 +6,7 @@ import type {
   HTMLAttributes,
   KeyboardEventHandler,
 } from "react";
-import { Children } from "react";
+import { Children, useState } from "react";
 import {
   ModelSelect,
   type ModelSelectProps,
@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button.tsx";
 import { Textarea } from "@/components/ui/textarea.tsx";
 import { cn } from "@/lib/utils.ts";
+import { getTextDirection } from "@/lib/rtl-utils.ts";
 import type { ChatStatus } from "ai";
 
 export type PromptInputProps = HTMLAttributes<HTMLFormElement>;
@@ -39,8 +40,11 @@ export const PromptInputTextarea = ({
   onFilesPasted,
   className,
   placeholder = "What would you like to know?",
+  value,
   ...props
 }: PromptInputTextareaProps) => {
+  const [input, setInput] = useState(value as string || "");
+
   const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
     if (e.key === "Enter") {
       if (e.shiftKey) {
@@ -68,21 +72,27 @@ export const PromptInputTextarea = ({
     }
   };
 
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+    setInput(newValue);
+    onChange?.(e);
+  };
+
   return (
     <Textarea
       className={cn(
         "w-full resize-none rounded-none border-none py-3 px-5 shadow-none outline-none ring-0",
         "bg-transparent dark:bg-transparent field-sizing-content max-h-[6lh]",
         "focus-visible:ring-0",
+        getTextDirection(input),
         className,
       )}
       name="message"
-      onChange={(e) => {
-        onChange?.(e);
-      }}
+      onChange={handleChange}
       onKeyDown={handleKeyDown}
       onPaste={handlePaste}
       placeholder={placeholder}
+      value={value ?? input}
       {...props}
     />
   );
