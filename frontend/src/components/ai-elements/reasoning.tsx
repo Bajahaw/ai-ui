@@ -60,6 +60,7 @@ export const Reasoning = memo(
 
     const [hasAutoClosedRef, setHasAutoClosedRef] = useState(false);
     const [startTime, setStartTime] = useState<number | null>(null);
+    const [userHasInteracted, setUserHasInteracted] = useState(false);
 
     // Track duration when streaming starts and ends
     useEffect(() => {
@@ -77,17 +78,19 @@ export const Reasoning = memo(
     useEffect(() => {
       if (isStreaming && !isOpen) {
         setIsOpen(true);
-      } else if (!isStreaming && isOpen && !defaultOpen && !hasAutoClosedRef) {
+      } else if (!isStreaming && isOpen && !defaultOpen && !hasAutoClosedRef && !userHasInteracted) {
         // Add a small delay before closing to allow user to see the content
+        // Only auto-close if user hasn't manually interacted with the component
         const timer = setTimeout(() => {
           setIsOpen(false);
           setHasAutoClosedRef(true);
         }, 1000);
         return () => clearTimeout(timer);
       }
-    }, [isStreaming, isOpen, defaultOpen, setIsOpen, hasAutoClosedRef]);
+    }, [isStreaming, isOpen, defaultOpen, setIsOpen, hasAutoClosedRef, userHasInteracted]);
 
     const handleOpenChange = (open: boolean) => {
+      setUserHasInteracted(true);
       setIsOpen(open);
     };
 
