@@ -2,12 +2,8 @@ package chat
 
 import (
 	"ai-client/cmd/auth"
-	"ai-client/cmd/utils"
 	"net/http"
 )
-
-var log = utils.GetLogger()
-var repo = newConversationRepository()
 
 func Handler() http.Handler {
 	mux := http.NewServeMux()

@@ -1,7 +1,7 @@
 package provider
 
 import (
-	"ai-client/cmd/data"
+	"database/sql"
 	"strings"
 )
 
@@ -22,11 +22,13 @@ type Repository interface {
 }
 
 type Repo struct {
+	db *sql.DB
 	//cache map[string]*Provider
 }
 
-func newProviderRepo() *Repo {
+func newProviderRepo(db *sql.DB) *Repo {
 	return &Repo{
+		db: db,
 		//cache: make(map[string]*Provider),
 	}
 }
@@ -34,7 +36,7 @@ func newProviderRepo() *Repo {
 func (repo *Repo) getAllProviders() []*Provider {
 	var allProviders = make([]*Provider, 0)
 	sql := `SELECT id, url, api_key FROM Providers`
-	rows, err := data.DB.Query(sql)
+	rows, err := repo.db.Query(sql)
 	if err != nil {
 		log.Error("Error querying providers", "err", err)
 		return allProviders
@@ -62,7 +64,7 @@ func (repo *Repo) getAllProviders() []*Provider {
 func (repo *Repo) getProvider(id string) (*Provider, error) {
 	var p Provider
 	sql := `SELECT id, url, api_key FROM Providers WHERE id = ?`
-	err := data.DB.QueryRow(sql, id).Scan(&p.ID, &p.BaseURL, &p.APIKey)
+	err := repo.db.QueryRow(sql, id).Scan(&p.ID, &p.BaseURL, &p.APIKey)
 	if err != nil {
 		log.Error("Error querying provider", "err", err)
 		return nil, err
@@ -77,7 +79,7 @@ func (repo *Repo) getProvider(id string) (*Provider, error) {
 
 func (repo *Repo) saveProvider(provider *Provider) error {
 	sql := `INSERT INTO Providers (id, url, api_key) VALUES (?, ?, ?)`
-	_, err := data.DB.Exec(sql, provider.ID, provider.BaseURL, provider.APIKey)
+	_, err := repo.db.Exec(sql, provider.ID, provider.BaseURL, provider.APIKey)
 	if err != nil {
 		log.Error("Error saving provider", "err", err)
 	}
@@ -87,7 +89,7 @@ func (repo *Repo) saveProvider(provider *Provider) error {
 
 func (repo *Repo) deleteProvider(id string) error {
 	sql := `DELETE FROM Providers WHERE id = ?`
-	_, err := data.DB.Exec(sql, id)
+	_, err := repo.db.Exec(sql, id)
 	return err
 }
 
@@ -111,7 +113,7 @@ func (repo *Repo) saveModels(models []Model) error {
 	// on conflict, replace
 	sb.WriteString(" ON CONFLICT(id) DO UPDATE SET is_enabled=excluded.is_enabled")
 
-	_, err := data.DB.Exec(sb.String(), args...)
+	_, err := repo.db.Exec(sb.String(), args...)
 
 	return err
 }
@@ -119,7 +121,7 @@ func (repo *Repo) saveModels(models []Model) error {
 func (repo *Repo) getProviderModels(provider *Provider) []Model {
 	var models = make([]Model, 0)
 	sql := `SELECT id, provider_id, name, is_enabled FROM Models WHERE provider_id = ?`
-	rows, err := data.DB.Query(sql, provider.ID)
+	rows, err := repo.db.Query(sql, provider.ID)
 	if err != nil {
 		log.Error("Error querying provider models", "err", err)
 		return models
@@ -148,7 +150,7 @@ func (repo *Repo) getProviderModels(provider *Provider) []Model {
 func (repo *Repo) getAllModels() []Model {
 	var models = make([]Model, 0)
 	sql := `SELECT id, provider_id, name, is_enabled FROM Models`
-	rows, err := data.DB.Query(sql)
+	rows, err := repo.db.Query(sql)
 	if err != nil {
 		log.Error("Error querying models", "err", err)
 		return models

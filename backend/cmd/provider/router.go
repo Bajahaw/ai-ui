@@ -36,8 +36,6 @@ type ModelsResponse struct {
 	Models []Model `json:"models"`
 }
 
-var repo = newProviderRepo()
-
 func Handler() http.Handler {
 
 	mux := http.NewServeMux()

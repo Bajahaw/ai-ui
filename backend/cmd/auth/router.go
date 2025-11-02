@@ -6,17 +6,16 @@ import (
 	"os"
 	"time"
 
-	"github.com/joho/godotenv"
+	logger "github.com/charmbracelet/log"
 )
 
 var token string
 var authCookie = "auth_token"
 
-func init() {
+func Setup(log *logger.Logger) {
 	token = os.Getenv("APP_TOKEN")
 	if token == "" {
-		godotenv.Load("../.env")
-		token = os.Getenv("APP_TOKEN")
+		log.Error("APP_TOKEN is not set. Authentication will fail.")
 	}
 }
 

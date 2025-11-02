@@ -14,44 +14,18 @@ import (
 	"github.com/alecthomas/jsonschema"
 	logger "github.com/charmbracelet/log"
 	"github.com/google/uuid"
-	"github.com/joho/godotenv"
 )
 
 var log *logger.Logger
-
 var ServerURL = ""
+
+func Setup(l *logger.Logger) {
+	log = l
+}
 
 //////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////// Helper Functions ////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////
-
-func GetLogger() *logger.Logger {
-	// Initialize logger only once
-	if log != nil {
-		return log
-	}
-
-	log = logger.NewWithOptions(os.Stdout, logger.Options{
-		Level:           loglevel(),
-		ReportTimestamp: true,
-	})
-
-	return log
-}
-
-func loglevel() logger.Level {
-	env := os.Getenv("ENV")
-	if env == "" {
-		godotenv.Load("../.env")
-		env = os.Getenv("ENV")
-	}
-	if os.Getenv("ENV") == "dev" {
-		fmt.Println("--- Development mode: setting log level to DEBUG ---")
-		return logger.DebugLevel
-	}
-	fmt.Println("--- Production mode: setting log level to INFO ---")
-	return logger.InfoLevel
-}
 
 // corsMiddleware currently used for local vite server
 func corsMiddleware(next http.Handler) http.Handler {

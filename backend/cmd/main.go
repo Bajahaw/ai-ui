@@ -7,30 +7,89 @@ import (
 	"ai-client/cmd/provider"
 	"ai-client/cmd/utils"
 	"context"
+	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	logger "github.com/charmbracelet/log"
+	"github.com/joho/godotenv"
 )
 
-var log = utils.GetLogger()
+var log *logger.Logger
+var db *sql.DB
+var providerClient *provider.Client
 
 func main() {
-	StartDataSource()
-	StartServer()
+	setupEnv()
+	setupLogger()
+	setupUtils()
+
+	startDataSource()
+
+	setupAuth()
+	setupProviderClient()
+	setupChatClient()
+
+	startServer()
 }
 
-func StartDataSource() {
+func setupEnv() {
+	err := godotenv.Load("../.env")
+	if err != nil {
+		fmt.Println("No .env file found, proceeding with system environment variables")
+	}
+}
+
+func setupLogger() {
+	log = logger.NewWithOptions(os.Stdout, logger.Options{
+		ReportTimestamp: true,
+	})
+
+	env := os.Getenv("ENV")
+	if env == "dev" {
+		log.SetLevel(logger.DebugLevel)
+		fmt.Println("--- Development mode: setting log level to DEBUG ---")
+	} else {
+		log.SetLevel(logger.InfoLevel)
+		fmt.Println("--- Production mode: setting log level to INFO ---")
+	}
+}
+
+func setupUtils() {
+	utils.Setup(log)
+	log.Info("Utils set up successfully")
+}
+
+func setupProviderClient() {
+	provider.SetupProviderClient(log, db)
+	providerClient = &provider.Client{}
+	log.Info("Provider client set up successfully")
+}
+
+func setupChatClient() {
+	chat.SetupChat(log, db, providerClient)
+	log.Info("Chat client set up successfully")
+}
+
+func startDataSource() {
 	err := data.InitDataSource("./data/ai-ui.db")
 	if err != nil {
 		log.Fatal("Failed to initialize data source", "err", err)
 	}
+	db = data.DB
 	log.Info("Data source initialized successfully")
 }
 
-func StartServer() {
+func setupAuth() {
+	auth.Setup(log)
+}
+
+func startServer() {
 
 	fs := http.FileServer(http.Dir("./static"))
 	dataFs := http.FileServer(http.Dir("./data/resources"))

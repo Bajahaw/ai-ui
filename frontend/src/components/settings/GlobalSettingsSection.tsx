@@ -203,7 +203,7 @@ export const GlobalSettingsSection = () => {
                 </div>
 
                 {/* Reasoning Effort Section */}
-                <div className="border-b border-border flex justify-between items-center !my-0 pb-2">
+                <div className="flex justify-between items-center !my-0 pb-2">
                     <div>
                         <Label htmlFor="reasoning-effort" className="font-medium text-nowrap">
                             Reasoning Effort
@@ -222,7 +222,10 @@ export const GlobalSettingsSection = () => {
                                 <SelectValue placeholder="Select reasoning effort" />
                             </SelectTrigger>
                             <SelectContent
-                                className="rounded-xl min-w-[120px] border border-border/70 p-1 shadow-xl">
+                                className="rounded-xl min-w-[120px] border border-border/70 p-1 shadow-xl"
+                            >
+                                <SelectItem value="disabled">Disabled</SelectItem>
+                                <SelectItem value="none">None</SelectItem>
                                 <SelectItem value="low">Low</SelectItem>
                                 <SelectItem value="medium">Medium</SelectItem>
                                 <SelectItem value="high">High</SelectItem>
@@ -237,9 +240,6 @@ export const GlobalSettingsSection = () => {
                         <Label htmlFor="enter-behavior" className="font-medium text-nowrap">
                             Enter Key Action
                         </Label>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            Shift+Enter always adds new line
-                        </p>
                     </div>
                     <div>
                         <Select

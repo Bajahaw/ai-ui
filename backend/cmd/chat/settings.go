@@ -63,6 +63,7 @@ func saveUpdatedSettings(s Settings) error {
 			return fmt.Errorf("empty key in settings")
 		}
 
+		// on conflict, update the value
 		sql := "INSERT INTO Settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
 		_, err := data.DB.Exec(sql, key, value)
 		if err != nil {
@@ -82,7 +83,7 @@ func setDefaultSettings() {
 		"presence_penalty":  "0",
 		"systemPrompt":      "You are a helpful assistant. Provide clear accurate and helpful responses to the user questions.",
 		"responseType":      "stream",
-		"reasoningEffort":   "medium",
+		"reasoningEffort":   "disabled",
 	}
 
 	err := saveUpdatedSettings(Settings{defaults})
@@ -91,16 +92,14 @@ func setDefaultSettings() {
 	}
 }
 
-func getSystemPrompt() string {
+func getSetting(key string) (string, error) {
 	sql := "SELECT value FROM Settings WHERE key = ?"
-	row := data.DB.QueryRow(sql, "systemPrompt")
+	row := data.DB.QueryRow(sql, key)
 
-	var systemPrompt string
-	err := row.Scan(&systemPrompt)
+	var value string
+	err := row.Scan(&value)
 	if err != nil {
-		log.Error("Error retrieving system prompt", "err", err)
-		setDefaultSettings()
-		return "You are a helpful assistant. Provide clear accurate and helpful responses to the user questions."
+		return "", err
 	}
-	return systemPrompt
+	return value, nil
 }

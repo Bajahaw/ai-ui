@@ -12,8 +12,6 @@ import (
 	"github.com/openai/openai-go/v3/option"
 )
 
-var log = utils.GetLogger()
-
 type SimpleMessage struct {
 	Role    string
 	Content string
@@ -42,7 +40,7 @@ type StreamComplete struct {
 	AssistantMessageID int `json:"assistantMessageId"`
 }
 
-func SendChatCompletionRequest(params ProviderRequestParams) (*openai.ChatCompletion, error) {
+func (c *Client) SendChatCompletionRequest(params ProviderRequestParams) (*openai.ChatCompletion, error) {
 	providerID, model := utils.ExtractProviderID(params.Model)
 	provider, err := repo.getProvider(providerID)
 	if err != nil {
@@ -58,9 +56,8 @@ func SendChatCompletionRequest(params ProviderRequestParams) (*openai.ChatComple
 	)
 
 	openAIparams := openai.ChatCompletionNewParams{
-		Model:           model,
-		Messages:        OpenAIMessageParams(params.Messages),
-		ReasoningEffort: params.ReasoningEffort,
+		Model:    model,
+		Messages: OpenAIMessageParams(params.Messages),
 
 		//Tools: []openai.ChatCompletionToolUnionParam{
 		//	{
@@ -69,6 +66,11 @@ func SendChatCompletionRequest(params ProviderRequestParams) (*openai.ChatComple
 		//		},
 		//	},
 		//},
+	}
+
+	log.Debug("Params ReasoningEffort:", "value", params.ReasoningEffort)
+	if params.ReasoningEffort != "" {
+		openAIparams.ReasoningEffort = params.ReasoningEffort
 	}
 
 	//
@@ -124,6 +126,8 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 
 func ReasoningEffort(level string) openai.ReasoningEffort {
 	switch level {
+	case "disabled":
+		return ""
 	case "minimal":
 		return openai.ReasoningEffortMinimal
 	case "low":
@@ -138,7 +142,7 @@ func ReasoningEffort(level string) openai.ReasoningEffort {
 }
 
 // SendChatCompletionStreamRequest streams chat completions and returns the full content
-func SendChatCompletionStreamRequest(params ProviderRequestParams, w http.ResponseWriter) (*openai.ChatCompletionMessage, error) {
+func (c *Client) SendChatCompletionStreamRequest(params ProviderRequestParams, w http.ResponseWriter) (*openai.ChatCompletionMessage, error) {
 	providerID, model := utils.ExtractProviderID(params.Model)
 	provider, err := repo.getProvider(providerID)
 	if err != nil {
@@ -158,6 +162,11 @@ func SendChatCompletionStreamRequest(params ProviderRequestParams, w http.Respon
 		Messages:        OpenAIMessageParams(params.Messages),
 		ReasoningEffort: params.ReasoningEffort,
 	}
+
+	// log.Debug("Params ReasoningEffort:", "value", params.ReasoningEffort)
+	// if params.ReasoningEffort != "" {
+	// 	openAIparams.ReasoningEffort = params.ReasoningEffort
+	// }
 
 	// // Set headers for SSE (Server-Sent Events)
 	// w.Header().Set("Content-Type", "text/event-stream")

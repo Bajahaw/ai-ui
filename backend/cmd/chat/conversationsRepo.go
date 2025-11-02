@@ -1,7 +1,7 @@
 package chat
 
 import (
-	"ai-client/cmd/data"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -18,6 +18,7 @@ type ConversationRepo interface {
 }
 
 type ConversationRepository struct {
+	db    *sql.DB
 	cache map[string]*Conversation
 }
 
@@ -31,8 +32,9 @@ func newConversation(userId string) *Conversation {
 	}
 }
 
-func newConversationRepository() *ConversationRepository {
+func newConversationRepository(db *sql.DB) *ConversationRepository {
 	return &ConversationRepository{
+		db: db,
 		// todo
 		//cache: make(map[string]*Conversation),
 	}
@@ -44,7 +46,7 @@ func (repo *ConversationRepository) getConversation(id string) (*Conversation, e
 	}
 
 	sql := `SELECT * FROM Conversations WHERE id = ?`
-	row := data.DB.QueryRow(sql, id)
+	row := repo.db.QueryRow(sql, id)
 
 	var conv Conversation
 	err := row.Scan(
@@ -64,7 +66,7 @@ func (repo *ConversationRepository) getConversation(id string) (*Conversation, e
 
 func (repo *ConversationRepository) touchConversation(id string) error {
 	sql := `UPDATE Conversations SET updated_at = ? WHERE id = ?`
-	_, err := data.DB.Exec(sql, time.Now().UTC(), id)
+	_, err := repo.db.Exec(sql, time.Now().UTC(), id)
 	if err != nil {
 		return err
 	}
@@ -75,7 +77,7 @@ func (repo *ConversationRepository) getAllConversations() []*Conversation {
 	sql := `SELECT * FROM Conversations`
 	var conversations = make([]*Conversation, 0)
 
-	rows, err := data.DB.Query(sql)
+	rows, err := repo.db.Query(sql)
 	if err != nil {
 		log.Error("Error querying conversations", "err", err)
 		return conversations
@@ -102,7 +104,7 @@ func (repo *ConversationRepository) getAllConversations() []*Conversation {
 
 func (repo *ConversationRepository) saveConversation(conversation *Conversation) error {
 	sql := `INSERT INTO Conversations (id, user, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`
-	_, err := data.DB.Exec(sql,
+	_, err := repo.db.Exec(sql,
 		conversation.ID,
 		conversation.UserID,
 		conversation.Title,
@@ -119,7 +121,7 @@ func (repo *ConversationRepository) saveConversation(conversation *Conversation)
 
 func (repo *ConversationRepository) updateConversation(conversation *Conversation) error {
 	sql := `UPDATE Conversations SET title = ?, updated_at = ? WHERE id = ?`
-	_, err := data.DB.Exec(sql,
+	_, err := repo.db.Exec(sql,
 		conversation.Title,
 		conversation.UpdatedAt,
 		conversation.ID,
@@ -134,7 +136,7 @@ func (repo *ConversationRepository) updateConversation(conversation *Conversatio
 
 func (repo *ConversationRepository) deleteConversation(id string) error {
 	sql := `DELETE FROM Conversations WHERE id = ?`
-	_, err := data.DB.Exec(sql, id)
+	_, err := repo.db.Exec(sql, id)
 	if err != nil {
 		return err
 	}
