@@ -110,6 +110,43 @@ export const ChatInterface = ({
   const editableMessageRefs = useRef<Record<string, EditableMessageRef | null>>(
     {},
   );
+  const conversationRef = useRef<HTMLDivElement>(null);
+  const [hasInteracted, setHasInteracted] = useState(false);
+
+  // Scroll to bottom when user sends a message
+  const scrollToBottom = useCallback(() => {
+    const container = conversationRef.current;
+    if (!container) return;
+
+    // Use setTimeout to ensure the DOM has updated with the new message
+    setTimeout(() => {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: "smooth",
+      });
+    }, 100);
+  }, []);
+
+  // Reset interaction flag when conversation changes
+  useEffect(() => {
+    setHasInteracted(false);
+  }, [currentConversation?.id]);
+
+  // Open conversation at the bottom (instant, no animation) when it first loads
+  useEffect(() => {
+    if (messages.length > 0 && !hasInteracted) {
+      const container = conversationRef.current;
+      if (!container) return;
+
+      // Use auto behavior for instant positioning without animation
+      requestAnimationFrame(() => {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: "auto", // Instant, no smooth scrolling
+        });
+      });
+    }
+  }, [currentConversation?.id, messages.length, hasInteracted]);
 
   /**
    * Synchronize local model state with the default model setting
@@ -191,10 +228,15 @@ export const ChatInterface = ({
     setUploadedFile(null);
     setUploadError(null);
 
-    await onSendMessage(message, webSearch, model, attachment);
-  };
+    // Mark that user has interacted with this conversation
+    setHasInteracted(true);
 
-  const handleFileUploaded = useCallback((fileUrl: string, file: File) => {
+    // Scroll to bottom immediately after user sends a message (not after response)
+    scrollToBottom();
+
+    // Send message (don't wait for response before scrolling)
+    onSendMessage(message, webSearch, model, attachment);
+  };  const handleFileUploaded = useCallback((fileUrl: string, file: File) => {
     setUploadedFile({ file, url: fileUrl });
     setUploadError(null);
   }, []);
@@ -533,7 +575,7 @@ export const ChatInterface = ({
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <Conversation className="flex-1">
+      <Conversation ref={conversationRef} className="flex-1">
         <ConversationContent className="chat-interface w-full max-w-3xl mx-auto !px-5 lg:!px-3">
           {messages.length === 0 ? (
             <div className="h-full flex items-center justify-center">
@@ -542,6 +584,8 @@ export const ChatInterface = ({
           ) : (
             <div className="space-y-4">
               {messages.map((message) => renderMessage(message))}
+              {/* Add overscroll spacer only when user has interacted with conversation */}
+              {hasInteracted && <div style={{ minHeight: '55vh' }} />}
             </div>
           )}
         </ConversationContent>
