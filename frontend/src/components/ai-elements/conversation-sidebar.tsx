@@ -11,7 +11,6 @@ import {
 import {Input} from "@/components/ui/input";
 import {
     PlusIcon,
-    MessageSquareIcon,
     ChevronLeftIcon,
     MoreHorizontalIcon,
     PencilIcon,
@@ -52,12 +51,6 @@ export const ConversationSidebar = ({
     const width = 280; // Fixed width in pixels
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingTitle, setEditingTitle] = useState<string>("");
-
-    const truncateTitle = (title: string, maxLength: number = 28) => {
-        return title.length > maxLength
-            ? `${title.substring(0, maxLength)}...`
-            : title;
-    };
 
     const handleRename = (conversationId: string, currentTitle: string) => {
         setEditingId(conversationId);

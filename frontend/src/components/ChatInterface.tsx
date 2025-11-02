@@ -585,7 +585,7 @@ export const ChatInterface = ({
             <div className="space-y-4">
               {messages.map((message) => renderMessage(message))}
               {/* Add overscroll spacer only when user has interacted with conversation */}
-              {hasInteracted && <div style={{ minHeight: '55vh' }} />}
+              {hasInteracted && <div style={{ minHeight: 'calc(-450px + 100vh)' }} />}
             </div>
           )}
         </ConversationContent>
