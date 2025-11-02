@@ -162,7 +162,7 @@ export const ConversationSidebar = ({
                                     >
                                         {editingId === conversation.id ? (
                                             <div className="flex items-center gap-2 p-2">
-                                                <MessageSquareIcon className="size-3"/>
+                                                {/* <MessageSquareIcon className="size-3"/> */}
                                                 <Input
                                                     value={editingTitle}
                                                     onChange={(e) => setEditingTitle(e.target.value)}
@@ -190,9 +190,9 @@ export const ConversationSidebar = ({
                                                     )}
                                                 >
                                                     <div className="flex items-center gap-2 w-full">
-                                                        <MessageSquareIcon className="size-3"/>
-                                                        <span className="font-medium text-sm flex-1 truncate">
-                              {truncateTitle(conversation.title)}
+                                                        {/* <MessageSquareIcon className="size-3"/> */}
+                                                        <span className="font-medium text-sm flex-1 max-w-[215px] truncate">
+                              {conversation.title}
                             </span>
                                                     </div>
                                                 </Button>

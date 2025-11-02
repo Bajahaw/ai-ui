@@ -57,8 +57,8 @@ export class ClientConversationManager {
     };
 
     const title =
-        firstMessage.length > 47
-            ? firstMessage.substring(0, 47) + "..."
+        firstMessage.length > 60
+            ? firstMessage.substring(0, 60) + "..."
             : firstMessage;
 
     const conversation: ClientConversation = {

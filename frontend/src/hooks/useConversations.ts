@@ -350,7 +350,7 @@ export const useConversations = () => {
 
                     const assistantPlaceholder = clientConversation.messages.find(
                         (m) => m.role === "assistant" && m.status === "pending",
-                    );
+                    );  
                     assistantPlaceholderId = assistantPlaceholder?.id;
 
                     syncConversations();
@@ -358,7 +358,7 @@ export const useConversations = () => {
 
                     // Create conversation on server first to get real UUID
                     const title =
-                        message.length > 50 ? message.substring(0, 47) + "..." : message;
+                        message.length > 60 ? message.substring(0, 60) + "..." : message;
                     const createdConv = await conversationsAPI.createConversation(title);
 
                     // Use a simple variable to accumulate content and reasoning
