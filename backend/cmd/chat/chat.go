@@ -350,6 +350,71 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		log.Error("Error saving response message", "err", err)
 	}
 
+	toolCalls := completion.ToolCalls
+	for len(toolCalls) > 0 {
+		tc := toolCalls[0]
+
+		toolCall := provider.ToolCall{
+			ID:        tc.ID,
+			ConvID:    convID,
+			MessageID: responseMessage.ID,
+			Name:      tc.Function.Name,
+			Args:      tc.Function.Arguments,
+		}
+
+		providerParams.Messages = append(providerParams.Messages, provider.SimpleMessage{
+			Role:     "assistant",
+			ToolCall: toolCall,
+		})
+
+		if tc.Function.Name == "get_weather" {
+
+			weatherInfo := weatherTool()
+			toolCall.Output = weatherInfo
+
+			toolsRepo.SaveToolCall(toolCall)
+
+			chunk, _ := json.Marshal(provider.StreamChunk{
+				ToolCall: toolCall,
+			})
+			fmt.Fprintf(w, "data: %s\n\n", chunk)
+			flusher.Flush()
+
+			// Append tool result message to context for continued completion
+			providerParams.Messages = append(providerParams.Messages, provider.SimpleMessage{
+				Role: "tool",
+				ToolCall: provider.ToolCall{
+					ID:     tc.ID,
+					Name:   tc.Function.Name,
+					Output: weatherInfo,
+				},
+			})
+
+			log.Debug("Processed tool call: get_weather", "ctx", providerParams.Messages)
+		}
+
+		toolCalls = toolCalls[1:]
+		if len(toolCalls) == 0 {
+			completion, err = providerClient.SendChatCompletionStreamRequest(providerParams, w)
+		}
+		if err != nil {
+			log.Error("Error streaming chat completion after tool call", "err", err)
+			fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
+			flusher.Flush()
+			return
+		}
+
+		toolCalls = append(toolCalls, completion.ToolCalls...)
+	}
+
+	// Update assistant message with full content after all tool calls
+	responseMessage.Content = completion.Content
+	// responseMessage.Reasoning = completion.Reasoning
+	_, err = updateMessage(responseMessage.ID, responseMessage)
+	if err != nil {
+		log.Error("Error updating assistant message after tool calls", "err", err)
+	}
+
 	// Send completion event with message IDs
 	completionData := provider.StreamComplete{
 		UserMessageID:      userMessage.ID,

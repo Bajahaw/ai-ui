@@ -5,6 +5,7 @@ import {
     StreamChunk,
     StreamComplete,
     StreamMetadata,
+    ToolCall,
     UpdateRequest,
     UpdateResponse,
 } from "./types.ts";
@@ -76,6 +77,7 @@ export class ChatAPI {
     attachment?: string,
     onChunk?: (chunk: string) => void,
     onReasoning?: (reasoning: string) => void,
+    onToolCall?: (toolCall: ToolCall) => void,
     onMetadata?: (metadata: StreamMetadata) => void,
     onComplete?: (data: StreamComplete) => void,
     onError?: (error: string) => void,
@@ -174,6 +176,10 @@ export class ChatAPI {
                                 if (chunk.reasoning && onReasoning) {
                                     onReasoning(chunk.reasoning);
                                 }
+                                // Emit tool call if present
+                                if (chunk.tool_call && onToolCall) {
+                                    onToolCall(chunk.tool_call);
+                                }
                             } catch (e) {
                                 console.error("Failed to parse chunk:", e);
                             }
@@ -202,6 +208,7 @@ export class ChatAPI {
         model: string,
         onChunk?: (chunk: string) => void,
         onReasoning?: (reasoning: string) => void,
+        onToolCall?: (toolCall: ToolCall) => void,
         onMetadata?: (metadata: StreamMetadata) => void,
         onComplete?: (data: StreamComplete) => void,
         onError?: (error: string) => void,
@@ -295,6 +302,10 @@ export class ChatAPI {
                   // Emit reasoning if present
                   if (chunk.reasoning && onReasoning) {
                     onReasoning(chunk.reasoning);
+                  }
+                  // Emit tool call if present
+                  if (chunk.tool_call && onToolCall) {
+                    onToolCall(chunk.tool_call);
                   }
                 } catch (e) {
                   console.error("Failed to parse chunk:", e);

@@ -66,7 +66,18 @@ func InitDataSource(dataSourceName string) error {
 -- 		FOREIGN KEY (parent_id) REFERENCES Messages(id) ON DELETE SET NULL
 -- 		FOREIGN KEY (attachment_id) REFERENCES Attachments(id) ON DELETE SET NULL
 	);
-	
+
+	CREATE TABLE IF NOT EXISTS ToolCalls (
+		id TEXT PRIMARY KEY,
+		conv_id TEXT NOT NULL,
+		message_id INTEGER NOT NULL,
+		name TEXT NOT NULL,
+		args TEXT NOT NULL,
+		output TEXT,
+		FOREIGN KEY (conv_id) REFERENCES Conversations(id) ON DELETE CASCADE,
+		FOREIGN KEY (message_id) REFERENCES Messages(id) ON DELETE CASCADE
+	);
+
 	CREATE TABLE IF NOT EXISTS Providers (
 		id TEXT PRIMARY KEY,
 		url TEXT NOT NULL,

@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from "react";
-import {chatAPI, conversationsAPI, FrontendMessage} from "@/lib/api";
+import {chatAPI, conversationsAPI, FrontendMessage, ToolCall} from "@/lib/api";
 import {ApiErrorHandler} from "@/lib/api/errorHandler";
 import {ClientConversation, ClientConversationManager,} from "@/lib/clientConversationManager";
 
@@ -426,6 +426,27 @@ export const useConversations = () => {
                                 rafId = null;
                             });
                         },
+                        // onToolCall - Add tool call to message
+                        (toolCall: ToolCall) => {
+                            if (assistantPlaceholderId && clientConversationId) {
+                                manager.addToolCall(
+                                    clientConversationId,
+                                    assistantPlaceholderId,
+                                    toolCall,
+                                );
+                            }
+
+                            // Cancel previous frame request if any
+                            if (rafId !== null) {
+                                cancelAnimationFrame(rafId);
+                            }
+
+                            // Schedule sync on next animation frame (60fps max)
+                            rafId = requestAnimationFrame(() => {
+                                syncConversations();
+                                rafId = null;
+                            });
+                        },
                         // onMetadata - Get the real backend ID and update user message immediately
                         (metadata) => {
                             realConvId = metadata.conversationId;
@@ -606,6 +627,27 @@ export const useConversations = () => {
                             rafId = null;
                         });
                     },
+                    // onToolCall - Add tool call to message
+                    (toolCall: ToolCall) => {
+                        if (assistantPlaceholderId) {
+                            manager.addToolCall(
+                                conversationId,
+                                assistantPlaceholderId,
+                                toolCall,
+                            );
+                        }
+
+                        // Cancel previous frame request if any
+                        if (rafId !== null) {
+                            cancelAnimationFrame(rafId);
+                        }
+
+                        // Schedule sync on next animation frame (60fps max)
+                        rafId = requestAnimationFrame(() => {
+                            syncConversations();
+                            rafId = null;
+                        });
+                    },
                     // onMetadata - Update user message immediately
                     (metadata) => {
                         // User message is saved! Update its ID and status immediately
@@ -759,6 +801,19 @@ export const useConversations = () => {
                                 assistMsg.reasoning = accumulatedReasoning;
                             }
                         }
+                        if (rafId !== null) cancelAnimationFrame(rafId);
+                        rafId = requestAnimationFrame(() => {
+                            syncConversations();
+                            rafId = null;
+                        });
+                    },
+                    // onToolCall
+                    (toolCall: ToolCall) => {
+                        manager.addToolCall(
+                            activeConversationId,
+                            assistantPlaceholderId,
+                            toolCall,
+                        );
                         if (rafId !== null) cancelAnimationFrame(rafId);
                         rafId = requestAnimationFrame(() => {
                             syncConversations();

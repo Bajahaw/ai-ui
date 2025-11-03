@@ -1,4 +1,4 @@
-import {backendToFrontendMessage, Conversation, FrontendMessage, Message,} from "@/lib/api";
+import {backendToFrontendMessage, Conversation, FrontendMessage, Message, ToolCall} from "@/lib/api";
 
 let tempIdCounter = -1;
 
@@ -674,6 +674,37 @@ export class ClientConversationManager {
     if (message) {
       message.content = newContent;
       message.status = "success";
+    }
+  }
+
+  // Add or update tool call to message (for streaming)
+  addToolCall(
+    conversationId: string,
+    messageId: string,
+    toolCall: ToolCall,
+  ): void {
+    const conversation = this.conversations.get(conversationId);
+    if (!conversation) return;
+
+    const message = conversation.messages.find((m) => m.id === messageId);
+    if (message) {
+      if (!message.toolCalls) {
+        message.toolCalls = [];
+      }
+      
+      // Check if a tool call with the same ID already exists
+      const existingIndex = message.toolCalls.findIndex((tc) => tc.id === toolCall.id);
+      
+      if (existingIndex !== -1) {
+        // Update existing tool call (merge properties to preserve any existing data)
+        message.toolCalls[existingIndex] = {
+          ...message.toolCalls[existingIndex],
+          ...toolCall,
+        };
+      } else {
+        // Add new tool call
+        message.toolCalls.push(toolCall);
+      }
     }
   }
 

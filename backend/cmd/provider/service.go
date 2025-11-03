@@ -13,9 +13,10 @@ import (
 )
 
 type SimpleMessage struct {
-	Role    string
-	Content string
-	Image   string
+	Role     string
+	Content  string
+	ToolCall ToolCall `json:"tool_call,omitzero"`
+	Image    string
 }
 
 type ProviderRequestParams struct {
@@ -25,8 +26,18 @@ type ProviderRequestParams struct {
 }
 
 type StreamChunk struct {
-	Content   string `json:"content,omitempty"`
-	Reasoning string `json:"reasoning,omitempty"`
+	Content   string   `json:"content,omitempty"`
+	Reasoning string   `json:"reasoning,omitempty"`
+	ToolCall  ToolCall `json:"tool_call,omitzero"`
+}
+
+type ToolCall struct {
+	ID        string `json:"id"`
+	ConvID    string `json:"conv_id,omitempty"`
+	MessageID int    `json:"message_id"`
+	Name      string `json:"name"`
+	Args      string `json:"args,omitempty"`
+	Output    string `json:"tool_output,omitempty"`
 }
 
 type StreamMetadata struct {
@@ -59,13 +70,21 @@ func (c *Client) SendChatCompletionRequest(params ProviderRequestParams) (*opena
 		Model:    model,
 		Messages: OpenAIMessageParams(params.Messages),
 
-		//Tools: []openai.ChatCompletionToolUnionParam{
-		//	{
-		//		OfCustom: &openai.ChatCompletionCustomToolParam{
-		//			Type: "browser_search",
-		//		},
-		//	},
-		//},
+		Tools: []openai.ChatCompletionToolUnionParam{
+			openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+				Name:        "get_weather",
+				Description: openai.String("Get weather at the given location"),
+				Parameters: openai.FunctionParameters{
+					"type": "object",
+					"properties": map[string]any{
+						"location": map[string]string{
+							"type": "string",
+						},
+					},
+					"required": []string{"location"},
+				},
+			}),
+		},
 	}
 
 	log.Debug("Params ReasoningEffort:", "value", params.ReasoningEffort)
@@ -81,64 +100,6 @@ func (c *Client) SendChatCompletionRequest(params ProviderRequestParams) (*opena
 		return nil, err
 	}
 	return completion, nil
-}
-
-func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessageParamUnion {
-	openaiMessages := make([]openai.ChatCompletionMessageParamUnion, len(messages))
-	for i, msg := range messages {
-		switch msg.Role {
-		case "system":
-			openaiMessages[i] = openai.SystemMessage(msg.Content)
-		case "user":
-			openaiMessages[i] = openai.ChatCompletionMessageParamUnion{
-				OfUser: &openai.ChatCompletionUserMessageParam{
-					Content: openai.ChatCompletionUserMessageParamContentUnion{
-						OfArrayOfContentParts: []openai.ChatCompletionContentPartUnionParam{
-							{
-								OfText: &openai.ChatCompletionContentPartTextParam{
-									Text: msg.Content,
-								},
-							},
-						},
-					},
-				},
-			}
-			if msg.Image != "" {
-				file := openai.ChatCompletionContentPartUnionParam{
-					OfImageURL: &openai.ChatCompletionContentPartImageParam{
-						ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
-							URL: msg.Image,
-						},
-					},
-				}
-				openaiMessages[i].OfUser.Content.OfArrayOfContentParts =
-					append(openaiMessages[i].OfUser.Content.OfArrayOfContentParts, file)
-			}
-		case "assistant":
-			openaiMessages[i] = openai.AssistantMessage(msg.Content)
-		default:
-			log.Warn("Unknown role %s in message, skipping", msg.Role)
-			continue
-		}
-	}
-	return openaiMessages
-}
-
-func ReasoningEffort(level string) openai.ReasoningEffort {
-	switch level {
-	case "disabled":
-		return ""
-	case "minimal":
-		return openai.ReasoningEffortMinimal
-	case "low":
-		return openai.ReasoningEffortLow
-	case "medium":
-		return openai.ReasoningEffortMedium
-	case "high":
-		return openai.ReasoningEffortHigh
-	default:
-		return openai.ReasoningEffortMedium
-	}
 }
 
 // SendChatCompletionStreamRequest streams chat completions and returns the full content
@@ -161,18 +122,28 @@ func (c *Client) SendChatCompletionStreamRequest(params ProviderRequestParams, w
 		Model:           model,
 		Messages:        OpenAIMessageParams(params.Messages),
 		ReasoningEffort: params.ReasoningEffort,
+
+		Tools: []openai.ChatCompletionToolUnionParam{
+			openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+				Name:        "get_weather",
+				Description: openai.String("Get weather at the given location"),
+				Parameters: openai.FunctionParameters{
+					"type": "object",
+					"properties": map[string]any{
+						"location": map[string]string{
+							"type": "string",
+						},
+					},
+					"required": []string{"location"},
+				},
+			}),
+		},
 	}
 
-	// log.Debug("Params ReasoningEffort:", "value", params.ReasoningEffort)
-	// if params.ReasoningEffort != "" {
-	// 	openAIparams.ReasoningEffort = params.ReasoningEffort
-	// }
-
-	// // Set headers for SSE (Server-Sent Events)
-	// w.Header().Set("Content-Type", "text/event-stream")
-	// w.Header().Set("Cache-Control", "no-cache")
-	// w.Header().Set("Connection", "keep-alive")
-	// w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering if behind proxy
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering if behind proxy
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -201,6 +172,21 @@ func (c *Client) SendChatCompletionStreamRequest(params ProviderRequestParams, w
 				fmt.Fprintf(w, "data: %s\n\n", chunkJSON)
 				flusher.Flush()
 			}
+
+			if toolCall, ok := acc.JustFinishedToolCall(); ok {
+				toolCallData := StreamChunk{
+					ToolCall: ToolCall{
+						ID:   toolCall.ID,
+						Name: toolCall.Name,
+						Args: toolCall.Arguments,
+					},
+				}
+
+				toolCallJSON, _ := json.Marshal(toolCallData)
+				fmt.Fprintf(w, "data: %s\n\n", toolCallJSON)
+				flusher.Flush()
+			}
+
 		}
 	}
 
@@ -212,6 +198,8 @@ func (c *Client) SendChatCompletionStreamRequest(params ProviderRequestParams, w
 		log.Debug("Stream completed with no choices")
 		return nil, fmt.Errorf("no choices in completion")
 	}
+
+	log.Debug("Stop reason:", "reason", acc.Choices[0].FinishReason)
 
 	return &acc.Choices[0].Message, nil
 }

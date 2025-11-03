@@ -8,6 +8,7 @@ export interface Message {
 
   content: string;
   reasoning?: string;
+  tools?: ToolCall[];
 
   parentId?: number;
 
@@ -65,6 +66,14 @@ export interface UpdateResponse {
   messages: Record<number, Message>;
 }
 
+// Tool call types
+export interface ToolCall {
+  id: string;
+  name: string;
+  args?: string;
+  tool_output?: string;
+}
+
 // Streaming types
 export interface StreamMetadata {
   conversationId: string;
@@ -74,6 +83,7 @@ export interface StreamMetadata {
 export interface StreamChunk {
   content?: string;
   reasoning?: string;
+  tool_call?: ToolCall;
 }
 
 export interface StreamComplete {
@@ -93,6 +103,7 @@ export interface FrontendMessage {
   role: "user" | "assistant";
   content: string;
   reasoning?: string;
+  toolCalls?: ToolCall[];
   status?: "success" | "error" | "pending";
   error?: string;
   timestamp: number;
@@ -152,6 +163,7 @@ export const backendToFrontendMessage = (
         : "assistant",
     content: backendMsg.content || "",
     reasoning: backendMsg.reasoning,
+    toolCalls: backendMsg.tools,
     status,
     error,
     timestamp: Date.now(), // Backend doesn't provide timestamp, use current time

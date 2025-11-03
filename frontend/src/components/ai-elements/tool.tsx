@@ -23,7 +23,7 @@ export type ToolProps = ComponentProps<typeof Collapsible>;
 
 export const Tool = ({ className, ...props }: ToolProps) => (
   <Collapsible
-    className={cn('not-prose mb-4 w-full rounded-md border', className)}
+    className={cn('not-prose mb-4 w-full rounded-md ', className)}
     {...props}
   />
 );
@@ -35,12 +35,12 @@ export type ToolHeaderProps = {
 };
 
 const getStatusBadge = (status: ToolUIPart['state']) => {
-  const labels = {
-    'input-streaming': 'Pending',
-    'input-available': 'Running',
-    'output-available': 'Completed',
-    'output-error': 'Error',
-  } as const;
+  // const labels = {
+  //   'input-streaming': 'Pending',
+  //   'input-available': 'Running',
+  //   'output-available': 'Completed',
+  //   'output-error': 'Error',
+  // } as const;
 
   const icons = {
     'input-streaming': <CircleIcon className="size-4" />,
@@ -52,7 +52,7 @@ const getStatusBadge = (status: ToolUIPart['state']) => {
   return (
     <Badge className="rounded-full text-xs" variant="secondary">
       {icons[status]}
-      {labels[status]}
+      {/* {labels[status]} */}
     </Badge>
   );
 };
@@ -65,14 +65,14 @@ export const ToolHeader = ({
 }: ToolHeaderProps) => (
   <CollapsibleTrigger
     className={cn(
-      'flex w-full items-center justify-between gap-4 p-3',
+      'flex w-full items-center gap-4',
       className,
     )}
     {...props}
   >
     <div className="flex items-center gap-2">
       <WrenchIcon className="size-4 text-muted-foreground" />
-      <span className="font-medium text-sm">{type}</span>
+      <span className="font-sm text-muted-foreground text-sm">{type}</span>
       {getStatusBadge(state)}
     </div>
     <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
@@ -96,7 +96,7 @@ export type ToolInputProps = ComponentProps<'div'> & {
 };
 
 export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
-  <div className={cn('space-y-2 overflow-hidden p-4', className)} {...props}>
+  <div className={cn('space-y-2 overflow-hidden py-4', className)} {...props}>
     <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
       Parameters
     </h4>
@@ -122,13 +122,13 @@ export const ToolOutput = ({
   }
 
   return (
-    <div className={cn('space-y-2 p-4', className)} {...props}>
+    <div className={cn('space-y-2', className)} {...props}>
       <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
         {errorText ? 'Error' : 'Result'}
       </h4>
       <div
         className={cn(
-          'overflow-x-auto rounded-md text-xs [&_table]:w-full',
+          'overflow-x-auto rounded-md !text-muted-foreground text-xs p-1 [&_table]:w-full',
           errorText
             ? 'bg-destructive/10 text-destructive'
             : 'bg-muted/50 text-foreground',

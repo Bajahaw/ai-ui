@@ -1,17 +1,21 @@
 package chat
 
-import "ai-client/cmd/data"
+import (
+	"ai-client/cmd/data"
+	"ai-client/cmd/provider"
+)
 
 type Message struct {
-	ID         int    `json:"id"`
-	ConvID     string `json:"convId"`
-	Role       string `json:"role"`
-	Model      string `json:"model,omitempty"`
-	Content    string `json:"content"`
-	Reasoning  string `json:"reasoning,omitempty"`
-	ParentID   int    `json:"parentId,omitempty"`
-	Children   []int  `json:"children"`
-	Attachment string `json:"attachment,omitempty"`
+	ID         int                 `json:"id"`
+	ConvID     string              `json:"convId"`
+	Role       string              `json:"role"`
+	Model      string              `json:"model,omitempty"`
+	Content    string              `json:"content"`
+	Reasoning  string              `json:"reasoning,omitempty"`
+	ParentID   int                 `json:"parentId,omitempty"`
+	Children   []int               `json:"children"`
+	Attachment string              `json:"attachment,omitempty"`
+	Tools      []provider.ToolCall `json:"tools,omitempty"`
 }
 
 func getMessage(id int) (*Message, error) {
@@ -39,6 +43,12 @@ func getMessage(id int) (*Message, error) {
 			return nil, err
 		}
 		msg.Children = append(msg.Children, childID)
+	}
+
+	tools := toolsRepo.GetToolCallsByMessageID(id)
+	msg.Tools = make([]provider.ToolCall, 0)
+	for _, t := range tools {
+		msg.Tools = append(msg.Tools, *t)
 	}
 
 	return &msg, nil
@@ -94,6 +104,12 @@ func updateMessage(id int, msg Message) (*Message, error) {
 		updatedMsg.Children = append(updatedMsg.Children, childID)
 	}
 
+	tools := toolsRepo.GetToolCallsByMessageID(id)
+	updatedMsg.Tools = make([]provider.ToolCall, 0)
+	for _, tool := range tools {
+		updatedMsg.Tools = append(updatedMsg.Tools, *tool)
+	}
+
 	return &updatedMsg, nil
 }
 
@@ -137,6 +153,14 @@ func getAllConversationMessages(convID string) map[int]*Message {
 				}
 				parent.Children = append(parent.Children, msg.ID)
 			}
+		}
+	}
+
+	tools := toolsRepo.GetToolCallsByConvID(convID)
+	log.Debug("Retrieved tool calls for conversation", "convID", convID, "tools", tools)
+	for _, tool := range tools {
+		if msg, exists := messages[tool.MessageID]; exists {
+			msg.Tools = append(msg.Tools, *tool)
 		}
 	}
 

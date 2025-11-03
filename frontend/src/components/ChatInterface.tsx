@@ -29,6 +29,13 @@ import {
   ReasoningContent,
 } from "@/components/ai-elements/reasoning";
 import {
+  Tool,
+  ToolHeader,
+  ToolContent,
+  ToolInput,
+  ToolOutput,
+} from "@/components/ai-elements/tool";
+import {
   GlobeIcon,
   AlertCircleIcon,
   RotateCcwIcon,
@@ -556,6 +563,36 @@ export const ChatInterface = ({
                     <ReasoningTrigger />
                     <ReasoningContent>{message.reasoning}</ReasoningContent>
                   </Reasoning>
+                )}
+                {message.toolCalls && message.toolCalls.length > 0 && (
+                  <div className="space-y-2">
+                    {message.toolCalls.map((toolCall) => {
+                      // Determine the state based on whether output has arrived
+                      const toolState = toolCall.tool_output 
+                        ? "output-available" as const
+                        : "input-available" as const;
+                      
+                      return (
+                        <Tool key={toolCall.id} defaultOpen={false}>
+                          <ToolHeader
+                            type={`tool-${toolCall.name}` as `tool-${string}`}
+                            state={toolState}
+                          />
+                          <ToolContent>
+                            <ToolInput 
+                              input={toolCall.args ? JSON.parse(toolCall.args) : {}} 
+                            />
+                            {toolCall.tool_output && (
+                              <ToolOutput 
+                                output={toolCall.tool_output}
+                                errorText={undefined}
+                              />
+                            )}
+                          </ToolContent>
+                        </Tool>
+                      );
+                    })}
+                  </div>
                 )}
                 {renderMessageContent(message)}
                 {message.status !== "pending" && renderMessageActions(message)}
