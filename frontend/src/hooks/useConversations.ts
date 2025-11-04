@@ -364,6 +364,7 @@ export const useConversations = () => {
                     // Use a simple variable to accumulate content and reasoning
                     let accumulatedContent = "";
                     let accumulatedReasoning = "";
+                    let reasoningStartTime: number | null = null; // Track when reasoning starts
                     let realConvId = createdConv.id;
                     let rafId: number | null = null;
                     let realAssistantMessageId: number | null = null;
@@ -403,6 +404,11 @@ export const useConversations = () => {
                         // onReasoning - Update reasoning and request animation frame for smooth rendering
                         (reasoning: string) => {
                             accumulatedReasoning += reasoning;
+
+                            // Track start time on first reasoning chunk
+                            if (reasoningStartTime === null && reasoning) {
+                                reasoningStartTime = Date.now();
+                            }
 
                             // Update reasoning immediately (no sync yet)
                             if (assistantPlaceholderId && clientConversationId) {
@@ -489,6 +495,11 @@ export const useConversations = () => {
                             // Store the real assistant message ID
                             realAssistantMessageId = data.assistantMessageId;
 
+                            // Calculate reasoning duration if reasoning was used
+                            const reasoningDuration = reasoningStartTime !== null && accumulatedReasoning
+                                ? Math.round((Date.now() - reasoningStartTime) / 1000)
+                                : undefined;
+
                             // Re-key conversation from temp to real ID
                             if (clientConversationId && realConvId !== clientConversationId) {
                                 manager.rekeyConversation(clientConversationId, realConvId);
@@ -506,12 +517,16 @@ export const useConversations = () => {
                                                 // Ensure final content and reasoning are set (in case last RAF was cancelled)
                                                 assistMsg.content = accumulatedContent;
                                                 assistMsg.reasoning = accumulatedReasoning;
+                                                assistMsg.reasoningDuration = reasoningDuration;
                                             }
                                             conv.pendingMessageIds.delete(assistantPlaceholderId);
                                         }
                                     }
                                 }
                             }
+                            
+                            // Sync immediately to update UI (change "thinking..." to "thought for X seconds")
+                            syncConversations();
                         },
                         // onError
                         (error) => {
@@ -583,6 +598,7 @@ export const useConversations = () => {
                 // Use a simple variable to accumulate content and reasoning
                 let accumulatedContent = "";
                 let accumulatedReasoning = "";
+                let reasoningStartTime: number | null = null; // Track when reasoning starts
                 let rafId: number | null = null;
 
                 // Stream the message
@@ -620,6 +636,11 @@ export const useConversations = () => {
                     // onReasoning - Update reasoning on animation frame for smooth rendering
                     (reasoning: string) => {
                         accumulatedReasoning += reasoning;
+
+                        // Track start time on first reasoning chunk
+                        if (reasoningStartTime === null && reasoning) {
+                            reasoningStartTime = Date.now();
+                        }
 
                         // Update reasoning immediately (no sync yet)
                         if (assistantPlaceholderId) {
@@ -701,6 +722,11 @@ export const useConversations = () => {
                             rafId = null;
                         }
 
+                        // Calculate reasoning duration if reasoning was used
+                        const reasoningDuration = reasoningStartTime !== null && accumulatedReasoning
+                            ? Math.round((Date.now() - reasoningStartTime) / 1000)
+                            : undefined;
+
                         // Update assistant message ID and status
                         if (assistantPlaceholderId) {
                             const conv = manager.getConversation(conversationId);
@@ -712,6 +738,7 @@ export const useConversations = () => {
                                     // Ensure final content and reasoning are set (in case last RAF was cancelled)
                                     assistMsg.content = accumulatedContent;
                                     assistMsg.reasoning = accumulatedReasoning;
+                                    assistMsg.reasoningDuration = reasoningDuration;
                                     conv.pendingMessageIds.delete(assistantPlaceholderId);
                                     // Critical: set the active parent to the latest assistant message
                                     if (conv.backendConversation) {
@@ -720,6 +747,9 @@ export const useConversations = () => {
                                 }
                             }
                         }
+                        
+                        // Sync immediately to update UI (change "thinking..." to "thought for X seconds")
+                        syncConversations();
                     },
                     // onError
                     (error) => {
@@ -796,6 +826,7 @@ export const useConversations = () => {
                 // Accumulate streamed content and reasoning
                 let accumulatedContent = "";
                 let accumulatedReasoning = "";
+                let reasoningStartTime: number | null = null; // Track when reasoning starts
                 let rafId: number | null = null;
 
                 let completedAssistantId: number | null = null;
@@ -823,6 +854,12 @@ export const useConversations = () => {
                     // onReasoning
                     (reasoning: string) => {
                         accumulatedReasoning += reasoning;
+
+                        // Track start time on first reasoning chunk
+                        if (reasoningStartTime === null && reasoning) {
+                            reasoningStartTime = Date.now();
+                        }
+
                         const conv = manager.getConversation(activeConversationId);
                         if (conv) {
                             const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
@@ -874,6 +911,12 @@ export const useConversations = () => {
                             cancelAnimationFrame(rafId);
                             rafId = null;
                         }
+
+                        // Calculate reasoning duration if reasoning was used
+                        const reasoningDuration = reasoningStartTime !== null && accumulatedReasoning
+                            ? Math.round((Date.now() - reasoningStartTime) / 1000)
+                            : undefined;
+
                         const conv = manager.getConversation(activeConversationId);
                         if (!conv) return;
 
@@ -885,6 +928,7 @@ export const useConversations = () => {
                             assistMsg.status = "success";
                             assistMsg.content = accumulatedContent;
                             assistMsg.reasoning = accumulatedReasoning;
+                            assistMsg.reasoningDuration = reasoningDuration;
                             conv.pendingMessageIds.delete(assistantPlaceholderId);
                         }
 
@@ -921,6 +965,9 @@ export const useConversations = () => {
                             }
                             conv.backendConversation.activeMessageId = data.assistantMessageId;
                         }
+                        
+                        // Sync immediately to update UI (change "thinking..." to "thought for X seconds")
+                        syncConversations();
                     },
                     // onError
                     (err) => {

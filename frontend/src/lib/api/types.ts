@@ -104,6 +104,7 @@ export interface FrontendMessage {
   role: "user" | "assistant";
   content: string;
   reasoning?: string;
+  reasoningDuration?: number; // Duration in seconds for reasoning (if reasoning was used)
   toolCalls?: ToolCall[];
   status?: "success" | "error" | "pending";
   error?: string;

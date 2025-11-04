@@ -558,6 +558,7 @@ export const ChatInterface = ({
                 {message.reasoning && (
                   <Reasoning
                     isStreaming={message.status === "pending"}
+                    duration={message.reasoningDuration}
                     defaultOpen={false}
                   >
                     <ReasoningTrigger />
