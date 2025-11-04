@@ -2,6 +2,7 @@ package provider
 
 import (
 	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/packages/param"
 )
 
 func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessageParamUnion {
@@ -41,6 +42,7 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 				openaiMessages[i].OfAssistant.ToolCalls = append(openaiMessages[i].OfAssistant.ToolCalls,
 					openai.ChatCompletionMessageToolCallUnionParam{
 						OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
+							ID: msg.ToolCall.ID,
 							Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
 								Name:      msg.ToolCall.Name,
 								Arguments: msg.ToolCall.Args,
@@ -51,7 +53,14 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 			}
 
 		case "tool":
-			openaiMessages[i] = openai.ToolMessage(msg.ToolCall.Output, msg.ToolCall.ID)
+			openaiMessages[i] = openai.ChatCompletionMessageParamUnion{
+				OfTool: &openai.ChatCompletionToolMessageParam{
+					ToolCallID: msg.ToolCall.ID,
+					Content: openai.ChatCompletionToolMessageParamContentUnion{
+						OfString: param.Opt[string]{Value: msg.ToolCall.Output},
+					},
+				},
+			}
 
 		default:
 			log.Warn("Unknown role %s in message, skipping", msg.Role)

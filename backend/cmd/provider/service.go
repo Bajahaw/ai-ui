@@ -116,6 +116,7 @@ func (c *Client) SendChatCompletionStreamRequest(params ProviderRequestParams, w
 	client := openai.NewClient(
 		option.WithAPIKey(provider.APIKey),
 		option.WithBaseURL(provider.BaseURL),
+		// option.WithDebugLog(log.StandardLog()),
 	)
 
 	openAIparams := openai.ChatCompletionNewParams{
