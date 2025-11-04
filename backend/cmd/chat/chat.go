@@ -109,7 +109,6 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		log.Error("Error streaming chat completion", "err", err)
 		fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
 		flusher.Flush()
-		return
 	}
 
 	// Save assistant message after streaming completes
@@ -130,6 +129,8 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	toolCalls := completion.ToolCalls
+	isToolsUsed := len(toolCalls) > 0
+
 	for len(toolCalls) > 0 {
 		tc := toolCalls[0]
 
@@ -180,9 +181,10 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 			log.Error("Error streaming chat completion after tool call", "err", err)
 			fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
 			flusher.Flush()
-			return
+			break
 		}
 
+		// Accumulate reasoning for all tool calls
 		if responseMessage.Reasoning != "" {
 			responseMessage.Reasoning += " \n`using tool:" + toolCall.Name + "`\n " + completion.Reasoning
 		}
@@ -191,11 +193,12 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update assistant message with full content after all tool calls
-	responseMessage.Content = completion.Content
-
-	_, err = updateMessage(responseMessage.ID, responseMessage)
-	if err != nil {
-		log.Error("Error updating assistant message after tool calls", "err", err)
+	if isToolsUsed {
+		responseMessage.Content = completion.Content
+		_, err = updateMessage(responseMessage.ID, responseMessage)
+		if err != nil {
+			log.Error("Error updating assistant message after tool calls", "err", err)
+		}
 	}
 
 	// Send completion event with message IDs
