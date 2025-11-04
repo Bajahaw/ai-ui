@@ -77,6 +77,7 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
               }
             }}
             className="h-full overflow-y-auto bg-background"
+            style={{ scrollbarGutter: 'stable' }}
             role="log"
           >
             {children}
