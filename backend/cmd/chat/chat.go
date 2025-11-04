@@ -194,7 +194,9 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 
 	// Update assistant message with full content after all tool calls
 	if isToolsUsed {
-		responseMessage.Content = completion.Content
+		if err == nil {
+			responseMessage.Content = completion.Content
+		}
 		_, err = updateMessage(responseMessage.ID, responseMessage)
 		if err != nil {
 			log.Error("Error updating assistant message after tool calls", "err", err)
