@@ -500,10 +500,13 @@ export const useConversations = () => {
                                         const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
                                         if (assistMsg) {
                                             assistMsg.id = data.assistantMessageId.toString();
-                                            assistMsg.status = "success";
-                                            // Ensure final content and reasoning are set (in case last RAF was cancelled)
-                                            assistMsg.content = accumulatedContent;
-                                            assistMsg.reasoning = accumulatedReasoning;
+                                            // Only update status to success if not already in error state
+                                            if (assistMsg.status !== "error") {
+                                                assistMsg.status = "success";
+                                                // Ensure final content and reasoning are set (in case last RAF was cancelled)
+                                                assistMsg.content = accumulatedContent;
+                                                assistMsg.reasoning = accumulatedReasoning;
+                                            }
                                             conv.pendingMessageIds.delete(assistantPlaceholderId);
                                         }
                                     }

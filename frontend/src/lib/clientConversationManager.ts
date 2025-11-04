@@ -245,7 +245,8 @@ export class ClientConversationManager {
 
             placeholderMessage.id = backendMsg.id.toString();
             placeholderMessage.content = backendMsg.content;
-            placeholderMessage.status = "success";
+            placeholderMessage.status = backendMsg.error ? "error" : "success";
+            placeholderMessage.error = backendMsg.error;
             placeholderMessage.attachment = backendMsg.attachment;
             conversation.pendingMessageIds.delete(oldId);
             messageUpdated = true;
@@ -355,7 +356,6 @@ export class ClientConversationManager {
     if (assistantPlaceholder) {
       assistantPlaceholder.status = "error";
       assistantPlaceholder.error = error;
-      assistantPlaceholder.content = "Failed to get response";
       conversation.pendingMessageIds.delete(assistantPlaceholder.id);
     }
   }

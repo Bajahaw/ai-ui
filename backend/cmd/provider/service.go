@@ -152,12 +152,15 @@ func (c *Client) SendChatCompletionStreamRequest(params ProviderRequestParams, w
 
 	stream := client.Chat.Completions.NewStreaming(ctx, openAIparams)
 	acc := openai.ChatCompletionAccumulator{}
+	// isDeepseekThinkStyle := -1
+	// isDeepseekReasoningFinished := false
 
 	for stream.Next() {
 		chunk := stream.Current()
 		acc.AddChunk(chunk)
 
 		if len(chunk.Choices) > 0 {
+			// accContent := acc.Choices[0].Message.Content
 			contentDelta := chunk.Choices[0].Delta.Content
 			reasoningDelta := chunk.Choices[0].Delta.Reasoning
 

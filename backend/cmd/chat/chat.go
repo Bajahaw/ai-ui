@@ -104,50 +104,49 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		ReasoningEffort: provider.ReasoningEffort(reasoningSetting),
 	}
 
-	completion, err := providerClient.SendChatCompletionStreamRequest(providerParams, w)
-	if err != nil {
-		log.Error("Error streaming chat completion", "err", err)
-		fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
-		flusher.Flush()
-	}
-
-	// Save assistant message after streaming completes
 	responseMessage := Message{
 		ID:        -1,
 		ConvID:    convID,
 		Role:      "assistant",
 		Model:     req.Model,
-		Content:   completion.Content,
-		Reasoning: completion.Reasoning,
+		Content:   "",
+		Reasoning: "",
 		ParentID:  userMessage.ID,
 		Children:  []int{},
 	}
 
+	var toolCalls []provider.ToolCall
+	var isToolsUsed bool
+
+	completion, err := providerClient.SendChatCompletionStreamRequest(providerParams, w)
+	if err != nil {
+		log.Error("Error streaming chat completion", "err", err)
+		fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
+		flusher.Flush()
+		responseMessage.Error = err.Error()
+	} else {
+		responseMessage.Content = completion.Content
+		responseMessage.Reasoning = completion.Reasoning
+		toolCalls = provider.ToToolCalls(completion.ToolCalls)
+		isToolsUsed = len(toolCalls) > 0
+	}
+
+	// Save assistant message after streaming completes
 	responseMessage.ID, err = saveMessage(responseMessage)
 	if err != nil {
 		log.Error("Error saving response message", "err", err)
 	}
 
-	toolCalls := completion.ToolCalls
-	isToolsUsed := len(toolCalls) > 0
-
 	for len(toolCalls) > 0 {
-		tc := toolCalls[0]
 
-		toolCall := provider.ToolCall{
-			ID:        tc.ID,
-			ConvID:    convID,
-			MessageID: responseMessage.ID,
-			Name:      tc.Function.Name,
-			Args:      tc.Function.Arguments,
-		}
+		toolCall := toolCalls[0]
 
 		providerParams.Messages = append(providerParams.Messages, provider.SimpleMessage{
 			Role:     "assistant",
 			ToolCall: toolCall,
 		})
 
-		if tc.Function.Name == "get_weather" {
+		if toolCall.Name == "get_weather" {
 
 			weatherInfo := weatherTool()
 			toolCall.Output = weatherInfo
@@ -164,8 +163,8 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 			providerParams.Messages = append(providerParams.Messages, provider.SimpleMessage{
 				Role: "tool",
 				ToolCall: provider.ToolCall{
-					ID:     tc.ID,
-					Name:   tc.Function.Name,
+					ID:     toolCall.ID,
+					Name:   toolCall.Name,
 					Output: weatherInfo,
 				},
 			})
@@ -176,12 +175,13 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		toolCalls = toolCalls[1:]
 		if len(toolCalls) == 0 {
 			completion, err = providerClient.SendChatCompletionStreamRequest(providerParams, w)
-		}
-		if err != nil {
-			log.Error("Error streaming chat completion after tool call", "err", err)
-			fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
-			flusher.Flush()
-			break
+			if err != nil {
+				log.Error("Error streaming chat completion after tool call", "err", err)
+				fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
+				flusher.Flush()
+				responseMessage.Error = err.Error()
+				break
+			}
 		}
 
 		// Accumulate reasoning for all tool calls
@@ -189,7 +189,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 			responseMessage.Reasoning += " \n`using tool:" + toolCall.Name + "`\n " + completion.Reasoning
 		}
 
-		toolCalls = append(toolCalls, completion.ToolCalls...)
+		toolCalls = append(toolCalls, provider.ToToolCalls(completion.ToolCalls)...)
 	}
 
 	// Update assistant message with full content after all tool calls
@@ -200,6 +200,8 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 			log.Error("Error updating assistant message after tool calls", "err", err)
 		}
 	}
+
+	log.Debug("Completed streaming chat response", "responseMessageID", responseMessage.ID)
 
 	// Send completion event with message IDs
 	completionData := provider.StreamComplete{
@@ -271,25 +273,28 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		ReasoningEffort: provider.ReasoningEffort(reasoningSetting),
 	}
 
-	// Stream assistant content
-	completion, err := providerClient.SendChatCompletionStreamRequest(providerParams, w)
-	if err != nil {
-		log.Error("Error streaming retry completion", "err", err)
-		fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
-		flusher.Flush()
-		return
-	}
-
 	// Save assistant message after streaming completes
 	responseMessage := Message{
 		ID:        -1,
 		ConvID:    req.ConversationID,
 		Role:      "assistant",
 		Model:     req.Model,
-		Content:   completion.Content,
-		Reasoning: completion.Reasoning,
+		Content:   "",
+		Reasoning: "",
 		ParentID:  parent.ID,
 		Children:  []int{},
+	}
+
+	// Stream assistant content
+	completion, err := providerClient.SendChatCompletionStreamRequest(providerParams, w)
+	if err != nil {
+		log.Error("Error streaming retry completion", "err", err)
+		fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
+		flusher.Flush()
+		responseMessage.Error = err.Error()
+	} else {
+		responseMessage.Content = completion.Content
+		responseMessage.Reasoning = completion.Reasoning
 	}
 
 	responseID, saveErr := saveMessage(responseMessage)

@@ -62,6 +62,7 @@ func InitDataSource(dataSourceName string) error {
 		attachment TEXT,
 		content TEXT NOT NULL,
 		reasoning TEXT,
+		error TEXT,
 		FOREIGN KEY (conv_id) REFERENCES Conversations(id) ON DELETE CASCADE
 -- 		FOREIGN KEY (parent_id) REFERENCES Messages(id) ON DELETE SET NULL
 -- 		FOREIGN KEY (attachment_id) REFERENCES Attachments(id) ON DELETE SET NULL

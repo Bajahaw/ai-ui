@@ -15,17 +15,18 @@ type Message struct {
 	ParentID   int                 `json:"parentId,omitempty"`
 	Children   []int               `json:"children"`
 	Attachment string              `json:"attachment,omitempty"`
+	Error      string              `json:"error,omitempty"`
 	Tools      []provider.ToolCall `json:"tools,omitempty"`
 }
 
 func getMessage(id int) (*Message, error) {
-	sql := `SELECT id, conv_id, role, content, reasoning, parent_id, attachment FROM Messages WHERE id = ?`
+	sql := `SELECT id, conv_id, role, content, reasoning, parent_id, attachment, error FROM Messages WHERE id = ?`
 	row := data.DB.QueryRow(sql, id)
 
 	var msg = Message{
 		Children: make([]int, 0),
 	}
-	err := row.Scan(&msg.ID, &msg.ConvID, &msg.Role, &msg.Content, &msg.Reasoning, &msg.ParentID, &msg.Attachment)
+	err := row.Scan(&msg.ID, &msg.ConvID, &msg.Role, &msg.Content, &msg.Reasoning, &msg.ParentID, &msg.Attachment, &msg.Error)
 	if err != nil {
 		return nil, err
 	}
@@ -55,8 +56,8 @@ func getMessage(id int) (*Message, error) {
 }
 
 func saveMessage(msg Message) (int, error) {
-	sql := `INSERT INTO Messages (conv_id, role, model, parent_id, attachment, content, reasoning) VALUES (?, ?, ?, ?, ?, ?, ?)`
-	result, err := data.DB.Exec(sql, msg.ConvID, msg.Role, msg.Model, msg.ParentID, msg.Attachment, msg.Content, msg.Reasoning)
+	sql := `INSERT INTO Messages (conv_id, role, model, parent_id, attachment, content, reasoning, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	result, err := data.DB.Exec(sql, msg.ConvID, msg.Role, msg.Model, msg.ParentID, msg.Attachment, msg.Content, msg.Reasoning, msg.Error)
 	if err != nil {
 		return 0, err
 	}
@@ -69,8 +70,8 @@ func saveMessage(msg Message) (int, error) {
 }
 
 func updateMessage(id int, msg Message) (*Message, error) {
-	sql := `UPDATE Messages SET content = ?, reasoning = ? WHERE id = ? RETURNING id, conv_id, role, model, content, reasoning, parent_id, attachment`
-	row := data.DB.QueryRow(sql, msg.Content, msg.Reasoning, id)
+	sql := `UPDATE Messages SET content = ?, reasoning = ?, error = ? WHERE id = ? RETURNING id, conv_id, role, model, content, reasoning, parent_id, attachment, error`
+	row := data.DB.QueryRow(sql, msg.Content, msg.Reasoning, msg.Error, id)
 
 	var updatedMsg Message
 	err := row.Scan(
@@ -82,6 +83,7 @@ func updateMessage(id int, msg Message) (*Message, error) {
 		&updatedMsg.Reasoning,
 		&updatedMsg.ParentID,
 		&updatedMsg.Attachment,
+		&updatedMsg.Error,
 	)
 
 	if err != nil {
@@ -115,7 +117,7 @@ func updateMessage(id int, msg Message) (*Message, error) {
 
 func getAllConversationMessages(convID string) map[int]*Message {
 	messages := make(map[int]*Message)
-	sql := `SELECT id, conv_id, role, model, content, reasoning, parent_id, attachment FROM Messages WHERE conv_id = ?`
+	sql := `SELECT id, conv_id, role, model, content, reasoning, parent_id, attachment, error FROM Messages WHERE conv_id = ?`
 	rows, err := data.DB.Query(sql, convID)
 	if err != nil {
 		log.Error("Error querying messages", "err", err)
@@ -134,6 +136,7 @@ func getAllConversationMessages(convID string) map[int]*Message {
 			&msg.Reasoning,
 			&msg.ParentID,
 			&msg.Attachment,
+			&msg.Error,
 		)
 		if err != nil {
 			log.Error("Error scanning message", "err", err)

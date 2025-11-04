@@ -15,6 +15,7 @@ export interface Message {
   children: number[];
 
   attachment?: string;
+  error?: string;
 }
 
 export interface Conversation {
@@ -135,7 +136,6 @@ export const generateOptimisticConversationId = (): string => {
 export const backendToFrontendMessage = (
   backendMsg: Message,
   status: "success" | "error" | "pending" = "success",
-  error?: string,
 ): FrontendMessage => {
   // Safety checks for null/undefined message
   if (!backendMsg || typeof backendMsg !== "object") {
@@ -145,7 +145,6 @@ export const backendToFrontendMessage = (
       role: "assistant",
       content: "Error: Invalid message data",
       status: "error",
-      error: "Invalid message data",
       timestamp: Date.now(),
     };
   }
@@ -164,8 +163,8 @@ export const backendToFrontendMessage = (
     content: backendMsg.content || "",
     reasoning: backendMsg.reasoning,
     toolCalls: backendMsg.tools,
-    status,
-    error,
+    status: backendMsg.error ? "error" : status,
+    error: backendMsg.error,
     timestamp: Date.now(), // Backend doesn't provide timestamp, use current time
     attachment: backendMsg.attachment,
   };

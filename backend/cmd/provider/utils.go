@@ -77,3 +77,15 @@ func ReasoningEffort(level string) openai.ReasoningEffort {
 		return openai.ReasoningEffortMedium
 	}
 }
+
+func ToToolCalls(toolCalls []openai.ChatCompletionMessageToolCallUnion) []ToolCall {
+	var result []ToolCall
+	for _, tc := range toolCalls {
+		result = append(result, ToolCall{
+			ID:   tc.ID,
+			Name: tc.Function.Name,
+			Args: tc.Function.Arguments,
+		})
+	}
+	return result
+}
