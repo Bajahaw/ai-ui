@@ -133,30 +133,26 @@ export const GlobalSettingsSection = () => {
     const defaultSystemPrompt =
         "You are a helpful AI assistant. Provide clear, accurate, and helpful responses to user questions.";
 
-    if (isLoading || modelsLoading) {
-        return (
-            <div className="space-y-6">
-                <div className="flex items-center justify-center py-12">
-                    <div className="flex items-center gap-3 text-muted-foreground">
-                        <Loader2 className="h-5 w-5 animate-spin"/>
-                        <span className="text-sm">
-              {isLoading && modelsLoading
-                  ? "Loading settings and models..."
-                  : isLoading
-                      ? "Loading settings..."
-                      : "Loading models..."}
-            </span>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className="space-y-8 max-w-2xl">
             <h2 className="text-lg text-foreground mb-2">
                 General Settings
             </h2>
+
+            {(isLoading || modelsLoading) && (
+                <div className="flex items-center justify-center py-8">
+                    <div className="flex items-center gap-3 text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin"/>
+                        <span className="text-sm">
+                            {isLoading && modelsLoading
+                                ? "Loading settings and models..."
+                                : isLoading
+                                    ? "Loading settings..."
+                                    : "Loading models..."}
+                        </span>
+                    </div>
+                </div>
+            )}
 
             {error && (
                 <div
