@@ -8,11 +8,11 @@ import (
 func Handler() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /new", chat)
 	mux.HandleFunc("POST /stream", chatStream)
-	mux.HandleFunc("POST /retry", retry)
 	mux.HandleFunc("POST /retry/stream", retryStream)
 	mux.HandleFunc("POST /update", update)
+	// mux.HandleFunc("POST /new", chat) // Temporarily disabled, use /stream instead
+	// mux.HandleFunc("POST /retry", retry)
 
 	return http.StripPrefix("/api/chat", auth.Authenticated(mux))
 }

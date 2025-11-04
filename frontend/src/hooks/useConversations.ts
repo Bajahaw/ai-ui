@@ -434,6 +434,19 @@ export const useConversations = () => {
                                     assistantPlaceholderId,
                                     toolCall,
                                 );
+
+                                // If there's accumulated reasoning and this is the first tool call event (no output yet),
+                                // append tool usage information to show when the model decided to use the tool
+                                if (accumulatedReasoning && !toolCall.tool_output) {
+                                    accumulatedReasoning += ` \n\`using tool:${toolCall.name}\`\n `;
+                                    const conv = manager.getConversation(clientConversationId);
+                                    if (conv) {
+                                        const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
+                                        if (assistMsg) {
+                                            assistMsg.reasoning = accumulatedReasoning;
+                                        }
+                                    }
+                                }
                             }
 
                             // Cancel previous frame request if any
@@ -635,6 +648,19 @@ export const useConversations = () => {
                                 assistantPlaceholderId,
                                 toolCall,
                             );
+
+                            // If there's accumulated reasoning and this is the first tool call event (no output yet),
+                            // append tool usage information to show when the model decided to use the tool
+                            if (accumulatedReasoning && !toolCall.tool_output) {
+                                accumulatedReasoning += ` \n\`using tool:${toolCall.name}\`\n `;
+                                const conv = manager.getConversation(conversationId);
+                                if (conv) {
+                                    const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
+                                    if (assistMsg) {
+                                        assistMsg.reasoning = accumulatedReasoning;
+                                    }
+                                }
+                            }
                         }
 
                         // Cancel previous frame request if any
@@ -814,6 +840,20 @@ export const useConversations = () => {
                             assistantPlaceholderId,
                             toolCall,
                         );
+
+                        // If there's accumulated reasoning and this is the first tool call event (no output yet),
+                        // append tool usage information to show when the model decided to use the tool
+                        if (accumulatedReasoning && !toolCall.tool_output) {
+                            accumulatedReasoning += ` \n\`using tool:${toolCall.name}\`\n `;
+                            const conv = manager.getConversation(activeConversationId);
+                            if (conv) {
+                                const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
+                                if (assistMsg) {
+                                    assistMsg.reasoning = accumulatedReasoning;
+                                }
+                            }
+                        }
+
                         if (rafId !== null) cancelAnimationFrame(rafId);
                         rafId = requestAnimationFrame(() => {
                             syncConversations();

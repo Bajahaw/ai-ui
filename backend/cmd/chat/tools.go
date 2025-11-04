@@ -1,6 +1,10 @@
 package chat
 
+import "time"
+
 func weatherTool() string {
+	// simulate delay
+	time.Sleep(2 * time.Second)
 	return "Temprerature: 22°C, Condition: Sunny"
 }
 

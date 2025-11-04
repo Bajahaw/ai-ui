@@ -69,8 +69,8 @@ func saveMessage(msg Message) (int, error) {
 }
 
 func updateMessage(id int, msg Message) (*Message, error) {
-	sql := `UPDATE Messages SET content = ? WHERE id = ? RETURNING id, conv_id, role, model, content, reasoning, parent_id, attachment`
-	row := data.DB.QueryRow(sql, msg.Content, id)
+	sql := `UPDATE Messages SET content = ?, reasoning = ? WHERE id = ? RETURNING id, conv_id, role, model, content, reasoning, parent_id, attachment`
+	row := data.DB.QueryRow(sql, msg.Content, msg.Reasoning, id)
 
 	var updatedMsg Message
 	err := row.Scan(
