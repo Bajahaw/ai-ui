@@ -344,3 +344,12 @@
     transition-duration: 10ms;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* Inline code styling NOT for code blocks */
+code:not(pre code) {
+    background-color: hsl(var(--muted));
+    padding: 0.25rem 0.25rem;
+    border-radius: 0.2rem;
+    font-size: 0.875rem;
+    /* font-family: ui-monospace, SFMono-Regular, Menlo, monospace; */
+}
