@@ -566,7 +566,7 @@ export const ChatInterface = ({
                   </Reasoning>
                 )}
                 {message.toolCalls && message.toolCalls.length > 0 && (
-                  <div className="space-y-2">
+                  <div className="">
                     {message.toolCalls.map((toolCall) => {
                       // Determine the state based on whether output has arrived
                       const toolState = toolCall.tool_output 
