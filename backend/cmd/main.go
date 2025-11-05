@@ -5,6 +5,7 @@ import (
 	"ai-client/cmd/chat"
 	"ai-client/cmd/data"
 	"ai-client/cmd/provider"
+	"ai-client/cmd/tools"
 	"ai-client/cmd/utils"
 	"context"
 	"database/sql"
@@ -34,6 +35,7 @@ func main() {
 	setupAuth()
 	setupProviderClient()
 	setupChatClient()
+	setupTools()
 
 	startServer()
 }
@@ -58,6 +60,11 @@ func setupLogger() {
 		log.SetLevel(logger.InfoLevel)
 		fmt.Println("--- Production mode: setting log level to INFO ---")
 	}
+}
+
+func setupTools() {
+	tools.SetUpTools(log, db)
+	log.Info("Tools set up successfully")
 }
 
 func setupUtils() {

@@ -1,6 +1,8 @@
 package provider
 
 import (
+	"ai-client/cmd/tools"
+
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/packages/param"
 )
@@ -87,14 +89,27 @@ func ReasoningEffort(level string) openai.ReasoningEffort {
 	}
 }
 
-func ToToolCalls(toolCalls []openai.ChatCompletionMessageToolCallUnion) []ToolCall {
-	var result []ToolCall
+func ToToolCalls(toolCalls []openai.ChatCompletionMessageToolCallUnion) []tools.ToolCall {
+	var result []tools.ToolCall
 	for _, tc := range toolCalls {
-		result = append(result, ToolCall{
+		result = append(result, tools.ToolCall{
 			ID:   tc.ID,
 			Name: tc.Function.Name,
 			Args: tc.Function.Arguments,
 		})
 	}
+	return result
+}
+
+func toOpenAITools(tool []tools.Tool) []openai.ChatCompletionToolUnionParam {
+	var result []openai.ChatCompletionToolUnionParam
+	for _, t := range tool {
+		result = append(result, openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+			Name:        t.Name,
+			Description: openai.String(t.Description),
+			Parameters:  openai.FunctionParameters(t.ArgsSchema),
+		}))
+	}
+
 	return result
 }

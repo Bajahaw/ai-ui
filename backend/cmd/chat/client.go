@@ -2,6 +2,7 @@ package chat
 
 import (
 	"ai-client/cmd/provider"
+	"ai-client/cmd/tools"
 	"database/sql"
 
 	logger "github.com/charmbracelet/log"
@@ -9,13 +10,13 @@ import (
 
 var log *logger.Logger
 var repo ConversationRepo
-var toolsRepo *ToolRepositoryImpl
+var toolCallsRepo tools.ToolCallsRepository
 var providerClient *provider.Client
 
 func SetupChat(l *logger.Logger, db *sql.DB, pc *provider.Client) {
 	log = l
 	providerClient = pc
 	repo = newConversationRepository(db)
-	toolsRepo = NewToolRepository(db).(*ToolRepositoryImpl)
+	toolCallsRepo = tools.NewToolCallsRepository(db)
 	setDefaultSettings()
 }

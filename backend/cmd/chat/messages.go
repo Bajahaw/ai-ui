@@ -2,21 +2,21 @@ package chat
 
 import (
 	"ai-client/cmd/data"
-	"ai-client/cmd/provider"
+	"ai-client/cmd/tools"
 )
 
 type Message struct {
-	ID         int                 `json:"id"`
-	ConvID     string              `json:"convId"`
-	Role       string              `json:"role"`
-	Model      string              `json:"model,omitempty"`
-	Content    string              `json:"content"`
-	Reasoning  string              `json:"reasoning,omitempty"`
-	ParentID   int                 `json:"parentId,omitempty"`
-	Children   []int               `json:"children"`
-	Attachment string              `json:"attachment,omitempty"`
-	Error      string              `json:"error,omitempty"`
-	Tools      []provider.ToolCall `json:"tools,omitempty"`
+	ID         int              `json:"id"`
+	ConvID     string           `json:"convId"`
+	Role       string           `json:"role"`
+	Model      string           `json:"model,omitempty"`
+	Content    string           `json:"content"`
+	Reasoning  string           `json:"reasoning,omitempty"`
+	ParentID   int              `json:"parentId,omitempty"`
+	Children   []int            `json:"children"`
+	Attachment string           `json:"attachment,omitempty"`
+	Error      string           `json:"error,omitempty"`
+	Tools      []tools.ToolCall `json:"tools,omitempty"`
 }
 
 func getMessage(id int) (*Message, error) {
@@ -46,9 +46,9 @@ func getMessage(id int) (*Message, error) {
 		msg.Children = append(msg.Children, childID)
 	}
 
-	tools := toolsRepo.GetToolCallsByMessageID(id)
-	msg.Tools = make([]provider.ToolCall, 0)
-	for _, t := range tools {
+	toolCalls := toolCallsRepo.GetToolCallsByMessageID(id)
+	msg.Tools = make([]tools.ToolCall, 0)
+	for _, t := range toolCalls {
 		msg.Tools = append(msg.Tools, *t)
 	}
 
@@ -106,9 +106,9 @@ func updateMessage(id int, msg Message) (*Message, error) {
 		updatedMsg.Children = append(updatedMsg.Children, childID)
 	}
 
-	tools := toolsRepo.GetToolCallsByMessageID(id)
-	updatedMsg.Tools = make([]provider.ToolCall, 0)
-	for _, tool := range tools {
+	toolCalls := toolCallsRepo.GetToolCallsByMessageID(id)
+	updatedMsg.Tools = make([]tools.ToolCall, 0)
+	for _, tool := range toolCalls {
 		updatedMsg.Tools = append(updatedMsg.Tools, *tool)
 	}
 
@@ -159,7 +159,7 @@ func getAllConversationMessages(convID string) map[int]*Message {
 		}
 	}
 
-	tools := toolsRepo.GetToolCallsByConvID(convID)
+	tools := toolCallsRepo.GetToolCallsByConvID(convID)
 	log.Debug("Retrieved tool calls for conversation", "convID", convID, "tools", tools)
 	for _, tool := range tools {
 		if msg, exists := messages[tool.MessageID]; exists {

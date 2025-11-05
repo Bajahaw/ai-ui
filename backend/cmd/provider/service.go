@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"ai-client/cmd/tools"
 	"ai-client/cmd/utils"
 	"context"
 	"encoding/json"
@@ -15,7 +16,7 @@ import (
 type SimpleMessage struct {
 	Role     string
 	Content  string
-	ToolCall ToolCall `json:"tool_call,omitzero"`
+	ToolCall tools.ToolCall `json:"tool_call,omitzero"`
 	Image    string
 }
 
@@ -26,18 +27,9 @@ type ProviderRequestParams struct {
 }
 
 type StreamChunk struct {
-	Content   string   `json:"content,omitempty"`
-	Reasoning string   `json:"reasoning,omitempty"`
-	ToolCall  ToolCall `json:"tool_call,omitzero"`
-}
-
-type ToolCall struct {
-	ID        string `json:"id"`
-	ConvID    string `json:"conv_id,omitempty"`
-	MessageID int    `json:"message_id"`
-	Name      string `json:"name"`
-	Args      string `json:"args,omitempty"`
-	Output    string `json:"tool_output,omitempty"`
+	Content   string         `json:"content,omitempty"`
+	Reasoning string         `json:"reasoning,omitempty"`
+	ToolCall  tools.ToolCall `json:"tool_call,omitzero"`
 }
 
 type StreamMetadata struct {
@@ -69,22 +61,7 @@ func (c *Client) SendChatCompletionRequest(params ProviderRequestParams) (*opena
 	openAIparams := openai.ChatCompletionNewParams{
 		Model:    model,
 		Messages: OpenAIMessageParams(params.Messages),
-
-		Tools: []openai.ChatCompletionToolUnionParam{
-			openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
-				Name:        "get_weather",
-				Description: openai.String("Get weather at the given location"),
-				Parameters: openai.FunctionParameters{
-					"type": "object",
-					"properties": map[string]any{
-						"location": map[string]string{
-							"type": "string",
-						},
-					},
-					"required": []string{"location"},
-				},
-			}),
-		},
+		Tools:    toOpenAITools(tools.GetAllTools()),
 	}
 
 	log.Debug("Params ReasoningEffort:", "value", params.ReasoningEffort)
@@ -123,22 +100,7 @@ func (c *Client) SendChatCompletionStreamRequest(params ProviderRequestParams, w
 		Model:           model,
 		Messages:        OpenAIMessageParams(params.Messages),
 		ReasoningEffort: params.ReasoningEffort,
-
-		Tools: []openai.ChatCompletionToolUnionParam{
-			openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
-				Name:        "get_weather",
-				Description: openai.String("Get weather at the given location"),
-				Parameters: openai.FunctionParameters{
-					"type": "object",
-					"properties": map[string]any{
-						"location": map[string]string{
-							"type": "string",
-						},
-					},
-					"required": []string{"location"},
-				},
-			}),
-		},
+		Tools:           toOpenAITools(tools.GetAllTools()),
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -179,7 +141,7 @@ func (c *Client) SendChatCompletionStreamRequest(params ProviderRequestParams, w
 
 			if toolCall, ok := acc.JustFinishedToolCall(); ok {
 				toolCallData := StreamChunk{
-					ToolCall: ToolCall{
+					ToolCall: tools.ToolCall{
 						ID:   toolCall.ID,
 						Name: toolCall.Name,
 						Args: toolCall.Arguments,

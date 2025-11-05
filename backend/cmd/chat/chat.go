@@ -2,7 +2,9 @@ package chat
 
 import (
 	"ai-client/cmd/provider"
+	"ai-client/cmd/tools"
 	"ai-client/cmd/utils"
+
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -115,7 +117,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		Children:  []int{},
 	}
 
-	var toolCalls []provider.ToolCall
+	var toolCalls []tools.ToolCall
 	var isToolsUsed bool
 
 	completion, err := providerClient.SendChatCompletionStreamRequest(providerParams, w)
@@ -146,33 +148,27 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 			ToolCall: toolCall,
 		})
 
-		if toolCall.Name == "get_weather" {
+		toolCall.MessageID = responseMessage.ID
+		toolCall.ConvID = convID
 
-			weatherInfo := weatherTool()
-			toolCall.Output = weatherInfo
-			toolCall.MessageID = responseMessage.ID
-			toolCall.ConvID = convID
+		output := tools.ExecuteToolCall(toolCall)
+		toolCall.Output = output
 
-			toolsRepo.SaveToolCall(toolCall)
+		chunk, _ := json.Marshal(provider.StreamChunk{
+			ToolCall: toolCall,
+		})
+		fmt.Fprintf(w, "data: %s\n\n", chunk)
+		flusher.Flush()
 
-			chunk, _ := json.Marshal(provider.StreamChunk{
-				ToolCall: toolCall,
-			})
-			fmt.Fprintf(w, "data: %s\n\n", chunk)
-			flusher.Flush()
-
-			// Append tool result message to context for continued completion
-			providerParams.Messages = append(providerParams.Messages, provider.SimpleMessage{
-				Role: "tool",
-				ToolCall: provider.ToolCall{
-					ID:     toolCall.ID,
-					Name:   toolCall.Name,
-					Output: weatherInfo,
-				},
-			})
-
-			log.Debug("Processed tool call: get_weather", "ctx", providerParams.Messages)
-		}
+		// Append tool result message to context for continued completion
+		providerParams.Messages = append(providerParams.Messages, provider.SimpleMessage{
+			Role: "tool",
+			ToolCall: tools.ToolCall{
+				ID:     toolCall.ID,
+				Name:   toolCall.Name,
+				Output: output,
+			},
+		})
 
 		toolCalls = toolCalls[1:]
 		if len(toolCalls) == 0 {

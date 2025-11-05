@@ -1,33 +1,32 @@
-package chat
+package tools
 
 import (
-	"ai-client/cmd/provider"
 	"database/sql"
 )
 
-type ToolRepository interface {
-	SaveToolCall(toolCall provider.ToolCall) error
-	GetToolCallsByMessageID(messageID int) []*provider.ToolCall
-	GetToolCallsByConvID(convID string) []*provider.ToolCall
+type ToolCallsRepository interface {
+	SaveToolCall(toolCall ToolCall) error
+	GetToolCallsByMessageID(messageID int) []*ToolCall
+	GetToolCallsByConvID(convID string) []*ToolCall
 }
 
-type ToolRepositoryImpl struct {
+type ToolCallsRepositoryImpl struct {
 	db *sql.DB
 }
 
-func NewToolRepository(db *sql.DB) ToolRepository {
-	return &ToolRepositoryImpl{db: db}
+func NewToolCallsRepository(db *sql.DB) ToolCallsRepository {
+	return &ToolCallsRepositoryImpl{db: db}
 }
 
-func (repo *ToolRepositoryImpl) SaveToolCall(toolCall provider.ToolCall) error {
+func (repo *ToolCallsRepositoryImpl) SaveToolCall(toolCall ToolCall) error {
 	sql := `INSERT INTO ToolCalls (id, conv_id, message_id, name, args, output) VALUES (?, ?, ?, ?, ?, ?)`
 	_, err := repo.db.Exec(sql, toolCall.ID, toolCall.ConvID, toolCall.MessageID, toolCall.Name, toolCall.Args, toolCall.Output)
 	return err
 }
 
-func (repo *ToolRepositoryImpl) GetToolCallsByMessageID(messageID int) []*provider.ToolCall {
+func (repo *ToolCallsRepositoryImpl) GetToolCallsByMessageID(messageID int) []*ToolCall {
 	sql := `SELECT id, name, args, output FROM ToolCalls WHERE message_id = ?`
-	var toolCalls = make([]*provider.ToolCall, 0)
+	var toolCalls = make([]*ToolCall, 0)
 
 	rows, err := repo.db.Query(sql, messageID)
 	if err != nil {
@@ -37,7 +36,7 @@ func (repo *ToolRepositoryImpl) GetToolCallsByMessageID(messageID int) []*provid
 
 	defer rows.Close()
 	for rows.Next() {
-		var toolCall provider.ToolCall
+		var toolCall ToolCall
 		if err := rows.Scan(
 			&toolCall.ID,
 			&toolCall.Name,
@@ -53,9 +52,9 @@ func (repo *ToolRepositoryImpl) GetToolCallsByMessageID(messageID int) []*provid
 	return toolCalls
 }
 
-func (repo *ToolRepositoryImpl) GetToolCallsByConvID(convID string) []*provider.ToolCall {
+func (repo *ToolCallsRepositoryImpl) GetToolCallsByConvID(convID string) []*ToolCall {
 	sql := `SELECT id, message_id, name, args, output FROM ToolCalls WHERE conv_id = ?`
-	var toolCalls = make([]*provider.ToolCall, 0)
+	var toolCalls = make([]*ToolCall, 0)
 
 	rows, err := repo.db.Query(sql, convID)
 	if err != nil {
@@ -65,7 +64,7 @@ func (repo *ToolRepositoryImpl) GetToolCallsByConvID(convID string) []*provider.
 
 	defer rows.Close()
 	for rows.Next() {
-		var toolCall provider.ToolCall
+		var toolCall ToolCall
 		if err := rows.Scan(
 			&toolCall.ID,
 			&toolCall.MessageID,

@@ -86,7 +86,7 @@ func RespondWithJSON(w http.ResponseWriter, data interface{}, statusCode int) {
 	}
 }
 
-func Structure(t interface{}) string {
+func Structure(t any) string {
 	reflector := jsonschema.Reflector{}
 	schema := reflector.Reflect(t)
 	str, _ := json.MarshalIndent(schema, "", "  ")
