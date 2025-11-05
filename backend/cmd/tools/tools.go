@@ -1,7 +1,11 @@
 package tools
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
+
+	"github.com/evgensoft/ddgo"
 )
 
 type Tool struct {
@@ -74,9 +78,30 @@ func GetAllTools() []Tool {
 	}
 }
 
-func ddgsTool(_ string) string {
-	time.Sleep(2 * time.Second)
-	return "DuckDuckGo search is not yet implemented."
+func ddgsTool(q string) string {
+	var m map[string]any
+	err := json.Unmarshal([]byte(q), &m)
+	if err != nil {
+		return "Error parsing tool arguments."
+	}
+	query := m["query"].(string)
+
+	result, err := ddgo.Query(query, 5)
+	if err != nil {
+		return "Error occurred while searching DuckDuckGo."
+	}
+
+	// combine results into a single string
+	output := "Search Success! Use the relevant information, and cite the source links using MD links DuckDuckGo Search Results:\n"
+	for i, res := range result {
+		output += fmt.Sprintf("%d. %s\n%s\n%s\n\n", i+1, res.Title, res.Info, res.URL)
+	}
+
+	if len(result) == 0 {
+		output = "Bot detection triggered. Do not use this tool frequently"
+	}
+
+	return output
 }
 
 func weatherTool() string {

@@ -5,6 +5,7 @@ go 1.24
 require (
 	github.com/alecthomas/jsonschema v0.0.0-20220216202328-9eeeec9d044b
 	github.com/charmbracelet/log v0.4.2
+	github.com/evgensoft/ddgo v0.0.0-20250604183002-54c292420e4d
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/modelcontextprotocol/go-sdk v1.1.0
@@ -12,8 +13,11 @@ require (
 )
 
 require (
+	github.com/PuerkitoBio/goquery v1.10.3 // indirect
+	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/google/jsonschema-go v0.3.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 )
 
@@ -38,7 +42,7 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/sys v0.32.0 // indirect
 )
 
 replace github.com/openai/openai-go/v3 => github.com/bajahaw/openai-go/v3 v3.0.0-20251025182939-e8a13f1b97ec
