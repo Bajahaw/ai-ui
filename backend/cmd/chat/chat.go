@@ -150,6 +150,8 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 
 			weatherInfo := weatherTool()
 			toolCall.Output = weatherInfo
+			toolCall.MessageID = responseMessage.ID
+			toolCall.ConvID = convID
 
 			toolsRepo.SaveToolCall(toolCall)
 
