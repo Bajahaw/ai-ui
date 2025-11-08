@@ -501,7 +501,6 @@ export const ChatInterface = ({
       return (
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader size={16} />
-          <span className="text-base">Thinking...</span>
         </div>
       );
     }
