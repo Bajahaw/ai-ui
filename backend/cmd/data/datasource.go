@@ -79,6 +79,21 @@ func InitDataSource(dataSourceName string) error {
 		FOREIGN KEY (message_id) REFERENCES Messages(id) ON DELETE CASCADE
 	);
 
+	CREATE TABLE IF NOT EXISTS Tools (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		description TEXT NOT NULL,
+		mcp_server_id TEXT NOT NULL,
+		FOREIGN KEY (mcp_server_id) REFERENCES MCPServers(id) ON DELETE CASCADE
+	);
+
+	CREATE TABLE IF NOT EXISTS MCPServers (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		endpoint TEXT NOT NULL,
+		api_key TEXT NOT NULL
+	);
+
 	CREATE TABLE IF NOT EXISTS Providers (
 		id TEXT PRIMARY KEY,
 		url TEXT NOT NULL,

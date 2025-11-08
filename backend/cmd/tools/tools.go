@@ -9,9 +9,11 @@ import (
 )
 
 type Tool struct {
+	ID          string         `json:"id"`
+	MCPServerID string         `json:"mcp_server_id,omitempty"`
 	Name        string         `json:"name"`
 	Description string         `json:"description,omitempty"`
-	ArgsSchema  map[string]any `json:"args_schema,omitempty"`
+	InputSchema map[string]any `json:"input_schema,omitempty"`
 }
 
 type ToolCall struct {
@@ -53,7 +55,7 @@ func GetAllTools() []Tool {
 		{
 			Name:        "search_ddgs",
 			Description: "Search the web using DuckDuckGo",
-			ArgsSchema: map[string]any{
+			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"query": map[string]string{
@@ -65,7 +67,7 @@ func GetAllTools() []Tool {
 		{
 			Name:        "get_weather",
 			Description: "Get the current weather",
-			ArgsSchema: map[string]any{
+			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"location": map[string]string{

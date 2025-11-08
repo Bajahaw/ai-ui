@@ -14,13 +14,19 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var log *logger.Logger
-var db *sql.DB
-var toolCallsRepo ToolCallsRepository
+var (
+	log           *logger.Logger
+	db            *sql.DB
+	mcpRepo       MCPServerRepository
+	toolRepo      ToolRepository
+	toolCallsRepo ToolCallsRepository
+)
 
 func SetUpTools(l *logger.Logger, database *sql.DB) {
 	db = database
 	toolCallsRepo = NewToolCallsRepository(db)
+	toolRepo = NewToolRepository(db)
+	mcpRepo = NewMCPRepository(db, toolRepo)
 	log = l
 }
 
@@ -60,7 +66,6 @@ func ListMCPFeatures() {
 	if session.InitializeResult().Capabilities.Prompts != nil {
 		printSection("prompts", session.Prompts(listCtx, nil), func(p *mcp.Prompt) string { return p.Name })
 	}
-
 }
 
 func printSection[T any](name string, features iter.Seq2[T, error], featName func(T) string) {

@@ -34,8 +34,8 @@ func buildContext(convID string, start int) []provider.SimpleMessage {
 			break
 		}
 
+		// If the assistant message has tool call, include it before the assistant content
 		if msg.Role == "assistant" && len(msg.Tools) > 0 {
-			// If the assistant message has tools, include before the assistant content
 			for _, tool := range msg.Tools {
 
 				messages = append(messages, provider.SimpleMessage{
