@@ -541,18 +541,23 @@ export const useConversations = () => {
                         },
                     );
 
-                    // After streaming completes, set up the backend conversation properly
-                    try {
-                        // Fetch the full conversation to set up backend structure
-                        const fullConversation = await conversationsAPI.fetchConversation(realConvId);
-                        const conv = manager.getConversation(realConvId);
-                        if (conv && realAssistantMessageId) {
-                            conv.backendConversation = fullConversation;
-                            // Set activeMessageId to the assistant message so next message can be sent
+                    // Use the conversation data we got from createConversation (includes timestamps)
+                    // This avoids the "blink" caused by refetching and rebuilding messages from backend
+                    const conv = manager.getConversation(realConvId);
+                    if (conv && realAssistantMessageId) {
+                        // Use the createdConv data which has all the proper fields including timestamps
+                        if (!conv.backendConversation) {
+                            conv.backendConversation = {
+                                ...createdConv,
+                                messages: {},
+                                activeMessageId: realAssistantMessageId,
+                            };
+                        } else {
+                            // Update timestamps and activeMessageId
+                            conv.backendConversation.createdAt = createdConv.createdAt;
+                            conv.backendConversation.updatedAt = createdConv.updatedAt;
                             conv.backendConversation.activeMessageId = realAssistantMessageId;
                         }
-                    } catch (e) {
-                        console.error("Failed to fetch conversation after streaming:", e);
                     }
 
                     // Final sync ONCE after streaming completes

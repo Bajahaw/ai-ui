@@ -119,6 +119,7 @@ export const ChatInterface = ({
   );
   const conversationRef = useRef<HTMLDivElement>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
+  const previousConversationIdRef = useRef<string | undefined>(undefined);
 
   // Scroll to bottom when user sends a message
   const scrollToBottom = useCallback(() => {
@@ -134,26 +135,40 @@ export const ChatInterface = ({
     }, 100);
   }, []);
 
-  // Reset interaction flag when conversation changes
+  // Reset interaction flag when conversation changes and scroll to bottom on initial load
   useEffect(() => {
-    setHasInteracted(false);
-  }, [currentConversation?.id]);
+    const currentId = currentConversation?.id;
+    const previousId = previousConversationIdRef.current;
+    
+    // Check if this is a real conversation switch (not temp ID -> real ID transition)
+    // Temp IDs start with "conv-", real IDs are UUIDs (contain dashes in UUID format)
+    const isTempId = (id: string | undefined) => id?.startsWith("conv-");
+    const isRealConversationSwitch = 
+      currentId !== previousId && 
+      !(isTempId(previousId) && !isTempId(currentId)); // Not transitioning from temp to real
+    
+    // Update the ref
+    previousConversationIdRef.current = currentId;
+    
+    // Only reset interaction and auto-scroll when truly switching conversations
+    if (isRealConversationSwitch) {
+      setHasInteracted(false);
+      
+      // Only auto-scroll when switching to a conversation that already has messages
+      if (messages.length > 0) {
+        const container = conversationRef.current;
+        if (!container) return;
 
-  // Open conversation at the bottom (instant, no animation) when it first loads
-  useEffect(() => {
-    if (messages.length > 0 && !hasInteracted) {
-      const container = conversationRef.current;
-      if (!container) return;
-
-      // Use auto behavior for instant positioning without animation
-      requestAnimationFrame(() => {
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: "auto", // Instant, no smooth scrolling
+        // Use auto behavior for instant positioning without animation
+        requestAnimationFrame(() => {
+          container.scrollTo({
+            top: container.scrollHeight,
+            behavior: "auto", // Instant, no smooth scrolling
+          });
         });
-      });
+      }
     }
-  }, [currentConversation?.id, messages.length, hasInteracted]);
+  }, [currentConversation?.id, messages.length]);
 
   /**
    * Synchronize local model state with the default model setting
@@ -238,8 +253,11 @@ export const ChatInterface = ({
     // Mark that user has interacted with this conversation
     setHasInteracted(true);
 
-    // Scroll to bottom immediately after user sends a message (not after response)
-    scrollToBottom();
+    // Only scroll to bottom if there are already messages (not the first message)
+    // This prevents auto-scroll when starting a new conversation
+    if (messages.length > 0) {
+      scrollToBottom();
+    }
 
     // Send message (don't wait for response before scrolling)
     onSendMessage(message, webSearch, model, attachment);
