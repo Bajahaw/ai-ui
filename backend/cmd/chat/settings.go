@@ -3,7 +3,6 @@ package chat
 import (
 	"ai-client/cmd/data"
 	"ai-client/cmd/utils"
-	"fmt"
 	"net/http"
 )
 
@@ -60,7 +59,8 @@ func updateSettings(w http.ResponseWriter, r *http.Request) {
 func saveUpdatedSettings(s Settings) error {
 	for key, value := range s.Settings {
 		if key == "" {
-			return fmt.Errorf("empty key in settings")
+			log.Error("empty key in settings")
+			continue
 		}
 
 		// on conflict, update the value
@@ -86,9 +86,19 @@ func setDefaultSettings() {
 		"reasoningEffort":   "disabled",
 	}
 
-	err := saveUpdatedSettings(Settings{defaults})
-	if err != nil {
-		log.Error("Error setting default settings", "err", err)
+	for key, value := range defaults {
+		if key == "" {
+			log.Error("empty key in default settings")
+			continue
+		}
+
+		// on conflict, do not update the value
+		sql := "INSERT INTO Settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=Settings.value"
+		_, err := data.DB.Exec(sql, key, value)
+		if err != nil {
+			log.Error("Error setting default setting", "key", key, "err", err)
+			continue
+		}
 	}
 }
 
