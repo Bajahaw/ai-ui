@@ -1,11 +1,13 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/evgensoft/ddgo"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type Tool struct {
@@ -37,7 +39,7 @@ func ExecuteToolCall(toolCall ToolCall) string {
 	case "get_weather":
 		output = weatherTool()
 	default:
-		return "MCP Tool execution not implemented yet."
+		output = executeMCPTool(toolCall)
 	}
 
 	toolCallsRepo.SaveToolCall(ToolCall{
@@ -50,6 +52,67 @@ func ExecuteToolCall(toolCall ToolCall) string {
 	})
 
 	return output
+}
+
+func executeMCPTool(toolCall ToolCall) string {
+	tool, err := toolRepo.GetToolByName(toolCall.Name)
+	if err != nil {
+		return "Error occurred while retrieving tool."
+	}
+
+	server, err := mcpRepo.GetMCPServer(tool.MCPServerID)
+	if err != nil {
+		return "Error occurred while retrieving MCP server."
+	}
+
+	log.Debug("Executing MCP tool", "tool", tool.Name, "server", server.Name, "args", toolCall.Args)
+	log.Debug("MCP tool input schema", "schema", tool.InputSchema, "args", toolCall.Args)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "mcp-client", Version: "v1.0.0"}, nil)
+
+	headers := map[string]string{
+		"Authorization": "Bearer " + server.APIKey,
+	}
+
+	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
+		Endpoint:   server.Endpoint,
+		HTTPClient: httpClientWithCustomHeaders(headers),
+	}, nil)
+
+	if err != nil {
+		log.Error("Error connecting to MCP server", "err", err)
+		return "Error connecting to MCP server."
+	}
+	defer session.Close()
+
+	// CallToolParams.Arguments field expects any type that will be marshaled to JSON by the SDK itself, not a pre-stringified JSON.
+	var args map[string]any
+	if err := json.Unmarshal([]byte(toolCall.Args), &args); err != nil {
+		log.Error("Error unmarshaling tool arguments", "err", err)
+		return "Error parsing tool arguments."
+	}
+
+	params := &mcp.CallToolParams{
+		Name:      toolCall.Name,
+		Arguments: args,
+	}
+
+	result, err := session.CallTool(ctx, params)
+	if err != nil {
+		log.Error("Error calling tool on MCP server", "err", err)
+		return "Error calling tool on MCP server."
+	}
+
+	output := result.Content
+	// output is an array of mcp.Content objects
+	log.Debug(len(output))
+	log.Debug(output)
+
+	rawJSON, _ := json.Marshal(output)
+	return string(rawJSON)
 }
 
 func GetAllTools() []Tool {
@@ -97,7 +160,7 @@ func ddgsTool(q string) string {
 	}
 
 	// combine results into a single string
-	output := "Search Success! Use the relevant information, and cite the source links using MD links DuckDuckGo Search Results:\n"
+	output := "Search Success! citations should be in [host](full-link) format.\n Search Results:\n"
 	for i, res := range result {
 		output += fmt.Sprintf("%d. %s\n%s\n%s\n\n", i+1, res.Title, res.Info, res.URL)
 	}
