@@ -37,7 +37,7 @@ func listAllTools(w http.ResponseWriter, r *http.Request) {
 
 func saveListOfTools(w http.ResponseWriter, r *http.Request) {
 	var req ToolListResponse
-	if err := utils.ExtractJSONBody(r, req); err != nil {
+	if err := utils.ExtractJSONBody(r, &req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}

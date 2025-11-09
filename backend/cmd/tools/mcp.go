@@ -2,7 +2,13 @@ package tools
 
 import (
 	"ai-client/cmd/utils"
+	"context"
+	"encoding/json"
 	"net/http"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type MCPServer struct {
@@ -74,14 +80,15 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	server := MCPServer{
-		ID:       req.ID,
+		ID:       uuid.NewString(),
 		Name:     req.Name,
 		Endpoint: req.Endpoint,
 		APIKey:   req.APIKey,
 	}
 
-	// Validate connection to MCP server, fetch tools, etc. (omitted for brevity)
+	server.Tools = GetMCPTools(server)
 
+	// Save MCP server does save tools as well
 	err = mcpRepo.SaveMCPServer(server)
 	if err != nil {
 		log.Error("Error saving MCP server", "err", err)
@@ -109,4 +116,120 @@ func deleteMCPServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, "MCP server deleted successfully", http.StatusOK)
+}
+
+func GetMCPTools(server MCPServer) []Tool {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "mcp-client", Version: "v1.0.0"}, nil)
+
+	headers := map[string]string{
+		"Authorization": "Bearer " + server.APIKey,
+	}
+
+	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
+		Endpoint:   server.Endpoint,
+		HTTPClient: httpClientWithCustomHeaders(headers),
+	}, nil)
+
+	if err != nil {
+		log.Error("Error connecting to MCP server", "err", err)
+		return []Tool{}
+	}
+	defer session.Close()
+
+	tools := []Tool{}
+	if session.InitializeResult().Capabilities.Tools != nil {
+		mcpTools := session.Tools(ctx, nil)
+		for tool, err := range mcpTools {
+			if err != nil {
+				log.Error("Error fetching tool from MCP server", "err", err)
+				continue
+			}
+			tools = append(tools, Tool{
+				ID:          uuid.New().String(),
+				MCPServerID: server.ID,
+				Name:        tool.Name,
+				Description: tool.Description,
+				InputSchema: func() string {
+					schemaBytes, _ := json.Marshal(tool.InputSchema)
+					return string(schemaBytes)
+				}(),
+			})
+		}
+	}
+
+	return tools
+}
+
+type acceptHeaderRoundTripper struct {
+	extraHeaders map[string]string
+	delegate     http.RoundTripper
+}
+
+func (rt *acceptHeaderRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+
+	// req.Header.Set("Authorization", "Bearer fc-***")
+	// req.Header.Set("Cache-Control", "no-cache")
+	// req.Header.Set("Content-Type", "application/json")
+	// req.Header.Set("Accept", "application/json, text/event-stream")
+
+	for k, v := range rt.extraHeaders {
+		req.Header.Set(k, v)
+	}
+
+	log.Debug("request url", "url", req.URL)
+	log.Debug("request headers", "headers", req.Header)
+	log.Debug("request method", "method", req.Method)
+	// log.Debug("request params", "params", req.URL.Query())
+
+	// Read and restore the request body (required to avoid consuming the body stream)
+	// if req.Body != nil {
+	// 	bodyBytes, err := io.ReadAll(req.Body)
+	// 	if err != nil {
+	// 		log.Debug("error reading request body", "error", err)
+	// 		return nil, err
+	// 	}
+	// 	log.Debug("request body", "body", string(bodyBytes))
+	// 	// Restore the body so it can be read again
+	// 	req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	// }
+
+	resp, err := rt.delegate.RoundTrip(req)
+	if err != nil {
+		// log.Errorf("[DEBUG] HTTP Request Error: %v", err)
+		return nil, err
+	}
+
+	log.Debug("response headers", "headers", resp.Header)
+	log.Debug("response status", "status", resp.Status)
+
+	// Only log response body for non-streaming responses
+	// SSE responses (text/event-stream) should not be read here as they're long-lived streams
+	// contentType := resp.Header.Get("Content-Type")
+	// if resp.Body != nil {
+	// 	// if resp.Body != nil && contentType != "text/event-stream" {
+	// 	bodyBytes, err := io.ReadAll(resp.Body)
+	// 	if err != nil {
+	// 		log.Error("error reading response body", "error", err)
+	// 		return nil, err
+	// 	}
+	// 	log.Debug("response body", "body", string(bodyBytes))
+	// 	// Restore the body so it can be read again
+	// 	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	// } else if contentType == "text/event-stream" {
+	// 	log.Debug("response body", "body", "(SSE stream - not logged)")
+	// }
+
+	return resp, err
+}
+
+func httpClientWithCustomHeaders(headers map[string]string) *http.Client {
+	return &http.Client{
+		Transport: &acceptHeaderRoundTripper{
+			extraHeaders: headers,
+			delegate:     http.DefaultTransport,
+		},
+	}
 }

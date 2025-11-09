@@ -2,6 +2,7 @@ package provider
 
 import (
 	"ai-client/cmd/tools"
+	"encoding/json"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/packages/param"
@@ -104,10 +105,12 @@ func ToToolCalls(toolCalls []openai.ChatCompletionMessageToolCallUnion) []tools.
 func toOpenAITools(tool []tools.Tool) []openai.ChatCompletionToolUnionParam {
 	var result []openai.ChatCompletionToolUnionParam
 	for _, t := range tool {
+		var inputSchema map[string]any
+		_ = json.Unmarshal([]byte(t.InputSchema), &inputSchema)
 		result = append(result, openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
 			Name:        t.Name,
 			Description: openai.String(t.Description),
-			Parameters:  openai.FunctionParameters(t.InputSchema),
+			Parameters:  openai.FunctionParameters(inputSchema),
 		}))
 	}
 

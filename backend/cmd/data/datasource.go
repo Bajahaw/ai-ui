@@ -84,6 +84,7 @@ func InitDataSource(dataSourceName string) error {
 		name TEXT NOT NULL,
 		description TEXT NOT NULL,
 		mcp_server_id TEXT NOT NULL,
+		input_schema TEXT,
 		require_approval BOOLEAN NOT NULL DEFAULT 0,
 		is_enabled BOOLEAN NOT NULL DEFAULT 1,
 		FOREIGN KEY (mcp_server_id) REFERENCES MCPServers(id) ON DELETE CASCADE

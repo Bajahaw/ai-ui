@@ -9,13 +9,13 @@ import (
 )
 
 type Tool struct {
-	ID              string         `json:"id"`
-	MCPServerID     string         `json:"mcp_server_id,omitempty"`
-	Name            string         `json:"name"`
-	Description     string         `json:"description,omitempty"`
-	InputSchema     map[string]any `json:"input_schema,omitempty"`
-	RequireApproval bool           `json:"require_approval,omitempty"`
-	IsEnabled       bool           `json:"is_enabled,omitempty"`
+	ID              string `json:"id"`
+	MCPServerID     string `json:"mcp_server_id,omitempty"`
+	Name            string `json:"name"`
+	Description     string `json:"description,omitempty"`
+	InputSchema     string `json:"input_schema,omitempty"`
+	RequireApproval bool   `json:"require_approval"`
+	IsEnabled       bool   `json:"is_enabled"`
 }
 
 type ToolCall struct {
@@ -37,7 +37,7 @@ func ExecuteToolCall(toolCall ToolCall) string {
 	case "get_weather":
 		output = weatherTool()
 	default:
-		return "Unknown tool: " + toolCall.Name
+		return "MCP Tool execution not implemented yet."
 	}
 
 	toolCallsRepo.SaveToolCall(ToolCall{
@@ -63,27 +63,12 @@ func GetBuiltInTools() []Tool {
 		{
 			Name:        "search_ddgs",
 			Description: "Search the web using DuckDuckGo",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"query": map[string]string{
-						"type": "string",
-					},
-				},
-			},
+			InputSchema: "type: object\nproperties:\n  query:\n    type: string\nrequired: [query]",
 		},
 		{
 			Name:        "get_weather",
 			Description: "Get the current weather",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"location": map[string]string{
-						"type": "string",
-					},
-				},
-				"required": []string{"location"},
-			},
+			InputSchema: "type: object\nproperties:\n  location:\n    type: string\nrequired: [location]",
 		},
 	}
 }
