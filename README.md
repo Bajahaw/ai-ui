@@ -1,12 +1,12 @@
 # AI UI
 
-Lightweight AI chat interface with React and Golang.
+Lightweight AI chat interface built with React and Golang.
 
 ## Features
 
 - Conversation management with history, edits, and branching
 - Multi-provider AI support (OpenAI compatible ones)
-- Tools/MCP integration (soon)
+- Tools/MCP integration
 - Built-in S3 Backups (planned) 
 - Single user authentication
 - Dark/light themes
