@@ -1,0 +1,73 @@
+import { getApiUrl } from "@/lib/config";
+import { MCPServerRequest, MCPServerResponse } from "./types";
+
+// Get all MCP servers
+export const getMCPServers = async (): Promise<MCPServerResponse[]> => {
+  const response = await fetch(getApiUrl("/api/tools/mcp/all"), {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch MCP servers: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+// Get a specific MCP server
+export const getMCPServer = async (
+  id: string,
+): Promise<MCPServerResponse> => {
+  const response = await fetch(getApiUrl(`/api/tools/mcp/${id}`), {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch MCP server: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+// Save/update MCP server
+export const saveMCPServer = async (
+  serverData: MCPServerRequest,
+): Promise<MCPServerResponse> => {
+  const response = await fetch(getApiUrl("/api/tools/mcp/save"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(serverData),
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to save MCP server: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+// Delete MCP server
+export const deleteMCPServer = async (id: string): Promise<void> => {
+  const response = await fetch(getApiUrl(`/api/tools/mcp/delete/${id}`), {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete MCP server: ${response.statusText}`);
+  }
+};

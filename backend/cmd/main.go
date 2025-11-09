@@ -111,6 +111,7 @@ func startServer() {
 	mux.Handle("/api/providers/", provider.Handler())
 	mux.Handle("/api/models/", provider.ModelsHandler())
 	mux.Handle("/api/settings/", chat.SettingsHandler())
+	mux.Handle("/api/tools/", tools.Handler())
 
 	mux.Handle("POST /api/logout", auth.Logout())
 	mux.Handle("POST /api/login", auth.Login())

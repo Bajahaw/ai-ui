@@ -214,3 +214,45 @@ export interface FrontendProvider {
 export interface FileUploadResponse {
   fileUrl: string;
 }
+
+// MCP Server types
+export interface MCPServer {
+  id: string;
+  name: string;
+  endpoint: string;
+  api_key: string;
+  tools?: Tool[];
+}
+
+export interface MCPServerRequest {
+  id?: string;
+  name: string;
+  endpoint: string;
+  api_key: string;
+}
+
+export interface MCPServerResponse {
+  id: string;
+  name: string;
+  endpoint: string;
+  tools: Tool[];
+}
+
+export interface MCPServerListResponse {
+  servers: MCPServerResponse[];
+}
+
+// Tool types
+export interface Tool {
+  id: string;
+  mcp_server_id?: string;
+  name: string;
+  description?: string;
+  input_schema?: Record<string, any>;
+  require_approval?: boolean;
+  is_enabled?: boolean;
+}
+
+export interface ToolListResponse {
+  tools: Tool[];
+}

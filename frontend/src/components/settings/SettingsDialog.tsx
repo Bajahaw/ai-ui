@@ -7,17 +7,19 @@ import {
 } from "@/components/ui/dialog";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Settings, Database, ListChecks } from "lucide-react";
+import { Settings, Database, ListChecks, Server, Wrench } from "lucide-react";
 import { ProvidersSection } from "./ProvidersSection";
 import { GlobalSettingsSection } from "./GlobalSettingsSection";
 import { ModelsSection } from "./ModelsSection";
+import { MCPServersSection } from "./MCPServersSection";
+import { ToolsSection } from "./ToolsSection";
 
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-type SettingsTab = "providers" | "models" | "global";
+type SettingsTab = "providers" | "models" | "global" | "mcp" | "tools";
 
 export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>("global");
@@ -39,18 +41,30 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
       label: "Models",
       icon: ListChecks,
     },
+    {
+      id: "mcp" as const,
+      label: "MCP Servers",
+      icon: Server,
+    },
+    {
+      id: "tools" as const,
+      label: "Tools",
+      icon: Wrench,
+    },
   ];
 
   const renderTabContent = () => {
     switch (activeTab) {
       case "providers":
         return <ProvidersSection />;
-
       case "models":
         return <ModelsSection />;
       case "global":
         return <GlobalSettingsSection />;
-
+      case "mcp":
+        return <MCPServersSection />;
+      case "tools":
+        return <ToolsSection />;
       default:
         return null;
     }
@@ -68,7 +82,7 @@ export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
 
         <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Sidebar */}
-          <div className="w-16 sm:w-56 md:w-64 lg:w-72 border-r flex-shrink-0">
+          <div className="w-16 sm:w-56 border-r flex-shrink-0">
             <div className="p-3 sm:p-4 md:p-5 lg:p-6 h-full">
               <nav className="space-y-2">
                 {tabs.map((tab) => {
