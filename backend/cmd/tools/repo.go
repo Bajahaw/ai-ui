@@ -7,6 +7,7 @@ type ToolRepository interface {
 	GetToolsByMCPServerID(mcpID string) []Tool
 	GetTool(id string) (Tool, error)
 	SaveTool(tool Tool) error
+	SaveListOfTools(tools []Tool) error
 	DeleteTool(id string) error
 }
 
@@ -20,7 +21,7 @@ func NewToolRepository(db *sql.DB) ToolRepository {
 
 func (repo *ToolRepositoryImpl) GetAllTools() []Tool {
 	var allTools = make([]Tool, 0)
-	sql := `SELECT id, mcp_server_id, name, description, input_schema FROM Tools`
+	sql := `SELECT id, mcp_server_id, name, description, input_schema, require_approval, is_enabled FROM Tools`
 	rows, err := repo.db.Query(sql)
 
 	if err != nil {
@@ -37,6 +38,8 @@ func (repo *ToolRepositoryImpl) GetAllTools() []Tool {
 			&tool.Name,
 			&tool.Description,
 			&tool.InputSchema,
+			&tool.RequireApproval,
+			&tool.IsEnabled,
 		); err != nil {
 			log.Error("Error scanning tool", "err", err)
 			continue
@@ -49,7 +52,7 @@ func (repo *ToolRepositoryImpl) GetAllTools() []Tool {
 
 func (repo *ToolRepositoryImpl) GetToolsByMCPServerID(mcpID string) []Tool {
 	var tools = make([]Tool, 0)
-	sql := `SELECT id, mcp_server_id, name, description, input_schema FROM Tools WHERE mcp_server_id = ?`
+	sql := `SELECT id, mcp_server_id, name, description, input_schema, require_approval, is_enabled FROM Tools WHERE mcp_server_id = ?`
 	rows, err := repo.db.Query(sql, mcpID)
 	if err != nil {
 		log.Error("Error querying tools by MCPServerID", "err", err)
@@ -65,6 +68,8 @@ func (repo *ToolRepositoryImpl) GetToolsByMCPServerID(mcpID string) []Tool {
 			&tool.Name,
 			&tool.Description,
 			&tool.InputSchema,
+			&tool.RequireApproval,
+			&tool.IsEnabled,
 		); err != nil {
 			log.Error("Error scanning tool", "err", err)
 			continue
@@ -77,14 +82,15 @@ func (repo *ToolRepositoryImpl) GetToolsByMCPServerID(mcpID string) []Tool {
 
 func (repo *ToolRepositoryImpl) GetTool(id string) (Tool, error) {
 	var tool Tool
-	sql := `SELECT id, mcp_server_id, name, description, input_schema FROM Tools WHERE id = ?`
+	sql := `SELECT id, mcp_server_id, name, description, input_schema, require_approval, is_enabled FROM Tools WHERE id = ?`
 	err := repo.db.QueryRow(sql, id).Scan(
 		&tool.ID,
 		&tool.MCPServerID,
 		&tool.Name,
 		&tool.Description,
-
-		&tool.InputSchema)
+		&tool.InputSchema,
+		&tool.RequireApproval,
+		&tool.IsEnabled)
 	if err != nil {
 		return Tool{}, err
 	}
@@ -92,10 +98,33 @@ func (repo *ToolRepositoryImpl) GetTool(id string) (Tool, error) {
 }
 
 func (repo *ToolRepositoryImpl) SaveTool(tool Tool) error {
-	sql := `INSERT INTO Tools (id, mcp_server_id, name, description, input_schema) VALUES (?, ?, ?, ?, ?)`
-	_, err := repo.db.Exec(sql, tool.ID, tool.MCPServerID, tool.Name, tool.Description, tool.InputSchema)
+	sql := `INSERT INTO Tools (id, mcp_server_id, name, description, input_schema, require_approval, is_enabled) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	_, err := repo.db.Exec(sql, tool.ID, tool.MCPServerID, tool.Name, tool.Description, tool.InputSchema, tool.RequireApproval, tool.IsEnabled)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func (repo *ToolRepositoryImpl) SaveListOfTools(tools []Tool) error {
+	sql := `
+	INSERT INTO Tools (id, mcp_server_id, name, description, input_schema, require_approval, is_enabled)
+	VALUES (?, ?, ?, ?, ?, ?, ?) 
+	ON CONFLICT(id) DO UPDATE SET require_approval=excluded.require_approval, is_enabled=excluded.is_enabled`
+
+	// TODO: use one query
+	for _, tool := range tools {
+		if _, err := repo.db.Exec(sql,
+			tool.ID,
+			tool.MCPServerID,
+			tool.Name,
+			tool.Description,
+			tool.InputSchema,
+			tool.RequireApproval,
+			tool.IsEnabled,
+		); err != nil {
+			return err
+		}
 	}
 	return nil
 }

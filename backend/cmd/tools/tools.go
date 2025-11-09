@@ -9,11 +9,13 @@ import (
 )
 
 type Tool struct {
-	ID          string         `json:"id"`
-	MCPServerID string         `json:"mcp_server_id,omitempty"`
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	InputSchema map[string]any `json:"input_schema,omitempty"`
+	ID              string         `json:"id"`
+	MCPServerID     string         `json:"mcp_server_id,omitempty"`
+	Name            string         `json:"name"`
+	Description     string         `json:"description,omitempty"`
+	InputSchema     map[string]any `json:"input_schema,omitempty"`
+	RequireApproval bool           `json:"require_approval,omitempty"`
+	IsEnabled       bool           `json:"is_enabled,omitempty"`
 }
 
 type ToolCall struct {
@@ -51,6 +53,12 @@ func ExecuteToolCall(toolCall ToolCall) string {
 }
 
 func GetAllTools() []Tool {
+	builtInTools := GetBuiltInTools()
+	mcpTools := toolRepo.GetAllTools()
+	return append(builtInTools, mcpTools...)
+}
+
+func GetBuiltInTools() []Tool {
 	return []Tool{
 		{
 			Name:        "search_ddgs",
