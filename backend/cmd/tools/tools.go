@@ -63,12 +63,13 @@ func GetBuiltInTools() []Tool {
 		{
 			Name:        "search_ddgs",
 			Description: "Search the web using DuckDuckGo",
-			InputSchema: "type: object\nproperties:\n  query:\n    type: string\nrequired: [query]",
+			// input schema should be raw JSON
+			InputSchema: "{\"type\": \"object\",\"properties\": {\"query\": {\"type\": \"string\",\"description\": \"The search query to look up on DuckDuckGo\"}},\"required\": [\"query\"]}",
 		},
 		{
 			Name:        "get_weather",
 			Description: "Get the current weather",
-			InputSchema: "type: object\nproperties:\n  location:\n    type: string\nrequired: [location]",
+			InputSchema: "{\"type\": \"object\",\"properties\": {\"location\": {\"type\": \"string\",\"description\": \"The location to get weather for\"}},\"required\": [\"location\"]}",
 		},
 	}
 }
@@ -79,7 +80,16 @@ func ddgsTool(q string) string {
 	if err != nil {
 		return "Error parsing tool arguments."
 	}
-	query := m["query"].(string)
+
+	queryVal, ok := m["query"]
+	if !ok || queryVal == nil {
+		return "Error: 'query' parameter is required."
+	}
+
+	query, ok := queryVal.(string)
+	if !ok {
+		return "Error: 'query' parameter must be a string."
+	}
 
 	result, err := ddgo.Query(query, 5)
 	if err != nil {
