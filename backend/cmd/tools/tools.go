@@ -115,10 +115,17 @@ func executeMCPTool(toolCall ToolCall) string {
 	return string(rawJSON)
 }
 
-func GetAllTools() []Tool {
+func GetAvailableTools() []Tool {
 	builtInTools := GetBuiltInTools()
 	mcpTools := toolRepo.GetAllTools()
-	return append(builtInTools, mcpTools...)
+
+	enabledMcpTools := []Tool{}
+	for _, t := range mcpTools {
+		if t.IsEnabled {
+			enabledMcpTools = append(enabledMcpTools, t)
+		}
+	}
+	return append(builtInTools, enabledMcpTools...)
 }
 
 func GetBuiltInTools() []Tool {
@@ -127,12 +134,12 @@ func GetBuiltInTools() []Tool {
 			Name:        "search_ddgs",
 			Description: "Search the web using DuckDuckGo",
 			// input schema should be raw JSON
-			InputSchema: "{\"type\": \"object\",\"properties\": {\"query\": {\"type\": \"string\",\"description\": \"The search query to look up on DuckDuckGo\"}},\"required\": [\"query\"]}",
+			InputSchema: `{"type": "object","properties": {"query": {"type": "string","description": "The search query to look up on DuckDuckGo"}},"required": ["query"]}`,
 		},
 		{
 			Name:        "get_weather",
 			Description: "Get the current weather",
-			InputSchema: "{\"type\": \"object\",\"properties\": {\"location\": {\"type\": \"string\",\"description\": \"The location to get weather for\"}},\"required\": [\"location\"]}",
+			InputSchema: `{"type": "object","properties": {"location": {"type": "string","description": "The location to get weather for"}},"required": ["location"]}`,
 		},
 	}
 }

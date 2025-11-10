@@ -61,7 +61,7 @@ func (c *Client) SendChatCompletionRequest(params ProviderRequestParams) (*opena
 	openAIparams := openai.ChatCompletionNewParams{
 		Model:    model,
 		Messages: OpenAIMessageParams(params.Messages),
-		Tools:    toOpenAITools(tools.GetAllTools()),
+		Tools:    toOpenAITools(tools.GetAvailableTools()),
 	}
 
 	log.Debug("Params ReasoningEffort:", "value", params.ReasoningEffort)
@@ -100,7 +100,7 @@ func (c *Client) SendChatCompletionStreamRequest(params ProviderRequestParams, w
 		Model:           model,
 		Messages:        OpenAIMessageParams(params.Messages),
 		ReasoningEffort: params.ReasoningEffort,
-		Tools:           toOpenAITools(tools.GetAllTools()),
+		Tools:           toOpenAITools(tools.GetAvailableTools()),
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
