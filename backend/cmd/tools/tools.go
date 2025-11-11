@@ -68,27 +68,33 @@ func executeMCPTool(toolCall ToolCall) string {
 	log.Debug("Executing MCP tool", "tool", tool.Name, "server", server.Name, "args", toolCall.Args)
 	log.Debug("MCP tool input schema", "schema", tool.InputSchema, "args", toolCall.Args)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	client := mcp.NewClient(&mcp.Implementation{Name: "mcp-client", Version: "v1.0.0"}, nil)
+	var session *mcp.ClientSession
+	session, ok := mcpSessionManager.get(server.ID)
+	if !ok {
+		client := mcp.NewClient(&mcp.Implementation{Name: "mcp-client", Version: "v1.0.0"}, nil)
+		headers := map[string]string{
+			"Authorization": "Bearer " + server.APIKey,
+		}
 
-	headers := map[string]string{
-		"Authorization": "Bearer " + server.APIKey,
+		session, err = client.Connect(ctx, &mcp.StreamableClientTransport{
+			Endpoint:   server.Endpoint,
+			HTTPClient: httpClientWithCustomHeaders(headers),
+		}, nil)
+
+		mcpSessionManager.add(server.ID, session)
+
+		if err != nil {
+			log.Error("Error connecting to MCP server", "err", err)
+			return "Error connecting to MCP server."
+		}
 	}
 
-	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
-		Endpoint:   server.Endpoint,
-		HTTPClient: httpClientWithCustomHeaders(headers),
-	}, nil)
-
-	if err != nil {
-		log.Error("Error connecting to MCP server", "err", err)
-		return "Error connecting to MCP server."
-	}
-	defer session.Close()
-
-	// CallToolParams.Arguments field expects any type that will be marshaled to JSON by the SDK itself, not a pre-stringified JSON.
+	// CallToolParams.Arguments field expects any type
+	// that will be marshaled to JSON by the SDK itself,
+	// not a pre-stringified JSON.
 	var args map[string]any
 	if err := json.Unmarshal([]byte(toolCall.Args), &args); err != nil {
 		log.Error("Error unmarshaling tool arguments", "err", err)

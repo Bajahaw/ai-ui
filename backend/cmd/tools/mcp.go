@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -232,4 +233,28 @@ func httpClientWithCustomHeaders(headers map[string]string) *http.Client {
 			delegate:     http.DefaultTransport,
 		},
 	}
+}
+
+type MCPSessionManager struct {
+	sessions sync.Map
+}
+
+func (mgr *MCPSessionManager) add(serverID string, session *mcp.ClientSession) {
+	mgr.sessions.Store(serverID, session)
+
+	go func() {
+		// time.Sleep(5 * time.Minute) // or better
+		<-time.After(5 * time.Minute)
+		mgr.sessions.Delete(serverID)
+		session.Close()
+		log.Debug("MCP session closed due to inactivity", "serverID", serverID)
+	}()
+}
+
+func (mgr *MCPSessionManager) get(serverID string) (*mcp.ClientSession, bool) {
+	value, ok := mgr.sessions.Load(serverID)
+	if !ok {
+		return nil, false
+	}
+	return value.(*mcp.ClientSession), true
 }
