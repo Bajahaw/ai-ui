@@ -489,10 +489,10 @@ export const useConversations = () => {
                                                 messages: {},
                                             } as any;
                                         }
-                                        if (!conv.backendConversation.messages) {
-                                            conv.backendConversation.messages = {};
+                                        if (!conv.backendConversation!.messages) {
+                                            conv.backendConversation!.messages = {};
                                         }
-                                        conv.backendConversation.messages[metadata.userMessageId] = {
+                                        conv.backendConversation!.messages[metadata.userMessageId] = {
                                             id: metadata.userMessageId,
                                             convId: realConvId,
                                             role: userMsg.role,
@@ -553,10 +553,10 @@ export const useConversations = () => {
                                                     messages: {},
                                                 } as any;
                                             }
-                                            if (!conv.backendConversation.messages) {
-                                                conv.backendConversation.messages = {};
+                                            if (!conv.backendConversation!.messages) {
+                                                conv.backendConversation!.messages = {};
                                             }
-                                            conv.backendConversation.messages[data.assistantMessageId] = {
+                                            conv.backendConversation!.messages[data.assistantMessageId] = {
                                                 id: data.assistantMessageId,
                                                 convId: realConvId,
                                                 role: assistMsg.role,
