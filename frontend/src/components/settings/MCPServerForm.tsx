@@ -96,7 +96,7 @@ export const MCPServerForm = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] rounded-xl">
-        <DialogHeader>
+        <DialogHeader className="pb-4">
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
@@ -108,7 +108,7 @@ export const MCPServerForm = ({
             </div>
           )}
 
-          <div className="space-y-2 mt-4">
+          <div className="space-y-2">
             <Label htmlFor="name">Name</Label>
             <Input
               id="name"

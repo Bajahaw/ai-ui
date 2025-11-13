@@ -87,7 +87,12 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 		APIKey:   req.APIKey,
 	}
 
-	server.Tools = GetMCPTools(server)
+	server.Tools, err = GetMCPTools(server)
+	if err != nil {
+		log.Error("Error getting MCP tools", "err", err)
+		http.Error(w, "Error connecting to MCP server", http.StatusBadRequest)
+		return
+	}
 
 	// Save MCP server does save tools as well
 	err = mcpRepo.SaveMCPServer(server)
@@ -119,7 +124,7 @@ func deleteMCPServer(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, "MCP server deleted successfully", http.StatusOK)
 }
 
-func GetMCPTools(server MCPServer) []Tool {
+func GetMCPTools(server MCPServer) ([]Tool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -136,7 +141,7 @@ func GetMCPTools(server MCPServer) []Tool {
 
 	if err != nil {
 		log.Error("Error connecting to MCP server", "err", err)
-		return []Tool{}
+		return []Tool{}, err
 	}
 	defer session.Close()
 
@@ -161,7 +166,7 @@ func GetMCPTools(server MCPServer) []Tool {
 		}
 	}
 
-	return tools
+	return tools, nil
 }
 
 type acceptHeaderRoundTripper struct {
@@ -235,6 +240,7 @@ func httpClientWithCustomHeaders(headers map[string]string) *http.Client {
 	}
 }
 
+// MCP session manager to cache sessions
 type MCPSessionManager struct {
 	sessions sync.Map
 }
