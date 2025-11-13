@@ -479,6 +479,29 @@ export const useConversations = () => {
                                         userMsg.id = metadata.userMessageId.toString();
                                         userMsg.status = "success"; // Message is saved, show actions now!
                                         conv.pendingMessageIds.delete(tempMessageId);
+                                        
+                                        // Ensure backendConversation.messages exists and add the user message
+                                        if (!conv.backendConversation) {
+                                            conv.backendConversation = {
+                                                id: realConvId,
+                                                userId: "",
+                                                title: conv.title,
+                                                messages: {},
+                                            } as any;
+                                        }
+                                        if (!conv.backendConversation.messages) {
+                                            conv.backendConversation.messages = {};
+                                        }
+                                        conv.backendConversation.messages[metadata.userMessageId] = {
+                                            id: metadata.userMessageId,
+                                            convId: realConvId,
+                                            role: userMsg.role,
+                                            content: userMsg.content,
+                                            attachment: userMsg.attachment,
+                                            createdAt: new Date().toISOString(),
+                                            updatedAt: new Date().toISOString(),
+                                        } as any;
+                                        
                                         syncConversations(); // Sync to show action buttons
                                     }
                                 }
@@ -520,6 +543,30 @@ export const useConversations = () => {
                                                 assistMsg.reasoningDuration = reasoningDuration;
                                             }
                                             conv.pendingMessageIds.delete(assistantPlaceholderId);
+                                            
+                                            // Ensure backendConversation.messages exists and add the assistant message
+                                            if (!conv.backendConversation) {
+                                                conv.backendConversation = {
+                                                    id: realConvId,
+                                                    userId: "",
+                                                    title: conv.title,
+                                                    messages: {},
+                                                } as any;
+                                            }
+                                            if (!conv.backendConversation.messages) {
+                                                conv.backendConversation.messages = {};
+                                            }
+                                            conv.backendConversation.messages[data.assistantMessageId] = {
+                                                id: data.assistantMessageId,
+                                                convId: realConvId,
+                                                role: assistMsg.role,
+                                                content: assistMsg.content,
+                                                reasoning: assistMsg.reasoning,
+                                                toolCalls: assistMsg.toolCalls,
+                                                parentId: data.userMessageId,
+                                                createdAt: new Date().toISOString(),
+                                                updatedAt: new Date().toISOString(),
+                                            } as any;
                                         }
                                     }
                                 }
@@ -714,6 +761,23 @@ export const useConversations = () => {
                                     userMsg.id = metadata.userMessageId.toString();
                                     userMsg.status = "success"; // Message is saved, show actions now!
                                     conv.pendingMessageIds.delete(tempMessageId);
+                                    
+                                    // Ensure backendConversation.messages exists and add the user message
+                                    if (conv.backendConversation) {
+                                        if (!conv.backendConversation.messages) {
+                                            conv.backendConversation.messages = {};
+                                        }
+                                        conv.backendConversation.messages[metadata.userMessageId] = {
+                                            id: metadata.userMessageId,
+                                            convId: conversationId,
+                                            role: userMsg.role,
+                                            content: userMsg.content,
+                                            attachment: userMsg.attachment,
+                                            createdAt: new Date().toISOString(),
+                                            updatedAt: new Date().toISOString(),
+                                        } as any;
+                                    }
+                                    
                                     syncConversations(); // Sync to show action buttons
                                 }
                             }
@@ -745,9 +809,26 @@ export const useConversations = () => {
                                     assistMsg.reasoning = accumulatedReasoning;
                                     assistMsg.reasoningDuration = reasoningDuration;
                                     conv.pendingMessageIds.delete(assistantPlaceholderId);
+                                    
                                     // Critical: set the active parent to the latest assistant message
                                     if (conv.backendConversation) {
                                         conv.backendConversation.activeMessageId = data.assistantMessageId;
+                                        
+                                        // Ensure backendConversation.messages exists and add the assistant message
+                                        if (!conv.backendConversation.messages) {
+                                            conv.backendConversation.messages = {};
+                                        }
+                                        conv.backendConversation.messages[data.assistantMessageId] = {
+                                            id: data.assistantMessageId,
+                                            convId: conversationId,
+                                            role: assistMsg.role,
+                                            content: assistMsg.content,
+                                            reasoning: assistMsg.reasoning,
+                                            toolCalls: assistMsg.toolCalls,
+                                            parentId: data.userMessageId,
+                                            createdAt: new Date().toISOString(),
+                                            updatedAt: new Date().toISOString(),
+                                        } as any;
                                     }
                                 }
                             }
