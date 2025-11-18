@@ -15,7 +15,7 @@ var authCookie = "auth_token"
 func Setup(log *logger.Logger) {
 	token = os.Getenv("APP_TOKEN")
 	if token == "" {
-		log.Error("APP_TOKEN is not set. Authentication will fail.")
+		log.Error("APP_TOKEN is not set. Authentication is disabled.")
 	}
 }
 
@@ -60,7 +60,7 @@ func Logout() http.HandlerFunc {
 func Authenticated(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(authCookie)
-		if err != nil || cookie.Value != token {
+		if token != "" && (err != nil || cookie.Value != token) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
