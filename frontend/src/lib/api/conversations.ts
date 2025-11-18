@@ -63,13 +63,14 @@ export class ConversationsAPI {
 
     return ApiErrorHandler.handleApiCall(async () => {
       const now = new Date().toISOString();
-      const conversation: Conversation = {
+      
+      // Only send fields that the backend expects
+      const conversationPayload = {
         id: genUuid(),
         userId: "admin",
         title: title.trim(),
         createdAt: now,
         updatedAt: now,
-        messages: {},
       };
 
       const response = await fetch(getApiUrl("/api/conversations/add"), {
@@ -81,7 +82,7 @@ export class ConversationsAPI {
 
         credentials: "include",
 
-        body: JSON.stringify({ conversation }),
+        body: JSON.stringify({ conversation: conversationPayload }),
       });
 
       if (!response.ok) {
@@ -91,13 +92,17 @@ export class ConversationsAPI {
       const result = await response.json();
 
       // Validate response structure (backend returns the created conversation)
-
-      return ApiErrorHandler.validateResponse(
+      const validated = ApiErrorHandler.validateResponse(
         result,
-
         isConversation,
         "Create conversation",
       );
+
+      // Add client-only fields that backend doesn't include
+      return {
+        ...validated,
+        messages: {},
+      };
     }, "createConversation");
   }
 
