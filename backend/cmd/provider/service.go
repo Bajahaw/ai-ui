@@ -157,6 +157,30 @@ func (c *Client) SendChatCompletionStreamRequest(params ProviderRequestParams, w
 	}
 
 	if err := stream.Err(); err != nil {
+		if apiErr, ok := err.(*openai.Error); ok {
+			type Error struct {
+				Message string `json:"message"`
+				Code    string `json:"code"`
+			}
+			type ErrorMessage struct {
+				Error Error `json:"error"`
+			}
+
+			var errMsg ErrorMessage
+			err = json.Unmarshal([]byte(apiErr.Message), &errMsg)
+			if err != nil {
+				errMsg = ErrorMessage{
+					Error: Error{Message: apiErr.Message, Code: apiErr.Code},
+				}
+			}
+
+			err = fmt.Errorf("%d %s %s",
+				apiErr.StatusCode,
+				http.StatusText(apiErr.StatusCode),
+				errMsg.Error.Message,
+			)
+		}
+
 		return nil, err
 	}
 
