@@ -3,6 +3,274 @@ import {chatAPI, conversationsAPI, FrontendMessage, ToolCall} from "@/lib/api";
 import {ApiErrorHandler} from "@/lib/api/errorHandler";
 import {ClientConversation, ClientConversationManager,} from "@/lib/clientConversationManager";
 
+// ============================================================================
+// Streaming Utilities - Extracted to reduce duplication
+// ============================================================================
+
+/**
+ * Manages accumulated streaming state (content, reasoning, RAF scheduling)
+ */
+class StreamingState {
+    content = "";
+    reasoning = "";
+    reasoningStartTime: number | null = null;
+    rafId: number | null = null;
+
+    addContent(chunk: string): void {
+        this.content += chunk;
+    }
+
+    addReasoning(reasoning: string): void {
+        if (!reasoning) return;
+        
+        // Track start time on first reasoning chunk
+        if (this.reasoningStartTime === null) {
+            this.reasoningStartTime = Date.now();
+        }
+        
+        this.reasoning += reasoning;
+    }
+
+    getReasoningDuration(): number | undefined {
+        if (this.reasoningStartTime === null || !this.reasoning) {
+            return undefined;
+        }
+        return Math.round((Date.now() - this.reasoningStartTime) / 1000);
+    }
+
+    scheduleSync(syncCallback: () => void): void {
+        // Cancel previous frame request if any
+        if (this.rafId !== null) {
+            cancelAnimationFrame(this.rafId);
+        }
+
+        // Schedule sync on next animation frame (60fps max)
+        this.rafId = requestAnimationFrame(() => {
+            syncCallback();
+            this.rafId = null;
+        });
+    }
+
+    cancelPendingSync(): void {
+        if (this.rafId !== null) {
+            cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+        }
+    }
+}
+
+/**
+ * Creates streaming callback handlers with shared logic
+ */
+function createStreamingHandlers(
+    manager: ClientConversationManager,
+    conversationId: string,
+    assistantPlaceholderId: string,
+    streamingState: StreamingState,
+    syncConversations: () => void,
+) {
+    const onChunk = (chunk: string) => {
+        streamingState.addContent(chunk);
+
+        // Update content immediately (no sync yet)
+        manager.updateMessageContent(
+            conversationId,
+            assistantPlaceholderId,
+            streamingState.content,
+        );
+
+        streamingState.scheduleSync(syncConversations);
+    };
+
+    const onReasoning = (reasoning: string) => {
+        streamingState.addReasoning(reasoning);
+
+        // Update reasoning immediately (no sync yet)
+        const conv = manager.getConversation(conversationId);
+        if (conv) {
+            const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
+            if (assistMsg) {
+                assistMsg.reasoning = streamingState.reasoning;
+            }
+        }
+
+        streamingState.scheduleSync(syncConversations);
+    };
+
+    const onToolCall = (toolCall: ToolCall) => {
+        manager.addToolCall(
+            conversationId,
+            assistantPlaceholderId,
+            toolCall,
+        );
+
+        // If there's accumulated reasoning and this is the first tool call event (no output yet),
+        // append tool usage information to show when the model decided to use the tool
+        if (streamingState.reasoning && !toolCall.tool_output) {
+            streamingState.reasoning += ` \n\`using tool:${toolCall.name}\`\n `;
+            const conv = manager.getConversation(conversationId);
+            if (conv) {
+                const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
+                if (assistMsg) {
+                    assistMsg.reasoning = streamingState.reasoning;
+                }
+            }
+        }
+
+        streamingState.scheduleSync(syncConversations);
+    };
+
+    return { onChunk, onReasoning, onToolCall };
+}
+
+/**
+ * Ensures backend conversation and messages structure exists
+ */
+function ensureBackendStructure(conv: ClientConversation, conversationId: string): void {
+    if (!conv.backendConversation) {
+        conv.backendConversation = {
+            id: conversationId,
+            userId: "",
+            title: conv.title,
+            messages: {},
+        } as any;
+    }
+}
+
+/**
+ * Ensures a parent message exists in backend structure (creates stub if missing)
+ */
+function ensureBackendParentMessage(
+    conv: ClientConversation,
+    parentId: number,
+    conversationId: string,
+): void {
+    ensureBackendStructure(conv, conversationId);
+    const backendMsgs = conv.backendConversation!.messages!;
+    
+    if (!backendMsgs[parentId]) {
+        backendMsgs[parentId] = {
+            id: parentId,
+            convId: conversationId,
+            role: "user",
+            content: "",
+            parentId: undefined,
+            children: [],
+        };
+    }
+}
+
+/**
+ * Adds child to parent's children array (with defensive checks)
+ */
+function addChildToParent(
+    conv: ClientConversation,
+    parentId: number,
+    childId: number,
+): void {
+    const parent = conv.backendConversation?.messages[parentId];
+    if (parent) {
+        if (!Array.isArray(parent.children)) parent.children = [];
+        if (!parent.children.includes(childId)) {
+            parent.children.push(childId);
+        }
+    }
+}
+
+/**
+ * Updates user message with real ID and status after backend confirmation
+ */
+function updateUserMessageAfterSave(
+    manager: ClientConversationManager,
+    conversationId: string,
+    tempMessageId: string,
+    realMessageId: number,
+    syncConversations: () => void,
+): void {
+    const conv = manager.getConversation(conversationId);
+    if (!conv) return;
+
+    const userMsg = conv.messages.find(m => m.id === tempMessageId);
+    if (!userMsg) return;
+
+    userMsg.id = realMessageId.toString();
+    userMsg.status = "success"; // Message is saved, show actions now!
+    conv.pendingMessageIds.delete(tempMessageId);
+
+    ensureBackendStructure(conv, conversationId);
+    conv.backendConversation!.messages![realMessageId] = {
+        id: realMessageId,
+        convId: conversationId,
+        role: userMsg.role,
+        content: userMsg.content,
+        attachment: userMsg.attachment,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+    } as any;
+
+    syncConversations(); // Sync to show action buttons
+}
+
+/**
+ * Updates assistant message with real ID, content, and status after streaming completes or errors
+ * Treats errors the same as successful messages - they get real IDs and are saved to backend structure
+ */
+function updateAssistantMessageAfterComplete(
+    manager: ClientConversationManager,
+    conversationId: string,
+    assistantPlaceholderId: string,
+    realMessageId: number,
+    streamingState: StreamingState,
+    parentMessageId: number,
+    syncConversations: () => void,
+    error?: string,
+): void {
+    streamingState.cancelPendingSync();
+
+    const conv = manager.getConversation(conversationId);
+    if (!conv) return;
+
+    const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
+    if (!assistMsg) return;
+
+    const reasoningDuration = streamingState.getReasoningDuration();
+
+    // Update frontend message
+    assistMsg.id = realMessageId.toString();
+    assistMsg.status = error ? "error" : "success";
+    assistMsg.content = streamingState.content;
+    assistMsg.reasoning = streamingState.reasoning;
+    assistMsg.reasoningDuration = reasoningDuration;
+    assistMsg.error = error;
+    conv.pendingMessageIds.delete(assistantPlaceholderId);
+
+    // Ensure backend structure and add the assistant message
+    ensureBackendStructure(conv, conversationId);
+    ensureBackendParentMessage(conv, parentMessageId, conversationId);
+    
+    conv.backendConversation!.messages![realMessageId] = {
+        id: realMessageId,
+        convId: conversationId,
+        role: assistMsg.role,
+        content: assistMsg.content,
+        reasoning: assistMsg.reasoning,
+        toolCalls: assistMsg.toolCalls,
+        parentId: parentMessageId,
+        error: error,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+    } as any;
+
+    // Update parent-child relationship
+    addChildToParent(conv, parentMessageId, realMessageId);
+    
+    // Set as active message
+    conv.backendConversation!.activeMessageId = realMessageId;
+
+    // Sync immediately to update UI
+    syncConversations();
+}
+
 export const useConversations = () => {
     const [conversations, setConversations] = useState<ClientConversation[]>([]);
     const [activeConversationId, setActiveConversationId] = useState<
@@ -284,9 +552,6 @@ export const useConversations = () => {
 
                 if (updateResponse.messages?.[numericMessageId]) {
                     const updatedMsg = updateResponse.messages[numericMessageId];
-                    if (!conversation.backendConversation.messages) {
-                        conversation.backendConversation.messages = {};
-                    }
                     conversation.backendConversation.messages[numericMessageId] =
                         updatedMsg;
 
@@ -361,13 +626,19 @@ export const useConversations = () => {
                         message.length > 60 ? message.substring(0, 60) + "..." : message;
                     const createdConv = await conversationsAPI.createConversation(title);
 
-                    // Use a simple variable to accumulate content and reasoning
-                    let accumulatedContent = "";
-                    let accumulatedReasoning = "";
-                    let reasoningStartTime: number | null = null; // Track when reasoning starts
+                    // Initialize streaming state and handlers
+                    const streamingState = new StreamingState();
                     let realConvId = createdConv.id;
-                    let rafId: number | null = null;
                     let realAssistantMessageId: number | null = null;
+                    let streamError: string | undefined;
+
+                    const handlers = createStreamingHandlers(
+                        manager,
+                        clientConversationId,
+                        assistantPlaceholderId!,
+                        streamingState,
+                        syncConversations,
+                    );
 
                     // Stream the message
                     await chatAPI.sendMessageStream(
@@ -377,233 +648,76 @@ export const useConversations = () => {
                         message,
                         webSearch,
                         attachment,
-                        // onChunk - Update content and request animation frame for smooth rendering
-                        (chunk: string) => {
-                            accumulatedContent += chunk;
-
-                            // Update content immediately (no sync yet)
-                            if (assistantPlaceholderId && clientConversationId) {
-                                manager.updateMessageContent(
-                                    clientConversationId,
-                                    assistantPlaceholderId,
-                                    accumulatedContent,
-                                );
-                            }
-
-                            // Cancel previous frame request if any
-                            if (rafId !== null) {
-                                cancelAnimationFrame(rafId);
-                            }
-
-                            // Schedule sync on next animation frame (60fps max)
-                            rafId = requestAnimationFrame(() => {
-                                syncConversations();
-                                rafId = null;
-                            });
-                        },
-                        // onReasoning - Update reasoning and request animation frame for smooth rendering
-                        (reasoning: string) => {
-                            accumulatedReasoning += reasoning;
-
-                            // Track start time on first reasoning chunk
-                            if (reasoningStartTime === null && reasoning) {
-                                reasoningStartTime = Date.now();
-                            }
-
-                            // Update reasoning immediately (no sync yet)
-                            if (assistantPlaceholderId && clientConversationId) {
-                                const conv = manager.getConversation(clientConversationId);
-                                if (conv) {
-                                    const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
-                                    if (assistMsg) {
-                                        assistMsg.reasoning = accumulatedReasoning;
-                                    }
-                                }
-                            }
-
-                            // Cancel previous frame request if any
-                            if (rafId !== null) {
-                                cancelAnimationFrame(rafId);
-                            }
-
-                            // Schedule sync on next animation frame (60fps max)
-                            rafId = requestAnimationFrame(() => {
-                                syncConversations();
-                                rafId = null;
-                            });
-                        },
-                        // onToolCall - Add tool call to message
-                        (toolCall: ToolCall) => {
-                            if (assistantPlaceholderId && clientConversationId) {
-                                manager.addToolCall(
-                                    clientConversationId,
-                                    assistantPlaceholderId,
-                                    toolCall,
-                                );
-
-                                // If there's accumulated reasoning and this is the first tool call event (no output yet),
-                                // append tool usage information to show when the model decided to use the tool
-                                if (accumulatedReasoning && !toolCall.tool_output) {
-                                    accumulatedReasoning += ` \n\`using tool:${toolCall.name}\`\n `;
-                                    const conv = manager.getConversation(clientConversationId);
-                                    if (conv) {
-                                        const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
-                                        if (assistMsg) {
-                                            assistMsg.reasoning = accumulatedReasoning;
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Cancel previous frame request if any
-                            if (rafId !== null) {
-                                cancelAnimationFrame(rafId);
-                            }
-
-                            // Schedule sync on next animation frame (60fps max)
-                            rafId = requestAnimationFrame(() => {
-                                syncConversations();
-                                rafId = null;
-                            });
-                        },
+                        handlers.onChunk,
+                        handlers.onReasoning,
+                        handlers.onToolCall,
                         // onMetadata - Get the real backend ID and update user message immediately
                         (metadata) => {
                             realConvId = metadata.conversationId;
 
-                            // User message is saved! Update its ID and status immediately
                             if (tempMessageId && clientConversationId) {
-                                const conv = manager.getConversation(clientConversationId);
-                                if (conv) {
-                                    const userMsg = conv.messages.find(m => m.id === tempMessageId);
-                                    if (userMsg) {
-                                        userMsg.id = metadata.userMessageId.toString();
-                                        userMsg.status = "success"; // Message is saved, show actions now!
-                                        conv.pendingMessageIds.delete(tempMessageId);
-                                        
-                                        // Ensure backendConversation.messages exists and add the user message
-                                        if (!conv.backendConversation) {
-                                            conv.backendConversation = {
-                                                id: realConvId,
-                                                userId: "",
-                                                title: conv.title,
-                                                messages: {},
-                                            } as any;
-                                        }
-                                        if (!conv.backendConversation!.messages) {
-                                            conv.backendConversation!.messages = {};
-                                        }
-                                        conv.backendConversation!.messages[metadata.userMessageId] = {
-                                            id: metadata.userMessageId,
-                                            convId: realConvId,
-                                            role: userMsg.role,
-                                            content: userMsg.content,
-                                            attachment: userMsg.attachment,
-                                            createdAt: new Date().toISOString(),
-                                            updatedAt: new Date().toISOString(),
-                                        } as any;
-                                        
-                                        syncConversations(); // Sync to show action buttons
-                                    }
-                                }
+                                updateUserMessageAfterSave(
+                                    manager,
+                                    clientConversationId,
+                                    tempMessageId,
+                                    metadata.userMessageId,
+                                    syncConversations,
+                                );
                             }
                         },
-                        // onComplete - Update IDs and sync ONCE
+                        // onComplete - Update IDs (called even after errors!)
                         (data) => {
-                            // Cancel any pending animation frame
-                            if (rafId !== null) {
-                                cancelAnimationFrame(rafId);
-                                rafId = null;
-                            }
-
+                            streamingState.cancelPendingSync();
+                            
                             // Store the real assistant message ID
                             realAssistantMessageId = data.assistantMessageId;
-
-                            // Calculate reasoning duration if reasoning was used
-                            const reasoningDuration = reasoningStartTime !== null && accumulatedReasoning
-                                ? Math.round((Date.now() - reasoningStartTime) / 1000)
-                                : undefined;
 
                             // Re-key conversation from temp to real ID
                             if (clientConversationId && realConvId !== clientConversationId) {
                                 manager.rekeyConversation(clientConversationId, realConvId);
-
-                                // Update assistant message ID and status
-                                if (assistantPlaceholderId) {
-                                    const conv = manager.getConversation(realConvId);
-                                    if (conv) {
-                                        const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
-                                        if (assistMsg) {
-                                            assistMsg.id = data.assistantMessageId.toString();
-                                            // Only update status to success if not already in error state
-                                            if (assistMsg.status !== "error") {
-                                                assistMsg.status = "success";
-                                                // Ensure final content and reasoning are set (in case last RAF was cancelled)
-                                                assistMsg.content = accumulatedContent;
-                                                assistMsg.reasoning = accumulatedReasoning;
-                                                assistMsg.reasoningDuration = reasoningDuration;
-                                            }
-                                            conv.pendingMessageIds.delete(assistantPlaceholderId);
-                                            
-                                            // Ensure backendConversation.messages exists and add the assistant message
-                                            if (!conv.backendConversation) {
-                                                conv.backendConversation = {
-                                                    id: realConvId,
-                                                    userId: "",
-                                                    title: conv.title,
-                                                    messages: {},
-                                                } as any;
-                                            }
-                                            if (!conv.backendConversation!.messages) {
-                                                conv.backendConversation!.messages = {};
-                                            }
-                                            conv.backendConversation!.messages[data.assistantMessageId] = {
-                                                id: data.assistantMessageId,
-                                                convId: realConvId,
-                                                role: assistMsg.role,
-                                                content: assistMsg.content,
-                                                reasoning: assistMsg.reasoning,
-                                                toolCalls: assistMsg.toolCalls,
-                                                parentId: data.userMessageId,
-                                                createdAt: new Date().toISOString(),
-                                                updatedAt: new Date().toISOString(),
-                                            } as any;
-                                        }
-                                    }
-                                }
                             }
-                            
-                            // Sync immediately to update UI (change "thinking..." to "thought for X seconds")
-                            syncConversations();
-                        },
-                        // onError
-                        (error) => {
-                            console.error("Stream error:", error);
-                            if (assistantPlaceholderId && clientConversationId) {
-                                manager.markAssistantFailed(
-                                    clientConversationId,
+
+                            // Update assistant message with real ID and status (success or error)
+                            if (assistantPlaceholderId) {
+                                updateAssistantMessageAfterComplete(
+                                    manager,
+                                    realConvId,
                                     assistantPlaceholderId,
-                                    error,
+                                    data.assistantMessageId,
+                                    streamingState,
+                                    data.userMessageId,
+                                    syncConversations,
+                                    streamError, // Pass error if one occurred
                                 );
                             }
                         },
+                        // onError - Just capture the error, onComplete will handle it
+                        (error) => {
+                            console.error("Stream error:", error);
+                            streamingState.cancelPendingSync();
+                            streamError = error;
+                        },
                     );
 
-                    // Use the conversation data we got from createConversation (includes timestamps)
-                    // This avoids the "blink" caused by refetching and rebuilding messages from backend
-                    const conv = manager.getConversation(realConvId);
-                    if (conv && realAssistantMessageId) {
-                        // Use the createdConv data which has all the proper fields including timestamps
-                        if (!conv.backendConversation) {
-                            conv.backendConversation = {
-                                ...createdConv,
-                                messages: {},
-                                activeMessageId: realAssistantMessageId,
-                            };
-                        } else {
-                            // Update timestamps and activeMessageId
-                            conv.backendConversation.createdAt = createdConv.createdAt;
-                            conv.backendConversation.updatedAt = createdConv.updatedAt;
-                            conv.backendConversation.activeMessageId = realAssistantMessageId;
+                    // If streaming completed successfully, update conversation metadata
+                    if (realAssistantMessageId) {
+                        // Use the conversation data we got from createConversation (includes timestamps)
+                        // This avoids the "blink" caused by refetching and rebuilding messages from backend
+                        const conv = manager.getConversation(realConvId);
+                        if (conv) {
+                            // Use the createdConv data which has all the proper fields including timestamps
+                            if (!conv.backendConversation) {
+                                conv.backendConversation = {
+                                    ...createdConv,
+                                    messages: {},
+                                    activeMessageId: realAssistantMessageId,
+                                };
+                            } else {
+                                // Update timestamps and activeMessageId
+                                conv.backendConversation.createdAt = createdConv.createdAt;
+                                conv.backendConversation.updatedAt = createdConv.updatedAt;
+                                conv.backendConversation.activeMessageId = realAssistantMessageId;
+                            }
                         }
                     }
 
@@ -647,11 +761,17 @@ export const useConversations = () => {
                     throw new Error("Cannot determine active message ID");
                 }
 
-                // Use a simple variable to accumulate content and reasoning
-                let accumulatedContent = "";
-                let accumulatedReasoning = "";
-                let reasoningStartTime: number | null = null; // Track when reasoning starts
-                let rafId: number | null = null;
+                // Initialize streaming state and handlers
+                const streamingState = new StreamingState();
+                const handlers = createStreamingHandlers(
+                    manager,
+                    conversationId,
+                    assistantPlaceholderId!,
+                    streamingState,
+                    syncConversations,
+                );
+
+                let streamError: string | undefined;
 
                 // Stream the message
                 await chatAPI.sendMessageStream(
@@ -661,197 +781,43 @@ export const useConversations = () => {
                     message,
                     webSearch,
                     attachment,
-                    // onChunk - Update on animation frame for smooth rendering
-                    (chunk: string) => {
-                        accumulatedContent += chunk;
-
-                        // Update content immediately (no sync yet)
-                        if (assistantPlaceholderId) {
-                            manager.updateMessageContent(
-                                conversationId,
-                                assistantPlaceholderId,
-                                accumulatedContent,
-                            );
-                        }
-
-                        // Cancel previous frame request if any
-                        if (rafId !== null) {
-                            cancelAnimationFrame(rafId);
-                        }
-
-                        // Schedule sync on next animation frame (60fps max)
-                        rafId = requestAnimationFrame(() => {
-                            syncConversations();
-                            rafId = null;
-                        });
-                    },
-                    // onReasoning - Update reasoning on animation frame for smooth rendering
-                    (reasoning: string) => {
-                        accumulatedReasoning += reasoning;
-
-                        // Track start time on first reasoning chunk
-                        if (reasoningStartTime === null && reasoning) {
-                            reasoningStartTime = Date.now();
-                        }
-
-                        // Update reasoning immediately (no sync yet)
-                        if (assistantPlaceholderId) {
-                            const conv = manager.getConversation(conversationId);
-                            if (conv) {
-                                const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
-                                if (assistMsg) {
-                                    assistMsg.reasoning = accumulatedReasoning;
-                                }
-                            }
-                        }
-
-                        // Cancel previous frame request if any
-                        if (rafId !== null) {
-                            cancelAnimationFrame(rafId);
-                        }
-
-                        // Schedule sync on next animation frame (60fps max)
-                        rafId = requestAnimationFrame(() => {
-                            syncConversations();
-                            rafId = null;
-                        });
-                    },
-                    // onToolCall - Add tool call to message
-                    (toolCall: ToolCall) => {
-                        if (assistantPlaceholderId) {
-                            manager.addToolCall(
-                                conversationId,
-                                assistantPlaceholderId,
-                                toolCall,
-                            );
-
-                            // If there's accumulated reasoning and this is the first tool call event (no output yet),
-                            // append tool usage information to show when the model decided to use the tool
-                            if (accumulatedReasoning && !toolCall.tool_output) {
-                                accumulatedReasoning += ` \n\`using tool:${toolCall.name}\`\n `;
-                                const conv = manager.getConversation(conversationId);
-                                if (conv) {
-                                    const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
-                                    if (assistMsg) {
-                                        assistMsg.reasoning = accumulatedReasoning;
-                                    }
-                                }
-                            }
-                        }
-
-                        // Cancel previous frame request if any
-                        if (rafId !== null) {
-                            cancelAnimationFrame(rafId);
-                        }
-
-                        // Schedule sync on next animation frame (60fps max)
-                        rafId = requestAnimationFrame(() => {
-                            syncConversations();
-                            rafId = null;
-                        });
-                    },
+                    handlers.onChunk,
+                    handlers.onReasoning,
+                    handlers.onToolCall,
                     // onMetadata - Update user message immediately
                     (metadata) => {
-                        // User message is saved! Update its ID and status immediately
                         if (tempMessageId) {
-                            const conv = manager.getConversation(conversationId);
-                            if (conv) {
-                                const userMsg = conv.messages.find(m => m.id === tempMessageId);
-                                if (userMsg) {
-                                    userMsg.id = metadata.userMessageId.toString();
-                                    userMsg.status = "success"; // Message is saved, show actions now!
-                                    conv.pendingMessageIds.delete(tempMessageId);
-                                    
-                                    // Ensure backendConversation.messages exists and add the user message
-                                    if (conv.backendConversation) {
-                                        if (!conv.backendConversation.messages) {
-                                            conv.backendConversation.messages = {};
-                                        }
-                                        conv.backendConversation.messages[metadata.userMessageId] = {
-                                            id: metadata.userMessageId,
-                                            convId: conversationId,
-                                            role: userMsg.role,
-                                            content: userMsg.content,
-                                            attachment: userMsg.attachment,
-                                            createdAt: new Date().toISOString(),
-                                            updatedAt: new Date().toISOString(),
-                                        } as any;
-                                    }
-                                    
-                                    syncConversations(); // Sync to show action buttons
-                                }
-                            }
-                        }
-                    },
-                    // onComplete - Update IDs and sync ONCE
-                    (data) => {
-                        // Cancel any pending animation frame
-                        if (rafId !== null) {
-                            cancelAnimationFrame(rafId);
-                            rafId = null;
-                        }
-
-                        // Calculate reasoning duration if reasoning was used
-                        const reasoningDuration = reasoningStartTime !== null && accumulatedReasoning
-                            ? Math.round((Date.now() - reasoningStartTime) / 1000)
-                            : undefined;
-
-                        // Update assistant message ID and status
-                        if (assistantPlaceholderId) {
-                            const conv = manager.getConversation(conversationId);
-                            if (conv) {
-                                const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
-                                if (assistMsg) {
-                                    assistMsg.id = data.assistantMessageId.toString();
-                                    assistMsg.status = "success";
-                                    // Ensure final content and reasoning are set (in case last RAF was cancelled)
-                                    assistMsg.content = accumulatedContent;
-                                    assistMsg.reasoning = accumulatedReasoning;
-                                    assistMsg.reasoningDuration = reasoningDuration;
-                                    conv.pendingMessageIds.delete(assistantPlaceholderId);
-                                    
-                                    // Critical: set the active parent to the latest assistant message
-                                    if (conv.backendConversation) {
-                                        conv.backendConversation.activeMessageId = data.assistantMessageId;
-                                        
-                                        // Ensure backendConversation.messages exists and add the assistant message
-                                        if (!conv.backendConversation.messages) {
-                                            conv.backendConversation.messages = {};
-                                        }
-                                        conv.backendConversation.messages[data.assistantMessageId] = {
-                                            id: data.assistantMessageId,
-                                            convId: conversationId,
-                                            role: assistMsg.role,
-                                            content: assistMsg.content,
-                                            reasoning: assistMsg.reasoning,
-                                            toolCalls: assistMsg.toolCalls,
-                                            parentId: data.userMessageId,
-                                            createdAt: new Date().toISOString(),
-                                            updatedAt: new Date().toISOString(),
-                                        } as any;
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Sync immediately to update UI (change "thinking..." to "thought for X seconds")
-                        syncConversations();
-                    },
-                    // onError
-                    (error) => {
-                        console.error("Stream error:", error);
-                        if (assistantPlaceholderId) {
-                            manager.markAssistantFailed(
+                            updateUserMessageAfterSave(
+                                manager,
                                 conversationId,
-                                assistantPlaceholderId,
-                                error,
+                                tempMessageId,
+                                metadata.userMessageId,
+                                syncConversations,
                             );
                         }
                     },
+                    // onComplete - Update IDs (called even after errors!)
+                    (data) => {
+                        if (assistantPlaceholderId) {
+                            updateAssistantMessageAfterComplete(
+                                manager,
+                                conversationId,
+                                assistantPlaceholderId,
+                                data.assistantMessageId,
+                                streamingState,
+                                data.userMessageId,
+                                syncConversations,
+                                streamError, // Pass error if one occurred
+                            );
+                        }
+                    },
+                    // onError - Just capture the error, onComplete will handle it
+                    (error) => {
+                        console.error("Stream error:", error);
+                        streamingState.cancelPendingSync();
+                        streamError = error;
+                    },
                 );
-
-                // Final sync ONCE after streaming completes
-                syncConversations();
                 return conversationId;
             } catch (err) {
                 console.error("Failed to send message:", err);
@@ -909,182 +875,63 @@ export const useConversations = () => {
                 conversation.pendingMessageIds.add(assistantPlaceholderId);
                 syncConversations();
 
-                // Accumulate streamed content and reasoning
-                let accumulatedContent = "";
-                let accumulatedReasoning = "";
-                let reasoningStartTime: number | null = null; // Track when reasoning starts
-                let rafId: number | null = null;
+                // Initialize streaming state and handlers
+                const streamingState = new StreamingState();
+                const handlers = createStreamingHandlers(
+                    manager,
+                    activeConversationId,
+                    assistantPlaceholderId,
+                    streamingState,
+                    syncConversations,
+                );
 
-                let completedAssistantId: number | null = null;
+                let streamError: string | undefined;
+                
                 await chatAPI.retryMessageStream(
                     activeConversationId,
                     parentId,
                     model,
-                    // onChunk
-                    (chunk: string) => {
-                        accumulatedContent += chunk;
-                        const conv = manager.getConversation(activeConversationId);
-                        if (conv) {
-                            manager.updateMessageContent(
-                                activeConversationId,
-                                assistantPlaceholderId,
-                                accumulatedContent,
-                            );
-                        }
-                        if (rafId !== null) cancelAnimationFrame(rafId);
-                        rafId = requestAnimationFrame(() => {
-                            syncConversations();
-                            rafId = null;
-                        });
-                    },
-                    // onReasoning
-                    (reasoning: string) => {
-                        accumulatedReasoning += reasoning;
-
-                        // Track start time on first reasoning chunk
-                        if (reasoningStartTime === null && reasoning) {
-                            reasoningStartTime = Date.now();
-                        }
-
-                        const conv = manager.getConversation(activeConversationId);
-                        if (conv) {
-                            const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
-                            if (assistMsg) {
-                                assistMsg.reasoning = accumulatedReasoning;
-                            }
-                        }
-                        if (rafId !== null) cancelAnimationFrame(rafId);
-                        rafId = requestAnimationFrame(() => {
-                            syncConversations();
-                            rafId = null;
-                        });
-                    },
-                    // onToolCall
-                    (toolCall: ToolCall) => {
-                        manager.addToolCall(
-                            activeConversationId,
-                            assistantPlaceholderId,
-                            toolCall,
-                        );
-
-                        // If there's accumulated reasoning and this is the first tool call event (no output yet),
-                        // append tool usage information to show when the model decided to use the tool
-                        if (accumulatedReasoning && !toolCall.tool_output) {
-                            accumulatedReasoning += ` \n\`using tool:${toolCall.name}\`\n `;
-                            const conv = manager.getConversation(activeConversationId);
-                            if (conv) {
-                                const assistMsg = conv.messages.find(m => m.id === assistantPlaceholderId);
-                                if (assistMsg) {
-                                    assistMsg.reasoning = accumulatedReasoning;
-                                }
-                            }
-                        }
-
-                        if (rafId !== null) cancelAnimationFrame(rafId);
-                        rafId = requestAnimationFrame(() => {
-                            syncConversations();
-                            rafId = null;
-                        });
-                    },
+                    handlers.onChunk,
+                    handlers.onReasoning,
+                    handlers.onToolCall,
                     // onMetadata (not strictly needed here)
                     () => {
                     },
-                    // onComplete
+                    // onComplete - Update IDs (called even after errors!)
                     (data) => {
-                        // Capture assistant message id for post-stream refresh
-                        completedAssistantId = data.assistantMessageId;
-                        if (rafId !== null) {
-                            cancelAnimationFrame(rafId);
-                            rafId = null;
-                        }
-
-                        // Calculate reasoning duration if reasoning was used
-                        const reasoningDuration = reasoningStartTime !== null && accumulatedReasoning
-                            ? Math.round((Date.now() - reasoningStartTime) / 1000)
-                            : undefined;
-
-                        const conv = manager.getConversation(activeConversationId);
-                        if (!conv) return;
-
-                        const assistMsg = conv.messages.find(
-                            (m) => m.id === assistantPlaceholderId,
+                        updateAssistantMessageAfterComplete(
+                            manager,
+                            activeConversationId,
+                            assistantPlaceholderId,
+                            data.assistantMessageId,
+                            streamingState,
+                            parentId,
+                            syncConversations,
+                            streamError,
                         );
-                        if (assistMsg) {
-                            assistMsg.id = data.assistantMessageId.toString();
-                            assistMsg.status = "success";
-                            assistMsg.content = accumulatedContent;
-                            assistMsg.reasoning = accumulatedReasoning;
-                            assistMsg.reasoningDuration = reasoningDuration;
-                            conv.pendingMessageIds.delete(assistantPlaceholderId);
-                        }
-
-                        if (conv.backendConversation) {
-                            if (!conv.backendConversation.messages) {
-                                conv.backendConversation.messages = {};
-                            }
-                            const backendMsgs = conv.backendConversation.messages;
-                            if (!backendMsgs[parentId]) {
-                                backendMsgs[parentId] = {
-                                    id: parentId,
-                                    convId: activeConversationId,
-                                    role: "user",
-                                    content: "",
-                                    parentId: undefined,
-                                    children: [],
-                                };
-                            }
-                            backendMsgs[data.assistantMessageId] = {
-                                id: data.assistantMessageId,
-                                convId: activeConversationId,
-                                role: "assistant",
-                                content: accumulatedContent,
-                                reasoning: accumulatedReasoning,
-                                parentId: parentId,
-                                children: [],
-                            };
-                            const parent = backendMsgs[parentId];
-                            if (parent) {
-                                if (!Array.isArray(parent.children)) parent.children = [];
-                                if (!parent.children.includes(data.assistantMessageId)) {
-                                    parent.children.push(data.assistantMessageId);
-                                }
-                            }
-                            conv.backendConversation.activeMessageId = data.assistantMessageId;
-                        }
                         
-                        // Sync immediately to update UI (change "thinking..." to "thought for X seconds")
-                        syncConversations();
+                        // After completing, refresh conversation to rebuild tree/branches accurately
+                        (async () => {
+                            try {
+                                const msgs = await conversationsAPI.fetchConversationMessages(activeConversationId);
+                                manager.updateWithChatResponse(activeConversationId, msgs);
+                                // Ensure activeMessageId remains set to the latest assistant we just created
+                                const refreshed = manager.getConversation(activeConversationId);
+                                if (refreshed?.backendConversation) {
+                                    refreshed.backendConversation.activeMessageId = data.assistantMessageId;
+                                }
+                            } catch (e) {
+                                console.error("Failed to refresh conversation after retry stream:", e);
+                            }
+                        })();
                     },
-                    // onError
+                    // onError - Just capture the error, onComplete will handle it
                     (err) => {
                         console.error("Retry stream error:", err);
-                        const conv = manager.getConversation(activeConversationId);
-                        if (conv) {
-                            manager.markAssistantFailed(
-                                activeConversationId,
-                                assistantPlaceholderId,
-                                err,
-                            );
-                        }
+                        streamingState.cancelPendingSync();
+                        streamError = err;
                     },
                 );
-
-                // After stream completes, refresh full conversation to rebuild tree/branches accurately
-                try {
-                    const msgs = await conversationsAPI.fetchConversationMessages(activeConversationId);
-                    manager.updateWithChatResponse(activeConversationId, msgs);
-                    // Ensure activeMessageId remains set to the latest assistant we just created
-                    if (completedAssistantId !== null) {
-                        const refreshed = manager.getConversation(activeConversationId);
-                        if (refreshed?.backendConversation) {
-                            refreshed.backendConversation.activeMessageId = completedAssistantId;
-                        }
-                    }
-                } catch (e) {
-                    console.error("Failed to refresh conversation after retry stream:", e);
-                }
-
-                syncConversations();
             } catch (err) {
                 console.error("Failed to retry message (stream):", err);
                 const errorMessage = ApiErrorHandler.getUserFriendlyMessage(err);

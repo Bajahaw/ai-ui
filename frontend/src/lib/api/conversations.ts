@@ -69,6 +69,7 @@ export class ConversationsAPI {
         title: title.trim(),
         createdAt: now,
         updatedAt: now,
+        messages: {},
       };
 
       const response = await fetch(getApiUrl("/api/conversations/add"), {

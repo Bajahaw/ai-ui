@@ -147,11 +147,6 @@ export class ClientConversationManager {
       } as unknown as Conversation;
     }
 
-    // Ensure messages map exists
-    if (!conversation.backendConversation.messages) {
-      conversation.backendConversation.messages = {};
-    }
-
     // Merge messages into frontend state first
     this.updateWithBackendMessages(conversation.id, backendMessages);
 
@@ -184,10 +179,24 @@ export class ClientConversationManager {
       }
     }
 
+    // Preserve any pending or error messages before rebuilding
+    // (these haven't been saved to backend yet or failed during streaming)
+    const pendingAndErrorMessages = conversation.messages.filter(
+      (m) => m.status === "pending" || m.status === "error"
+    );
+
     // Rebuild the visible message list to reflect the active branch only
     conversation.messages = this.buildMessagesFromBackend(
       conversation.backendConversation,
     );
+    
+    // Add back pending and error messages so they persist
+    for (const msg of pendingAndErrorMessages) {
+      const exists = conversation.messages.some(m => m.id === msg.id);
+      if (!exists) {
+        conversation.messages.push(msg);
+      }
+    }
   }
 
   private updateWithBackendMessages(
@@ -329,34 +338,22 @@ export class ClientConversationManager {
 
   markAssistantFailed(
     conversationId: string,
-    userMessageId: string,
+    assistantMessageId: string,
     error: string,
   ): void {
     const conversation = this.conversations.get(conversationId);
     if (!conversation) return;
 
-    // Mark user message as successful (it was successfully rendered)
-    const userMessage = conversation.messages.find(
-      (m) => m.id === userMessageId,
-    );
-    if (userMessage && userMessage.role === "user") {
-      userMessage.status = "success";
-      conversation.pendingMessageIds.delete(userMessageId);
-    }
-
-    // Mark any pending assistant placeholder as failed
-    const assistantPlaceholder = conversation.messages.find(
-      (m) =>
-        conversation.pendingMessageIds.has(m.id) &&
-        m.role === "assistant" &&
-        m.content === "" &&
-        m.status === "pending",
+    // Find the assistant message by ID
+    const assistantMessage = conversation.messages.find(
+      (m) => m.id === assistantMessageId && m.role === "assistant",
     );
 
-    if (assistantPlaceholder) {
-      assistantPlaceholder.status = "error";
-      assistantPlaceholder.error = error;
-      conversation.pendingMessageIds.delete(assistantPlaceholder.id);
+    if (assistantMessage) {
+      // Mark as error - this message will be preserved even when rebuilding from backend
+      assistantMessage.status = "error";
+      assistantMessage.error = error;
+      conversation.pendingMessageIds.delete(assistantMessageId);
     }
   }
 
@@ -416,11 +413,9 @@ export class ClientConversationManager {
   private buildMessagesFromBackend(
     backendConv: Conversation,
   ): FrontendMessage[] {
-    if (!backendConv.messages) return [];
-
     const conversation = this.conversations.get(backendConv.id);
 
-    const messages = (backendConv.messages || {}) as Record<number, Message>;
+    const messages = backendConv.messages;
 
     // Helper: find roots (messages without a valid parent)
     // A message is considered a root when it has no numeric parentId (undefined/null)
@@ -504,7 +499,7 @@ export class ClientConversationManager {
     const conversation = this.conversations.get(conversationId);
     if (!conversation?.backendConversation) return 0;
 
-    const message = conversation.backendConversation.messages?.[messageId];
+    const message = conversation.backendConversation.messages[messageId];
     if (!message?.children || message.children.length <= 1) return 0;
 
     const activeChildId = conversation.activeBranches.get(messageId);
@@ -517,7 +512,7 @@ export class ClientConversationManager {
     const conversation = this.conversations.get(conversationId);
     if (!conversation?.backendConversation) return 1;
 
-    const message = conversation.backendConversation.messages?.[messageId];
+    const message = conversation.backendConversation.messages[messageId];
     return message?.children?.length || 1;
   }
 
@@ -532,7 +527,7 @@ export class ClientConversationManager {
 
     if (!conversation?.backendConversation) return;
 
-    const message = conversation.backendConversation.messages?.[messageId];
+    const message = conversation.backendConversation.messages[messageId];
 
     if (!message?.children || branchIndex >= message.children.length) return;
 
@@ -555,9 +550,22 @@ export class ClientConversationManager {
 
     // This ensures the conversation view updates to show the selected branch
 
+    // Preserve any pending or error messages before rebuilding
+    const pendingAndErrorMessages = conversation.messages.filter(
+      (m) => m.status === "pending" || m.status === "error"
+    );
+
     conversation.messages = this.buildMessagesFromBackend(
       conversation.backendConversation,
     );
+    
+    // Add back pending and error messages so they persist
+    for (const msg of pendingAndErrorMessages) {
+      const exists = conversation.messages.some(m => m.id === msg.id);
+      if (!exists) {
+        conversation.messages.push(msg);
+      }
+    }
   }
 
   // Get the message that should be used as parent for retry (the user message before the assistant response)
@@ -572,7 +580,7 @@ export class ClientConversationManager {
     const messageId = parseInt(assistantMessageId);
     if (!isNaN(messageId)) {
       const assistantMessage =
-        conversation.backendConversation.messages?.[messageId];
+        conversation.backendConversation.messages[messageId];
 
       if (assistantMessage && assistantMessage.role === "assistant") {
         return assistantMessage.parentId;
@@ -586,9 +594,9 @@ export class ClientConversationManager {
 
     if (!frontendMessage) return undefined;
 
-    // Find matching backend message by content (safely handle undefined messages map)
+    // Find matching backend message by content
     const backendMessages = Object.values(
-      conversation.backendConversation.messages || {},
+      conversation.backendConversation.messages,
     );
     const matchingBackendMessage = backendMessages.find(
       (msg) =>
@@ -619,7 +627,7 @@ export class ClientConversationManager {
     // Last resort: Use the current activeMessageId if it's an assistant message
     if (conversation.backendConversation.activeMessageId) {
       const activeMessage =
-        conversation.backendConversation.messages?.[
+        conversation.backendConversation.messages[
           conversation.backendConversation.activeMessageId
         ];
       if (activeMessage && activeMessage.role === "assistant") {
@@ -640,7 +648,7 @@ export class ClientConversationManager {
     let currentId: number | undefined = backendConv.activeMessageId;
     while (currentId !== undefined) {
       if (currentId === messageId) return true;
-      const message: Message | undefined = backendConv.messages?.[currentId];
+      const message: Message | undefined = backendConv.messages[currentId];
       if (!message) break;
       currentId = message.parentId;
     }

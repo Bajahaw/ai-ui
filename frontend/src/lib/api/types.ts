@@ -28,7 +28,7 @@ export interface Conversation {
   updatedAt: string;
 
   // Client-only compatibility fields
-  messages?: Record<number, Message>;
+  messages: Record<number, Message>; // Always initialized to {} in frontend
   root?: number[];
   activeMessageId?: number;
   activeBranches?: Record<number, number>; // messageId -> activeChildId mapping
