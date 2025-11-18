@@ -1,13 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-
+import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-
 import { Input } from "@/components/ui/input";
-
 import { Card } from "@/components/ui/card";
-
 import {
-  RefreshCw,
   CheckSquare,
   Square,
   Eye,
@@ -15,16 +10,9 @@ import {
   Search,
   ShieldCheck,
 } from "lucide-react";
-
-import {
-  getAllModels,
-  updateModelEnableFlags,
-  locallyApplyEnableFlags,
-} from "@/lib/api/models";
-
+import { locallyApplyEnableFlags } from "@/lib/api/models";
 import { Model } from "@/lib/api/types";
-
-import { useProviders } from "@/hooks/useProviders";
+import { useSettingsData } from "@/hooks/useSettingsData";
 
 /**
 
@@ -40,64 +28,23 @@ import { useProviders } from "@/hooks/useProviders";
  */
 
 export const ModelsSection: React.FC = () => {
-  const { syncModels } = useProviders();
-
-  const [models, setModels] = useState<Model[]>([]);
-
-  const [loading, setLoading] = useState<boolean>(true);
-
-  const [error, setError] = useState<string | null>(null);
-
-  // UI state
-
+  const { data, updateModelsLocal, saveModels } = useSettingsData();
   const [search, setSearch] = useState("");
-
   const [selection, setSelection] = useState<Set<string>>(new Set());
-
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
-
   const [bulkBusy, setBulkBusy] = useState(false);
-  const fetchModels = useCallback(async (): Promise<Model[]> => {
-    // setLoading(true);
-
-    setError(null);
-
-    try {
-      const res = await getAllModels();
-
-      const normalized = res.models.map((m) => ({
-        ...m,
-
-        is_enabled: m.is_enabled,
-      }));
-
-      setModels(normalized);
-
-      return normalized;
-    } catch (e: any) {
-      setError(e?.message || "Failed to load models");
-
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchModels().then((latest) => syncModels(latest));
-  }, [fetchModels, syncModels]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return models;
+    if (!search.trim()) return data.models;
 
     const q = search.toLowerCase();
 
-    return models.filter(
+    return data.models.filter(
       (m) =>
         m.name.toLowerCase().includes(q) ||
         m.provider.toLowerCase().includes(q),
     );
-  }, [models, search]);
+  }, [data.models, search]);
 
   const enabledInFiltered = filtered.filter((m) => m.is_enabled).length;
 
@@ -127,7 +74,8 @@ export const ModelsSection: React.FC = () => {
   ) => {
     if (!updates.length) return;
 
-    setModels((prev) => locallyApplyEnableFlags(prev, updates));
+    const updated = locallyApplyEnableFlags(data.models, updates);
+    updateModelsLocal(updated);
   };
 
   const commitFlagUpdates = async (ids: string[], enabled: boolean) => {
@@ -144,17 +92,10 @@ export const ModelsSection: React.FC = () => {
     });
 
     try {
-      await updateModelEnableFlags(
-        ids.map((id) => ({ id, is_enabled: enabled })),
+      const updatedModels = data.models.map((m) => 
+        ids.includes(m.id) ? { ...m, is_enabled: enabled } : m
       );
-
-      const latest = await fetchModels();
-
-      syncModels(latest);
-    } catch {
-      const latest = await fetchModels();
-
-      syncModels(latest);
+      await saveModels(updatedModels);
     } finally {
       setPendingIds((prev) => {
         const next = new Set(prev);
@@ -183,7 +124,7 @@ export const ModelsSection: React.FC = () => {
   };
 
   const enabledSelectedCount = Array.from(selection).filter(
-    (id) => models.find((m) => m.id === id)?.is_enabled,
+    (id) => data.models.find((m) => m.id === id)?.is_enabled,
   ).length;
 
   const disabledSelectedCount = selection.size - enabledSelectedCount;
@@ -198,18 +139,7 @@ export const ModelsSection: React.FC = () => {
             Models
           </h3>
 
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {setLoading(true); fetchModels()}}
-              disabled={bulkBusy || loading}
-              title="Refresh models"
-              className="h-8"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
+
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
@@ -221,7 +151,6 @@ export const ModelsSection: React.FC = () => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-sm focus-visible:ring-0 focus-visible:outline-none focus-visible:border-border border-border/70"
-              disabled={loading}
             />
           </div>
 
@@ -232,7 +161,7 @@ export const ModelsSection: React.FC = () => {
               onClick={() =>
                 allVisibleSelected ? clearSelection() : selectAllVisible()
               }
-              disabled={filtered.length === 0 || loading}
+              disabled={filtered.length === 0}
               className="gap-1 h-8"
             >
               {allVisibleSelected ? (
@@ -251,7 +180,7 @@ export const ModelsSection: React.FC = () => {
             <Button
               size="sm"
               onClick={() => handleBulk(true)}
-              disabled={!anySelected || bulkBusy || loading}
+              disabled={!anySelected || bulkBusy}
               className="gap-1 h-8"
             >
               <Eye className="h-4 w-4" />
@@ -262,7 +191,7 @@ export const ModelsSection: React.FC = () => {
               size="sm"
               variant="outline"
               onClick={() => handleBulk(false)}
-              disabled={!anySelected || bulkBusy || loading}
+              disabled={!anySelected || bulkBusy}
               className="gap-1 h-8"
             >
               <EyeOff className="h-4 w-4" />
@@ -286,22 +215,11 @@ export const ModelsSection: React.FC = () => {
           )}
         </div>
 
-        {error && (
-          <div className="text-xs text-red-600 dark:text-red-400">{error}</div>
-        )}
       </div>
 
       {/* Scrollable Content */}
       <div className="flex-1 min-h-0">
-        {loading && (
-          <Card className="p-8 text-center bg-transparent border-dashed h-full">
-            <div className="text-sm text-muted-foreground">
-              Loading models...
-            </div>
-          </Card>
-        )}
-
-        {!loading && filtered.length === 0 && (
+        {filtered.length === 0 && (
           <Card className="p-8 text-center bg-transparent border-dashed h-full">
             <p className="text-sm text-muted-foreground">
               {search ? "No models match your search." : "No models available."}
@@ -309,7 +227,7 @@ export const ModelsSection: React.FC = () => {
           </Card>
         )}
 
-        {!loading && filtered.length > 0 && (
+        {filtered.length > 0 && (
           <div className="space-y-2 h-full overflow-y-auto pr-1">
             {filtered.map((model) => {
               const selected = selection.has(model.id);
@@ -349,7 +267,7 @@ export const ModelsSection: React.FC = () => {
 
                   <button
                     onClick={() => handleSingleToggle(model)}
-                    disabled={pending || bulkBusy || loading}
+                    disabled={pending || bulkBusy}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shadow-sm ${
                       model.is_enabled
                         ? "bg-primary/80 hover:bg-primary text-primary-foreground"

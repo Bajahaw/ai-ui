@@ -1,9 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import {
-  RefreshCw,
   CheckSquare,
   Square,
   Eye,
@@ -14,7 +13,7 @@ import {
 } from "lucide-react";
 import { locallyApplyToolFlags } from "@/lib/api/tools";
 import { Tool } from "@/lib/api/types";
-import { useTools } from "@/hooks/useTools";
+import { useSettingsData } from "@/hooks/useSettingsData";
 
 /**
  * ToolsSection
@@ -26,39 +25,22 @@ import { useTools } from "@/hooks/useTools";
  * - Search/filter functionality
  */
 export const ToolsSection: React.FC = () => {
-  const { tools, isLoading, error, refreshTools, updateTools } = useTools();
-
-  const [localTools, setLocalTools] = useState<Tool[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-
-  // UI state
+  const { data, updateToolsLocal, saveTools } = useSettingsData();
   const [search, setSearch] = useState("");
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
 
-  useEffect(() => {
-    setLocalTools(tools);
-    setLoading(isLoading);
-  }, [tools, isLoading]);
-
-  const fetchTools = useCallback(async (): Promise<Tool[]> => {
-    setLoading(true);
-    const latest = await refreshTools();
-    setLoading(false);
-    return latest;
-  }, [refreshTools]);
-
   const filtered = useMemo(() => {
-    if (!search.trim()) return localTools;
+    if (!search.trim()) return data.tools;
     const q = search.toLowerCase();
-    return localTools.filter(
+    return data.tools.filter(
       (t) =>
         t.name.toLowerCase().includes(q) ||
         (t.description && t.description.toLowerCase().includes(q)) ||
         (t.mcp_server_id && t.mcp_server_id.toLowerCase().includes(q)),
     );
-  }, [localTools, search]);
+  }, [data.tools, search]);
 
   const enabledInFiltered = filtered.filter((t) => t.is_enabled).length;
   const approvalRequiredInFiltered = filtered.filter(
@@ -90,7 +72,8 @@ export const ToolsSection: React.FC = () => {
     }[],
   ) => {
     if (!updates.length) return;
-    setLocalTools((prev) => locallyApplyToolFlags(prev, updates));
+    const updated = locallyApplyToolFlags(data.tools, updates);
+    updateToolsLocal(updated);
   };
 
   const commitFlagUpdates = async (
@@ -109,7 +92,7 @@ export const ToolsSection: React.FC = () => {
     });
 
     try {
-      const updatedTools = localTools.map((t) => {
+      const updatedTools = data.tools.map((t) => {
         if (!ids.includes(t.id)) return t;
         return {
           ...t,
@@ -121,10 +104,7 @@ export const ToolsSection: React.FC = () => {
           }),
         };
       });
-      await updateTools(updatedTools);
-      await fetchTools();
-    } catch {
-      await fetchTools();
+      await saveTools(updatedTools);
     } finally {
       setPendingIds((prev) => {
         const next = new Set(prev);
@@ -153,7 +133,7 @@ export const ToolsSection: React.FC = () => {
   };
 
   const enabledSelectedCount = Array.from(selection).filter(
-    (id) => localTools.find((t) => t.id === id)?.is_enabled,
+    (id) => data.tools.find((t) => t.id === id)?.is_enabled,
   ).length;
   const disabledSelectedCount = selection.size - enabledSelectedCount;
 
@@ -168,19 +148,6 @@ export const ToolsSection: React.FC = () => {
           </h3>
 
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setLoading(true);
-                fetchTools();
-              }}
-              disabled={bulkBusy || loading}
-              title="Refresh tools"
-              className="h-8"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
           </div>
         </div>
 
@@ -192,7 +159,6 @@ export const ToolsSection: React.FC = () => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-sm focus-visible:ring-0 focus-visible:outline-none focus-visible:border-border border-border/70"
-              disabled={loading}
             />
           </div>
 
@@ -203,7 +169,7 @@ export const ToolsSection: React.FC = () => {
               onClick={() =>
                 allVisibleSelected ? clearSelection() : selectAllVisible()
               }
-              disabled={filtered.length === 0 || loading}
+              disabled={filtered.length === 0}
               className="gap-1 h-8"
             >
               {allVisibleSelected ? (
@@ -222,7 +188,7 @@ export const ToolsSection: React.FC = () => {
             <Button
               size="sm"
               onClick={() => handleBulkEnable(true)}
-              disabled={!anySelected || bulkBusy || loading}
+              disabled={!anySelected || bulkBusy}
               className="gap-1 h-8"
             >
               <Eye className="h-4 w-4" />
@@ -233,7 +199,7 @@ export const ToolsSection: React.FC = () => {
               size="sm"
               variant="outline"
               onClick={() => handleBulkEnable(false)}
-              disabled={!anySelected || bulkBusy || loading}
+              disabled={!anySelected || bulkBusy}
               className="gap-1 h-8"
             >
               <EyeOff className="h-4 w-4" />
@@ -256,22 +222,12 @@ export const ToolsSection: React.FC = () => {
           )}
         </div>
 
-        {error && (
-          <div className="text-xs text-red-600 dark:text-red-400">{error}</div>
-        )}
+
       </div>
 
       {/* Scrollable Content */}
       <div className="flex-1 min-h-0">
-        {loading && (
-          <Card className="p-8 text-center bg-transparent border-dashed h-full">
-            <div className="text-sm text-muted-foreground">
-              Loading tools...
-            </div>
-          </Card>
-        )}
-
-        {!loading && filtered.length === 0 && (
+        {filtered.length === 0 && (
           <Card className="p-8 text-center bg-transparent border-dashed h-full">
             <p className="text-sm text-muted-foreground">
               {search ? "No tools match your search." : "No tools available."}
@@ -279,7 +235,7 @@ export const ToolsSection: React.FC = () => {
           </Card>
         )}
 
-        {!loading && filtered.length > 0 && (
+        {filtered.length > 0 && (
           <div className="space-y-2 h-full overflow-y-auto pr-1">
             {filtered.map((tool) => {
               const selected = selection.has(tool.id);
@@ -329,7 +285,7 @@ export const ToolsSection: React.FC = () => {
                     {/* Approval Toggle */}
                     <button
                       onClick={() => handleSingleToggleApproval(tool)}
-                      disabled={pending || bulkBusy || loading}
+                      disabled={pending || bulkBusy}
                       className={`p-1.5 rounded transition-colors ${
                         tool.require_approval
                           ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
@@ -347,7 +303,7 @@ export const ToolsSection: React.FC = () => {
                     {/* Enable/Disable Toggle */}
                     <button
                       onClick={() => handleSingleToggleEnabled(tool)}
-                      disabled={pending || bulkBusy || loading}
+                      disabled={pending || bulkBusy}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shadow-sm ${
                         tool.is_enabled
                           ? "bg-primary/80 hover:bg-primary text-primary-foreground"

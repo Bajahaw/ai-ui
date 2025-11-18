@@ -6,116 +6,50 @@ import {
   Trash2,
   Edit,
   Plus,
-  RefreshCw,
-  AlertCircle,
   Server,
-  Loader2,
 } from "lucide-react";
 import { MCPServerForm } from "./MCPServerForm";
 import { MCPServerRequest, MCPServerResponse } from "@/lib/api/types";
-import { useMCPServers } from "@/hooks/useMCPServers";
+import { useSettingsData } from "@/hooks/useSettingsData";
 
 export const MCPServersSection = () => {
-  const {
-    mcpServers,
-    isLoading,
-    error,
-    addMCPServer,
-    updateMCPServer,
-    removeMCPServer,
-    clearError,
-    refreshMCPServers,
-  } = useMCPServers();
-
+  const { data, addMCPServer, updateMCPServer, deleteMCPServer } = useSettingsData();
   const [showAddForm, setShowAddForm] = useState(false);
-  const [editingServer, setEditingServer] =
-    useState<MCPServerResponse | null>(null);
+  const [editingServer, setEditingServer] = useState<MCPServerResponse | null>(null);
 
-  const handleAddServer = async (data: MCPServerRequest) => {
-    await addMCPServer(data);
+  const handleAddServer = async (serverData: MCPServerRequest) => {
+    await addMCPServer(serverData);
     setShowAddForm(false);
   };
 
-  const handleEditServer = async (data: MCPServerRequest) => {
+  const handleEditServer = async (serverData: MCPServerRequest) => {
     if (editingServer) {
-      await updateMCPServer(data);
+      await updateMCPServer(serverData);
       setEditingServer(null);
     }
   };
 
   const handleDeleteServer = async (id: string) => {
     if (confirm("Are you sure you want to delete this MCP server?")) {
-      await removeMCPServer(id);
+      await deleteMCPServer(id);
     }
-  };
-
-  const handleRefreshServers = async () => {
-    await refreshMCPServers();
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium">MCP Servers</h3>
-        <div className="flex gap-2">
-          <Button
-            onClick={handleRefreshServers}
-            variant="outline"
-            size="sm"
-            disabled={isLoading}
-            title="Refresh MCP servers"
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-          </Button>
-          <Button
-            onClick={() => setShowAddForm(true)}
-            variant="outline"
-            size="sm"
-            title="Add MCP server"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Add Server</span>
-          </Button>
-        </div>
+        <Button onClick={() => setShowAddForm(true)} variant="outline" size="sm">
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">Add Server</span>
+        </Button>
       </div>
 
-      {isLoading && (
-        <div className="flex items-center justify-center py-8">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span>Loading MCP servers...</span>
-          </div>
-        </div>
-      )}
-
-      {error && (
-        <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          <span>{error}</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearError}
-            className="ml-auto"
-          >
-            ✕
-          </Button>
-        </div>
-      )}
-
-      {!isLoading && mcpServers.length === 0 ? (
+      {data.mcpServers.length === 0 ? (
         <Card className="p-6 text-center bg-transparent border-dashed">
           <div className="space-y-2">
             <p className="text-muted-foreground">No MCP servers configured</p>
-            <Button
-              onClick={() => setShowAddForm(true)}
-              variant="outline"
-              size="sm"
-            >
+            <Button onClick={() => setShowAddForm(true)} variant="outline" size="sm">
               <Plus className="h-4 w-4" />
               Add Your First MCP Server
             </Button>
@@ -123,7 +57,7 @@ export const MCPServersSection = () => {
         </Card>
       ) : (
         <div className="space-y-4 overflow-hidden">
-          {mcpServers.map((server) => (
+          {data.mcpServers.map((server) => (
             <Card
               key={server.id}
               className="p-4 bg-transparent overflow-hidden"

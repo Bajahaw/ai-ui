@@ -7,120 +7,57 @@ import {
   Edit,
   Plus,
   RefreshCw,
-  AlertCircle,
   ExternalLink,
   Loader2,
 } from "lucide-react";
 import { ProviderForm } from "./ProviderForm";
 import { FrontendProvider, ProviderRequest } from "@/lib/api/types";
-import { useProviders } from "@/hooks/useProviders";
+import { useSettingsData } from "@/hooks/useSettingsData";
 
 export const ProvidersSection = () => {
-  const {
-    providers,
-    isLoading,
-    error,
-    addProvider,
-    updateProvider,
-    removeProvider,
-    loadModels,
-    clearError,
-    refreshProviders,
-  } = useProviders();
-
+  const { data, addProvider, updateProvider, deleteProvider, loadProviderModels } = useSettingsData();
   const [showAddForm, setShowAddForm] = useState(false);
-  const [editingProvider, setEditingProvider] =
-    useState<FrontendProvider | null>(null);
+  const [editingProvider, setEditingProvider] = useState<FrontendProvider | null>(null);
   const [loadingModels, setLoadingModels] = useState<string | null>(null);
 
-  const handleAddProvider = async (data: ProviderRequest) => {
-    // Add provider; providers context will refresh and models will flow down
-    await addProvider(data);
+  const handleAddProvider = async (providerData: ProviderRequest) => {
+    await addProvider(providerData);
+    setShowAddForm(false);
   };
 
-  const handleEditProvider = async (data: ProviderRequest) => {
+  const handleEditProvider = async (providerData: ProviderRequest) => {
     if (editingProvider) {
-      await updateProvider(data);
+      await updateProvider(providerData);
       setEditingProvider(null);
     }
   };
 
   const handleDeleteProvider = async (id: string) => {
     if (confirm("Are you sure you want to delete this provider?")) {
-      await removeProvider(id);
+      await deleteProvider(id);
     }
   };
 
   const handleLoadModels = async (providerId: string) => {
     setLoadingModels(providerId);
     try {
-      await loadModels(providerId);
-    } catch (error) {
-      console.error("Failed to load models:", error);
+      await loadProviderModels(providerId);
     } finally {
       setLoadingModels(null);
     }
-  };
-
-  const handleRefreshProviders = async () => {
-    await refreshProviders();
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium">AI Providers</h3>
-        <div className="flex gap-2">
-          <Button
-            onClick={handleRefreshProviders}
-            variant="outline"
-            size="sm"
-            disabled={isLoading}
-            title="Refresh providers"
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-          </Button>
-          <Button
-            onClick={() => setShowAddForm(true)}
-            variant="outline"
-            size="sm"
-            title="Add provider"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Add Provider</span>
-          </Button>
-        </div>
+        <Button onClick={() => setShowAddForm(true)} variant="outline" size="sm">
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">Add Provider</span>
+        </Button>
       </div>
 
-      {isLoading && (
-        <div className="flex items-center justify-center py-8">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span>Loading providers...</span>
-          </div>
-        </div>
-      )}
-
-      {error && (
-        <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          <span>{error}</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearError}
-            className="ml-auto"
-          >
-            ✕
-          </Button>
-        </div>
-      )}
-
-      {providers.length === 0 ? (
+      {data.providers.length === 0 ? (
         <Card className="p-6 text-center bg-transparent border-dashed">
           <div className="space-y-2">
             <p className="text-muted-foreground">No providers configured</p>
@@ -136,7 +73,7 @@ export const ProvidersSection = () => {
         </Card>
       ) : (
         <div className="space-y-4 overflow-hidden">
-          {providers.map((provider) => (
+          {data.providers.map((provider) => (
             <Card
               key={provider.id}
               className="p-4 bg-transparent overflow-hidden"

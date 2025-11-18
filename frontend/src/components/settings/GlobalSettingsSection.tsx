@@ -1,301 +1,167 @@
-import {useState, useEffect} from "react";
-import {Button} from "@/components/ui/button";
-import {Textarea} from "@/components/ui/textarea";
-import {Label} from "@/components/ui/label";
-import {AlertCircle, Save, Loader2, RotateCcw} from "lucide-react";
-import {useSettings} from "@/hooks/useSettings";
-import {useModels} from "@/hooks/useModels";
-import {ModelSelect} from "@/components/ai-elements/model-select.tsx";
+import { useState, useEffect, useMemo } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Save, RotateCcw } from "lucide-react";
+import { ModelSelect } from "@/components/ai-elements/model-select.tsx";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
+import { useSettingsData } from "@/hooks/useSettingsData";
 
 export const GlobalSettingsSection = () => {
-    const {
-        systemPrompt,
-        isLoading,
-        error,
-        updateSystemPromptSetting,
-        updateSingleSetting,
-        getSingleSetting,
-        clearError,
-    } = useSettings();
-
-    const {models, isLoading: modelsLoading} = useModels();
-
-    // Auto-select default model when models become available
-
-    const [localSystemPrompt, setLocalSystemPrompt] = useState("");
-    const [localDefaultModel, setLocalDefaultModel] = useState("");
-    const [localReasoningEffort, setLocalReasoningEffort] = useState("");
-    const [localEnterBehavior, setLocalEnterBehavior] = useState("");
-    const [isSaving, setSaving] = useState(false);
+    const { data, updateSettingsLocal, saveSettings } = useSettingsData();
+    
     const [hasChanges, setHasChanges] = useState(false);
-    const isLocalModelValid = models.some(
-        (model) => model.id === localDefaultModel,
+    const [isSaving, setSaving] = useState(false);
+
+    const enabledModels = useMemo(() => 
+        data.models.filter(m => m.is_enabled !== false),
+        [data.models]
     );
 
-    // Update local state when settings change
-    useEffect(() => {
-        setLocalSystemPrompt(systemPrompt);
-        const savedModel = getSingleSetting("defaultModel");
-        const savedReasoningEffort = getSingleSetting("reasoningEffort");
-        const savedEnterBehavior = getSingleSetting("enterBehavior");
-        if (!modelsLoading && models.length === 0) {
-            // When no models are available, clear the selection so the placeholder is rendered
-            setLocalDefaultModel("");
-        } else {
-            setLocalDefaultModel(savedModel || "");
-        }
-        setLocalReasoningEffort(savedReasoningEffort || "medium");
-        setLocalEnterBehavior(savedEnterBehavior || "send");
-        setHasChanges(false);
-    }, [
+    const systemPrompt = data.settings.systemPrompt || "";
+    const defaultModel = data.settings.defaultModel || "";
+    const reasoningEffort = data.settings.reasoningEffort || "medium";
+    const enterBehavior = data.settings.enterBehavior || "send";
+
+    const [local, setLocal] = useState({
         systemPrompt,
-        getSingleSetting,
-        models,
-        modelsLoading,
-    ]);
+        defaultModel,
+        reasoningEffort,
+        enterBehavior
+    });
 
-    const handleSystemPromptChange = (value: string) => {
-        setLocalSystemPrompt(value);
-        setHasChanges(
-            value !== systemPrompt ||
-            localDefaultModel !== getSingleSetting("defaultModel") ||
-            localReasoningEffort !== getSingleSetting("reasoningEffort") ||
-            localEnterBehavior !== getSingleSetting("enterBehavior"),
-        );
+    useEffect(() => {
+        setLocal({ systemPrompt, defaultModel, reasoningEffort, enterBehavior });
+        setHasChanges(false);
+    }, [systemPrompt, defaultModel, reasoningEffort, enterBehavior]);
+
+    const handleChange = (key: string, value: string) => {
+        setLocal(prev => ({ ...prev, [key]: value }));
+        setHasChanges(true);
     };
 
-    const handleDefaultModelChange = (value: string) => {
-        setLocalDefaultModel(value);
-        setHasChanges(
-            localSystemPrompt !== systemPrompt ||
-            value !== getSingleSetting("defaultModel") ||
-            localReasoningEffort !== getSingleSetting("reasoningEffort") ||
-            localEnterBehavior !== getSingleSetting("enterBehavior"),
-        );
-    };
-
-    const handleReasoningEffortChange = (value: string) => {
-        setLocalReasoningEffort(value);
-        setHasChanges(
-            localSystemPrompt !== systemPrompt ||
-            localDefaultModel !== getSingleSetting("defaultModel") ||
-            value !== getSingleSetting("reasoningEffort") ||
-            localEnterBehavior !== getSingleSetting("enterBehavior"),
-        );
-    };
-
-    const handleEnterBehaviorChange = (value: string) => {
-        setLocalEnterBehavior(value);
-        setHasChanges(
-            localSystemPrompt !== systemPrompt ||
-            localDefaultModel !== getSingleSetting("defaultModel") ||
-            localReasoningEffort !== getSingleSetting("reasoningEffort") ||
-            value !== getSingleSetting("enterBehavior"),
-        );
-    };
-
-    const handleSaveSettings = async () => {
+    const handleSave = async () => {
         setSaving(true);
         try {
-            await updateSystemPromptSetting(localSystemPrompt);
-            if (localDefaultModel) {
-                await updateSingleSetting("defaultModel", localDefaultModel);
-            }
-            if (localReasoningEffort) {
-                await updateSingleSetting("reasoningEffort", localReasoningEffort);
-            }
-            if (localEnterBehavior) {
-                await updateSingleSetting("enterBehavior", localEnterBehavior);
-            }
+            Object.entries(local).forEach(([key, value]) => {
+                if (value !== data.settings[key]) {
+                    updateSettingsLocal(key, value);
+                }
+            });
+            await saveSettings();
             setHasChanges(false);
-        } catch (error) {
-            console.error("Failed to save settings:", error);
         } finally {
             setSaving(false);
         }
     };
 
-    const handleResetSettings = () => {
-        setLocalSystemPrompt(systemPrompt);
-        setLocalDefaultModel(getSingleSetting("defaultModel") || "");
-        setLocalReasoningEffort(getSingleSetting("reasoningEffort") || "medium");
-        setLocalEnterBehavior(getSingleSetting("enterBehavior") || "send");
+    const handleReset = () => {
+        setLocal({ systemPrompt, defaultModel, reasoningEffort, enterBehavior });
         setHasChanges(false);
     };
 
-    const defaultSystemPrompt =
-        "You are a helpful AI assistant. Provide clear, accurate, and helpful responses to user questions.";
+    const isModelValid = enabledModels.some(m => m.id === local.defaultModel);
 
     return (
         <div className="space-y-8 max-w-2xl">
-            <h2 className="text-lg text-foreground mb-2">
-                General Settings
-            </h2>
-
-            {(isLoading || modelsLoading) && (
-                <div className="flex items-center justify-center py-8">
-                    <div className="flex items-center gap-3 text-muted-foreground">
-                        <Loader2 className="h-5 w-5 animate-spin"/>
-                        <span className="text-sm">
-                            {isLoading && modelsLoading
-                                ? "Loading settings and models..."
-                                : isLoading
-                                    ? "Loading settings..."
-                                    : "Loading models..."}
-                        </span>
-                    </div>
-                </div>
-            )}
-
-            {error && (
-                <div
-                    className="flex items-center gap-3 p-4 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                    <AlertCircle className="h-4 w-4 flex-shrink-0"/>
-                    <span className="flex-1">{error}</span>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={clearError}
-                        className="h-6 w-6 p-0 hover:bg-red-100 dark:hover:bg-red-800/30"
-                    >
-                        ✕
-                    </Button>
-                </div>
-            )}
+            <h2 className="text-lg text-foreground mb-2">General Settings</h2>
 
             <div className="space-y-4">
-
-                {/* Default Model Section */}
                 <div className="flex justify-between items-center pb-2">
-                    <div>
-                        <Label htmlFor="default-model" className="font-medium text-nowrap">
-                            Default Model
-                        </Label>
-                    </div>
-                    <div className="">
-                        <ModelSelect
-                            models={models}
-                            value={isLocalModelValid ? localDefaultModel : null}
-                            onChange={handleDefaultModelChange}
-                            loading={modelsLoading}
-                            disabled={isSaving}
-                            helperMessage="Add AI providers in the Providers tab"
-                            size="sm"
-                            triggerId="default-model"
-                            triggerAriaLabel="Default model"
-                            triggerClassName="max-sm:max-w-[180px] max-sm:mr-4"
-                            contentClassName="max-h-60"
-                            showCount={models.length > 0}
-                        />
-                    </div>
-
+                    <Label htmlFor="default-model" className="font-medium text-nowrap">
+                        Default Model
+                    </Label>
+                    <ModelSelect
+                        models={enabledModels}
+                        value={isModelValid ? local.defaultModel : null}
+                        onChange={(value) => handleChange("defaultModel", value)}
+                        loading={false}
+                        disabled={isSaving}
+                        helperMessage="Add AI providers in the Providers tab"
+                        size="sm"
+                        triggerId="default-model"
+                        triggerAriaLabel="Default model"
+                        triggerClassName="max-sm:max-w-[180px] max-sm:mr-4"
+                        contentClassName="max-h-60"
+                        showCount={enabledModels.length > 0}
+                    />
                 </div>
 
-                {/* Reasoning Effort Section */}
                 <div className="flex justify-between items-center !my-0 pb-2">
-                    <div>
-                        <Label htmlFor="reasoning-effort" className="font-medium text-nowrap">
-                            Reasoning Effort
-                        </Label>
-                    </div>
-                    <div>
-                        <Select
-                            value={localReasoningEffort}
-                            onValueChange={handleReasoningEffortChange}
-                            disabled={isSaving}
+                    <Label htmlFor="reasoning-effort" className="font-medium text-nowrap">
+                        Reasoning Effort
+                    </Label>
+                    <Select
+                        value={local.reasoningEffort}
+                        onValueChange={(value) => handleChange("reasoningEffort", value)}
+                        disabled={isSaving}
+                    >
+                        <SelectTrigger
+                            id="reasoning-effort"
+                            className="flex items-center justify-between gap-2 rounded-lg !border-none !bg-transparent transition-colors"
                         >
-                            <SelectTrigger
-                                id="reasoning-effort"
-                                className="flex items-center justify-between gap-2 rounded-lg !border-none !bg-transparent transition-colors data-[placeholder]:text-muted-foreground"
-                            >
-                                <SelectValue placeholder="Select reasoning effort" />
-                            </SelectTrigger>
-                            <SelectContent
-                                className="rounded-xl min-w-[120px] border border-border/70 p-1 shadow-xl"
-                            >
-                                <SelectItem value="disabled">Disabled</SelectItem>
-                                <SelectItem value="none">None</SelectItem>
-                                <SelectItem value="low">Low</SelectItem>
-                                <SelectItem value="medium">Medium</SelectItem>
-                                <SelectItem value="high">High</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl min-w-[120px] border border-border/70 p-1 shadow-xl">
+                            <SelectItem value="disabled">Disabled</SelectItem>
+                            <SelectItem value="none">None</SelectItem>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
 
-                {/* Enter Key Behavior Section */}
                 <div className="border-b border-border flex justify-between items-center !my-0 pb-2">
-                    <div>
-                        <Label htmlFor="enter-behavior" className="font-medium text-nowrap">
-                            Enter Key Action
-                        </Label>
-                    </div>
-                    <div>
-                        <Select
-                            value={localEnterBehavior}
-                            onValueChange={handleEnterBehaviorChange}
-                            disabled={isSaving}
+                    <Label htmlFor="enter-behavior" className="font-medium text-nowrap">
+                        Enter Key Action
+                    </Label>
+                    <Select
+                        value={local.enterBehavior}
+                        onValueChange={(value) => handleChange("enterBehavior", value)}
+                        disabled={isSaving}
+                    >
+                        <SelectTrigger
+                            id="enter-behavior"
+                            className="flex items-center justify-between gap-2 rounded-lg !border-none !bg-transparent transition-colors"
                         >
-                            <SelectTrigger
-                                id="enter-behavior"
-                                className="flex items-center justify-between gap-2 rounded-lg !border-none !bg-transparent transition-colors data-[placeholder]:text-muted-foreground"
-                            >
-                                <SelectValue placeholder="Select enter behavior" />
-                            </SelectTrigger>
-                            <SelectContent
-                                className="rounded-xl min-w-[140px] border border-border/70 p-1 shadow-xl">
-                                <SelectItem value="send">Send</SelectItem>
-                                <SelectItem value="newline">New Line</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl min-w-[140px] border border-border/70 p-1 shadow-xl">
+                            <SelectItem value="send">Send</SelectItem>
+                            <SelectItem value="newline">New Line</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
 
-                {/* System Prompt Section */}
                 <div className="space-y-4">
-                    <div>
-                        <Label htmlFor="system-prompt" className="font-medium">
-                            System Prompt
-                        </Label>
-                    </div>
-
+                    <Label htmlFor="system-prompt" className="font-medium">
+                        System Prompt
+                    </Label>
                     <Textarea
                         id="system-prompt"
-                        placeholder={defaultSystemPrompt}
-                        value={localSystemPrompt}
-                        onChange={(e) => handleSystemPromptChange(e.target.value)}
+                        placeholder="You are a helpful AI assistant. Provide clear, accurate, and helpful responses to user questions."
+                        value={local.systemPrompt}
+                        onChange={(e) => handleChange("systemPrompt", e.target.value)}
                         className="min-h-[140px] text-sm resize-none !bg-secondary/50 rounded-lg border-border/80 focus-visible:border-border"
                         disabled={isSaving}
                     />
                 </div>
 
-                {/* Action Buttons */}
                 <div className="flex items-center gap-3 pt-2">
-                    <Button
-                        onClick={handleSaveSettings}
-                        disabled={!hasChanges || isSaving}
-                        className="gap-2"
-                    >
-                        {isSaving && <Loader2 className="h-4 w-4 animate-spin"/>}
-                        <Save className="h-4 w-4"/>
+                    <Button onClick={handleSave} disabled={!hasChanges || isSaving} className="gap-2">
+                        <Save className="h-4 w-4" />
                         Apply
                     </Button>
-
                     {hasChanges && (
-                        <Button
-                            variant="outline"
-                            onClick={handleResetSettings}
-                            disabled={isSaving}
-                            className="gap-2"
-                        >
-                            <RotateCcw className="h-4 w-4"/>
+                        <Button variant="outline" onClick={handleReset} disabled={isSaving} className="gap-2">
+                            <RotateCcw className="h-4 w-4" />
                             Reset
                         </Button>
                     )}
