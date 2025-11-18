@@ -11,7 +11,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/alecthomas/jsonschema"
 	logger "github.com/charmbracelet/log"
 	"github.com/google/uuid"
 )
@@ -86,13 +85,13 @@ func RespondWithJSON(w http.ResponseWriter, data interface{}, statusCode int) {
 	}
 }
 
-func Structure(t any) string {
-	reflector := jsonschema.Reflector{}
-	schema := reflector.Reflect(t)
-	str, _ := json.MarshalIndent(schema, "", "  ")
-	//fmt.Println("Structure:", string(str))
-	return string(str)
-}
+// func Structure(t any) string {
+// 	reflector := jsonschema.Reflector{}
+// 	schema := reflector.Reflect(t)
+// 	str, _ := json.MarshalIndent(schema, "", "  ")
+// 	//fmt.Println("Structure:", string(str))
+// 	return string(str)
+// }
 
 func ExtractProviderID(model string) (string, string) {
 	// Example: "provider-5dx6/whisper-large-v3-turbo" -> "provider-5dx6", "whisper-large-v3-turbo"
