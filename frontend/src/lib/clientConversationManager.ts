@@ -385,27 +385,33 @@ export class ClientConversationManager {
     for (const backendConv of backendConversations) {
       const existingConv = this.conversations.get(backendConv.id);
 
+      // Ensure messages object is always initialized
+      const normalizedBackendConv = {
+        ...backendConv,
+        messages: backendConv.messages || {},
+      };
+
       if (existingConv) {
         // Merge minimal backend conversation fields (messages may be fetched separately)
         existingConv.backendConversation = {
           ...(existingConv.backendConversation || {}),
-          ...backendConv,
+          ...normalizedBackendConv,
         } as Conversation;
-        existingConv.title = backendConv.title || existingConv.title;
+        existingConv.title = normalizedBackendConv.title || existingConv.title;
       } else {
         const clientConv: ClientConversation = {
-          id: backendConv.id,
+          id: normalizedBackendConv.id,
 
-          title: backendConv.title || "New Chat",
+          title: normalizedBackendConv.title || "New Chat",
 
           messages: [], // messages are loaded via chat responses or messages endpoint
-          backendConversation: backendConv,
+          backendConversation: normalizedBackendConv,
 
           pendingMessageIds: new Set(),
 
           activeBranches: new Map(),
         };
-        this.conversations.set(backendConv.id, clientConv);
+        this.conversations.set(normalizedBackendConv.id, clientConv);
       }
     }
   }
