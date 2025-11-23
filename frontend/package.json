@@ -5,9 +5,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "npx tsc && vite build",
-    "preview": "vite preview",
+    "dev": "bunx --bun vite",
+    "build": "bun run tsc && bunx --bun vite build",
+    "preview": "bunx --bun vite preview",
     "deploy": "gh-pages -d dist",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 50"
   },
