@@ -20,8 +20,8 @@ func NewMCPRepository(db *sql.DB, toolRepo ToolRepository) MCPServerRepository {
 
 func (repo *MCPRepositoryImpl) GetAllMCPServers() []MCPServer {
 	var allServers = make([]MCPServer, 0)
-	sql := `SELECT id, name, endpoint, api_key FROM MCPServers`
-	rows, err := repo.db.Query(sql)
+	query := `SELECT id, name, endpoint, api_key FROM MCPServers`
+	rows, err := repo.db.Query(query)
 	if err != nil {
 		log.Error("Error querying MCP servers", "err", err)
 		return allServers
@@ -54,8 +54,8 @@ func (repo *MCPRepositoryImpl) GetAllMCPServers() []MCPServer {
 
 func (repo *MCPRepositoryImpl) GetMCPServer(id string) (MCPServer, error) {
 	var server MCPServer
-	sql := `SELECT id, name, endpoint, api_key FROM MCPServers WHERE id = ?`
-	err := repo.db.QueryRow(sql, id).Scan(&server.ID, &server.Name, &server.Endpoint, &server.APIKey)
+	query := `SELECT id, name, endpoint, api_key FROM MCPServers WHERE id = ?`
+	err := repo.db.QueryRow(query, id).Scan(&server.ID, &server.Name, &server.Endpoint, &server.APIKey)
 	if err != nil {
 		return MCPServer{}, err
 	}
@@ -66,8 +66,8 @@ func (repo *MCPRepositoryImpl) GetMCPServer(id string) (MCPServer, error) {
 }
 
 func (repo *MCPRepositoryImpl) SaveMCPServer(server MCPServer) error {
-	sql := `INSERT INTO MCPServers (id, name, endpoint, api_key) VALUES (?, ?, ?, ?)`
-	_, err := repo.db.Exec(sql, server.ID, server.Name, server.Endpoint, server.APIKey)
+	query := `INSERT INTO MCPServers (id, name, endpoint, api_key) VALUES (?, ?, ?, ?)`
+	_, err := repo.db.Exec(query, server.ID, server.Name, server.Endpoint, server.APIKey)
 	if err != nil {
 		return err
 	}
@@ -83,8 +83,8 @@ func (repo *MCPRepositoryImpl) SaveMCPServer(server MCPServer) error {
 }
 
 func (repo *MCPRepositoryImpl) DeleteMCPServer(id string) error {
-	sql := `DELETE FROM MCPServers WHERE id = ?`
-	_, err := repo.db.Exec(sql, id)
+	query := `DELETE FROM MCPServers WHERE id = ?`
+	_, err := repo.db.Exec(query, id)
 	if err != nil {
 		return err
 	}

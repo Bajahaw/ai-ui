@@ -1,18 +1,11 @@
-import React, { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import {
-  CheckSquare,
-  Square,
-  Eye,
-  EyeOff,
-  Search,
-  ShieldCheck,
-} from "lucide-react";
-import { locallyApplyEnableFlags } from "@/lib/api/models";
-import { Model } from "@/lib/api/types";
-import { useSettingsData } from "@/hooks/useSettingsData";
+import React, {useMemo, useState} from "react";
+import {Button} from "@/components/ui/button";
+import {Input} from "@/components/ui/input";
+import {Card} from "@/components/ui/card";
+import {CheckSquare, Eye, EyeOff, Search, ShieldCheck, Square,} from "lucide-react";
+import {locallyApplyEnableFlags} from "@/lib/api/models";
+import {Model} from "@/lib/api/types";
+import {useSettingsData} from "@/hooks/useSettingsData";
 
 /**
 
@@ -290,5 +283,3 @@ export const ModelsSection: React.FC = () => {
     </div>
   );
 };
-
-export default ModelsSection;

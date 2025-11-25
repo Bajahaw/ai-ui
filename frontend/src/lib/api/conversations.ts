@@ -1,13 +1,8 @@
-import { Conversation, Message } from "./types.ts";
+import {Conversation, Message} from "./types.ts";
 
-import {
-  ApiErrorHandler,
-  isConversation,
-  isConversationArray,
-  isMessagesMap,
-} from "./errorHandler.ts";
+import {ApiErrorHandler, isConversation, isConversationArray, isMessagesMap,} from "./errorHandler.ts";
 
-import { getApiUrl } from "../config.ts";
+import {getApiUrl} from "../config.ts";
 
 // API client for conversation endpoints
 export class ConversationsAPI {
@@ -106,43 +101,8 @@ export class ConversationsAPI {
     }, "createConversation");
   }
 
-  // GET /api/conversations/{id}
-  async fetchConversation(id: string): Promise<Conversation> {
-    if (!id) {
-      throw new Error("Invalid conversation ID provided");
-    }
-
-    return ApiErrorHandler.handleApiCall(async () => {
-      const response = await fetch(
-        getApiUrl(`/api/conversations/${encodeURIComponent(id)}`),
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-        },
-      );
-
-      if (!response.ok) {
-        await ApiErrorHandler.handleFetchError(
-          response,
-          `Fetch conversation ${id}`,
-        );
-      }
-
-      const data = await response.json();
-
-      // Validate conversation data structure
-      return ApiErrorHandler.validateResponse(
-        data,
-        isConversation,
-        `Fetch conversation ${id}`,
-      );
-    }, `fetchConversation(${id})`);
-  }
-
-  // GET /api/conversations/{id}/messages
+  // GET /api/conversations/{id} removed - not needed currently
+// GET /api/conversations/{id}/messages
   async fetchConversationMessages(
     id: string,
   ): Promise<Record<number, Message>> {

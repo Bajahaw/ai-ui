@@ -159,9 +159,9 @@ func getAllConversationMessages(convID string) map[int]*Message {
 		}
 	}
 
-	tools := toolCallsRepo.GetToolCallsByConvID(convID)
-	log.Debug("Retrieved tool calls for conversation", "convID", convID, "tools", tools)
-	for _, tool := range tools {
+	toolCalls := toolCallsRepo.GetToolCallsByConvID(convID)
+	log.Debug("Retrieved tool calls for conversation", "convID", convID, "tools", toolCalls)
+	for _, tool := range toolCalls {
 		if msg, exists := messages[tool.MessageID]; exists {
 			msg.Tools = append(msg.Tools, *tool)
 		}

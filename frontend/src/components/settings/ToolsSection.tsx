@@ -1,19 +1,11 @@
-import React, { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import {
-  CheckSquare,
-  Square,
-  Eye,
-  EyeOff,
-  Search,
-  Wrench,
-  ShieldAlert,
-} from "lucide-react";
-import { locallyApplyToolFlags } from "@/lib/api/tools";
-import { Tool } from "@/lib/api/types";
-import { useSettingsData } from "@/hooks/useSettingsData";
+import React, {useMemo, useState} from "react";
+import {Button} from "@/components/ui/button";
+import {Input} from "@/components/ui/input";
+import {Card} from "@/components/ui/card";
+import {CheckSquare, Eye, EyeOff, Search, ShieldAlert, Square, Wrench,} from "lucide-react";
+import {locallyApplyToolFlags} from "@/lib/api/tools";
+import {Tool} from "@/lib/api/types";
+import {useSettingsData} from "@/hooks/useSettingsData";
 
 /**
  * ToolsSection
@@ -329,5 +321,3 @@ export const ToolsSection: React.FC = () => {
     </div>
   );
 };
-
-export default ToolsSection;

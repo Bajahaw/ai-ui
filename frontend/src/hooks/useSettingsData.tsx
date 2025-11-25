@@ -1,18 +1,16 @@
-import { createContext, useContext, useState, useCallback, ReactNode, useRef } from "react";
-import { getProviders, saveProvider, deleteProvider, getProviderModels } from "@/lib/api/providers";
-import { getMCPServers, saveMCPServer, deleteMCPServer as deleteMCPServerApi } from "@/lib/api/mcpServers";
-import { getAllTools, saveAllTools } from "@/lib/api/tools";
-import { getSettings, updateSystemPrompt, updateSetting } from "@/lib/api/settings";
-import { getAllModels, updateModelEnableFlags } from "@/lib/api/models";
-import { 
-  FrontendProvider, 
-  MCPServerResponse, 
-  Tool, 
-  Model,
-  ProviderRequest,
-  MCPServerRequest
-} from "@/lib/api/types";
-import { backendToFrontendProvider } from "@/lib/api/providers";
+import {createContext, ReactNode, useCallback, useContext, useRef, useState} from "react";
+import {
+  backendToFrontendProvider,
+  deleteProvider,
+  getProviderModels,
+  getProviders,
+  saveProvider
+} from "@/lib/api/providers";
+import {deleteMCPServer as deleteMCPServerApi, getMCPServers, saveMCPServer} from "@/lib/api/mcpServers";
+import {getAllTools, saveAllTools} from "@/lib/api/tools";
+import {getSettings, updateSetting, updateSystemPrompt} from "@/lib/api/settings";
+import {getAllModels, updateModelEnableFlags} from "@/lib/api/models";
+import {FrontendProvider, MCPServerRequest, MCPServerResponse, Model, ProviderRequest, Tool} from "@/lib/api/types";
 
 interface SettingsData {
   providers: FrontendProvider[];
@@ -114,8 +112,7 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
   }, [loading]);
 
   // Providers
-  const addProvider = useCallback(async (providerData: ProviderRequest) => {
-    await saveProvider(providerData);
+  const refreshProviders = useCallback(async () => {
     const providers = await getProviders();
     const providersWithModels = await Promise.all(
       providers.map(async (p) => {
@@ -130,21 +127,15 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
     setData(d => ({ ...d, providers: providersWithModels }));
   }, []);
 
+  const addProvider = useCallback(async (providerData: ProviderRequest) => {
+    await saveProvider(providerData);
+    await refreshProviders();
+  }, [refreshProviders]);
+
   const updateProvider = useCallback(async (providerData: ProviderRequest) => {
     await saveProvider(providerData);
-    const providers = await getProviders();
-    const providersWithModels = await Promise.all(
-      providers.map(async (p) => {
-        try {
-          const models = await getProviderModels(p.id);
-          return backendToFrontendProvider(p, models);
-        } catch {
-          return backendToFrontendProvider(p);
-        }
-      })
-    );
-    setData(d => ({ ...d, providers: providersWithModels }));
-  }, []);
+    await refreshProviders();
+  }, [refreshProviders]);
 
   const deleteProviderFn = useCallback(async (id: string) => {
     await deleteProvider(id);

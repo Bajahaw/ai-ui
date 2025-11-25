@@ -1,5 +1,5 @@
-import { getApiUrl } from "@/lib/config";
-import { MCPServerRequest, MCPServerResponse } from "./types";
+import {getApiUrl} from "@/lib/config";
+import {MCPServerRequest, MCPServerResponse} from "./types";
 
 // Get all MCP servers
 export const getMCPServers = async (): Promise<MCPServerResponse[]> => {
@@ -18,25 +18,7 @@ export const getMCPServers = async (): Promise<MCPServerResponse[]> => {
   return response.json();
 };
 
-// Get a specific MCP server
-export const getMCPServer = async (
-  id: string,
-): Promise<MCPServerResponse> => {
-  const response = await fetch(getApiUrl(`/api/tools/mcp/${id}`), {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch MCP server: ${response.statusText}`);
-  }
-
-  return response.json();
-};
-
+// Get a specific MCP server - removed
 // Save/update MCP server
 export const saveMCPServer = async (
   serverData: MCPServerRequest,

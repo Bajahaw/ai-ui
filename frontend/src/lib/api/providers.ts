@@ -1,10 +1,5 @@
-import { getApiUrl } from "@/lib/config";
-import {
-  ProviderRequest,
-  ProviderResponse,
-  ModelsResponse,
-  FrontendProvider,
-} from "./types";
+import {getApiUrl} from "@/lib/config";
+import {FrontendProvider, ModelsResponse, ProviderRequest, ProviderResponse,} from "./types";
 
 // Get all providers
 export const getProviders = async (): Promise<ProviderResponse[]> => {
@@ -23,23 +18,7 @@ export const getProviders = async (): Promise<ProviderResponse[]> => {
   return response.json();
 };
 
-// Get a specific provider
-export const getProvider = async (id: string): Promise<ProviderResponse> => {
-  const response = await fetch(getApiUrl(`/api/providers/${id}`), {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch provider: ${response.statusText}`);
-  }
-
-  return response.json();
-};
-
+// Get a specific provider - removed
 // Save/update provider
 export const saveProvider = async (
   providerData: ProviderRequest,
@@ -96,34 +75,8 @@ export const getProviderModels = async (
   return response.json();
 };
 
-// Fetch all models (across all providers)
-export const getAllModels = async (): Promise<ModelsResponse> => {
-  const response = await fetch(getApiUrl("/api/providers/models"), {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch all models: ${response.statusText}`);
-  }
-  return response.json();
-};
-
-// Bulk update model enabled flags
-export const updateModelsEnabled = async (
-  updates: { id: string; is_enabled: boolean }[],
-): Promise<void> => {
-  const response = await fetch(getApiUrl("/api/providers/models"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ models: updates }),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to update models: ${response.statusText}`);
-  }
-};
-
+// Fetch all models (across all providers) - removed
+// Bulk update model enabled flags - removed
 // Utility function to create a display name for providers
 
 export const getProviderDisplayName = (provider: ProviderResponse): string => {
@@ -151,7 +104,7 @@ export const backendToFrontendProvider = (
       ...m,
 
       // Normalize: if backend omits is_enabled or it's true, treat as enabled
-      is_enabled: m.is_enabled !== false,
+      is_enabled: m.is_enabled,
     })),
   };
 };

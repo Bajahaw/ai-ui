@@ -39,7 +39,7 @@ type MCPServerRequest struct {
 	APIKey   string `json:"api_key"`
 }
 
-func listMCPServers(w http.ResponseWriter, r *http.Request) {
+func listMCPServers(w http.ResponseWriter, _ *http.Request) {
 	servers := mcpRepo.GetAllMCPServers()
 	response := make([]MCPServerResponse, len(servers))
 	for i, server := range servers {
@@ -145,7 +145,7 @@ func GetMCPTools(server MCPServer) ([]Tool, error) {
 	}
 	defer session.Close()
 
-	tools := []Tool{}
+	var tools []Tool
 	if session.InitializeResult().Capabilities.Tools != nil {
 		mcpTools := session.Tools(ctx, nil)
 		for tool, err := range mcpTools {
@@ -240,7 +240,7 @@ func httpClientWithCustomHeaders(headers map[string]string) *http.Client {
 	}
 }
 
-// MCP session manager to cache sessions
+// MCPSessionManager manager to cache sessions
 type MCPSessionManager struct {
 	sessions sync.Map
 }

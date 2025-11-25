@@ -5,6 +5,7 @@ import (
 	"ai-client/cmd/utils"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -20,7 +21,7 @@ type SimpleMessage struct {
 	Image    string
 }
 
-type ProviderRequestParams struct {
+type RequestParams struct {
 	Messages        []SimpleMessage
 	Model           string
 	ReasoningEffort openai.ReasoningEffort
@@ -43,7 +44,7 @@ type StreamComplete struct {
 	AssistantMessageID int `json:"assistantMessageId"`
 }
 
-func (c *Client) SendChatCompletionRequest(params ProviderRequestParams) (*openai.ChatCompletion, error) {
+func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*openai.ChatCompletion, error) {
 	providerID, model := utils.ExtractProviderID(params.Model)
 	provider, err := repo.getProvider(providerID)
 	if err != nil {
@@ -80,7 +81,7 @@ func (c *Client) SendChatCompletionRequest(params ProviderRequestParams) (*opena
 }
 
 // SendChatCompletionStreamRequest streams chat completions and returns the full content
-func (c *Client) SendChatCompletionStreamRequest(params ProviderRequestParams, w http.ResponseWriter) (*openai.ChatCompletionMessage, error) {
+func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w http.ResponseWriter) (*openai.ChatCompletionMessage, error) {
 	providerID, model := utils.ExtractProviderID(params.Model)
 	provider, err := repo.getProvider(providerID)
 	if err != nil {
@@ -157,7 +158,8 @@ func (c *Client) SendChatCompletionStreamRequest(params ProviderRequestParams, w
 	}
 
 	if err := stream.Err(); err != nil {
-		if apiErr, ok := err.(*openai.Error); ok {
+		var apiErr *openai.Error
+		if errors.As(err, &apiErr) {
 			type Error struct {
 				Message string `json:"message"`
 				Code    string `json:"code"`

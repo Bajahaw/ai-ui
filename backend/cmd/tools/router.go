@@ -27,7 +27,7 @@ type ToolListResponse struct {
 	Tools []Tool `json:"tools"`
 }
 
-func listAllTools(w http.ResponseWriter, r *http.Request) {
+func listAllTools(w http.ResponseWriter, _ *http.Request) {
 	tools := toolRepo.GetAllTools()
 	response := ToolListResponse{
 		Tools: tools,

@@ -46,13 +46,6 @@ export interface ChatRequest {
 export interface ChatResponse {
   messages: Record<number, Message>;
 }
-
-export interface RetryRequest {
-  conversationId: string;
-  parentId: number;
-  model: string;
-}
-
 export interface RetryResponse {
   messages: Record<number, Message>;
 }
@@ -91,13 +84,6 @@ export interface StreamComplete {
   userMessageId: number;
   assistantMessageId: number;
 }
-
-export interface CreateConversationRequest {
-  conversation: Conversation;
-}
-
-export type CreateConversationResponse = Conversation;
-
 // Frontend types for compatibility
 export interface FrontendMessage {
   id: string;
@@ -111,28 +97,10 @@ export interface FrontendMessage {
   timestamp: number;
   attachment?: string;
 }
-
-export interface FrontendConversation {
-  id: string;
-  title: string;
-  messages: FrontendMessage[];
-  backendConversation: Conversation;
-}
-
 // Utility function to generate optimistic client-only conversation ID (placeholder)
 
 // Note: Backend now uses UUIDs. When creating a new conversation implicitly,
-// read the real UUID from the returned messages' convId.
-export const generateOptimisticConversationId = (): string => {
-  const now = new Date();
-
-  const date = now.toISOString().split("T")[0].replace(/-/g, "");
-
-  const time = now.toTimeString().split(" ")[0].replace(/:/g, "");
-
-  return `conv-${date}-${time}`;
-};
-
+// read the real UUID from the returned messages' convId. - removed
 // Convert backend message to frontend message
 export const backendToFrontendMessage = (
   backendMsg: Message,
@@ -216,14 +184,6 @@ export interface FileUploadResponse {
 }
 
 // MCP Server types
-export interface MCPServer {
-  id: string;
-  name: string;
-  endpoint: string;
-  api_key: string;
-  tools?: Tool[];
-}
-
 export interface MCPServerRequest {
   id?: string;
   name: string;
@@ -237,11 +197,6 @@ export interface MCPServerResponse {
   endpoint: string;
   tools: Tool[];
 }
-
-export interface MCPServerListResponse {
-  servers: MCPServerResponse[];
-}
-
 // Tool types
 export interface Tool {
   id: string;

@@ -8,8 +8,7 @@
         <script>
             (function () {
                 const stored = localStorage.getItem("ai-ui-theme");
-                const theme = stored === "light" || stored === "dark" ? stored : "dark";
-                document.documentElement.className = theme;
+                document.documentElement.className = stored === "light" || stored === "dark" ? stored : "dark";
             })();
         </script>
         <style>

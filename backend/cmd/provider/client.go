@@ -11,12 +11,12 @@ import (
 var log *logger.Logger
 var repo *Repo
 
-type ProviderClient interface {
-	SendChatCompletionRequest(params ProviderRequestParams) (*openai.ChatCompletion, error)
-	SendChatCompletionStreamRequest(params ProviderRequestParams, w http.ResponseWriter) (*openai.ChatCompletionMessage, error)
+type Client interface {
+	SendChatCompletionRequest(params RequestParams) (*openai.ChatCompletion, error)
+	SendChatCompletionStreamRequest(params RequestParams, w http.ResponseWriter) (*openai.ChatCompletionMessage, error)
 }
 
-type Client struct{}
+type ClientImpl struct{}
 
 func SetupProviderClient(l *logger.Logger, db *sql.DB) {
 	log = l

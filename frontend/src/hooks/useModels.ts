@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import {useCallback, useEffect, useState} from "react";
 
-import { Model } from "@/lib/api/types";
+import {Model} from "@/lib/api/types";
 
-import { useProviders } from "./useProviders";
+import {useProviders} from "./useProviders";
 
 /**
 
@@ -80,7 +80,7 @@ export const useModels = (): UseModelsReturn => {
       unique.sort((a, b) => a.name.localeCompare(b.name));
 
       // Return only enabled models
-      return unique.filter((m) => m.is_enabled !== false);
+      return unique.filter((m) => m.is_enabled);
     },
 
     [],
@@ -200,5 +200,3 @@ export const useModels = (): UseModelsReturn => {
     clearCache,
   };
 };
-
-export default useModels;

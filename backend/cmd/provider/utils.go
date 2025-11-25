@@ -110,7 +110,7 @@ func toOpenAITools(tool []tools.Tool) []openai.ChatCompletionToolUnionParam {
 		result = append(result, openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
 			Name:        t.Name,
 			Description: openai.String(t.Description),
-			Parameters:  openai.FunctionParameters(inputSchema),
+			Parameters:  inputSchema,
 		}))
 	}
 

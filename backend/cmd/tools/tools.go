@@ -125,7 +125,7 @@ func GetAvailableTools() []Tool {
 	builtInTools := GetBuiltInTools()
 	mcpTools := toolRepo.GetAllTools()
 
-	enabledMcpTools := []Tool{}
+	var enabledMcpTools []Tool
 	for _, t := range mcpTools {
 		if t.IsEnabled {
 			enabledMcpTools = append(enabledMcpTools, t)

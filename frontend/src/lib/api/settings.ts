@@ -1,5 +1,5 @@
-import { getApiUrl } from "@/lib/config";
-import { Settings } from "./types";
+import {getApiUrl} from "@/lib/config";
+import {Settings} from "./types";
 
 // Get all settings
 export const getSettings = async (): Promise<Settings> => {
@@ -34,17 +34,7 @@ export const updateSettings = async (settings: Settings): Promise<void> => {
   }
 };
 
-// Helper functions for specific settings
-export const getSystemPrompt = async (): Promise<string> => {
-  try {
-    const settings = await getSettings();
-    return settings.settings.systemPrompt || "";
-  } catch (error) {
-    console.error("Failed to get system prompt:", error);
-    return "";
-  }
-};
-
+// Helper functions for specific settings - removed
 export const updateSystemPrompt = async (
   systemPrompt: string,
 ): Promise<void> => {
@@ -56,17 +46,7 @@ export const updateSystemPrompt = async (
   await updateSettings(settings);
 };
 
-// Get a specific setting by key
-export const getSetting = async (key: string): Promise<string> => {
-  try {
-    const settings = await getSettings();
-    return settings.settings[key] || "";
-  } catch (error) {
-    console.error(`Failed to get setting ${key}:`, error);
-    return "";
-  }
-};
-
+// Get a specific setting by key - removed
 // Update a specific setting by key
 export const updateSetting = async (
   key: string,

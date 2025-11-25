@@ -1,22 +1,15 @@
 "use client";
 
-import { Loader2Icon, SendIcon, SquareIcon, XIcon } from "lucide-react";
-import type {
-  ComponentProps,
-  HTMLAttributes,
-  KeyboardEventHandler,
-} from "react";
-import { Children, useState, useCallback } from "react";
-import {
-  ModelSelect,
-  type ModelSelectProps,
-} from "@/components/ai-elements/model-select.tsx";
-import { Button } from "@/components/ui/button.tsx";
-import { Textarea } from "@/components/ui/textarea.tsx";
-import { cn } from "@/lib/utils.ts";
-import { getTextDirection } from "@/lib/rtl-utils.ts";
-import type { ChatStatus } from "ai";
-import { useSettings } from "@/hooks/useSettings";
+import {Loader2Icon, SendIcon, SquareIcon, XIcon} from "lucide-react";
+import type {ComponentProps, HTMLAttributes, KeyboardEventHandler,} from "react";
+import {Children, useCallback, useState} from "react";
+import {ModelSelect,} from "@/components/ai-elements/model-select.tsx";
+import {Button} from "@/components/ui/button.tsx";
+import {Textarea} from "@/components/ui/textarea.tsx";
+import {cn} from "@/lib/utils.ts";
+import {getTextDirection} from "@/lib/rtl-utils.ts";
+import type {ChatStatus} from "ai";
+import {useSettings} from "@/hooks/useSettings";
 
 export type PromptInputProps = HTMLAttributes<HTMLFormElement>;
 
@@ -197,7 +190,4 @@ export const PromptInputSubmit = ({
     </Button>
   );
 };
-
-export type PromptInputModelSelectProps = ModelSelectProps;
-
 export const PromptInputModelSelect = ModelSelect;

@@ -1,16 +1,11 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "../ui/card";
-import {
-  Trash2,
-  Edit,
-  Plus,
-  Server,
-} from "lucide-react";
-import { MCPServerForm } from "./MCPServerForm";
-import { MCPServerRequest, MCPServerResponse } from "@/lib/api/types";
-import { useSettingsData } from "@/hooks/useSettingsData";
+import {useState} from "react";
+import {Button} from "@/components/ui/button";
+import {Badge} from "@/components/ui/badge";
+import {Card} from "../ui/card";
+import {Edit, Plus, Server, Trash2,} from "lucide-react";
+import {MCPServerForm} from "./MCPServerForm";
+import {MCPServerRequest, MCPServerResponse} from "@/lib/api/types";
+import {useSettingsData} from "@/hooks/useSettingsData";
 
 export const MCPServersSection = () => {
   const { data, addMCPServer, updateMCPServer, deleteMCPServer } = useSettingsData();
@@ -147,5 +142,3 @@ export const MCPServersSection = () => {
     </div>
   );
 };
-
-export default MCPServersSection;

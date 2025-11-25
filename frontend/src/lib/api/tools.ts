@@ -1,5 +1,5 @@
-import { getApiUrl } from "@/lib/config";
-import { Tool, ToolListResponse } from "./types";
+import {getApiUrl} from "@/lib/config";
+import {Tool, ToolListResponse} from "./types";
 
 // Get all tools
 export const getAllTools = async (): Promise<ToolListResponse> => {
@@ -34,50 +34,8 @@ export const saveAllTools = async (tools: Tool[]): Promise<void> => {
   }
 };
 
-// Update tool enable flags (convenience function)
-export const updateToolEnableFlags = async (
-  flagUpdates: { id: string; is_enabled: boolean }[],
-): Promise<void> => {
-  if (flagUpdates.length === 0) return;
-
-  // Get current list
-  const current = await getAllTools();
-  const updateMap = new Map<string, boolean>(
-    flagUpdates.map((u) => [u.id, u.is_enabled]),
-  );
-
-  // Merge updates
-  const merged: Tool[] = current.tools.map((t) =>
-    updateMap.has(t.id)
-      ? { ...t, is_enabled: updateMap.get(t.id)! }
-      : t,
-  );
-
-  await saveAllTools(merged);
-};
-
-// Update tool approval requirements
-export const updateToolApprovalFlags = async (
-  approvalUpdates: { id: string; require_approval: boolean }[],
-): Promise<void> => {
-  if (approvalUpdates.length === 0) return;
-
-  // Get current list
-  const current = await getAllTools();
-  const updateMap = new Map<string, boolean>(
-    approvalUpdates.map((u) => [u.id, u.require_approval]),
-  );
-
-  // Merge updates
-  const merged: Tool[] = current.tools.map((t) =>
-    updateMap.has(t.id)
-      ? { ...t, require_approval: updateMap.get(t.id)! }
-      : t,
-  );
-
-  await saveAllTools(merged);
-};
-
+// Update tool enable flags (convenience function) - removed
+// Update tool approval requirements - removed
 // Optimistic utility for local state updates
 export function locallyApplyToolFlags(
   tools: Tool[],

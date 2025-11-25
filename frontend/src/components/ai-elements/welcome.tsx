@@ -1,7 +1,7 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import { ComponentProps } from "react";
+import {cn} from "@/lib/utils";
+import {ComponentProps} from "react";
 
 export interface WelcomeProps extends ComponentProps<"div"> {}
 
@@ -19,5 +19,3 @@ export const Welcome = ({ className, ...props }: WelcomeProps) => {
     </div>
   );
 };
-
-export default Welcome;

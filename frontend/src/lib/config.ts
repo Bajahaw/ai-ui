@@ -37,14 +37,6 @@ export const getApiUrl = (endpoint: string): string => {
   return cleanEndpoint;
 };
 
-// Environment info for debugging
-export const envInfo = {
-  isDevelopment: import.meta.env.DEV,
-  isProduction: import.meta.env.PROD,
-  baseUrl: apiConfig.baseUrl,
-  mode: import.meta.env.MODE,
-};
-
 // Log configuration in development
 if (import.meta.env.DEV) {
   console.log("API Configuration:", {

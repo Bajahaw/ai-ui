@@ -100,7 +100,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	ctx := buildContext(convID, userMessage.ID)
 	reasoningSetting, _ := getSetting("reasoningEffort")
 
-	providerParams := provider.ProviderRequestParams{
+	providerParams := provider.RequestParams{
 		Messages:        ctx,
 		Model:           req.Model,
 		ReasoningEffort: provider.ReasoningEffort(reasoningSetting),
@@ -267,7 +267,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	ctx := buildContext(req.ConversationID, parent.ID)
 	reasoningSetting, _ := getSetting("reasoningEffort")
 
-	providerParams := provider.ProviderRequestParams{
+	providerParams := provider.RequestParams{
 		Messages:        ctx,
 		Model:           req.Model,
 		ReasoningEffort: provider.ReasoningEffort(reasoningSetting),

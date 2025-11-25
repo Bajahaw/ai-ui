@@ -156,50 +156,6 @@ export class ApiErrorHandler {
 
     return "An unexpected error occurred. Please try again.";
   }
-
-  /**
-   * Retries an API call with exponential backoff
-   */
-  static async retry<T>(
-    apiCall: () => Promise<T>,
-    maxAttempts: number = 3,
-    baseDelay: number = 1000,
-    context: string = "API call",
-  ): Promise<T> {
-    let lastError: unknown;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        return await apiCall();
-      } catch (error) {
-        lastError = error;
-
-        // Don't retry on client errors (4xx) except 429
-        if (error instanceof Error && error.message.includes("(4")) {
-          if (!error.message.includes("(429)")) {
-            throw error;
-          }
-        }
-
-        // Don't retry on the last attempt
-        if (attempt === maxAttempts) {
-          break;
-        }
-
-        // Calculate delay with exponential backoff
-        const delay = baseDelay * Math.pow(2, attempt - 1);
-
-        console.warn(
-          `${context} failed (attempt ${attempt}/${maxAttempts}), retrying in ${delay}ms:`,
-          error,
-        );
-
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
-
-    throw lastError;
-  }
 }
 
 export const isConversationArray = (data: unknown): data is Array<any> => {
@@ -286,8 +242,4 @@ export const isMessagesMap = (data: unknown): data is Record<number, any> => {
     }
   }
   return true;
-};
-
-export const isCreateConversationResponse = (data: unknown): data is any => {
-  return isConversation(data);
 };

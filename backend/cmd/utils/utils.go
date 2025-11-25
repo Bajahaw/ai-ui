@@ -42,19 +42,19 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func ExtractBody(r *http.Request) ([]byte, error) {
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			fmt.Println("Error closing request body:", err)
-		}
-	}(r.Body)
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
-	return body, nil
-}
+//func ExtractBody(r *http.Request) ([]byte, error) {
+//	defer func(Body io.ReadCloser) {
+//		err := Body.Close()
+//		if err != nil {
+//			fmt.Println("Error closing request body:", err)
+//		}
+//	}(r.Body)
+//	body, err := io.ReadAll(r.Body)
+//	if err != nil {
+//		return nil, err
+//	}
+//	return body, nil
+//}
 
 func ExtractJSONBody(r *http.Request, v interface{}) error {
 	dec := json.NewDecoder(r.Body)
@@ -222,11 +222,11 @@ func ExtractProviderName(url string) string {
 	return name
 }
 
-func ExtractModelName(id string) string {
-	// "openai/gpt-4-turbo" -> "gpt-4-turbo"
-	parts := strings.Split(id, "/")
-	if len(parts) < 2 {
-		return id
-	}
-	return parts[len(parts)-1]
-}
+//func ExtractModelName(id string) string {
+//	// "openai/gpt-4-turbo" -> "gpt-4-turbo"
+//	parts := strings.Split(id, "/")
+//	if len(parts) < 2 {
+//		return id
+//	}
+//	return parts[len(parts)-1]
+//}

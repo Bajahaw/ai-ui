@@ -1,18 +1,11 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "../ui/card";
-import {
-  Trash2,
-  Edit,
-  Plus,
-  RefreshCw,
-  ExternalLink,
-  Loader2,
-} from "lucide-react";
-import { ProviderForm } from "./ProviderForm";
-import { FrontendProvider, ProviderRequest } from "@/lib/api/types";
-import { useSettingsData } from "@/hooks/useSettingsData";
+import {useState} from "react";
+import {Button} from "@/components/ui/button";
+import {Badge} from "@/components/ui/badge";
+import {Card} from "../ui/card";
+import {Edit, ExternalLink, Loader2, Plus, RefreshCw, Trash2,} from "lucide-react";
+import {ProviderForm} from "./ProviderForm";
+import {FrontendProvider, ProviderRequest} from "@/lib/api/types";
+import {useSettingsData} from "@/hooks/useSettingsData";
 
 export const ProvidersSection = () => {
   const { data, addProvider, updateProvider, deleteProvider, loadProviderModels } = useSettingsData();
@@ -176,5 +169,3 @@ export const ProvidersSection = () => {
     </div>
   );
 };
-
-export default ProvidersSection;
