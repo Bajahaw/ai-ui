@@ -11,39 +11,20 @@ import {
   getProviders,
   saveProvider,
   deleteProvider,
-  getProviderModels,
   backendToFrontendProvider,
 } from "@/lib/api/providers";
-import {
-  ProviderRequest,
-  ProviderResponse,
-  FrontendProvider,
-  Model,
-} from "@/lib/api/types";
+import { ProviderRequest, ProviderResponse, FrontendProvider } from "@/lib/api/types";
 
 export interface UseProvidersReturn {
   providers: FrontendProvider[];
   isLoading: boolean;
   error: string | null;
 
-  // Always fetches fresh data from backend; the 'forceRefresh' param is accepted for backward-compat but ignored.
   refreshProviders: (forceRefresh?: boolean) => Promise<void>;
-
   addProvider: (providerData: ProviderRequest) => Promise<ProviderResponse>;
-  updateProvider: (providerData: ProviderRequest) => Promise<ProviderResponse>;
   removeProvider: (id: string) => Promise<void>;
 
-  // Loads models for a specific provider and updates local state.
-  loadModels: (providerId: string) => Promise<Model[]>;
-
-  // Synchronize (merge) model enable/disable states coming from a global models update.
-  // Only updates the is_enabled flag of models that exist in providers' current model lists.
-  syncModels: (models: Model[]) => void;
-
   clearError: () => void;
-
-  // Backward-compat no-op: caching has been removed.
-  clearCache: () => void;
 }
 
 const ProvidersContext = createContext<UseProvidersReturn | undefined>(
@@ -55,12 +36,8 @@ interface ProvidersProviderProps {
 }
 
 /**
- * ProvidersProvider
- *
- * - Single source of truth for providers and their models.
- * - No caching layer: always fetches the latest from the backend on refresh.
- * - Operations (add/update/remove) refresh the list to keep all consumers in sync.
- * - Model list in the chat interface automatically updates because state is shared via context.
+ * ProvidersProvider - manages provider list only
+ * Models are managed separately via ModelsContext
  */
 export const ProvidersProvider = ({ children }: ProvidersProviderProps) => {
   const [providers, setProviders] = useState<FrontendProvider[]>([]);
@@ -69,39 +46,16 @@ export const ProvidersProvider = ({ children }: ProvidersProviderProps) => {
 
   const clearError = useCallback(() => setError(null), []);
 
-  // No-op for backward compatibility with existing calls
-  const clearCache = useCallback(() => {
-    // Intentionally left blank: caching removed
-  }, []);
-
   const refreshProviders = useCallback(async (_forceRefresh?: boolean) => {
     setIsLoading(true);
     setError(null);
 
     try {
       const backendProviders = await getProviders();
-
-      // For each provider, try to fetch its models.
-      const frontendProviders = await Promise.all(
-        backendProviders.map(async (provider) => {
-          try {
-            const modelsResponse = await getProviderModels(provider.id);
-            return backendToFrontendProvider(provider, modelsResponse);
-          } catch (modelErr) {
-            // If models fail to load, still include provider without models.
-            console.warn(
-              `Failed to load models for provider ${provider.id}:`,
-              modelErr,
-            );
-            return backendToFrontendProvider(provider);
-          }
-        }),
-      );
-
+      const frontendProviders = backendProviders.map((p) => backendToFrontendProvider(p));
       setProviders(frontendProviders);
-    } catch (err: any) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to load providers";
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to load providers";
       setError(msg);
       console.error("Error loading providers:", err);
     } finally {
@@ -113,20 +67,8 @@ export const ProvidersProvider = ({ children }: ProvidersProviderProps) => {
     async (providerData: ProviderRequest): Promise<ProviderResponse> => {
       setError(null);
       const newProvider = await saveProvider(providerData);
-      // Always fetch fresh list after change
       await refreshProviders();
       return newProvider;
-    },
-    [refreshProviders],
-  );
-
-  const updateProvider = useCallback(
-    async (providerData: ProviderRequest): Promise<ProviderResponse> => {
-      setError(null);
-      const updatedProvider = await saveProvider(providerData);
-      // Always fetch fresh list after change
-      await refreshProviders();
-      return updatedProvider;
     },
     [refreshProviders],
   );
@@ -135,46 +77,10 @@ export const ProvidersProvider = ({ children }: ProvidersProviderProps) => {
     async (id: string): Promise<void> => {
       setError(null);
       await deleteProvider(id);
-      // Always fetch fresh list after change
       await refreshProviders();
     },
     [refreshProviders],
   );
-
-  const loadModels = useCallback(
-    async (providerId: string): Promise<Model[]> => {
-      setError(null);
-      const modelsResponse = await getProviderModels(providerId);
-
-      // Update models for the specific provider in local state
-      setProviders((prev) =>
-        prev.map((p) =>
-          p.id === providerId ? { ...p, models: modelsResponse.models } : p,
-        ),
-      );
-
-      return modelsResponse.models;
-    },
-    [],
-  );
-
-  // Merge updated model enable flags (and other fields) coming from global model management.
-  // We only touch models already present under each provider; unknown models are ignored
-  // to avoid accidentally inflating provider model lists if global list contains supersets.
-  const syncModels = useCallback((updated: Model[]) => {
-    if (!updated || updated.length === 0) return;
-    const updatedMap = new Map<string, Model>(updated.map((m) => [m.id, m]));
-    setProviders((prev) =>
-      prev.map((p) => {
-        if (!p.models || p.models.length === 0) return p;
-        const nextModels = p.models.map((m) => {
-          const incoming = updatedMap.get(m.id);
-          return incoming ? { ...m, is_enabled: incoming.is_enabled } : m;
-        });
-        return { ...p, models: nextModels };
-      }),
-    );
-  }, []);
 
   // Initial load
   useEffect(() => {
@@ -188,26 +94,10 @@ export const ProvidersProvider = ({ children }: ProvidersProviderProps) => {
       error,
       refreshProviders,
       addProvider,
-      updateProvider,
       removeProvider,
-      loadModels,
-      syncModels,
       clearError,
-      clearCache, // still exposed for backward-compat (no-op)
     }),
-    [
-      providers,
-      isLoading,
-      error,
-      refreshProviders,
-      addProvider,
-      updateProvider,
-      removeProvider,
-      loadModels,
-      syncModels,
-      clearError,
-      clearCache,
-    ],
+    [providers, isLoading, error, refreshProviders, addProvider, removeProvider, clearError],
   );
 
   return (

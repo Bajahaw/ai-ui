@@ -17,7 +17,6 @@ type Repository interface {
 	saveProvider(provider *Provider) error
 	deleteProvider(id string) error
 	saveModels(models []Model) error
-	getProviderModels(provider *Provider) []Model
 	getAllModels() []Model
 }
 
@@ -116,35 +115,6 @@ func (repo *Repo) saveModels(models []Model) error {
 	_, err := repo.db.Exec(sb.String(), args...)
 
 	return err
-}
-
-func (repo *Repo) getProviderModels(provider *Provider) []Model {
-	var models = make([]Model, 0)
-	query := `SELECT id, provider_id, name, is_enabled FROM Models WHERE provider_id = ?`
-	rows, err := repo.db.Query(query, provider.ID)
-	if err != nil {
-		log.Error("Error querying provider models", "err", err)
-		return models
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var m Model
-		if err = rows.Scan(&m.ID, &m.ProviderID, &m.Name, &m.IsEnabled); err != nil {
-			log.Error("Error scanning model", "err", err)
-			continue
-		}
-		models = append(models, Model{
-			ID:         m.ID,
-			Name:       m.Name,
-			ProviderID: m.ProviderID,
-			IsEnabled:  m.IsEnabled,
-		})
-	}
-	if err = rows.Err(); err != nil {
-		log.Error("Error iterating over model rows", "err", err)
-	}
-
-	return models
 }
 
 func (repo *Repo) getAllModels() []Model {

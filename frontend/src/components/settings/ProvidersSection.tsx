@@ -6,15 +6,18 @@ import {Edit, ExternalLink, Loader2, Plus, RefreshCw, Trash2,} from "lucide-reac
 import {ProviderForm} from "./ProviderForm";
 import {FrontendProvider, ProviderRequest} from "@/lib/api/types";
 import {useSettingsData} from "@/hooks/useSettingsData";
+import {useModelsContext} from "@/hooks/useModelsContext";
 
 export const ProvidersSection = () => {
-  const { data, addProvider, updateProvider, deleteProvider, loadProviderModels } = useSettingsData();
+  const { data, addProvider, updateProvider, deleteProvider, getModelsByProvider } = useSettingsData();
+  const { refreshModels } = useModelsContext();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingProvider, setEditingProvider] = useState<FrontendProvider | null>(null);
-  const [loadingModels, setLoadingModels] = useState<string | null>(null);
+  const [loadingModels, setLoadingModels] = useState(false);
 
   const handleAddProvider = async (providerData: ProviderRequest) => {
     await addProvider(providerData);
+    // addProvider already refreshes models internally
     setShowAddForm(false);
   };
 
@@ -31,12 +34,12 @@ export const ProvidersSection = () => {
     }
   };
 
-  const handleLoadModels = async (providerId: string) => {
-    setLoadingModels(providerId);
+  const handleRefreshModels = async () => {
+    setLoadingModels(true);
     try {
-      await loadProviderModels(providerId);
+      await refreshModels();
     } finally {
-      setLoadingModels(null);
+      setLoadingModels(false);
     }
   };
 
@@ -44,10 +47,15 @@ export const ProvidersSection = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium">AI Providers</h3>
-        <Button onClick={() => setShowAddForm(true)} variant="outline" size="sm">
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Add Provider</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleRefreshModels} variant="ghost" size="sm" disabled={loadingModels}>
+            {loadingModels ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          </Button>
+          <Button onClick={() => setShowAddForm(true)} variant="outline" size="sm">
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Add Provider</span>
+          </Button>
+        </div>
       </div>
 
       {data.providers.length === 0 ? (
@@ -66,7 +74,9 @@ export const ProvidersSection = () => {
         </Card>
       ) : (
         <div className="space-y-4 overflow-hidden">
-          {data.providers.map((provider) => (
+          {data.providers.map((provider) => {
+            const providerModels = getModelsByProvider(provider.id);
+            return (
             <Card
               key={provider.id}
               className="p-4 bg-transparent overflow-hidden"
@@ -80,19 +90,6 @@ export const ProvidersSection = () => {
                   </div>
 
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleLoadModels(provider.id)}
-                      disabled={loadingModels === provider.id}
-                      title="Refresh models"
-                    >
-                      {loadingModels === provider.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4" />
-                      )}
-                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -123,9 +120,9 @@ export const ProvidersSection = () => {
                   </span>
                 </div>
 
-                {provider.models && provider.models.length > 0 && (
+                {providerModels.length > 0 && (
                   <div className="flex flex-wrap gap-1 overflow-hidden">
-                    {provider.models.slice(0, 5).map((model) => (
+                    {providerModels.slice(0, 5).map((model) => (
                       <Badge
                         key={model.id}
                         variant="outline"
@@ -135,16 +132,16 @@ export const ProvidersSection = () => {
                         {model.name}
                       </Badge>
                     ))}
-                    {provider.models.length > 5 && (
+                    {providerModels.length > 5 && (
                       <Badge variant="outline" className="text-xs">
-                        +{provider.models.length - 5} more
+                        +{providerModels.length - 5} more
                       </Badge>
                     )}
                   </div>
                 )}
               </div>
             </Card>
-          ))}
+          )})}
         </div>
       )}
 

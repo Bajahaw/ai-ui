@@ -4,28 +4,28 @@ import App from "./App.tsx";
 import "./globals.css";
 import { ThemeProvider } from "./components/theme-provider.tsx";
 import { AuthProvider } from "./hooks/useAuth.tsx";
-import { ProvidersProvider } from "./hooks/useProviders.ts";
+import { ModelsProvider } from "./hooks/useModelsContext.tsx";
 
 const isDevelopment = (import.meta as any).env.DEV;
 
 // Conditionally wrap with StrictMode - disable in dev to prevent duplicate messages
 const AppWrapper = isDevelopment ? (
-  <ProvidersProvider>
+  <ModelsProvider>
     <AuthProvider>
       <ThemeProvider defaultTheme="dark" storageKey="ai-ui-theme">
         <App />
       </ThemeProvider>
     </AuthProvider>
-  </ProvidersProvider>
+  </ModelsProvider>
 ) : (
   <React.StrictMode>
-    <ProvidersProvider>
+    <ModelsProvider>
       <AuthProvider>
         <ThemeProvider defaultTheme="dark" storageKey="ai-ui-theme">
           <App />
         </ThemeProvider>
       </AuthProvider>
-    </ProvidersProvider>
+    </ModelsProvider>
   </React.StrictMode>
 );
 

@@ -21,23 +21,23 @@ import {useSettingsData} from "@/hooks/useSettingsData";
  */
 
 export const ModelsSection: React.FC = () => {
-  const { data, updateModelsLocal, saveModels } = useSettingsData();
+  const { models, updateModelsLocal, saveModels } = useSettingsData();
   const [search, setSearch] = useState("");
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return data.models;
+    if (!search.trim()) return models;
 
     const q = search.toLowerCase();
 
-    return data.models.filter(
+    return models.filter(
       (m) =>
         m.name.toLowerCase().includes(q) ||
         m.provider.toLowerCase().includes(q),
     );
-  }, [data.models, search]);
+  }, [models, search]);
 
   const enabledInFiltered = filtered.filter((m) => m.is_enabled).length;
 
@@ -67,7 +67,7 @@ export const ModelsSection: React.FC = () => {
   ) => {
     if (!updates.length) return;
 
-    const updated = locallyApplyEnableFlags(data.models, updates);
+    const updated = locallyApplyEnableFlags(models, updates);
     updateModelsLocal(updated);
   };
 
@@ -85,7 +85,7 @@ export const ModelsSection: React.FC = () => {
     });
 
     try {
-      const updatedModels = data.models.map((m) => 
+      const updatedModels = models.map((m) => 
         ids.includes(m.id) ? { ...m, is_enabled: enabled } : m
       );
       await saveModels(updatedModels);
@@ -117,7 +117,7 @@ export const ModelsSection: React.FC = () => {
   };
 
   const enabledSelectedCount = Array.from(selection).filter(
-    (id) => data.models.find((m) => m.id === id)?.is_enabled,
+    (id) => models.find((m) => m.id === id)?.is_enabled,
   ).length;
 
   const disabledSelectedCount = selection.size - enabledSelectedCount;

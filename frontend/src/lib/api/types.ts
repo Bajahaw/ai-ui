@@ -174,8 +174,6 @@ export interface FrontendProvider {
   id: string;
   name: string;
   baseUrl: string;
-  apiKey?: string; // Optional for display purposes
-  models?: Model[];
 }
 
 // File upload types

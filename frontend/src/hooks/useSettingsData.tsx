@@ -2,27 +2,27 @@ import {createContext, ReactNode, useCallback, useContext, useRef, useState} fro
 import {
   backendToFrontendProvider,
   deleteProvider,
-  getProviderModels,
   getProviders,
   saveProvider
 } from "@/lib/api/providers";
 import {deleteMCPServer as deleteMCPServerApi, getMCPServers, saveMCPServer} from "@/lib/api/mcpServers";
 import {getAllTools, saveAllTools} from "@/lib/api/tools";
 import {getSettings, updateSetting, updateSystemPrompt} from "@/lib/api/settings";
-import {getAllModels, updateModelEnableFlags} from "@/lib/api/models";
 import {FrontendProvider, MCPServerRequest, MCPServerResponse, Model, ProviderRequest, Tool} from "@/lib/api/types";
+import {useModelsContext} from "./useModelsContext";
 
 interface SettingsData {
   providers: FrontendProvider[];
   mcpServers: MCPServerResponse[];
   tools: Tool[];
-  models: Model[];
   settings: Record<string, string>;
   systemPrompt: string;
 }
 
 interface SettingsDataContext {
   data: SettingsData;
+  // Models from global context
+  models: Model[];
   loading: boolean;
   loaded: boolean;
   
@@ -32,7 +32,6 @@ interface SettingsDataContext {
   addProvider: (data: ProviderRequest) => Promise<void>;
   updateProvider: (data: ProviderRequest) => Promise<void>;
   deleteProvider: (id: string) => Promise<void>;
-  loadProviderModels: (id: string) => Promise<void>;
   
   // MCP Servers
   addMCPServer: (data: MCPServerRequest) => Promise<void>;
@@ -43,9 +42,10 @@ interface SettingsDataContext {
   updateToolsLocal: (tools: Tool[]) => void;
   saveTools: (tools: Tool[]) => Promise<void>;
   
-  // Models
+  // Models - delegates to global context
   updateModelsLocal: (models: Model[]) => void;
   saveModels: (models: Model[]) => Promise<void>;
+  getModelsByProvider: (providerId: string) => Model[];
   
   // Settings
   updateSettingsLocal: (key: string, value: string) => void;
@@ -55,11 +55,19 @@ interface SettingsDataContext {
 const Context = createContext<SettingsDataContext | undefined>(undefined);
 
 export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
+  // Use global models context
+  const { 
+    models, 
+    updateModelsLocal: globalUpdateModels, 
+    saveModels: globalSaveModels,
+    getModelsByProvider,
+    refreshModels 
+  } = useModelsContext();
+
   const [data, setData] = useState<SettingsData>({
     providers: [],
     mcpServers: [],
     tools: [],
-    models: [],
     settings: {},
     systemPrompt: ""
   });
@@ -73,34 +81,23 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     
     try {
-      const [providersRes, mcpRes, toolsRes, modelsRes, settingsRes] = await Promise.all([
+      const [providersRes, mcpRes, toolsRes, settingsRes] = await Promise.all([
         getProviders(),
         getMCPServers(),
         getAllTools(),
-        getAllModels(),
         getSettings()
       ]);
       
-      const providersWithModels = await Promise.all(
-        providersRes.map(async (p) => {
-          try {
-            const models = await getProviderModels(p.id);
-            return backendToFrontendProvider(p, models);
-          } catch {
-            return backendToFrontendProvider(p);
-          }
-        })
-      );
+      const frontendProviders = providersRes.map((p) => backendToFrontendProvider(p));
       
       setData({
-        providers: providersWithModels,
+        providers: frontendProviders,
         mcpServers: mcpRes,
         tools: toolsRes.tools.map(t => ({
           ...t,
           is_enabled: t.is_enabled ?? true,
           require_approval: t.require_approval ?? false
         })),
-        models: modelsRes.models,
         settings: settingsRes.settings,
         systemPrompt: settingsRes.settings.systemPrompt || ""
       });
@@ -114,23 +111,16 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
   // Providers
   const refreshProviders = useCallback(async () => {
     const providers = await getProviders();
-    const providersWithModels = await Promise.all(
-      providers.map(async (p) => {
-        try {
-          const models = await getProviderModels(p.id);
-          return backendToFrontendProvider(p, models);
-        } catch {
-          return backendToFrontendProvider(p);
-        }
-      })
-    );
-    setData(d => ({ ...d, providers: providersWithModels }));
+    const frontendProviders = providers.map((p) => backendToFrontendProvider(p));
+    setData(d => ({ ...d, providers: frontendProviders }));
   }, []);
 
   const addProvider = useCallback(async (providerData: ProviderRequest) => {
     await saveProvider(providerData);
     await refreshProviders();
-  }, [refreshProviders]);
+    // Refresh global models since backend auto-fetches models for new provider
+    await refreshModels();
+  }, [refreshProviders, refreshModels]);
 
   const updateProvider = useCallback(async (providerData: ProviderRequest) => {
     await saveProvider(providerData);
@@ -140,17 +130,9 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
   const deleteProviderFn = useCallback(async (id: string) => {
     await deleteProvider(id);
     setData(d => ({ ...d, providers: d.providers.filter(p => p.id !== id) }));
-  }, []);
-
-  const loadProviderModels = useCallback(async (id: string) => {
-    const models = await getProviderModels(id);
-    setData(d => ({
-      ...d,
-      providers: d.providers.map(p => 
-        p.id === id ? { ...p, models: models.models } : p
-      )
-    }));
-  }, []);
+    // Refresh models since deleted provider's models should be gone
+    await refreshModels();
+  }, [refreshModels]);
 
   // MCP Servers
   const addMCPServer = useCallback(async (serverData: MCPServerRequest) => {
@@ -180,15 +162,6 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
     await saveAllTools(tools);
   }, []);
 
-  // Models
-  const updateModelsLocal = useCallback((models: Model[]) => {
-    setData(d => ({ ...d, models }));
-  }, []);
-
-  const saveModels = useCallback(async (models: Model[]) => {
-    await updateModelEnableFlags(models);
-  }, []);
-
   // Settings
   const updateSettingsLocal = useCallback((key: string, value: string) => {
     pendingSettings.current[key] = value;
@@ -212,20 +185,21 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
   return (
     <Context.Provider value={{
       data,
+      models,
       loading,
       loaded,
       fetchAll,
       addProvider,
       updateProvider,
       deleteProvider: deleteProviderFn,
-      loadProviderModels,
       addMCPServer,
       updateMCPServer,
       deleteMCPServer,
       updateToolsLocal,
       saveTools,
-      updateModelsLocal,
-      saveModels,
+      updateModelsLocal: globalUpdateModels,
+      saveModels: globalSaveModels,
+      getModelsByProvider,
       updateSettingsLocal,
       saveSettings
     }}>

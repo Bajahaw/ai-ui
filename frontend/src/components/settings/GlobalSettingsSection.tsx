@@ -14,14 +14,14 @@ import {
 import { useSettingsData } from "@/hooks/useSettingsData";
 
 export const GlobalSettingsSection = () => {
-    const { data, updateSettingsLocal, saveSettings } = useSettingsData();
+    const { data, models, updateSettingsLocal, saveSettings } = useSettingsData();
     
     const [hasChanges, setHasChanges] = useState(false);
     const [isSaving, setSaving] = useState(false);
 
     const enabledModels = useMemo(() => 
-        data.models.filter(m => m.is_enabled !== false),
-        [data.models]
+        models.filter(m => m.is_enabled !== false),
+        [models]
     );
 
     const systemPrompt = data.settings.systemPrompt || "";

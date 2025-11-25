@@ -1,5 +1,5 @@
 import {getApiUrl} from "@/lib/config";
-import {FrontendProvider, ModelsResponse, ProviderRequest, ProviderResponse,} from "./types";
+import {FrontendProvider, ProviderRequest, ProviderResponse} from "./types";
 
 // Get all providers
 export const getProviders = async (): Promise<ProviderResponse[]> => {
@@ -54,29 +54,6 @@ export const deleteProvider = async (id: string): Promise<void> => {
   }
 };
 
-// Get models from a provider
-export const getProviderModels = async (
-  id: string,
-): Promise<ModelsResponse> => {
-  const response = await fetch(getApiUrl(`/api/providers/${id}/models`), {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include",
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch models for provider: ${response.statusText}`,
-    );
-  }
-
-  return response.json();
-};
-
-// Fetch all models (across all providers) - removed
-// Bulk update model enabled flags - removed
 // Utility function to create a display name for providers
 
 export const getProviderDisplayName = (provider: ProviderResponse): string => {
@@ -91,20 +68,10 @@ export const getProviderDisplayName = (provider: ProviderResponse): string => {
 // Convert backend provider to frontend provider
 export const backendToFrontendProvider = (
   backendProvider: ProviderResponse,
-  models?: ModelsResponse,
 ): FrontendProvider => {
   return {
     id: backendProvider.id,
-
     name: getProviderDisplayName(backendProvider),
-
     baseUrl: backendProvider.base_url,
-
-    models: (models?.models || []).map((m) => ({
-      ...m,
-
-      // Normalize: if backend omits is_enabled or it's true, treat as enabled
-      is_enabled: m.is_enabled,
-    })),
   };
 };

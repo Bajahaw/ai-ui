@@ -43,7 +43,6 @@ func Handler() http.Handler {
 	mux.HandleFunc("GET /", getProvidersList)
 	mux.HandleFunc("GET /{id}", getProvider)
 	mux.HandleFunc("POST /save", saveProvider)
-	mux.HandleFunc("GET /{id}/models", getProviderModels)
 	mux.HandleFunc("DELETE /delete/{id}", deleteProvider)
 
 	return http.StripPrefix("/api/providers", auth.Authenticated(mux))
@@ -83,24 +82,6 @@ func saveModels(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func getProviderModels(w http.ResponseWriter, r *http.Request) {
-	var providerID = r.PathValue("id")
-	provider, err := repo.getProvider(providerID)
-	if err != nil {
-		log.Error("Provider not found", "err", err)
-		http.Error(w, "Provider not found", http.StatusNotFound)
-		return
-	}
-
-	models := repo.getProviderModels(provider)
-
-	response := ModelsResponse{
-		Models: models,
-	}
-
-	utils.RespondWithJSON(w, &response, http.StatusOK)
 }
 
 func fetchAllModels(provider *Provider) []Model {
