@@ -122,30 +122,37 @@ func executeMCPTool(toolCall ToolCall) string {
 }
 
 func GetAvailableTools() []Tool {
-	builtInTools := GetBuiltInTools()
-	mcpTools := toolRepo.GetAllTools()
+	// builtInTools := GetBuiltInTools()
+	// mcpTools := toolRepo.GetAllTools()
 
-	var enabledMcpTools []Tool
-	for _, t := range mcpTools {
+	allTools := toolRepo.GetAllTools()
+
+	var enabledTools []Tool
+	for _, t := range allTools {
 		if t.IsEnabled {
-			enabledMcpTools = append(enabledMcpTools, t)
+			enabledTools = append(enabledTools, t)
 		}
 	}
-	return append(builtInTools, enabledMcpTools...)
+	return enabledTools
 }
 
 func GetBuiltInTools() []Tool {
 	return []Tool{
 		{
+			ID:          "search_ddgs",
 			Name:        "search_ddgs",
+			MCPServerID: "default",
 			Description: "Search the web using DuckDuckGo",
-			// input schema should be raw JSON
 			InputSchema: `{"type": "object","properties": {"query": {"type": "string","description": "The search query to look up on DuckDuckGo"}},"required": ["query"]}`,
+			IsEnabled:   true,
 		},
 		{
+			ID:          "get_weather",
 			Name:        "get_weather",
+			MCPServerID: "default",
 			Description: "Get the current weather",
 			InputSchema: `{"type": "object","properties": {"location": {"type": "string","description": "The location to get weather for"}},"required": ["location"]}`,
+			IsEnabled:   true,
 		},
 	}
 }

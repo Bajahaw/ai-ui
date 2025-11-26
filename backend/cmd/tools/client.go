@@ -25,4 +25,11 @@ func SetUpTools(l *logger.Logger, database *sql.DB) {
 		sessions: sync.Map{},
 	}
 	log = l
+
+	// might get unique constraint error but that's fine
+	_ = mcpRepo.SaveMCPServer(MCPServer{
+		ID:    "default",
+		Name:  "Default Server",
+		Tools: GetBuiltInTools(),
+	})
 }

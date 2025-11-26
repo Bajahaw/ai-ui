@@ -73,10 +73,9 @@ func (repo *MCPRepositoryImpl) SaveMCPServer(server MCPServer) error {
 	}
 
 	// Save associated tools
-	for _, tool := range server.Tools {
-		if err := repo.toolRepo.SaveTool(tool); err != nil {
-			return err
-		}
+	err = repo.toolRepo.SaveListOfTools(server.Tools)
+	if err != nil {
+		return err
 	}
 
 	return nil
