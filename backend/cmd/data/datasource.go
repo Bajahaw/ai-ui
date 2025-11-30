@@ -5,7 +5,7 @@ import (
 	"os"
 	"path"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 var DB *sql.DB
@@ -17,7 +17,7 @@ func InitDataSource(dataSourceName string) error {
 	if err = os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	DB, err = sql.Open("sqlite3", dataSourceName)
+	DB, err = sql.Open("sqlite", dataSourceName)
 	if err != nil {
 		return err
 	}
