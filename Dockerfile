@@ -12,10 +12,6 @@ RUN bun run build
 
 FROM golang:1.24.4-alpine AS backend-builder
 
-RUN apk add --no-cache gcc musl-dev
-
-# ENV CGO_ENABLED=1
-
 WORKDIR /app
 
 COPY backend/go.mod backend/go.sum ./
@@ -23,7 +19,7 @@ RUN go mod download
 
 COPY backend .
 
-RUN go build -o ai-ui ./cmd
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o ai-ui ./cmd
 
 FROM alpine AS prod
 
