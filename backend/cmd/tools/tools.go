@@ -112,7 +112,8 @@ func executeMCPTool(toolCall ToolCall) string {
 
 		// Remove failed session from cache to force reconnection on next call
 		mcpSessionManager.sessions.Delete(server.ID)
-		session.Close()
+
+		// session.Close() // this might throw the same error if connection is broken
 
 		return fmt.Sprintf("Tool execution failed: %s. The connection will be retried on the next attempt.", err.Error())
 	}
