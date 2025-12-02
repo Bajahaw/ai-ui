@@ -87,8 +87,8 @@ func executeMCPTool(toolCall ToolCall) string {
 		}, nil)
 
 		if err != nil {
-			log.Error("Error connecting to MCP server", "err", err, "endpoint", server.Endpoint)
-			return fmt.Sprintf("Cannot connect to MCP server '%s': %s", server.Name, err.Error())
+			log.Error("Error connecting to MCP server", "err", err)
+			return "Error connecting to MCP server"
 		}
 
 		mcpSessionManager.add(server.ID, session)
@@ -117,7 +117,7 @@ func executeMCPTool(toolCall ToolCall) string {
 
 		// session.Close() // this might throw the same error if connection is broken
 
-		return fmt.Sprintf("Tool execution failed: %s. The connection will be retried on the next attempt.", err.Error())
+		return "Tool execution failed!"
 	}
 
 	output := result.Content
