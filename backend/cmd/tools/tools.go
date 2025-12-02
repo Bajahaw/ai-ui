@@ -68,7 +68,7 @@ func executeMCPTool(toolCall ToolCall) string {
 	log.Debug("Executing MCP tool", "tool", tool.Name, "server", server.Name, "args", toolCall.Args)
 	log.Debug("MCP tool input schema", "schema", tool.InputSchema, "args", toolCall.Args)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	var session *mcp.ClientSession
@@ -84,12 +84,12 @@ func executeMCPTool(toolCall ToolCall) string {
 			HTTPClient: httpClientWithCustomHeaders(headers),
 		}, nil)
 
-		mcpSessionManager.add(server.ID, session)
-
 		if err != nil {
-			log.Error("Error connecting to MCP server", "err", err)
-			return "Error connecting to MCP server."
+			log.Error("Error connecting to MCP server", "err", err, "endpoint", server.Endpoint)
+			return fmt.Sprintf("Cannot connect to MCP server '%s': %s", server.Name, err.Error())
 		}
+
+		mcpSessionManager.add(server.ID, session)
 	}
 
 	// CallToolParams.Arguments field expects any type
@@ -109,7 +109,12 @@ func executeMCPTool(toolCall ToolCall) string {
 	result, err := session.CallTool(ctx, params)
 	if err != nil {
 		log.Error("Error calling tool on MCP server", "err", err)
-		return "Error calling tool on MCP server."
+
+		// Remove failed session from cache to force reconnection on next call
+		mcpSessionManager.sessions.Delete(server.ID)
+		session.Close()
+
+		return fmt.Sprintf("Tool execution failed: %s. The connection will be retried on the next attempt.", err.Error())
 	}
 
 	output := result.Content

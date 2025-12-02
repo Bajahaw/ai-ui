@@ -125,7 +125,7 @@ func deleteMCPServer(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetMCPTools(server MCPServer) ([]Tool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "mcp-client", Version: "v1.0.0"}, nil)
@@ -140,7 +140,7 @@ func GetMCPTools(server MCPServer) ([]Tool, error) {
 	}, nil)
 
 	if err != nil {
-		log.Error("Error connecting to MCP server", "err", err)
+		log.Error("Error connecting to MCP server", "err", err, "endpoint", server.Endpoint)
 		return []Tool{}, err
 	}
 	defer session.Close()

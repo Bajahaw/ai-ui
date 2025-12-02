@@ -6,6 +6,8 @@ import (
 	"path"
 
 	_ "modernc.org/sqlite"
+	// _ "github.com/mattn/go-sqlite3"
+	// _ "github.com/tursodatabase/turso-go"
 )
 
 var DB *sql.DB
@@ -31,6 +33,19 @@ func InitDataSource(dataSourceName string) error {
 	if _, err = DB.Exec(`PRAGMA foreign_keys = ON;`); err != nil {
 		return err
 	}
+
+	// standard optimizations
+	if _, err = DB.Exec(`PRAGMA journal_mode = WAL;`); err != nil {
+		return err
+	}
+
+	if _, err = DB.Exec(`PRAGMA busy_timeout = 5000;`); err != nil {
+		return err
+	}
+
+	DB.SetMaxOpenConns(10)
+	DB.SetMaxIdleConns(5)
+	DB.SetConnMaxLifetime(0)
 
 	schema := `
 	CREATE TABLE IF NOT EXISTS Users (
