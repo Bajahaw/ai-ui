@@ -181,14 +181,13 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 				responseMessage.Error = err.Error()
 				break
 			}
+			toolCalls = append(toolCalls, completion.ToolCalls...)
 		}
 
 		// Accumulate reasoning for all tool calls
 		if responseMessage.Reasoning != "" {
 			responseMessage.Reasoning += " \n`using tool:" + toolCall.Name + "`\n " + completion.Reasoning
 		}
-
-		toolCalls = append(toolCalls, completion.ToolCalls...)
 	}
 
 	// Update assistant message with full content after all tool calls
