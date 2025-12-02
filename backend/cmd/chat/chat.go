@@ -129,7 +129,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	} else {
 		responseMessage.Content = completion.Content
 		responseMessage.Reasoning = completion.Reasoning
-		toolCalls = provider.ToToolCalls(completion.ToolCalls)
+		toolCalls = completion.ToolCalls
 		isToolsUsed = len(toolCalls) > 0
 	}
 
@@ -164,9 +164,10 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		providerParams.Messages = append(providerParams.Messages, provider.SimpleMessage{
 			Role: "tool",
 			ToolCall: tools.ToolCall{
-				ID:     toolCall.ID,
-				Name:   toolCall.Name,
-				Output: output,
+				ID:          toolCall.ID,
+				ReferenceID: toolCall.ReferenceID,
+				Name:        toolCall.Name,
+				Output:      output,
 			},
 		})
 
@@ -187,7 +188,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 			responseMessage.Reasoning += " \n`using tool:" + toolCall.Name + "`\n " + completion.Reasoning
 		}
 
-		toolCalls = append(toolCalls, provider.ToToolCalls(completion.ToolCalls)...)
+		toolCalls = append(toolCalls, completion.ToolCalls...)
 	}
 
 	// Update assistant message with full content after all tool calls

@@ -19,13 +19,13 @@ func NewToolCallsRepository(db *sql.DB) ToolCallsRepository {
 }
 
 func (repo *ToolCallsRepositoryImpl) SaveToolCall(toolCall ToolCall) error {
-	query := `INSERT INTO ToolCalls (id, conv_id, message_id, name, args, output) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err := repo.db.Exec(query, toolCall.ID, toolCall.ConvID, toolCall.MessageID, toolCall.Name, toolCall.Args, toolCall.Output)
+	query := `INSERT INTO ToolCalls (id, reference_id, conv_id, message_id, name, args, output) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	_, err := repo.db.Exec(query, toolCall.ID, toolCall.ReferenceID, toolCall.ConvID, toolCall.MessageID, toolCall.Name, toolCall.Args, toolCall.Output)
 	return err
 }
 
 func (repo *ToolCallsRepositoryImpl) GetToolCallsByMessageID(messageID int) []*ToolCall {
-	query := `SELECT id, name, args, output FROM ToolCalls WHERE message_id = ?`
+	query := `SELECT id, reference_id, name, args, output FROM ToolCalls WHERE message_id = ?`
 	var toolCalls = make([]*ToolCall, 0)
 
 	rows, err := repo.db.Query(query, messageID)
@@ -39,6 +39,7 @@ func (repo *ToolCallsRepositoryImpl) GetToolCallsByMessageID(messageID int) []*T
 		var toolCall ToolCall
 		if err := rows.Scan(
 			&toolCall.ID,
+			&toolCall.ReferenceID,
 			&toolCall.Name,
 			&toolCall.Args,
 			&toolCall.Output,
@@ -53,7 +54,7 @@ func (repo *ToolCallsRepositoryImpl) GetToolCallsByMessageID(messageID int) []*T
 }
 
 func (repo *ToolCallsRepositoryImpl) GetToolCallsByConvID(convID string) []*ToolCall {
-	query := `SELECT id, message_id, name, args, output FROM ToolCalls WHERE conv_id = ?`
+	query := `SELECT id, reference_id, message_id, name, args, output FROM ToolCalls WHERE conv_id = ?`
 	var toolCalls = make([]*ToolCall, 0)
 
 	rows, err := repo.db.Query(query, convID)
@@ -67,6 +68,7 @@ func (repo *ToolCallsRepositoryImpl) GetToolCallsByConvID(convID string) []*Tool
 		var toolCall ToolCall
 		if err := rows.Scan(
 			&toolCall.ID,
+			&toolCall.ReferenceID,
 			&toolCall.MessageID,
 			&toolCall.Name,
 			&toolCall.Args,

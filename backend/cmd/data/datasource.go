@@ -85,6 +85,7 @@ func InitDataSource(dataSourceName string) error {
 
 	CREATE TABLE IF NOT EXISTS ToolCalls (
 		id TEXT PRIMARY KEY,
+		reference_id TEXT NOT NULL,
 		conv_id TEXT NOT NULL,
 		message_id INTEGER NOT NULL,
 		name TEXT NOT NULL,

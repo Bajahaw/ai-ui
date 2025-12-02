@@ -45,7 +45,8 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 				openaiMessages[i].OfAssistant.ToolCalls = append(openaiMessages[i].OfAssistant.ToolCalls,
 					openai.ChatCompletionMessageToolCallUnionParam{
 						OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
-							ID: msg.ToolCall.ID,
+							// ID: msg.ToolCall.ID, // changed to ReferenceID (the one from provider)
+							ID: msg.ToolCall.ReferenceID,
 							Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
 								Name:      msg.ToolCall.Name,
 								Arguments: msg.ToolCall.Args,
@@ -58,7 +59,8 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 		case "tool":
 			openaiMessages[i] = openai.ChatCompletionMessageParamUnion{
 				OfTool: &openai.ChatCompletionToolMessageParam{
-					ToolCallID: msg.ToolCall.ID,
+					// ToolCallID: msg.ToolCall.ID, // changed to ReferenceID (the one from provider)
+					ToolCallID: msg.ToolCall.ReferenceID,
 					Content: openai.ChatCompletionToolMessageParamContentUnion{
 						OfString: param.Opt[string]{Value: msg.ToolCall.Output},
 					},
@@ -88,18 +90,6 @@ func ReasoningEffort(level string) openai.ReasoningEffort {
 	default:
 		return openai.ReasoningEffortMedium
 	}
-}
-
-func ToToolCalls(toolCalls []openai.ChatCompletionMessageToolCallUnion) []tools.ToolCall {
-	var result []tools.ToolCall
-	for _, tc := range toolCalls {
-		result = append(result, tools.ToolCall{
-			ID:   tc.ID,
-			Name: tc.Function.Name,
-			Args: tc.Function.Arguments,
-		})
-	}
-	return result
 }
 
 func toOpenAITools(tool []tools.Tool) []openai.ChatCompletionToolUnionParam {

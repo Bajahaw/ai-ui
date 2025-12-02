@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 )
@@ -25,6 +26,12 @@ type RequestParams struct {
 	Messages        []SimpleMessage
 	Model           string
 	ReasoningEffort openai.ReasoningEffort
+}
+
+type ChatCompletionMessage struct {
+	Content   string
+	Reasoning string
+	ToolCalls []tools.ToolCall
 }
 
 type StreamChunk struct {
@@ -81,7 +88,7 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*openai.Ch
 }
 
 // SendChatCompletionStreamRequest streams chat completions and returns the full content
-func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w http.ResponseWriter) (*openai.ChatCompletionMessage, error) {
+func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w http.ResponseWriter) (*ChatCompletionMessage, error) {
 	providerID, model := utils.ExtractProviderID(params.Model)
 	provider, err := repo.getProvider(providerID)
 	if err != nil {
@@ -116,6 +123,7 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 
 	stream := client.Chat.Completions.NewStreaming(ctx, openAIparams)
 	acc := openai.ChatCompletionAccumulator{}
+	uniqueToolIDs := make(map[string]string)
 	// isDeepseekThinkStyle := -1
 	// isDeepseekReasoningFinished := false
 
@@ -141,9 +149,13 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 			}
 
 			if toolCall, ok := acc.JustFinishedToolCall(); ok {
+
+				uniqueToolIDs[toolCall.ID] = uuid.New().String()
+
 				toolCallData := StreamChunk{
 					ToolCall: tools.ToolCall{
-						ID:   toolCall.ID,
+						ID: uniqueToolIDs[toolCall.ID],
+						// ReferenceID: toolCall.ID,
 						Name: toolCall.Name,
 						Args: toolCall.Arguments,
 					},
@@ -193,5 +205,22 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 
 	log.Debug("Stop reason:", "reason", acc.Choices[0].FinishReason)
 
-	return &acc.Choices[0].Message, nil
+	// this mapping is needed because providers are not always
+	// guaranteed to generate unique IDs for tool calls,
+	// so we generate our own IDs here
+	var toolCalls []tools.ToolCall
+	for _, tc := range acc.Choices[0].Message.ToolCalls {
+		toolCalls = append(toolCalls, tools.ToolCall{
+			ID:          uniqueToolIDs[tc.ID],
+			ReferenceID: tc.ID,
+			Name:        tc.Function.Name,
+			Args:        tc.Function.Arguments,
+		})
+	}
+
+	return &ChatCompletionMessage{
+		Content:   acc.Choices[0].Message.Content,
+		Reasoning: acc.Choices[0].Message.Reasoning,
+		ToolCalls: toolCalls,
+	}, nil
 }

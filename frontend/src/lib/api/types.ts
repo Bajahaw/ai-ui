@@ -63,6 +63,7 @@ export interface UpdateResponse {
 // Tool call types
 export interface ToolCall {
   id: string;
+  reference_id?: string;
   name: string;
   args?: string;
   tool_output?: string;

@@ -21,12 +21,13 @@ type Tool struct {
 }
 
 type ToolCall struct {
-	ID        string `json:"id"`
-	ConvID    string `json:"conv_id,omitempty"`
-	MessageID int    `json:"message_id"`
-	Name      string `json:"name"`
-	Args      string `json:"args,omitempty"`
-	Output    string `json:"tool_output,omitempty"`
+	ID          string `json:"id"`
+	ReferenceID string `json:"ref_id"`
+	ConvID      string `json:"conv_id,omitempty"`
+	MessageID   int    `json:"message_id"`
+	Name        string `json:"name"`
+	Args        string `json:"args,omitempty"`
+	Output      string `json:"tool_output,omitempty"`
 }
 
 func ExecuteToolCall(toolCall ToolCall) string {
@@ -43,12 +44,13 @@ func ExecuteToolCall(toolCall ToolCall) string {
 	}
 
 	toolCallsRepo.SaveToolCall(ToolCall{
-		ID:        toolCall.ID,
-		ConvID:    toolCall.ConvID,
-		MessageID: toolCall.MessageID,
-		Name:      toolCall.Name,
-		Args:      toolCall.Args,
-		Output:    output,
+		ID:          toolCall.ID,
+		ReferenceID: toolCall.ReferenceID,
+		ConvID:      toolCall.ConvID,
+		MessageID:   toolCall.MessageID,
+		Name:        toolCall.Name,
+		Args:        toolCall.Args,
+		Output:      output,
 	})
 
 	return output
