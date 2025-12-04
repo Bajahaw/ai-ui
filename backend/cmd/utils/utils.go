@@ -199,10 +199,10 @@ func GetServerURL(r *http.Request) string {
 	if ServerURL != "" {
 		return ServerURL
 	}
-	scheme := "http"
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-		scheme = "https"
-	}
+	scheme := "https"
+	// if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+	// 	scheme = "https"
+	// }
 	ServerURL = scheme + "://" + r.Host
 	return ServerURL
 }
