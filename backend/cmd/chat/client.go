@@ -11,9 +11,9 @@ import (
 var log *logger.Logger
 var repo ConversationRepo
 var toolCallsRepo tools.ToolCallsRepository
-var providerClient *provider.ClientImpl
+var providerClient provider.Client
 
-func SetupChat(l *logger.Logger, db *sql.DB, pc *provider.ClientImpl) {
+func SetupChat(l *logger.Logger, db *sql.DB, pc provider.Client) {
 	log = l
 	providerClient = pc
 	repo = newConversationRepository(db)

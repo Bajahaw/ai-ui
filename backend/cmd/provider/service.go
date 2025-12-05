@@ -51,7 +51,7 @@ type StreamComplete struct {
 	AssistantMessageID int `json:"assistantMessageId"`
 }
 
-func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*openai.ChatCompletion, error) {
+func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompletionMessage, error) {
 	providerID, model := utils.ExtractProviderID(params.Model)
 	provider, err := repo.getProvider(providerID)
 	if err != nil {
@@ -84,7 +84,22 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*openai.Ch
 	if err != nil {
 		return nil, err
 	}
-	return completion, nil
+
+	var toolCalls []tools.ToolCall
+	for _, tc := range completion.Choices[0].Message.ToolCalls {
+		toolCalls = append(toolCalls, tools.ToolCall{
+			ID:          uuid.NewString(),
+			ReferenceID: tc.ID,
+			Name:        tc.Function.Name,
+			Args:        tc.Function.Arguments,
+		})
+	}
+
+	return &ChatCompletionMessage{
+		Content:   completion.Choices[0].Message.Content,
+		Reasoning: completion.Choices[0].Message.Reasoning,
+		ToolCalls: toolCalls,
+	}, nil
 }
 
 // SendChatCompletionStreamRequest streams chat completions and returns the full content

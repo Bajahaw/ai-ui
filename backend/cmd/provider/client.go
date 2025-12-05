@@ -5,18 +5,21 @@ import (
 	"net/http"
 
 	logger "github.com/charmbracelet/log"
-	"github.com/openai/openai-go/v3"
 )
 
 var log *logger.Logger
 var repo *Repo
 
 type Client interface {
-	SendChatCompletionRequest(params RequestParams) (*openai.ChatCompletion, error)
-	SendChatCompletionStreamRequest(params RequestParams, w http.ResponseWriter) (*openai.ChatCompletionMessage, error)
+	SendChatCompletionRequest(params RequestParams) (*ChatCompletionMessage, error)
+	SendChatCompletionStreamRequest(params RequestParams, w http.ResponseWriter) (*ChatCompletionMessage, error)
 }
 
 type ClientImpl struct{}
+
+func NewClient() Client {
+	return &ClientImpl{}
+}
 
 func SetupProviderClient(l *logger.Logger, db *sql.DB) {
 	log = l

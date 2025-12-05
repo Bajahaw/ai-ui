@@ -23,7 +23,7 @@ import (
 
 var log *logger.Logger
 var db *sql.DB
-var providerClient *provider.ClientImpl
+var providerClient provider.Client
 
 func main() {
 	setupEnv()
@@ -74,7 +74,7 @@ func setupUtils() {
 
 func setupProviderClient() {
 	provider.SetupProviderClient(log, db)
-	providerClient = &provider.ClientImpl{}
+	providerClient = provider.NewClient()
 	log.Info("Provider client set up successfully")
 }
 
