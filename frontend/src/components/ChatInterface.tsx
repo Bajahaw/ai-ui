@@ -182,9 +182,8 @@ export const ChatInterface = ({
       const isModelAvailable =
         savedModel && models.find((m) => m.id === savedModel);
 
-      if (isModelAvailable && model !== savedModel) {
-        // Sync local state with the saved default model
-        setModel(savedModel);
+      if (isModelAvailable && !model) {
+        setModel(savedModel); // Sync is only needed if no local model is set
       } else if (!savedModel && !model && models.length > 0) {
         // No default model exists and no local model - let auto-select hook handle this
         // This prevents race conditions between auto-select and this component
@@ -210,11 +209,13 @@ export const ChatInterface = ({
    */
   const handleModelChange = async (newModel: string) => {
     setModel(newModel);
-    try {
-      await updateSingleSetting("defaultModel", newModel);
-    } catch (error) {
-      console.error("Failed to save model preference:", error);
-    }
+
+    // Default model should only be updated from settings
+    // try {
+    //   await updateSingleSetting("defaultModel", newModel);
+    // } catch (error) {
+    //   console.error("Failed to save model preference:", error);
+    // }
   };
 
   // Check if there are any pending messages
@@ -550,9 +551,9 @@ export const ChatInterface = ({
           <MessageComponent
             from={message.role}
             status="success"
-            className="pb-1"
+            className="pb-0"
           >
-            <MessageContent className="!p-2 ">
+            <MessageContent className="!p-0">
               <AttachmentMessage
                 attachment={message.attachment!}
                 filename={message.attachment!.split("/").pop()}
