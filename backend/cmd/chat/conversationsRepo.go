@@ -66,10 +66,16 @@ func (repo *ConversationRepository) getConversation(id string) (*Conversation, e
 
 func (repo *ConversationRepository) touchConversation(id string) error {
 	query := `UPDATE Conversations SET updated_at = ? WHERE id = ?`
-	_, err := repo.db.Exec(query, time.Now().UTC(), id)
+	result, err := repo.db.Exec(query, time.Now().UTC(), id)
 	if err != nil {
 		return err
 	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil || rowsAffected == 0 {
+		return err
+	}
+
 	return nil
 }
 

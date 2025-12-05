@@ -45,7 +45,8 @@ func getConversation(w http.ResponseWriter, r *http.Request) {
 	convId := r.PathValue("id")
 	conv, err := repo.getConversation(convId)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error retrieving conversation: %v", err), http.StatusInternalServerError)
+		log.Error("Error retrieving conversation", "err", err)
+		http.Error(w, "Error retrieving conversation", http.StatusNotFound)
 		return
 	}
 	utils.RespondWithJSON(w, &conv, http.StatusOK)
@@ -84,7 +85,7 @@ func renameConversation(w http.ResponseWriter, r *http.Request) {
 	conv, err := repo.getConversation(convId)
 	if err != nil {
 		log.Error("Error retrieving conversation", "err", err)
-		http.Error(w, fmt.Sprintf("Error retrieving conversation: %v", err), http.StatusInternalServerError)
+		http.Error(w, "Error retrieving conversation", http.StatusNotFound)
 		return
 	}
 
