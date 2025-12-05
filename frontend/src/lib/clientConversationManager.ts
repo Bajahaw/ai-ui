@@ -154,6 +154,11 @@ export class ClientConversationManager {
     for (const [idStr, msg] of Object.entries(backendMessages)) {
       const idNum = Number(idStr);
       conversation.backendConversation.messages[idNum] = msg;
+      
+      // Ensure children array is sorted by ID so newest branches are always last
+      if (msg.children && msg.children.length > 1) {
+        msg.children.sort((a, b) => a - b);
+      }
     }
 
     const messageIds = Object.keys(backendMessages).map(Number);
@@ -391,6 +396,13 @@ export class ClientConversationManager {
         messages: backendConv.messages || {},
       };
 
+      // Sort children arrays by ID so newest branches are always last
+      for (const msg of Object.values(normalizedBackendConv.messages)) {
+        if (msg.children && msg.children.length > 1) {
+          msg.children.sort((a, b) => a - b);
+        }
+      }
+
       if (existingConv) {
         // Merge minimal backend conversation fields (messages may be fetched separately)
         existingConv.backendConversation = {
@@ -488,6 +500,22 @@ export class ClientConversationManager {
     const conversation = this.conversations.get(conversationId);
     if (!conversation?.backendConversation) return undefined;
     return conversation.backendConversation.activeMessageId;
+  }
+
+  /**
+   * Sets the active branch for a parent message and rebuilds the messages array
+   */
+  setActiveBranch(conversationId: string, parentId: number, childId: number): void {
+    const conversation = this.conversations.get(conversationId);
+    if (!conversation?.backendConversation) return;
+
+    conversation.activeBranches.set(parentId, childId);
+    conversation.backendConversation.activeMessageId = childId;
+
+    // Rebuild messages to reflect the new active branch
+    conversation.messages = this.buildMessagesFromBackend(
+      conversation.backendConversation,
+    );
   }
 
   // Branch navigation methods

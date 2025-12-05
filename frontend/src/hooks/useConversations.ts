@@ -871,7 +871,17 @@ export const useConversations = () => {
                     timestamp: Date.now(),
                 };
 
-                conversation.messages.push(assistantPlaceholder);
+                // Remove the old assistant message being retried from the frontend messages array
+                // This prevents it from showing alongside the new retry response
+                const oldMessageIndex = conversation.messages.findIndex(
+                    (m) => m.id === messageId
+                );
+                if (oldMessageIndex !== -1) {
+                    // Insert the new placeholder at the same position as the old message
+                    conversation.messages.splice(oldMessageIndex, 1, assistantPlaceholder);
+                } else {
+                    conversation.messages.push(assistantPlaceholder);
+                }
                 conversation.pendingMessageIds.add(assistantPlaceholderId);
                 syncConversations();
 
@@ -915,11 +925,9 @@ export const useConversations = () => {
                             try {
                                 const msgs = await conversationsAPI.fetchConversationMessages(activeConversationId);
                                 manager.updateWithChatResponse(activeConversationId, msgs);
-                                // Ensure activeMessageId remains set to the latest assistant we just created
-                                const refreshed = manager.getConversation(activeConversationId);
-                                if (refreshed?.backendConversation) {
-                                    refreshed.backendConversation.activeMessageId = data.assistantMessageId;
-                                }
+                                // Set the active branch to the new message and rebuild messages array
+                                manager.setActiveBranch(activeConversationId, parentId, data.assistantMessageId);
+                                syncConversations();
                             } catch (e) {
                                 console.error("Failed to refresh conversation after retry stream:", e);
                             }
