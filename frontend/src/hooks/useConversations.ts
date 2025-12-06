@@ -2,6 +2,7 @@ import {useCallback, useEffect, useRef, useState} from "react";
 import {chatAPI, conversationsAPI, FrontendMessage, ToolCall} from "@/lib/api";
 import {ApiErrorHandler} from "@/lib/api/errorHandler";
 import {ClientConversation, ClientConversationManager,} from "@/lib/clientConversationManager";
+import {useAuth} from "@/hooks/useAuth";
 
 // ============================================================================
 // Streaming Utilities - Extracted to reduce duplication
@@ -272,6 +273,7 @@ function updateAssistantMessageAfterComplete(
 }
 
 export const useConversations = () => {
+    const { isAuthenticated } = useAuth();
     const [conversations, setConversations] = useState<ClientConversation[]>([]);
     const [activeConversationId, setActiveConversationId] = useState<
         string | null
@@ -290,11 +292,19 @@ export const useConversations = () => {
         setConversations([...manager.getAllConversations()]);
     }, [manager]);
 
+    // Only load conversations when authenticated
     useEffect(() => {
-        loadConversations();
-    }, []);
+        if (isAuthenticated) {
+            loadConversations();
+        }
+    }, [isAuthenticated]);
 
     const loadConversations = useCallback(async () => {
+        // Skip if not authenticated to prevent 401 errors
+        if (!isAuthenticated) {
+            return;
+        }
+        
         try {
             setIsLoading(true);
             setError(null);

@@ -79,7 +79,7 @@ export const GlobalSettingsSection = () => {
                     </Label>
                     <ModelSelect
                         models={enabledModels}
-                        value={isModelValid ? local.defaultModel : null}
+                        value={isModelValid ? local.defaultModel : undefined}
                         onChange={(value) => handleChange("defaultModel", value)}
                         loading={false}
                         disabled={isSaving}

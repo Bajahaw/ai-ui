@@ -699,7 +699,7 @@ export const ChatInterface = ({
 
               <PromptInputModelSelect
                 models={models}
-                value={isModelValid ? model : null}
+                value={isModelValid ? model : undefined}
                 onChange={handleModelChange}
                 loading={modelsLoading}
                 disabled={settingsLoading}
