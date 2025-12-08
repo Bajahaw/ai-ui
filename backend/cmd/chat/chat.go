@@ -185,7 +185,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Accumulate reasoning for all tool calls
-		if responseMessage.Reasoning != "" {
+		if responseMessage.Reasoning != "" || completion.Reasoning != "" {
 			responseMessage.Reasoning += "  \n`using tool:" + toolCall.Name + "`  \n" + completion.Reasoning
 		}
 	}
@@ -356,7 +356,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Accumulate reasoning for all tool calls
-		if responseMessage.Reasoning != "" {
+		if responseMessage.Reasoning != "" || completion.Reasoning != "" {
 			responseMessage.Reasoning += "  \n`using tool:" + toolCall.Name + "`  \n" + completion.Reasoning
 		}
 	}
