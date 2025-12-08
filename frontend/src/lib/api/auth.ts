@@ -1,6 +1,11 @@
 import { ApiErrorHandler } from "./errorHandler.ts";
 import { getApiUrl } from "../config.ts";
 
+// Helper to check if the auth cookie exists
+const hasAuthCookie = (): boolean => {
+  return document.cookie.split(';').some(c => c.trim().startsWith('auth_token='));
+};
+
 // Authentication API client for login/logout endpoints
 export class AuthAPI {
   constructor() {}
@@ -27,7 +32,15 @@ export class AuthAPI {
         await ApiErrorHandler.handleFetchError(response, "Login");
       }
 
-      // Login successful - the server should have set the secure cookie
+      // Verify the cookie was actually set by the browser
+      // Secure cookies won't be stored on non-HTTPS connections (except localhost)
+      if (!hasAuthCookie()) {
+        throw new Error(
+          "Login succeeded but authentication cookie could not be set. " +
+          "This usually happens when accessing the app over HTTP on a non-localhost address. " +
+          "Please use HTTPS or access via localhost."
+        );
+      }
     }, "login");
   }
 
