@@ -18,8 +18,10 @@ type AuthStatus struct {
 
 var token string
 var authCookie = "auth_token"
+var log *logger.Logger
 
-func Setup(log *logger.Logger) {
+func Setup(l *logger.Logger) {
+	log = l
 	token = os.Getenv("APP_TOKEN")
 	if token == "" {
 		log.Error("APP_TOKEN is not set. Authentication is disabled.")
@@ -78,6 +80,7 @@ func Authenticated(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(authCookie)
 		if token != "" && (err != nil || cookie.Value != token) {
+			log.Warn("Unauthorized access attempt", "path", r.URL.Path, "ip", r.RemoteAddr)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
