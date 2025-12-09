@@ -1,204 +1,204 @@
-import {Conversation, Message} from "./types.ts";
+import { Conversation, Message } from "./types.ts";
 
-import {ApiErrorHandler, isConversation, isConversationArray, isMessagesMap,} from "./errorHandler.ts";
+import { ApiErrorHandler, isConversation, isConversationArray, isMessagesMap, } from "./errorHandler.ts";
 
-import {getApiUrl} from "../config.ts";
+import { getApiUrl } from "../config.ts";
 
 // API client for conversation endpoints
 export class ConversationsAPI {
-  constructor() {}
+	constructor() { }
 
-  // GET /api/conversations
-  async fetchConversations(): Promise<Conversation[]> {
-    return ApiErrorHandler.handleApiCall(async () => {
-      const response = await fetch(getApiUrl("/api/conversations"), {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-      });
+	// GET /api/conversations
+	async fetchConversations(): Promise<Conversation[]> {
+		return ApiErrorHandler.handleApiCall(async () => {
+			const response = await fetch(getApiUrl("/api/conversations"), {
+				method: "GET",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				credentials: "include",
+			});
 
-      if (!response.ok) {
-        await ApiErrorHandler.handleFetchError(response, "Fetch conversations");
-      }
+			if (!response.ok) {
+				await ApiErrorHandler.handleFetchError(response, "Fetch conversations");
+			}
 
-      const data = await response.json();
+			const data = await response.json();
 
-      // Validate response structure
-      const validatedData = ApiErrorHandler.validateResponse(
-        data,
-        isConversationArray,
-        "Fetch conversations",
-      );
+			// Validate response structure
+			const validatedData = ApiErrorHandler.validateResponse(
+				data,
+				isConversationArray,
+				"Fetch conversations",
+			);
 
-      return validatedData || [];
-    }, "fetchConversations");
-  }
+			return validatedData || [];
+		}, "fetchConversations");
+	}
 
-  // POST /api/conversations/add
+	// POST /api/conversations/add
 
-  async createConversation(title: string): Promise<Conversation> {
-    if (!title) {
-      throw new Error("Valid conversation title is required");
-    }
+	async createConversation(title: string): Promise<Conversation> {
+		if (!title) {
+			throw new Error("Valid conversation title is required");
+		}
 
-    // Local UUIDv4 generator (fallback if crypto.randomUUID is unavailable)
-    const genUuid = (): string => {
-      const anyCrypto: any = (globalThis as any).crypto;
-      if (anyCrypto && typeof anyCrypto.randomUUID === "function") {
-        return anyCrypto.randomUUID();
-      }
-      return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-        const r = (Math.random() * 16) | 0;
-        const v = c === "x" ? r : (r & 0x3) | 0x8;
-        return v.toString(16);
-      });
-    };
+		// Local UUIDv4 generator (fallback if crypto.randomUUID is unavailable)
+		const genUuid = (): string => {
+			const anyCrypto: any = (globalThis as any).crypto;
+			if (anyCrypto && typeof anyCrypto.randomUUID === "function") {
+				return anyCrypto.randomUUID();
+			}
+			return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+				const r = (Math.random() * 16) | 0;
+				const v = c === "x" ? r : (r & 0x3) | 0x8;
+				return v.toString(16);
+			});
+		};
 
-    return ApiErrorHandler.handleApiCall(async () => {
-      const now = new Date().toISOString();
-      
-      // Only send fields that the backend expects
-      const conversationPayload = {
-        id: genUuid(),
-        userId: "admin",
-        title: title.trim(),
-        createdAt: now,
-        updatedAt: now,
-      };
+		return ApiErrorHandler.handleApiCall(async () => {
+			const now = new Date().toISOString();
 
-      const response = await fetch(getApiUrl("/api/conversations/add"), {
-        method: "POST",
+			// Only send fields that the backend expects
+			const conversationPayload = {
+				id: genUuid(),
+				userId: "admin",
+				title: title.trim(),
+				createdAt: now,
+				updatedAt: now,
+			};
 
-        headers: {
-          "Content-Type": "application/json",
-        },
+			const response = await fetch(getApiUrl("/api/conversations/add"), {
+				method: "POST",
 
-        credentials: "include",
+				headers: {
+					"Content-Type": "application/json",
+				},
 
-        body: JSON.stringify({ conversation: conversationPayload }),
-      });
+				credentials: "include",
 
-      if (!response.ok) {
-        await ApiErrorHandler.handleFetchError(response, "Create conversation");
-      }
+				body: JSON.stringify({ conversation: conversationPayload }),
+			});
 
-      const result = await response.json();
+			if (!response.ok) {
+				await ApiErrorHandler.handleFetchError(response, "Create conversation");
+			}
 
-      // Validate response structure (backend returns the created conversation)
-      const validated = ApiErrorHandler.validateResponse(
-        result,
-        isConversation,
-        "Create conversation",
-      );
+			const result = await response.json();
 
-      // Add client-only fields that backend doesn't include
-      return {
-        ...validated,
-        messages: {},
-      };
-    }, "createConversation");
-  }
+			// Validate response structure (backend returns the created conversation)
+			const validated = ApiErrorHandler.validateResponse(
+				result,
+				isConversation,
+				"Create conversation",
+			);
 
-  // GET /api/conversations/{id} removed - not needed currently
-// GET /api/conversations/{id}/messages
-  async fetchConversationMessages(
-    id: string,
-  ): Promise<Record<number, Message>> {
-    if (!id) {
-      throw new Error("Invalid conversation ID provided");
-    }
+			// Add client-only fields that backend doesn't include
+			return {
+				...validated,
+				messages: {},
+			};
+		}, "createConversation");
+	}
 
-    return ApiErrorHandler.handleApiCall(async () => {
-      const response = await fetch(
-        getApiUrl(`/api/conversations/${encodeURIComponent(id)}/messages`),
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-        },
-      );
+	// GET /api/conversations/{id} removed - not needed currently
+	// GET /api/conversations/{id}/messages
+	async fetchConversationMessages(
+		id: string,
+	): Promise<Record<number, Message>> {
+		if (!id) {
+			throw new Error("Invalid conversation ID provided");
+		}
 
-      if (!response.ok) {
-        await ApiErrorHandler.handleFetchError(
-          response,
-          `Fetch conversation ${id} messages`,
-        );
-      }
+		return ApiErrorHandler.handleApiCall(async () => {
+			const response = await fetch(
+				getApiUrl(`/api/conversations/${encodeURIComponent(id)}/messages`),
+				{
+					method: "GET",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					credentials: "include",
+				},
+			);
 
-      const data = await response.json();
+			if (!response.ok) {
+				await ApiErrorHandler.handleFetchError(
+					response,
+					`Fetch conversation ${id} messages`,
+				);
+			}
 
-      // Validate messages map structure
-      return ApiErrorHandler.validateResponse(
-        data,
-        isMessagesMap,
-        `Fetch conversation ${id} messages`,
-      );
-    }, `fetchConversationMessages(${id})`);
-  }
+			const data = await response.json();
 
-  // DELETE /api/conversations/{id}
+			// Validate messages map structure
+			return ApiErrorHandler.validateResponse(
+				data,
+				isMessagesMap,
+				`Fetch conversation ${id} messages`,
+			);
+		}, `fetchConversationMessages(${id})`);
+	}
 
-  async deleteConversation(id: string): Promise<void> {
-    if (!id) {
-      throw new Error("Invalid conversation ID provided");
-    }
+	// DELETE /api/conversations/{id}
 
-    return ApiErrorHandler.handleApiCall(async () => {
-      const response = await fetch(
-        getApiUrl(`/api/conversations/${encodeURIComponent(id)}`),
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-        },
-      );
+	async deleteConversation(id: string): Promise<void> {
+		if (!id) {
+			throw new Error("Invalid conversation ID provided");
+		}
 
-      if (!response.ok) {
-        await ApiErrorHandler.handleFetchError(
-          response,
-          `Delete conversation ${id}`,
-        );
-      }
-    }, `deleteConversation(${id})`);
-  }
+		return ApiErrorHandler.handleApiCall(async () => {
+			const response = await fetch(
+				getApiUrl(`/api/conversations/${encodeURIComponent(id)}`),
+				{
+					method: "DELETE",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					credentials: "include",
+				},
+			);
 
-  // POST /api/conversations/{id}/rename
-  async renameConversation(id: string, title: string): Promise<void> {
-    if (!id) {
-      throw new Error("Invalid conversation ID provided");
-    }
+			if (!response.ok) {
+				await ApiErrorHandler.handleFetchError(
+					response,
+					`Delete conversation ${id}`,
+				);
+			}
+		}, `deleteConversation(${id})`);
+	}
 
-    if (!title || title.trim() === "") {
-      throw new Error("Valid title is required");
-    }
+	// POST /api/conversations/{id}/rename
+	async renameConversation(id: string, title: string): Promise<void> {
+		if (!id) {
+			throw new Error("Invalid conversation ID provided");
+		}
 
-    return ApiErrorHandler.handleApiCall(async () => {
-      const response = await fetch(
-        getApiUrl(`/api/conversations/${encodeURIComponent(id)}/rename`),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({ title: title.trim() }),
-        },
-      );
+		if (!title || title.trim() === "") {
+			throw new Error("Valid title is required");
+		}
 
-      if (!response.ok) {
-        await ApiErrorHandler.handleFetchError(
-          response,
-          `Rename conversation ${id}`,
-        );
-      }
-    }, `renameConversation(${id})`);
-  }
+		return ApiErrorHandler.handleApiCall(async () => {
+			const response = await fetch(
+				getApiUrl(`/api/conversations/${encodeURIComponent(id)}/rename`),
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					credentials: "include",
+					body: JSON.stringify({ title: title.trim() }),
+				},
+			);
+
+			if (!response.ok) {
+				await ApiErrorHandler.handleFetchError(
+					response,
+					`Rename conversation ${id}`,
+				);
+			}
+		}, `renameConversation(${id})`);
+	}
 }
 
 // Default instance

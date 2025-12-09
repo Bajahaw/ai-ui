@@ -1,46 +1,46 @@
 // Environment configuration for API base URLs
 export interface ApiConfig {
-  baseUrl: string;
-  timeout: number;
-  retries: number;
+	baseUrl: string;
+	timeout: number;
+	retries: number;
 }
 
 const getApiBaseUrl = (): string => {
-  const isDevelopment = import.meta.env.DEV;
-  if (isDevelopment) {
-    return "http://localhost:8080";
-  }
+	const isDevelopment = import.meta.env.DEV;
+	if (isDevelopment) {
+		return "http://localhost:8080";
+	}
 
-  const productionBaseUrl = import.meta.env.VITE_API_BASE_URL;
-  if (productionBaseUrl) {
-    return productionBaseUrl;
-  }
+	const productionBaseUrl = import.meta.env.VITE_API_BASE_URL;
+	if (productionBaseUrl) {
+		return productionBaseUrl;
+	}
 
-  return "";
+	return "";
 };
 
 export const apiConfig: ApiConfig = {
-  baseUrl: getApiBaseUrl(),
-  timeout: 30000, // 30 seconds
-  retries: 3,
+	baseUrl: getApiBaseUrl(),
+	timeout: 30000, // 30 seconds
+	retries: 3,
 };
 
 // Helper function to get full API URL
 export const getApiUrl = (endpoint: string): string => {
-  const baseUrl = apiConfig.baseUrl;
-  const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+	const baseUrl = apiConfig.baseUrl;
+	const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
 
-  if (baseUrl) {
-    return `${baseUrl.replace(/\/$/, "")}${cleanEndpoint}`;
-  }
+	if (baseUrl) {
+		return `${baseUrl.replace(/\/$/, "")}${cleanEndpoint}`;
+	}
 
-  return cleanEndpoint;
+	return cleanEndpoint;
 };
 
 // Log configuration in development
 if (import.meta.env.DEV) {
-  console.log("API Configuration:", {
-    baseUrl: apiConfig.baseUrl,
-    environment: import.meta.env.MODE,
-  });
+	console.log("API Configuration:", {
+		baseUrl: apiConfig.baseUrl,
+		environment: import.meta.env.MODE,
+	});
 }

@@ -1,111 +1,111 @@
 // Backend API Types matching Go structures
 
 export interface AuthStatus {
-  registered: boolean;
-  authenticated: boolean;
+	registered: boolean;
+	authenticated: boolean;
 }
 
 export interface RegisterResponse {
-  token: string;
+	token: string;
 }
 
 export interface Message {
-  id: number;
+	id: number;
 
-  convId: string;
-  role: string;
+	convId: string;
+	role: string;
 
-  content: string;
-  reasoning?: string;
-  tools?: ToolCall[];
+	content: string;
+	reasoning?: string;
+	tools?: ToolCall[];
 
-  parentId?: number;
+	parentId?: number;
 
-  children: number[];
+	children: number[];
 
-  attachment?: string;
-  error?: string;
+	attachment?: string;
+	error?: string;
 }
 
 export interface Conversation {
-  id: string;
+	id: string;
 
-  userId: string;
-  title?: string;
+	userId: string;
+	title?: string;
 
-  createdAt: string;
-  updatedAt: string;
+	createdAt: string;
+	updatedAt: string;
 
-  // Client-only compatibility fields
-  messages: Record<number, Message>; // Always initialized to {} in frontend
-  root?: number[];
-  activeMessageId?: number;
-  activeBranches?: Record<number, number>; // messageId -> activeChildId mapping
+	// Client-only compatibility fields
+	messages: Record<number, Message>; // Always initialized to {} in frontend
+	root?: number[];
+	activeMessageId?: number;
+	activeBranches?: Record<number, number>; // messageId -> activeChildId mapping
 }
 
 export interface ChatRequest {
-  conversationId: string | null;
-  parentId: number;
-  model: string;
-  content: string;
-  webSearch?: boolean;
-  attachment?: string;
+	conversationId: string | null;
+	parentId: number;
+	model: string;
+	content: string;
+	webSearch?: boolean;
+	attachment?: string;
 }
 
 export interface ChatResponse {
-  messages: Record<number, Message>;
+	messages: Record<number, Message>;
 }
 export interface RetryResponse {
-  messages: Record<number, Message>;
+	messages: Record<number, Message>;
 }
 
 export interface UpdateRequest {
-  conversationId: string;
-  messageId: number;
-  content: string;
+	conversationId: string;
+	messageId: number;
+	content: string;
 }
 
 export interface UpdateResponse {
-  messages: Record<number, Message>;
+	messages: Record<number, Message>;
 }
 
 // Tool call types
 export interface ToolCall {
-  id: string;
-  reference_id?: string;
-  name: string;
-  args?: string;
-  tool_output?: string;
+	id: string;
+	reference_id?: string;
+	name: string;
+	args?: string;
+	tool_output?: string;
 }
 
 // Streaming types
 export interface StreamMetadata {
-  conversationId: string;
-  userMessageId: number;
+	conversationId: string;
+	userMessageId: number;
 }
 
 export interface StreamChunk {
-  content?: string;
-  reasoning?: string;
-  tool_call?: ToolCall;
+	content?: string;
+	reasoning?: string;
+	tool_call?: ToolCall;
 }
 
 export interface StreamComplete {
-  userMessageId: number;
-  assistantMessageId: number;
+	userMessageId: number;
+	assistantMessageId: number;
 }
 // Frontend types for compatibility
 export interface FrontendMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  reasoning?: string;
-  reasoningDuration?: number; // Duration in seconds for reasoning (if reasoning was used)
-  toolCalls?: ToolCall[];
-  status?: "success" | "error" | "pending";
-  error?: string;
-  timestamp: number;
-  attachment?: string;
+	id: string;
+	role: "user" | "assistant";
+	content: string;
+	reasoning?: string;
+	reasoningDuration?: number; // Duration in seconds for reasoning (if reasoning was used)
+	toolCalls?: ToolCall[];
+	status?: "success" | "error" | "pending";
+	error?: string;
+	timestamp: number;
+	attachment?: string;
 }
 // Utility function to generate optimistic client-only conversation ID (placeholder)
 
@@ -113,109 +113,109 @@ export interface FrontendMessage {
 // read the real UUID from the returned messages' convId. - removed
 // Convert backend message to frontend message
 export const backendToFrontendMessage = (
-  backendMsg: Message,
-  status: "success" | "error" | "pending" = "success",
+	backendMsg: Message,
+	status: "success" | "error" | "pending" = "success",
 ): FrontendMessage => {
-  // Safety checks for null/undefined message
-  if (!backendMsg || typeof backendMsg !== "object") {
-    console.error("Invalid backend message provided:", backendMsg);
-    return {
-      id: "error",
-      role: "assistant",
-      content: "Error: Invalid message data",
-      status: "error",
-      timestamp: Date.now(),
-    };
-  }
+	// Safety checks for null/undefined message
+	if (!backendMsg || typeof backendMsg !== "object") {
+		console.error("Invalid backend message provided:", backendMsg);
+		return {
+			id: "error",
+			role: "assistant",
+			content: "Error: Invalid message data",
+			status: "error",
+			timestamp: Date.now(),
+		};
+	}
 
-  // Validate required fields
-  if (!backendMsg.role) {
-    console.error("Backend message missing valid role:", backendMsg);
-  }
+	// Validate required fields
+	if (!backendMsg.role) {
+		console.error("Backend message missing valid role:", backendMsg);
+	}
 
-  return {
-    id: (backendMsg.id || "unknown").toString(),
-    role:
-      backendMsg.role === "user" || backendMsg.role === "assistant"
-        ? backendMsg.role
-        : "assistant",
-    content: backendMsg.content || "",
-    reasoning: backendMsg.reasoning,
-    toolCalls: backendMsg.tools,
-    status: backendMsg.error ? "error" : status,
-    error: backendMsg.error,
-    timestamp: Date.now(), // Backend doesn't provide timestamp, use current time
-    attachment: backendMsg.attachment,
-  };
+	return {
+		id: (backendMsg.id || "unknown").toString(),
+		role:
+			backendMsg.role === "user" || backendMsg.role === "assistant"
+				? backendMsg.role
+				: "assistant",
+		content: backendMsg.content || "",
+		reasoning: backendMsg.reasoning,
+		toolCalls: backendMsg.tools,
+		status: backendMsg.error ? "error" : status,
+		error: backendMsg.error,
+		timestamp: Date.now(), // Backend doesn't provide timestamp, use current time
+		attachment: backendMsg.attachment,
+	};
 };
 
 // Provider API Types
 export interface ProviderRequest {
-  base_url: string;
-  api_key: string;
+	base_url: string;
+	api_key: string;
 }
 
 export interface ProviderResponse {
-  id: string;
-  base_url: string;
+	id: string;
+	base_url: string;
 }
 
 export interface Model {
-  id: string; // provider id + name (for quick finding) e.g: provider-123/meta/llama-3b
+	id: string; // provider id + name (for quick finding) e.g: provider-123/meta/llama-3b
 
-  name: string; // original name from provider
+	name: string; // original name from provider
 
-  provider: string; // provider id
+	provider: string; // provider id
 
-  is_enabled: boolean; // whether the model is enabled (shown/usable)
+	is_enabled: boolean; // whether the model is enabled (shown/usable)
 }
 
 export interface ModelsResponse {
-  models: Model[];
+	models: Model[];
 }
 
 // Settings API Types
 export interface Settings {
-  settings: Record<string, string>;
+	settings: Record<string, string>;
 }
 
 // Frontend types for providers
 export interface FrontendProvider {
-  id: string;
-  name: string;
-  baseUrl: string;
+	id: string;
+	name: string;
+	baseUrl: string;
 }
 
 // File upload types
 export interface FileUploadResponse {
-  fileUrl: string;
+	fileUrl: string;
 }
 
 // MCP Server types
 export interface MCPServerRequest {
-  id?: string;
-  name: string;
-  endpoint: string;
-  api_key: string;
+	id?: string;
+	name: string;
+	endpoint: string;
+	api_key: string;
 }
 
 export interface MCPServerResponse {
-  id: string;
-  name: string;
-  endpoint: string;
-  tools: Tool[];
+	id: string;
+	name: string;
+	endpoint: string;
+	tools: Tool[];
 }
 // Tool types
 export interface Tool {
-  id: string;
-  mcp_server_id?: string;
-  name: string;
-  description?: string;
-  input_schema?: Record<string, any>;
-  require_approval?: boolean;
-  is_enabled?: boolean;
+	id: string;
+	mcp_server_id?: string;
+	name: string;
+	description?: string;
+	input_schema?: Record<string, any>;
+	require_approval?: boolean;
+	is_enabled?: boolean;
 }
 
 export interface ToolListResponse {
-  tools: Tool[];
+	tools: Tool[];
 }

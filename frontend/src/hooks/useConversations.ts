@@ -1,8 +1,8 @@
-import {useCallback, useEffect, useRef, useState} from "react";
-import {chatAPI, conversationsAPI, FrontendMessage, ToolCall} from "@/lib/api";
-import {ApiErrorHandler} from "@/lib/api/errorHandler";
-import {ClientConversation, ClientConversationManager,} from "@/lib/clientConversationManager";
-import {useAuth} from "@/hooks/useAuth";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { chatAPI, conversationsAPI, FrontendMessage, ToolCall } from "@/lib/api";
+import { ApiErrorHandler } from "@/lib/api/errorHandler";
+import { ClientConversation, ClientConversationManager, } from "@/lib/clientConversationManager";
+import { useAuth } from "@/hooks/useAuth";
 
 // ============================================================================
 // Streaming Utilities - Extracted to reduce duplication
@@ -23,12 +23,12 @@ class StreamingState {
 
     addReasoning(reasoning: string): void {
         if (!reasoning) return;
-        
+
         // Track start time on first reasoning chunk
         if (this.reasoningStartTime === null) {
             this.reasoningStartTime = Date.now();
         }
-        
+
         this.reasoning += reasoning;
     }
 
@@ -148,7 +148,7 @@ function ensureBackendParentMessage(
 ): void {
     ensureBackendStructure(conv, conversationId);
     const backendMsgs = conv.backendConversation!.messages!;
-    
+
     if (!backendMsgs[parentId]) {
         backendMsgs[parentId] = {
             id: parentId,
@@ -248,7 +248,7 @@ function updateAssistantMessageAfterComplete(
     // Ensure backend structure and add the assistant message
     ensureBackendStructure(conv, conversationId);
     ensureBackendParentMessage(conv, parentMessageId, conversationId);
-    
+
     conv.backendConversation!.messages![realMessageId] = {
         id: realMessageId,
         convId: conversationId,
@@ -264,7 +264,7 @@ function updateAssistantMessageAfterComplete(
 
     // Update parent-child relationship
     addChildToParent(conv, parentMessageId, realMessageId);
-    
+
     // Set as active message
     conv.backendConversation!.activeMessageId = realMessageId;
 
@@ -304,7 +304,7 @@ export const useConversations = () => {
         if (!isAuthenticated) {
             return;
         }
-        
+
         try {
             setIsLoading(true);
             setError(null);
@@ -341,9 +341,9 @@ export const useConversations = () => {
      * - Users can navigate between branches using the branch navigation controls
      * - Backend returns both the parent message (with updated children) and new assistant message
      */
-        // Removed non-streaming retryMessage: use retryMessageStream exclusively
+    // Removed non-streaming retryMessage: use retryMessageStream exclusively
 
-        // Streamed retry to generate an alternative assistant response with chunks
+    // Streamed retry to generate an alternative assistant response with chunks
 
     const getCurrentMessages = useCallback(
         (conversation: ClientConversation): FrontendMessage[] => {
@@ -490,7 +490,7 @@ export const useConversations = () => {
     const getBranchInfo = useCallback(
         (messageId: number) => {
             if (!activeConversationId) {
-                return {count: 1, activeIndex: 0, hasMultiple: false};
+                return { count: 1, activeIndex: 0, hasMultiple: false };
             }
 
             const count = manager.getBranchCount(activeConversationId, messageId);
@@ -625,7 +625,7 @@ export const useConversations = () => {
 
                     const assistantPlaceholder = clientConversation.messages.find(
                         (m) => m.role === "assistant" && m.status === "pending",
-                    );  
+                    );
                     assistantPlaceholderId = assistantPlaceholder?.id;
 
                     syncConversations();
@@ -678,7 +678,7 @@ export const useConversations = () => {
                         // onComplete - Update IDs (called even after errors!)
                         (data) => {
                             streamingState.cancelPendingSync();
-                            
+
                             // Store the real assistant message ID
                             realAssistantMessageId = data.assistantMessageId;
 
@@ -906,7 +906,7 @@ export const useConversations = () => {
                 );
 
                 let streamError: string | undefined;
-                
+
                 await chatAPI.retryMessageStream(
                     activeConversationId,
                     parentId,
@@ -929,7 +929,7 @@ export const useConversations = () => {
                             syncConversations,
                             streamError,
                         );
-                        
+
                         // After completing, refresh conversation to rebuild tree/branches accurately
                         (async () => {
                             try {

@@ -13,42 +13,42 @@ import { getApiUrl } from "../config";
  * Fetch all models (enabled + disabled).
  */
 export async function getAllModels(): Promise<ModelsResponse> {
-  const response = await fetch(getApiUrl("/api/models/all"), {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-  });
+	const response = await fetch(getApiUrl("/api/models/all"), {
+		method: "GET",
+		headers: { "Content-Type": "application/json" },
+		credentials: "include",
+	});
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch models: ${response.status} ${response.statusText}`);
-  }
+	if (!response.ok) {
+		throw new Error(`Failed to fetch models: ${response.status} ${response.statusText}`);
+	}
 
-  return response.json();
+	return response.json();
 }
 
 /**
  * Save the entire models list with updated enable/disable states.
  */
 export async function saveAllModels(models: Model[]): Promise<void> {
-  const body = {
-    models: models.map((m) => ({
-      id: m.id,
-      name: m.name,
-      provider: m.provider,
-      is_enabled: m.is_enabled,
-    })),
-  };
+	const body = {
+		models: models.map((m) => ({
+			id: m.id,
+			name: m.name,
+			provider: m.provider,
+			is_enabled: m.is_enabled,
+		})),
+	};
 
-  const response = await fetch(getApiUrl("/api/models/save-all"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(body),
-  });
+	const response = await fetch(getApiUrl("/api/models/save-all"), {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		credentials: "include",
+		body: JSON.stringify(body),
+	});
 
-  if (!response.ok) {
-    throw new Error(`Failed to save models: ${response.status} ${response.statusText}`);
-  }
+	if (!response.ok) {
+		throw new Error(`Failed to save models: ${response.status} ${response.statusText}`);
+	}
 }
 
 /**
@@ -56,12 +56,12 @@ export async function saveAllModels(models: Model[]): Promise<void> {
  * Applies enable/disable to a local array (immutable) so UI can update while request is in-flight.
  */
 export function locallyApplyEnableFlags(
-  models: Model[],
-  updates: { id: string; is_enabled: boolean }[],
+	models: Model[],
+	updates: { id: string; is_enabled: boolean }[],
 ): Model[] {
-  if (updates.length === 0) return models;
-  const map = new Map<string, boolean>(updates.map((u) => [u.id, u.is_enabled]));
-  return models.map((m) =>
-    map.has(m.id) ? { ...m, is_enabled: map.get(m.id)! } : m,
-  );
+	if (updates.length === 0) return models;
+	const map = new Map<string, boolean>(updates.map((u) => [u.id, u.is_enabled]));
+	return models.map((m) =>
+		map.has(m.id) ? { ...m, is_enabled: map.get(m.id)! } : m,
+	);
 }

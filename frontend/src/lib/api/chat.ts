@@ -9,72 +9,72 @@ import {
     UpdateResponse,
 } from "./types.ts";
 
-import {ApiErrorHandler, isChatResponse} from "./errorHandler.ts";
-import {getApiUrl} from "../config.ts";
+import { ApiErrorHandler, isChatResponse } from "./errorHandler.ts";
+import { getApiUrl } from "../config.ts";
 
 export class ChatAPI {
-  constructor() {}
+    constructor() { }
 
-  async sendMessageStream(
-    conversationId: string | null,
-    parentId: number | null,
-    model: string,
-    content: string,
-    webSearch: boolean = false,
-    attachment?: string,
-    onChunk?: (chunk: string) => void,
-    onReasoning?: (reasoning: string) => void,
-    onToolCall?: (toolCall: ToolCall) => void,
-    onMetadata?: (metadata: StreamMetadata) => void,
-    onComplete?: (data: StreamComplete) => void,
-    onError?: (error: string) => void,
-  ): Promise<void> {
-    if (!model) {
-      throw new Error("Valid model is required");
-    }
-
-    if (!content) {
-      throw new Error("Valid message content is required");
-    }
-
-    const request: ChatRequest = {
-      conversationId: conversationId,
-      parentId: parentId || 0,
-      model,
-      content,
-      webSearch,
-      attachment,
-    };
-
-    try {
-      const response = await fetch(getApiUrl("/api/chat/stream"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-          body: JSON.stringify(request),
-      });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Stream request failed: ${response.statusText} - ${errorText}`);
+    async sendMessageStream(
+        conversationId: string | null,
+        parentId: number | null,
+        model: string,
+        content: string,
+        webSearch: boolean = false,
+        attachment?: string,
+        onChunk?: (chunk: string) => void,
+        onReasoning?: (reasoning: string) => void,
+        onToolCall?: (toolCall: ToolCall) => void,
+        onMetadata?: (metadata: StreamMetadata) => void,
+        onComplete?: (data: StreamComplete) => void,
+        onError?: (error: string) => void,
+    ): Promise<void> {
+        if (!model) {
+            throw new Error("Valid model is required");
         }
 
-        const reader = response.body?.getReader();
-        if (!reader) {
-            throw new Error("No response body available for streaming");
+        if (!content) {
+            throw new Error("Valid message content is required");
         }
 
-        await this.processStream(reader, onChunk, onReasoning, onToolCall, onMetadata, onComplete, onError);
-    } catch (err) {
-        console.error("Stream error:", err);
-        if (onError) {
-            onError(err instanceof Error ? err.message : String(err));
+        const request: ChatRequest = {
+            conversationId: conversationId,
+            parentId: parentId || 0,
+            model,
+            content,
+            webSearch,
+            attachment,
+        };
+
+        try {
+            const response = await fetch(getApiUrl("/api/chat/stream"), {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                credentials: "include",
+                body: JSON.stringify(request),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Stream request failed: ${response.statusText} - ${errorText}`);
+            }
+
+            const reader = response.body?.getReader();
+            if (!reader) {
+                throw new Error("No response body available for streaming");
+            }
+
+            await this.processStream(reader, onChunk, onReasoning, onToolCall, onMetadata, onComplete, onError);
+        } catch (err) {
+            console.error("Stream error:", err);
+            if (onError) {
+                onError(err instanceof Error ? err.message : String(err));
+            }
+            throw err;
         }
-        throw err;
     }
-  }
 
     async retryMessage(..._args: any[]): Promise<RetryResponse> {
         throw new Error("Deprecated: use retryMessageStream instead");
@@ -158,25 +158,25 @@ export class ChatAPI {
                 body: JSON.stringify(request),
             });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Stream request failed: ${response.statusText} - ${errorText}`);
-      }
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Stream request failed: ${response.statusText} - ${errorText}`);
+            }
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("No response body available for streaming");
-      }
+            const reader = response.body?.getReader();
+            if (!reader) {
+                throw new Error("No response body available for streaming");
+            }
 
             await this.processStream(reader, onChunk, onReasoning, onToolCall, onMetadata, onComplete, onError);
-    } catch (err) {
-      console.error("Stream error:", err);
-      if (onError) {
-        onError(err instanceof Error ? err.message : String(err));
-      }
-      throw err;
+        } catch (err) {
+            console.error("Stream error:", err);
+            if (onError) {
+                onError(err instanceof Error ? err.message : String(err));
+            }
+            throw err;
+        }
     }
-  }
 
     private async processStream(
         reader: ReadableStreamDefaultReader<Uint8Array>,
@@ -193,10 +193,10 @@ export class ChatAPI {
 
         try {
             while (true) {
-                const {done, value} = await reader.read();
+                const { done, value } = await reader.read();
                 if (done) break;
 
-                buffer += decoder.decode(value, {stream: true});
+                buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split("\n");
                 buffer = lines.pop() || "";
 
