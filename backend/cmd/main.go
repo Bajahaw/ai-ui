@@ -93,7 +93,7 @@ func startDataSource() {
 }
 
 func setupAuth() {
-	auth.Setup(log)
+	auth.Setup(log, db)
 }
 
 func startServer() {

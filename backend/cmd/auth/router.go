@@ -3,6 +3,7 @@ package auth
 import (
 	"ai-client/cmd/utils"
 	"crypto/rand"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
@@ -19,13 +20,31 @@ type AuthStatus struct {
 var token string
 var authCookie = "auth_token"
 var log *logger.Logger
+var db *sql.DB
 
-func Setup(l *logger.Logger) {
+func Setup(l *logger.Logger, d *sql.DB) {
 	log = l
-	token = os.Getenv("APP_TOKEN")
-	if token == "" {
-		log.Error("APP_TOKEN is not set. Authentication is disabled.")
+	db = d
+
+	// Try to get existing admin token
+	t, err := getAdminToken()
+	if err == nil {
+		token = t
+		return
 	}
+
+	// If not found, check environment variable
+	token = os.Getenv("APP_TOKEN")
+	if token != "" {
+		err := registerAdminUser(token)
+		if err != nil {
+			log.Error("Failed to register admin", "error", err)
+		} else {
+			log.Info("Admin user registered")
+		}
+	}
+
+	// If still not found, /api/auth/register can be used to create one
 }
 
 func Handler() http.Handler {
@@ -95,7 +114,20 @@ func Register() http.HandlerFunc {
 			return
 		}
 
+		t, err := getAdminToken()
+		if err == nil && t != "" {
+			http.Error(w, "Registration is disabled", http.StatusForbidden)
+			return
+		}
+
 		token = rand.Text()
+
+		err = registerAdminUser(token)
+		if err != nil {
+			log.Error("Failed to register admin user", "error", err)
+			http.Error(w, "Failed to register admin user", http.StatusInternalServerError)
+			return
+		}
 
 		utils.RespondWithJSON(w, map[string]string{"token": token}, http.StatusOK)
 	})
@@ -130,4 +162,20 @@ func GetAuthStatus() http.HandlerFunc {
 
 		utils.RespondWithJSON(w, &status, statusCode)
 	})
+}
+
+func registerAdminUser(token string) error {
+	_, err := db.Exec(
+		`INSERT INTO users (username, token) VALUES (?, ?)`,
+		"admin", token)
+	return err
+}
+
+func getAdminToken() (string, error) {
+	var t string
+	err := db.QueryRow(`SELECT token FROM users WHERE username = ?`, "admin").Scan(&t)
+	if err != nil {
+		return "", err
+	}
+	return t, nil
 }
