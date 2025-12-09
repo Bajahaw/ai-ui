@@ -140,7 +140,7 @@ func GetMCPTools(server MCPServer) ([]Tool, error) {
 	}, nil)
 
 	if err != nil {
-		log.Error("Error connecting to MCP server", "err", err, "endpoint", server.Endpoint)
+		log.Error("Error connecting to MCP server", "err", err)
 		return []Tool{}, err
 	}
 	defer session.Close()
