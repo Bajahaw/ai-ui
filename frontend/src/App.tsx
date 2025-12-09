@@ -50,13 +50,11 @@ function App() {
     const timeSinceLastMessage = currentTime - lastMessageTime;
 
     if (isProcessing) {
-      console.log("⚠️ Already processing a message, ignoring duplicate call");
       return;
     }
 
     // Prevent duplicate messages within 1 second with same content (StrictMode protection)
     if (message === lastMessageContent && timeSinceLastMessage < 1000) {
-      console.log("⚠️ Duplicate message detected within 1 second, ignoring");
       return;
     }
 

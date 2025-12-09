@@ -72,6 +72,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setError(null);
       setIsLoading(true);
       await authAPI.login(token);
+      // After login, re-check auth status
+      const status = await authAPI.getAuthStatus();
+      if (!status.authenticated) {
+        throw new Error('Login succeeded but user is not authenticated, this is usually happen due to using secure cookie in a non-secure context. Please use HTTPS or access the app via localhost.');
+      }
       setIsAuthenticated(true);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Login failed';
