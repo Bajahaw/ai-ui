@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"ai-client/cmd/utils"
+	"crypto/rand"
 	"fmt"
 	"net/http"
 	"os"
@@ -8,6 +10,11 @@ import (
 
 	logger "github.com/charmbracelet/log"
 )
+
+type AuthStatus struct {
+	Registered    bool `json:"registered"`
+	Authenticated bool `json:"authenticated"`
+}
 
 var token string
 var authCookie = "auth_token"
@@ -17,6 +24,16 @@ func Setup(log *logger.Logger) {
 	if token == "" {
 		log.Error("APP_TOKEN is not set. Authentication is disabled.")
 	}
+}
+
+func Handler() http.Handler {
+	mux := http.NewServeMux()
+	mux.Handle("POST /login", Login())
+	mux.Handle("POST /logout", Authenticated(Logout()))
+	mux.Handle("POST /register", Register())
+	mux.Handle("GET /status", GetAuthStatus())
+
+	return http.StripPrefix("/api/auth", mux)
 }
 
 func Login() http.HandlerFunc {
@@ -65,5 +82,49 @@ func Authenticated(next http.Handler) http.Handler {
 			return
 		}
 		next.ServeHTTP(w, r)
+	})
+}
+
+func Register() http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if token != "" {
+			http.Error(w, "Registration is disabled", http.StatusForbidden)
+			return
+		}
+
+		token = rand.Text()
+
+		utils.RespondWithJSON(w, map[string]string{"token": token}, http.StatusOK)
+	})
+}
+
+func GetAuthStatus() http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var status = AuthStatus{
+			Registered:    true,
+			Authenticated: false,
+		}
+
+		if token == "" {
+			status.Registered = false
+		}
+
+		cookie, err := r.Cookie(authCookie)
+		if err == nil && cookie.Value == token {
+			status.Authenticated = true
+		}
+
+		var statusCode int
+
+		switch {
+		case status.Registered && status.Authenticated:
+			statusCode = http.StatusOK
+		case status.Registered && !status.Authenticated:
+			statusCode = http.StatusUnauthorized
+		default:
+			statusCode = http.StatusForbidden
+		}
+
+		utils.RespondWithJSON(w, &status, statusCode)
 	})
 }

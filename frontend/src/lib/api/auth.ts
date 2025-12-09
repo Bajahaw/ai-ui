@@ -1,53 +1,85 @@
 import { ApiErrorHandler } from "./errorHandler.ts";
 import { getApiUrl } from "../config.ts";
+import { AuthStatus, RegisterResponse } from "./types.ts";
 
-// Helper to check if the auth cookie exists
-const hasAuthCookie = (): boolean => {
-  return document.cookie.split(';').some(c => c.trim().startsWith('auth_token='));
-};
-
-// Authentication API client for login/logout endpoints
+// Authentication API client
 export class AuthAPI {
   constructor() {}
 
-  // POST /login
+  // GET /api/auth/status - Check registration and authentication status
+  async getAuthStatus(): Promise<AuthStatus> {
+    return ApiErrorHandler.handleApiCall(async () => {
+      const response = await fetch(getApiUrl("/api/auth/status"), {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+
+      // Status endpoint returns different status codes:
+      // 200: registered and authenticated
+      // 401: registered but not authenticated
+      // 403: not registered
+      
+      if (!response.ok && response.status !== 401 && response.status !== 403) {
+        await ApiErrorHandler.handleFetchError(response, "Auth Status Check");
+      }
+
+      const data: AuthStatus = await response.json();
+      return data;
+    }, "getAuthStatus");
+  }
+
+  // POST /api/auth/register - Register a new instance (returns token)
+  async register(): Promise<string> {
+    return ApiErrorHandler.handleApiCall(async () => {
+      const response = await fetch(getApiUrl("/api/auth/register"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(response, "Registration");
+      }
+
+      const data: RegisterResponse = await response.json();
+      return data.token;
+    }, "register");
+  }
+
+  // POST /api/auth/login - Login with token
   async login(token: string): Promise<void> {
     if (!token || token.trim() === "") {
       throw new Error("Authentication token is required");
     }
 
     return ApiErrorHandler.handleApiCall(async () => {
-      const response = await fetch(
-        getApiUrl(`/api/login?token=${encodeURIComponent(token.trim())}`),
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
+      const formData = new URLSearchParams();
+      formData.append('token', token.trim());
+
+      const response = await fetch(getApiUrl("/api/auth/login"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
         },
-      );
+        body: formData,
+        credentials: "include",
+      });
 
       if (!response.ok) {
         await ApiErrorHandler.handleFetchError(response, "Login");
       }
-
-      // Verify the cookie was actually set by the browser
-      // Secure cookies won't be stored on non-HTTPS connections (except localhost)
-      if (!hasAuthCookie()) {
-        throw new Error(
-          "Login succeeded but authentication cookie could not be set. " +
-          "This usually happens when accessing the app over HTTP on a non-localhost address. " +
-          "Please use HTTPS or access via localhost."
-        );
-      }
     }, "login");
   }
 
-  // POST /logout
+  // POST /api/auth/logout - Logout and clear cookie
   async logout(): Promise<void> {
     return ApiErrorHandler.handleApiCall(async () => {
-      const response = await fetch(getApiUrl("/api/logout"), {
+      const response = await fetch(getApiUrl("/api/auth/logout"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -58,38 +90,7 @@ export class AuthAPI {
       if (!response.ok) {
         await ApiErrorHandler.handleFetchError(response, "Logout");
       }
-
-      // Logout successful - the server should have cleared the cookie
     }, "logout");
-  }
-
-  // Check if user is authenticated by making a test request
-  async checkAuthStatus(): Promise<boolean> {
-    try {
-      const response = await fetch(getApiUrl("/api/conversations"), {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-      });
-
-      // If we get a 401 or 403, user is not authenticated
-      if (response.status === 401 || response.status === 403) {
-        return false;
-      }
-
-      // If we get any other error, we can't determine auth status
-      if (!response.ok) {
-        return false;
-      }
-
-      // If request succeeds, user is authenticated
-      return true;
-    } catch (error) {
-      // Network error or other issue - assume not authenticated
-      return false;
-    }
   }
 }
 

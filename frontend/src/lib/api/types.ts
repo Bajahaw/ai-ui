@@ -1,5 +1,14 @@
 // Backend API Types matching Go structures
 
+export interface AuthStatus {
+  registered: boolean;
+  authenticated: boolean;
+}
+
+export interface RegisterResponse {
+  token: string;
+}
+
 export interface Message {
   id: number;
 
