@@ -203,7 +203,11 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 				}
 			}
 
-			err = fmt.Errorf("%d %s - %s",
+			if errMsg.Error.Code != "" {
+				errMsg.Error.Message = "- " + errMsg.Error.Message
+			}
+
+			err = fmt.Errorf("%d %s %s",
 				apiErr.StatusCode,
 				http.StatusText(apiErr.StatusCode),
 				errMsg.Error.Message,
