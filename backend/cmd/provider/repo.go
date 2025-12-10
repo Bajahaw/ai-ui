@@ -109,7 +109,7 @@ func (repo *Repo) saveModels(models []Model) error {
 		args = append(args, m.ID, m.ProviderID, m.Name, m.IsEnabled)
 	}
 
-	// on conflict, replace
+	// on conflict, only update the enabled status
 	sb.WriteString(" ON CONFLICT(id) DO UPDATE SET is_enabled=excluded.is_enabled")
 
 	_, err := repo.db.Exec(sb.String(), args...)

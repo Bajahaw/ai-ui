@@ -19,7 +19,10 @@ func InitDataSource(dataSourceName string) error {
 	if err = os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	DB, err = sql.Open("sqlite", dataSourceName)
+	// Add _pragma=foreign_keys(1) to ensure foreign keys are enabled on every connection
+	// This is critical for modernc.org/sqlite with connection pooling
+	dsn := dataSourceName + "?_pragma=foreign_keys(1)"
+	DB, err = sql.Open("sqlite", dsn)
 	if err != nil {
 		return err
 	}
@@ -30,11 +33,17 @@ func InitDataSource(dataSourceName string) error {
 		return err
 	}
 
+	// Set connection pool settings first
+	DB.SetMaxOpenConns(10)
+	DB.SetMaxIdleConns(5)
+	DB.SetConnMaxLifetime(0)
+
+	// Enable foreign keys - CRITICAL: Must be executed to take effect
 	if _, err = DB.Exec(`PRAGMA foreign_keys = ON;`); err != nil {
 		return err
 	}
 
-	// standard optimizations
+	// Standard optimizations (these are persistent per database file)
 	if _, err = DB.Exec(`PRAGMA journal_mode = WAL;`); err != nil {
 		return err
 	}
@@ -42,10 +51,6 @@ func InitDataSource(dataSourceName string) error {
 	if _, err = DB.Exec(`PRAGMA busy_timeout = 5000;`); err != nil {
 		return err
 	}
-
-	DB.SetMaxOpenConns(10)
-	DB.SetMaxIdleConns(5)
-	DB.SetConnMaxLifetime(0)
 
 	schema := `
 	CREATE TABLE IF NOT EXISTS Users (
