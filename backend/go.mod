@@ -6,7 +6,7 @@ require (
 	github.com/charmbracelet/log v0.4.2
 	github.com/evgensoft/ddgo v0.0.0-20250604183002-54c292420e4d
 	github.com/google/uuid v1.6.0
-	github.com/modelcontextprotocol/go-sdk v1.1.0
+	github.com/modelcontextprotocol/go-sdk v1.1.1-0.20251208202534-d1c06cb74857
 	github.com/openai/openai-go/v3 v3.6.1
 	modernc.org/sqlite v1.40.1
 )

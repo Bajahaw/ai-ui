@@ -128,7 +128,7 @@ func GetMCPTools(server MCPServer) ([]Tool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	client := mcp.NewClient(&mcp.Implementation{Name: "mcp-client", Version: "v1.0.0"}, nil)
+	client := mcp.NewClient(&mcp.Implementation{Name: "mcp-client", Version: "2025-11-25"}, nil)
 
 	headers := map[string]string{
 		"Authorization": "Bearer " + server.APIKey,
