@@ -188,13 +188,13 @@ func ddgsTool(q string) string {
 	}
 
 	// combine results into a single string
-	output := "Search Success! citations should be in [host](full-link) format.\n Search Results:\n"
+	output := "Search Success!\n Search Results:\n"
 	for i, res := range result {
 		output += fmt.Sprintf("%d. %s\n%s\n%s\n\n", i+1, res.Title, res.Info, res.URL)
 	}
 
 	if len(result) == 0 {
-		output = "Bot detection triggered. Do not use this tool frequently"
+		output = "Search failed! Probably bot detection triggered."
 	}
 
 	return output
