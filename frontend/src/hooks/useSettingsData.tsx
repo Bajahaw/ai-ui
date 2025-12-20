@@ -135,10 +135,24 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
     }, [refreshModels]);
 
     // MCP Servers
+    const refreshTools = useCallback(async () => {
+        const toolsRes = await getAllTools();
+        setData(d => ({
+            ...d,
+            tools: toolsRes.tools.map(t => ({
+                ...t,
+                is_enabled: t.is_enabled ?? true,
+                require_approval: t.require_approval ?? false
+            }))
+        }));
+    }, []);
+
     const addMCPServer = useCallback(async (serverData: MCPServerRequest) => {
         const newServer = await saveMCPServer(serverData);
         setData(d => ({ ...d, mcpServers: [...d.mcpServers, newServer] }));
-    }, []);
+        // Refresh tools since new MCP server may provide new tools
+        await refreshTools();
+    }, [refreshTools]);
 
     const updateMCPServer = useCallback(async (serverData: MCPServerRequest) => {
         const updated = await saveMCPServer(serverData);
@@ -146,12 +160,16 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
             ...d,
             mcpServers: d.mcpServers.map(s => s.id === updated.id ? updated : s)
         }));
-    }, []);
+        // Refresh tools since updated MCP server may have different tools
+        await refreshTools();
+    }, [refreshTools]);
 
     const deleteMCPServer = useCallback(async (id: string) => {
         await deleteMCPServerApi(id);
         setData(d => ({ ...d, mcpServers: d.mcpServers.filter(s => s.id !== id) }));
-    }, []);
+        // Refresh tools since deleted MCP server's tools should be removed
+        await refreshTools();
+    }, [refreshTools]);
 
     // Tools
     const updateToolsLocal = useCallback((tools: Tool[]) => {
