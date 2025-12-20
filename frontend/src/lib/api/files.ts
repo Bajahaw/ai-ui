@@ -11,7 +11,7 @@ export class FileUploadError extends Error {
 	}
 }
 
-export const uploadFile = async (file: File): Promise<string> => {
+export const uploadFile = async (file: File): Promise<FileUploadResponse> => {
 	if (!file) {
 		throw new FileUploadError("No file provided");
 	}
@@ -38,7 +38,7 @@ export const uploadFile = async (file: File): Promise<string> => {
 		}
 
 		const result: FileUploadResponse = await response.json();
-		return result.fileUrl;
+		return result;
 	} catch (error) {
 		if (error instanceof FileUploadError) {
 			throw error;

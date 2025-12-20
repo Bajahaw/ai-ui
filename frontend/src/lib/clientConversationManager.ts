@@ -32,7 +32,7 @@ export class ClientConversationManager {
 
 	createConversation(
 		firstMessage: string,
-		attachment?: string,
+		attachments?: import("@/lib/api/types").Attachment[],
 	): ClientConversation {
 		const conversationId = this.generateConversationId();
 		const tempMessageId = this.generateTempId();
@@ -43,7 +43,7 @@ export class ClientConversationManager {
 			content: firstMessage,
 			status: "pending",
 			timestamp: Date.now(),
-			attachment,
+			attachments,
 		};
 
 		// Add placeholder assistant message immediately
@@ -77,7 +77,7 @@ export class ClientConversationManager {
 	addMessageOptimistically(
 		conversationId: string,
 		content: string,
-		attachment?: string,
+		attachments?: import("@/lib/api/types").Attachment[],
 	): string {
 		const conversation = this.conversations.get(conversationId);
 		if (!conversation)
@@ -90,7 +90,7 @@ export class ClientConversationManager {
 			content,
 			status: "pending",
 			timestamp: Date.now(),
-			attachment,
+			attachments,
 		};
 
 		// Add placeholder assistant message immediately
@@ -225,7 +225,7 @@ export class ClientConversationManager {
 				// Update existing message
 				existingMessage.content = backendMsg.content;
 				existingMessage.status = "success";
-				existingMessage.attachment = backendMsg.attachment;
+			existingMessage.attachments = backendMsg.attachments;
 				messageUpdated = true;
 			} else {
 				// Find matching pending message by content and role
@@ -242,7 +242,7 @@ export class ClientConversationManager {
 
 					pendingMessage.id = backendMsg.id.toString();
 					pendingMessage.status = "success";
-					pendingMessage.attachment = backendMsg.attachment;
+			pendingMessage.attachments = backendMsg.attachments;
 					conversation.pendingMessageIds.delete(oldId);
 					messageUpdated = true;
 				} else if (backendMsg.role === "assistant") {
@@ -263,7 +263,7 @@ export class ClientConversationManager {
 						placeholderMessage.content = backendMsg.content;
 						placeholderMessage.status = backendMsg.error ? "error" : "success";
 						placeholderMessage.error = backendMsg.error;
-						placeholderMessage.attachment = backendMsg.attachment;
+					placeholderMessage.attachments = backendMsg.attachments;
 						conversation.pendingMessageIds.delete(oldId);
 						messageUpdated = true;
 					}

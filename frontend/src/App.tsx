@@ -5,6 +5,7 @@ import { ConversationSidebar } from "@/components/ai-elements/conversation-sideb
 import { ChatInterface } from "@/components/ChatInterface";
 import { useConversations } from "@/hooks/useConversations";
 import { SettingsDialog } from "@/components/settings";
+import { Attachment } from "@/lib/api/types";
 
 import { MessageSquareIcon, SettingsIcon } from "lucide-react";
 
@@ -43,7 +44,7 @@ function App() {
 		message: string,
 		webSearchEnabled: boolean,
 		model: string,
-		attachment?: string,
+		attachments?: Attachment[],
 	) => {
 		// Enhanced duplicate prevention for StrictMode and race conditions
 		const currentTime = Date.now();
@@ -63,13 +64,17 @@ function App() {
 		setLastMessageTime(currentTime);
 
 		try {
+			// Extract file IDs for API call
+			const attachedFileIds = attachments?.map(a => a.file.id);
+			
 			// Use streaming for better UX
 			await sendMessageStream(
 				activeConversationId,
 				message,
 				model,
 				webSearchEnabled,
-				attachment,
+				attachedFileIds,
+				attachments,
 			);
 		} finally {
 			setIsProcessing(false);

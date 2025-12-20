@@ -75,15 +75,17 @@ func saveUpdatedSettings(s Settings) error {
 
 func setDefaultSettings() {
 	defaults := map[string]string{
-		"model":             "gpt-4o",
-		"temperature":       "0.7",
-		"max_tokens":        "2048",
-		"top_p":             "1",
-		"frequency_penalty": "0",
-		"presence_penalty":  "0",
-		"systemPrompt":      "You are a helpful assistant. Provide clear accurate and helpful responses to the user questions.",
-		"responseType":      "stream",
+		"model": "gpt-4o",
+		// "temperature":       "0.7",
+		// "max_tokens":        "2048",
+		// "top_p":             "1",
+		// "frequency_penalty": "0",
+		// "presence_penalty":  "0",
+		"systemPrompt": "You are a helpful assistant. Provide clear accurate and helpful responses to the user questions.",
+		// "responseType":      "stream",
 		"reasoningEffort":   "disabled",
+		"attachmentOcrOnly": "true",
+		"ocrModel":          "deepseek-ocr",
 	}
 
 	for key, value := range defaults {

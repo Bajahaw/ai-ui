@@ -9,6 +9,20 @@ export interface RegisterResponse {
 	token: string;
 }
 
+// File types
+export interface File {
+	id: string;
+	type: string;
+	url: string;
+	content: string;
+}
+
+export interface Attachment {
+	id: string;
+	messageId: number;
+	file: File;
+}
+
 export interface Message {
 	id: number;
 
@@ -23,7 +37,7 @@ export interface Message {
 
 	children: number[];
 
-	attachment?: string;
+	attachments?: Attachment[];
 	error?: string;
 }
 
@@ -49,7 +63,7 @@ export interface ChatRequest {
 	model: string;
 	content: string;
 	webSearch?: boolean;
-	attachment?: string;
+	attachedFileIds?: string[];
 }
 
 export interface ChatResponse {
@@ -105,7 +119,7 @@ export interface FrontendMessage {
 	status?: "success" | "error" | "pending";
 	error?: string;
 	timestamp: number;
-	attachment?: string;
+	attachments?: Attachment[];
 }
 // Utility function to generate optimistic client-only conversation ID (placeholder)
 
@@ -145,7 +159,7 @@ export const backendToFrontendMessage = (
 		status: backendMsg.error ? "error" : status,
 		error: backendMsg.error,
 		timestamp: Date.now(), // Backend doesn't provide timestamp, use current time
-		attachment: backendMsg.attachment,
+		attachments: backendMsg.attachments,
 	};
 };
 
@@ -187,9 +201,7 @@ export interface FrontendProvider {
 }
 
 // File upload types
-export interface FileUploadResponse {
-	fileUrl: string;
-}
+export interface FileUploadResponse extends File {}
 
 // MCP Server types
 export interface MCPServerRequest {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { chatAPI, conversationsAPI, FrontendMessage, ToolCall } from "@/lib/api";
+import { chatAPI, conversationsAPI, FrontendMessage, ToolCall, Attachment } from "@/lib/api";
 import { ApiErrorHandler } from "@/lib/api/errorHandler";
 import { ClientConversation, ClientConversationManager, } from "@/lib/clientConversationManager";
 import { useAuth } from "@/hooks/useAuth";
@@ -204,7 +204,7 @@ function updateUserMessageAfterSave(
         convId: conversationId,
         role: userMsg.role,
         content: userMsg.content,
-        attachment: userMsg.attachment,
+        attachments: userMsg.attachments,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
     } as any;
@@ -599,7 +599,8 @@ export const useConversations = () => {
             message: string,
             model: string,
             webSearch: boolean = false,
-            attachment?: string,
+            attachedFileIds?: string[],
+            attachments?: Attachment[],
         ): Promise<string> => {
             let tempMessageId: string | undefined;
             let assistantPlaceholderId: string | undefined;
@@ -613,7 +614,7 @@ export const useConversations = () => {
                     // Create conversation optimistically
                     const clientConversation = manager.createConversation(
                         message,
-                        attachment,
+                        attachments, // Use local attachment data for optimistic rendering
                     );
                     clientConversationId = clientConversation.id;
 
@@ -657,7 +658,7 @@ export const useConversations = () => {
                         model,
                         message,
                         webSearch,
-                        attachment,
+                        attachedFileIds,
                         handlers.onChunk,
                         handlers.onReasoning,
                         handlers.onToolCall,
@@ -712,7 +713,6 @@ export const useConversations = () => {
                     // If streaming completed successfully, update conversation metadata
                     if (realAssistantMessageId) {
                         // Use the conversation data we got from createConversation (includes timestamps)
-                        // This avoids the "blink" caused by refetching and rebuilding messages from backend
                         const conv = manager.getConversation(realConvId);
                         if (conv) {
                             // Use the createdConv data which has all the proper fields including timestamps
@@ -749,7 +749,7 @@ export const useConversations = () => {
                     tempMessageId = manager.addMessageOptimistically(
                         conversationId,
                         message,
-                        attachment,
+                        undefined, // Attachments will be populated from backend response
                     );
 
                     // Get assistant placeholder ID
@@ -790,7 +790,7 @@ export const useConversations = () => {
                     model,
                     message,
                     webSearch,
-                    attachment,
+                    attachedFileIds,
                     handlers.onChunk,
                     handlers.onReasoning,
                     handlers.onToolCall,

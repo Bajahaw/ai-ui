@@ -21,7 +21,7 @@ export class ChatAPI {
         model: string,
         content: string,
         webSearch: boolean = false,
-        attachment?: string,
+        attachedFileIds?: string[],
         onChunk?: (chunk: string) => void,
         onReasoning?: (reasoning: string) => void,
         onToolCall?: (toolCall: ToolCall) => void,
@@ -43,7 +43,7 @@ export class ChatAPI {
             model,
             content,
             webSearch,
-            attachment,
+            attachedFileIds,
         };
 
         try {

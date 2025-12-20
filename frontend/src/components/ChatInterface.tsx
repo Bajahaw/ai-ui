@@ -55,7 +55,7 @@ import {
 } from "@/components/ai-elements/editable-message";
 import {
 	FileUpload,
-	FilePreview,
+	FilesList,
 	AttachmentMessage,
 	UploadedFile,
 } from "@/components/ui/file-upload";
@@ -72,7 +72,7 @@ interface ChatInterfaceProps {
 		message: string,
 		webSearch: boolean,
 		model: string,
-		attachment?: string,
+		attachments?: import("@/lib/api/types").Attachment[],
 	) => Promise<void>;
 	onRetryMessage: (messageId: string, model: string) => Promise<void>;
 	onSwitchBranch: (messageId: number, branchIndex: number) => void;
@@ -112,7 +112,7 @@ export const ChatInterface = ({
 	const [updatingMessageId, setUpdatingMessageId] = useState<string | null>(
 		null,
 	);
-	const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
+	const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
 	const [uploadError, setUploadError] = useState<string | null>(null);
 	const editableMessageRefs = useRef<Record<string, EditableMessageRef | null>>(
 		{},
@@ -238,7 +238,7 @@ export const ChatInterface = ({
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		if (!input.trim() && !uploadedFile) return;
+		if (!input.trim() && uploadedFiles.length === 0) return;
 
 		// Prevent sending when model is not selected or invalid
 		if (!isModelValid) {
@@ -246,9 +246,16 @@ export const ChatInterface = ({
 		}
 
 		const message = input;
-		const attachment = uploadedFile?.url;
+		// Create full attachment objects for optimistic rendering
+		const attachments: import("@/lib/api/types").Attachment[] | undefined = uploadedFiles.length > 0
+			? uploadedFiles.map((uploadedFile) => ({
+				id: uploadedFile.fileData.id,
+				messageId: -1, // Temporary, will be updated by backend
+				file: uploadedFile.fileData,
+			}))
+			: undefined;
 		setInput("");
-		setUploadedFile(null);
+		setUploadedFiles([]);
 		setUploadError(null);
 
 		// Mark that user has interacted with this conversation
@@ -260,20 +267,22 @@ export const ChatInterface = ({
 			scrollToBottom();
 		}
 
-		// Send message (don't wait for response before scrolling)
-		onSendMessage(message, webSearch, model, attachment);
-	}; const handleFileUploaded = useCallback((fileUrl: string, file: File) => {
-		setUploadedFile({ file, url: fileUrl });
+		// Send message with full attachment objects for optimistic rendering
+		// and file IDs for backend API
+		onSendMessage(message, webSearch, model, attachments);
+	};
+	
+	const handleFileUploaded = useCallback((fileData: import("@/lib/api/types").File, file: File) => {
+		setUploadedFiles(prev => [...prev, { file, fileData }]);
 		setUploadError(null);
 	}, []);
 
 	const handleFileUploadError = useCallback((error: string) => {
 		setUploadError(error);
-		setUploadedFile(null);
 	}, []);
 
-	const handleRemoveFile = useCallback(() => {
-		setUploadedFile(null);
+	const handleRemoveFile = useCallback((index: number) => {
+		setUploadedFiles(prev => prev.filter((_, i) => i !== index));
 		setUploadError(null);
 	}, []);
 
@@ -281,20 +290,20 @@ export const ChatInterface = ({
 		async (files: File[]) => {
 			if (hasPendingMessages || files.length === 0) return;
 
-			// Only handle the first file for now to match current single-file upload behavior
-			const file = files[0];
-
-			try {
-				setUploadError(null);
-				const fileUrl = await uploadFile(file);
-				setUploadedFile({ file, url: fileUrl });
-			} catch (error) {
-				const errorMessage =
-					error instanceof FileUploadError
-						? error.message
-						: "Failed to upload pasted file";
-				setUploadError(errorMessage);
-				setUploadedFile(null);
+			// Upload all pasted files
+			for (const file of files) {
+				try {
+					setUploadError(null);
+					const fileData = await uploadFile(file);
+					setUploadedFiles(prev => [...prev, { file, fileData }]);
+				} catch (error) {
+					const errorMessage =
+						error instanceof FileUploadError
+							? error.message
+							: "Failed to upload pasted file";
+					setUploadError(errorMessage);
+					break; // Stop uploading remaining files on error
+				}
 			}
 		},
 		[hasPendingMessages],
@@ -541,13 +550,13 @@ export const ChatInterface = ({
 	};
 
 	const renderMessage = (message: FrontendMessage) => {
-		const hasAttachment =
-			message.attachment && message.attachment.trim() !== "";
+		const hasAttachments =
+			message.attachments && message.attachments.length > 0;
 
 		return (
 			<div key={message.id}>
-				{/* Render attachment message first if exists (not counted in conversation tree) */}
-				{hasAttachment && (
+				{/* Render attachments message first if exists (not counted in conversation tree) */}
+				{hasAttachments && (
 					<MessageComponent
 						from={message.role}
 						status="success"
@@ -555,8 +564,7 @@ export const ChatInterface = ({
 					>
 						<MessageContent className="!p-0">
 							<AttachmentMessage
-								attachment={message.attachment!}
-								filename={message.attachment!.split("/").pop()}
+								attachments={message.attachments}
 							/>
 						</MessageContent>
 					</MessageComponent>
@@ -653,10 +661,10 @@ export const ChatInterface = ({
 					onSubmit={handleSubmit}
 					className="chat-interface w-full max-w-3xl mx-auto"
 				>
-					{/* File preview area */}
-					{uploadedFile && (
-						<div className="p-3 border-b">
-							<FilePreview file={uploadedFile} onRemove={handleRemoveFile} />
+					{/* Files list preview area */}
+					{uploadedFiles.length > 0 && (
+						<div className="px-3 py-2 border-b">
+							<FilesList files={uploadedFiles} onRemove={handleRemoveFile} />
 						</div>
 					)}
 
@@ -712,7 +720,7 @@ export const ChatInterface = ({
 						</PromptInputTools>
 						<PromptInputSubmit
 							disabled={
-								(!input.trim() && !uploadedFile) ||
+								(!input.trim() && uploadedFiles.length === 0) ||
 								!model ||
 								models.length === 0
 							}

@@ -12,9 +12,10 @@ import {
 	FileUploadError,
 } from "@/lib/api/files";
 import { Response } from "@/components/ai-elements/response";
+import type { File as APIFile } from "@/lib/api/types";
 
 export interface FileUploadProps {
-	onFileUploaded: (fileUrl: string, file: File) => void;
+	onFileUploaded: (fileData: APIFile, file: File) => void;
 	onError?: (error: string) => void;
 	disabled?: boolean;
 	className?: string;
@@ -23,8 +24,7 @@ export interface FileUploadProps {
 
 export interface UploadedFile {
 	file: File;
-	url: string;
-	preview?: string;
+	fileData: APIFile;
 }
 
 export const FileUpload = ({
@@ -43,8 +43,8 @@ export const FileUpload = ({
 
 			setUploading(true);
 			try {
-				const fileUrl = await uploadFile(file);
-				onFileUploaded(fileUrl, file);
+				const fileData = await uploadFile(file);
+				onFileUploaded(fileData, file);
 			} catch (error) {
 				const errorMessage =
 					error instanceof FileUploadError
@@ -60,11 +60,12 @@ export const FileUpload = ({
 
 	const handleFileInputChange = useCallback(
 		(event: React.ChangeEvent<HTMLInputElement>) => {
-			const file = event.target.files?.[0];
-			if (file) {
-				handleFileSelect(file);
+			const files = event.target.files;
+			if (files) {
+				// Upload all selected files
+				Array.from(files).forEach(file => handleFileSelect(file));
 			}
-			// Clear the input value so the same file can be selected again
+			// Clear the input value so the same files can be selected again
 			if (fileInputRef.current) {
 				fileInputRef.current.value = "";
 			}
@@ -83,6 +84,7 @@ export const FileUpload = ({
 				ref={fileInputRef}
 				type="file"
 				accept={accept}
+				multiple
 				onChange={handleFileInputChange}
 				className="hidden"
 				disabled={disabled || uploading}
@@ -151,27 +153,77 @@ export const FilePreview = ({
 	);
 };
 
+export interface FilesListProps {
+	files: UploadedFile[];
+	onRemove?: (index: number) => void;
+	className?: string;
+}
+
+export const FilesList = ({
+	files,
+	onRemove,
+	className,
+}: FilesListProps) => {
+	if (files.length === 0) return null;
+
+	return (
+		<div className={cn("flex flex-wrap gap-2", className)}>
+			{files.map((file, index) => (
+				<FilePreview
+					key={file.fileData.id}
+					file={file}
+					onRemove={onRemove ? () => onRemove(index) : undefined}
+				/>
+			))}
+		</div>
+	);
+};
+
 export interface AttachmentMessageProps {
-	attachment: string;
+	attachments?: import("@/lib/api/types").Attachment[];
+	// Legacy support for single attachment
+	attachment?: string;
 	filename?: string;
 	className?: string;
 }
 
 export const AttachmentMessage = ({
+	attachments,
 	attachment,
 	filename,
 	className,
 }: AttachmentMessageProps) => {
-	const isImage = filename
-		? isImageFile(filename)
-		: attachment.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i);
+	// Handle legacy single attachment
+	if (attachment && !attachments) {
+		const isImage = filename
+			? isImageFile(filename)
+			: attachment.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i);
 
-	// Create markdown content based on file type
-	const markdownContent = isImage
-		? `![${filename || "Attached image"}](${attachment})`
-		: `[${filename || attachment.split("/").pop() || "Download file"}](${attachment})`;
+		const markdownContent = isImage
+			? `![${filename || "Attached image"}](${attachment})`
+			: `[${filename || attachment.split("/").pop() || "Download file"}](${attachment})`;
 
-	// Render markdown using the Response component
+		return (
+			<div className={cn("max-w-full", className)}>
+				<Response>{markdownContent}</Response>
+			</div>
+		);
+	}
+
+	// Handle multiple attachments
+	if (!attachments || attachments.length === 0) return null;
+
+	const markdownContent = attachments
+		.map((att) => {
+			const isImage = att.file.type === "image";
+			const filename = att.file.url.split("/").pop() || "file";
+
+			return isImage
+				? `![${filename}](${att.file.url})`
+				: `[${filename}](${att.file.url})`;
+		})
+		.join("\n\n");
+
 	return (
 		<div className={cn("max-w-full", className)}>
 			<Response>{markdownContent}</Response>
