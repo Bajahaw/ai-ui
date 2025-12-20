@@ -28,16 +28,18 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 					},
 				},
 			}
-			if msg.Image != "" {
-				file := openai.ChatCompletionContentPartUnionParam{
-					OfImageURL: &openai.ChatCompletionContentPartImageParam{
-						ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
-							URL: msg.Image,
+			if len(msg.Images) > 0 {
+				for _, imageURL := range msg.Images {
+					file := openai.ChatCompletionContentPartUnionParam{
+						OfImageURL: &openai.ChatCompletionContentPartImageParam{
+							ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
+								URL: imageURL,
+							},
 						},
-					},
+					}
+					openaiMessages[i].OfUser.Content.OfArrayOfContentParts =
+						append(openaiMessages[i].OfUser.Content.OfArrayOfContentParts, file)
 				}
-				openaiMessages[i].OfUser.Content.OfArrayOfContentParts =
-					append(openaiMessages[i].OfUser.Content.OfArrayOfContentParts, file)
 			}
 		case "assistant":
 			openaiMessages[i] = openai.AssistantMessage(msg.Content)

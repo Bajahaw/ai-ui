@@ -8,15 +8,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/google/uuid"
 )
 
 type Request struct {
-	ConversationID string `json:"conversationId"`
-	ParentID       int    `json:"parentId"`
-	Model          string `json:"model"`
-	Content        string `json:"content"`
-	WebSearch      bool   `json:"webSearch,omitempty"`
-	Attachment     string `json:"attachment,omitempty"`
+	ConversationID  string   `json:"conversationId"`
+	ParentID        int      `json:"parentId"`
+	Model           string   `json:"model"`
+	Content         string   `json:"content"`
+	WebSearch       bool     `json:"webSearch,omitempty"`
+	AttachedFileIDs []string `json:"attachedFileIds,omitempty"`
 }
 
 type Retry struct {
@@ -51,27 +53,43 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		conv := newConversation("admin")
 		if err = repo.saveConversation(conv); err != nil {
 			log.Error("Error creating conversation", "err", err)
-			http.Error(w, fmt.Sprintf("Error creating conversation: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("Error creating conversation: %v", err), http.StatusBadRequest)
 			return
 		}
 		convID = conv.ID
 	}
 
+	files, err := getFilesDataByID(req.AttachedFileIDs)
+	if err != nil {
+		log.Error("Error getting files data", "err", err)
+		http.Error(w, fmt.Sprintf("Error getting files data: %v", err), http.StatusBadRequest)
+		return
+	}
+
 	// Save user message
 	userMessage := Message{
-		ID:         -1,
-		ConvID:     convID,
-		Role:       "user",
-		Content:    req.Content,
-		ParentID:   req.ParentID,
-		Children:   []int{},
-		Attachment: req.Attachment,
+		ID:       -1,
+		ConvID:   convID,
+		Role:     "user",
+		Content:  req.Content,
+		ParentID: req.ParentID,
+		Children: []int{},
+	}
+
+	userMessage.Attachments = make([]Attachment, 0)
+	for _, file := range files {
+		attachment := Attachment{
+			ID:        uuid.NewString(),
+			MessageID: -1, // will be updated with correct message ID when saving
+			File:      file,
+		}
+		userMessage.Attachments = append(userMessage.Attachments, attachment)
 	}
 
 	userMessage.ID, err = saveMessage(userMessage)
 	if err != nil {
 		log.Error("Error saving user message", "err", err)
-		http.Error(w, fmt.Sprintf("Error saving user message: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Error saving user message: %v", err), http.StatusBadRequest)
 		return
 	}
 
@@ -97,6 +115,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "event: metadata\ndata: %s\n\n", metadataJSON)
 	flusher.Flush()
 
+	// Build context from user message
 	ctx := buildContext(convID, userMessage.ID)
 	reasoningSetting, _ := getSetting("reasoningEffort")
 

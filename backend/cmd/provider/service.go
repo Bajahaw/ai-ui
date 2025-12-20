@@ -18,8 +18,8 @@ import (
 type SimpleMessage struct {
 	Role     string
 	Content  string
-	ToolCall tools.ToolCall `json:"tool_call,omitzero"`
-	Image    string
+	ToolCall tools.ToolCall
+	Images   []string
 }
 
 type RequestParams struct {

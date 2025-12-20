@@ -2,6 +2,7 @@ package chat
 
 import (
 	"ai-client/cmd/provider"
+	"fmt"
 )
 
 // Helper
@@ -20,6 +21,8 @@ func buildContext(convID string, start int) []provider.SimpleMessage {
 	}
 
 	systemPrompt, _ := getSetting("systemPrompt")
+	attachmentOcrOnly, _ := getSetting("attachmentOcrOnly")
+	ocrOnly := attachmentOcrOnly == "true"
 
 	var messages = []provider.SimpleMessage{
 		{
@@ -50,10 +53,31 @@ func buildContext(convID string, start int) []provider.SimpleMessage {
 			}
 		}
 
+		var imageURLs []string
+		if ocrOnly {
+			// For each attachment, append attachments content to message content
+			for i, att := range msg.Attachments {
+				if att.File.Content != "" {
+					msg.Content += "\n\n" +
+						"[user attachment " + fmt.Sprintf("%d", i+1) + ": \n" +
+						"type: " + att.File.Type + "\n" +
+						"content: " + att.File.Content + "\n\n]"
+				}
+			}
+
+		} else {
+			// append only image URLs
+			for _, att := range msg.Attachments {
+				if att.File.Type == "image" && att.File.URL != "" {
+					imageURLs = append(imageURLs, att.File.URL)
+				}
+			}
+		}
+
 		messages = append(messages, provider.SimpleMessage{
 			Role:    msg.Role,
 			Content: msg.Content,
-			Image:   msg.Attachment,
+			Images:  imageURLs,
 		})
 	}
 	return messages

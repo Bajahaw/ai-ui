@@ -6,27 +6,43 @@ import (
 )
 
 type Message struct {
-	ID         int              `json:"id"`
-	ConvID     string           `json:"convId"`
-	Role       string           `json:"role"`
-	Model      string           `json:"model,omitempty"`
-	Content    string           `json:"content"`
-	Reasoning  string           `json:"reasoning,omitempty"`
-	ParentID   int              `json:"parentId,omitempty"`
-	Children   []int            `json:"children"`
-	Attachment string           `json:"attachment,omitempty"`
-	Error      string           `json:"error,omitempty"`
-	Tools      []tools.ToolCall `json:"tools,omitempty"`
+	ID          int              `json:"id"`
+	ConvID      string           `json:"convId"`
+	Role        string           `json:"role"`
+	Model       string           `json:"model,omitempty"`
+	Content     string           `json:"content"`
+	Reasoning   string           `json:"reasoning,omitempty"`
+	ParentID    int              `json:"parentId,omitempty"`
+	Children    []int            `json:"children"`
+	Attachments []Attachment     `json:"attachments,omitempty"`
+	Error       string           `json:"error,omitempty"`
+	Tools       []tools.ToolCall `json:"tools,omitempty"`
+}
+
+type Attachment struct {
+	ID        string `json:"id"`
+	MessageID int    `json:"messageId"`
+	File      File   `json:"file"`
 }
 
 func getMessage(id int) (*Message, error) {
-	sql := `SELECT id, conv_id, role, content, reasoning, parent_id, attachment, error FROM Messages WHERE id = ?`
+	sql := `
+	SELECT id, conv_id, role, content, reasoning, parent_id, error 
+	FROM Messages 
+	WHERE id = ?
+	`
 	row := data.DB.QueryRow(sql, id)
 
 	var msg = Message{
 		Children: make([]int, 0),
 	}
-	err := row.Scan(&msg.ID, &msg.ConvID, &msg.Role, &msg.Content, &msg.Reasoning, &msg.ParentID, &msg.Attachment, &msg.Error)
+	err := row.Scan(
+		&msg.ID, &msg.ConvID,
+		&msg.Role,
+		&msg.Content,
+		&msg.Reasoning,
+		&msg.ParentID,
+		&msg.Error)
 	if err != nil {
 		return nil, err
 	}
@@ -46,6 +62,10 @@ func getMessage(id int) (*Message, error) {
 		msg.Children = append(msg.Children, childID)
 	}
 
+	// Fetch attachments
+	msg.Attachments = getMessageAttachments(id)
+
+	// Fetch tool calls
 	toolCalls := toolCallsRepo.GetToolCallsByMessageID(id)
 	msg.Tools = make([]tools.ToolCall, 0)
 	for _, t := range toolCalls {
@@ -56,8 +76,19 @@ func getMessage(id int) (*Message, error) {
 }
 
 func saveMessage(msg Message) (int, error) {
-	sql := `INSERT INTO Messages (conv_id, role, model, parent_id, attachment, content, reasoning, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-	result, err := data.DB.Exec(sql, msg.ConvID, msg.Role, msg.Model, msg.ParentID, msg.Attachment, msg.Content, msg.Reasoning, msg.Error)
+	sql := `
+	INSERT INTO Messages (conv_id, role, model, parent_id, content, reasoning, error) 
+	VALUES (?, ?, ?, ?, ?, ?, ?)
+	`
+	result, err := data.DB.Exec(sql,
+		msg.ConvID,
+		msg.Role,
+		msg.Model,
+		msg.ParentID,
+		msg.Content,
+		msg.Reasoning,
+		msg.Error,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -66,11 +97,37 @@ func saveMessage(msg Message) (int, error) {
 		return 0, err
 	}
 
-	return int(id), nil
+	intId := int(id)
+	err = saveMessageAttachments(intId, msg.Attachments)
+	if err != nil {
+		return 0, err
+	}
+
+	return intId, nil
+}
+
+func saveMessageAttachments(id int, attachments []Attachment) error {
+	attSql := `INSERT INTO Attachments (id, message_id, file_id) VALUES (?, ?, ?)`
+	for _, att := range attachments {
+		_, err := data.DB.Exec(attSql,
+			att.ID,
+			id,
+			att.File.ID,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func updateMessage(id int, msg Message) (*Message, error) {
-	sql := `UPDATE Messages SET content = ?, reasoning = ?, error = ? WHERE id = ? RETURNING id, conv_id, role, model, content, reasoning, parent_id, attachment, error`
+	sql := `
+	UPDATE Messages SET content = ?, reasoning = ?, error = ?
+	WHERE id = ?
+	RETURNING id, conv_id, role, model, content, reasoning, parent_id, error
+	`
 	row := data.DB.QueryRow(sql, msg.Content, msg.Reasoning, msg.Error, id)
 
 	var updatedMsg Message
@@ -82,7 +139,6 @@ func updateMessage(id int, msg Message) (*Message, error) {
 		&updatedMsg.Content,
 		&updatedMsg.Reasoning,
 		&updatedMsg.ParentID,
-		&updatedMsg.Attachment,
 		&updatedMsg.Error,
 	)
 
@@ -106,6 +162,10 @@ func updateMessage(id int, msg Message) (*Message, error) {
 		updatedMsg.Children = append(updatedMsg.Children, childID)
 	}
 
+	// Fetch attachments
+	updatedMsg.Attachments = getMessageAttachments(id)
+
+	// Fetch tool calls
 	toolCalls := toolCallsRepo.GetToolCallsByMessageID(id)
 	updatedMsg.Tools = make([]tools.ToolCall, 0)
 	for _, tool := range toolCalls {
@@ -117,7 +177,7 @@ func updateMessage(id int, msg Message) (*Message, error) {
 
 func getAllConversationMessages(convID string) map[int]*Message {
 	messages := make(map[int]*Message)
-	sql := `SELECT id, conv_id, role, model, content, reasoning, parent_id, attachment, error FROM Messages WHERE conv_id = ?`
+	sql := `SELECT id, conv_id, role, model, content, reasoning, parent_id, error FROM Messages WHERE conv_id = ?`
 	rows, err := data.DB.Query(sql, convID)
 	if err != nil {
 		log.Error("Error querying messages", "err", err)
@@ -135,7 +195,6 @@ func getAllConversationMessages(convID string) map[int]*Message {
 			&msg.Content,
 			&msg.Reasoning,
 			&msg.ParentID,
-			&msg.Attachment,
 			&msg.Error,
 		)
 		if err != nil {
@@ -159,6 +218,14 @@ func getAllConversationMessages(convID string) map[int]*Message {
 		}
 	}
 
+	// Fetch attachments for all messages in the conversation
+	attachments := getAllConversationAttachments(convID)
+	for msgID, atts := range attachments {
+		if msg, exists := messages[msgID]; exists {
+			msg.Attachments = atts
+		}
+	}
+
 	toolCalls := toolCallsRepo.GetToolCallsByConvID(convID)
 	log.Debug("Retrieved tool calls for conversation", "convID", convID, "tools", toolCalls)
 	for _, tool := range toolCalls {
@@ -168,4 +235,76 @@ func getAllConversationMessages(convID string) map[int]*Message {
 	}
 
 	return messages
+}
+
+func getMessageAttachments(messageID int) []Attachment {
+	attachmentsSql := `
+	SELECT a.id, a.message_id, f.id, f.type, f.url, f.content
+	FROM Attachments a
+	JOIN Files f ON a.file_id = f.id
+	WHERE a.message_id = ?
+	`
+	attRows, err := data.DB.Query(attachmentsSql, messageID)
+	if err != nil {
+		log.Error("Error querying attachments", "err", err)
+		return nil
+	}
+	defer attRows.Close()
+
+	attachments := make([]Attachment, 0)
+	for attRows.Next() {
+		var att Attachment
+		var file File
+		if err := attRows.Scan(
+			&att.ID,
+			&att.MessageID,
+			&file.ID,
+			&file.Type,
+			&file.URL,
+			&file.Content,
+		); err != nil {
+			return nil
+		}
+		att.File = file
+		attachments = append(attachments, att)
+	}
+
+	return attachments
+}
+
+func getAllConversationAttachments(convID string) map[int][]Attachment {
+	attachments := make(map[int][]Attachment)
+	sql := `
+	SELECT a.id, a.message_id, f.id, f.type, f.url, f.content
+	FROM Attachments a
+	JOIN Messages m ON a.message_id = m.id
+	JOIN Files f ON a.file_id = f.id
+	WHERE m.conv_id = ?
+	`
+	rows, err := data.DB.Query(sql, convID)
+	if err != nil {
+		log.Error("Error querying conversation attachments", "err", err)
+		return attachments
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var att Attachment
+		var file File
+		if err := rows.Scan(
+			&att.ID,
+			&att.MessageID,
+			&file.ID,
+			&file.Type,
+			&file.URL,
+			&file.Content,
+		); err != nil {
+			log.Error("Error scanning attachment", "err", err)
+			continue
+		}
+		att.File = file
+		attachments[att.MessageID] = append(attachments[att.MessageID], att)
+	}
+
+	return attachments
 }

@@ -222,6 +222,17 @@ func ExtractProviderName(url string) string {
 	return name
 }
 
+func SqlPlaceholders(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	placeholders := make([]string, n)
+	for i := 0; i < n; i++ {
+		placeholders[i] = "?"
+	}
+	return strings.Join(placeholders, ", ")
+}
+
 //func ExtractModelName(id string) string {
 //	// "openai/gpt-4-turbo" -> "gpt-4-turbo"
 //	parts := strings.Split(id, "/")

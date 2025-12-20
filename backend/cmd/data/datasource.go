@@ -66,11 +66,20 @@ func InitDataSource(dataSourceName string) error {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
-	
-	CREATE TABLE IF NOT EXISTS Attachments (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+	CREATE TABLE IF NOT EXISTS Files (
+		id TEXT PRIMARY KEY,
 		type TEXT NOT NULL,
-		url TEXT NOT NULL
+		url TEXT NOT NULL,
+		content TEXT NOT NULL
+	);
+		
+	CREATE TABLE IF NOT EXISTS Attachments (
+		id TEXT PRIMARY KEY,
+		message_id INTEGER NOT NULL,
+		file_id TEXT NOT NULL,
+		FOREIGN KEY (message_id) REFERENCES Messages(id) ON DELETE CASCADE,
+		FOREIGN KEY (file_id) REFERENCES Files(id) ON DELETE CASCADE
 	);
 	
 	CREATE TABLE IF NOT EXISTS Messages (
@@ -79,13 +88,10 @@ func InitDataSource(dataSourceName string) error {
 		role TEXT NOT NULL,
 		model TEXT NOT NULL,
 		parent_id INTEGER,
-		attachment TEXT,
 		content TEXT NOT NULL,
 		reasoning TEXT,
 		error TEXT,
 		FOREIGN KEY (conv_id) REFERENCES Conversations(id) ON DELETE CASCADE
--- 		FOREIGN KEY (parent_id) REFERENCES Messages(id) ON DELETE SET NULL
--- 		FOREIGN KEY (attachment_id) REFERENCES Attachments(id) ON DELETE SET NULL
 	);
 
 	CREATE TABLE IF NOT EXISTS ToolCalls (
