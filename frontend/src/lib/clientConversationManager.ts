@@ -184,10 +184,12 @@ export class ClientConversationManager {
 			}
 		}
 
-		// Preserve any pending or error messages before rebuilding
-		// (these haven't been saved to backend yet or failed during streaming)
+		// Preserve only pending/error messages that don't have real backend IDs yet
+		// Messages with real IDs (numeric) are already in backend and will be included via buildMessagesFromBackend
 		const pendingAndErrorMessages = conversation.messages.filter(
-			(m) => m.status === "pending" || m.status === "error"
+			(m) => 
+				(m.status === "pending" || m.status === "error") && 
+				isNaN(parseInt(m.id)) // Only preserve temp IDs (temp_xxx format)
 		);
 
 		// Rebuild the visible message list to reflect the active branch only
@@ -195,7 +197,7 @@ export class ClientConversationManager {
 			conversation.backendConversation,
 		);
 
-		// Add back pending and error messages so they persist
+		// Add back pending and error messages that haven't been saved to backend yet
 		for (const msg of pendingAndErrorMessages) {
 			const exists = conversation.messages.some(m => m.id === msg.id);
 			if (!exists) {
@@ -584,16 +586,18 @@ export class ClientConversationManager {
 
 		// This ensures the conversation view updates to show the selected branch
 
-		// Preserve any pending or error messages before rebuilding
+		// Preserve only pending/error messages that don't have real backend IDs yet
 		const pendingAndErrorMessages = conversation.messages.filter(
-			(m) => m.status === "pending" || m.status === "error"
+			(m) => 
+				(m.status === "pending" || m.status === "error") && 
+				isNaN(parseInt(m.id)) // Only preserve temp IDs
 		);
 
 		conversation.messages = this.buildMessagesFromBackend(
 			conversation.backendConversation,
 		);
 
-		// Add back pending and error messages so they persist
+		// Add back pending and error messages that haven't been saved to backend yet
 		for (const msg of pendingAndErrorMessages) {
 			const exists = conversation.messages.some(m => m.id === msg.id);
 			if (!exists) {
