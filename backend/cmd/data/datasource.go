@@ -73,14 +73,6 @@ func InitDataSource(dataSourceName string) error {
 		url TEXT NOT NULL,
 		content TEXT NOT NULL
 	);
-		
-	CREATE TABLE IF NOT EXISTS Attachments (
-		id TEXT PRIMARY KEY,
-		message_id INTEGER NOT NULL,
-		file_id TEXT NOT NULL,
-		FOREIGN KEY (message_id) REFERENCES Messages(id) ON DELETE CASCADE,
-		FOREIGN KEY (file_id) REFERENCES Files(id) ON DELETE CASCADE
-	);
 	
 	CREATE TABLE IF NOT EXISTS Messages (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,6 +84,14 @@ func InitDataSource(dataSourceName string) error {
 		reasoning TEXT,
 		error TEXT,
 		FOREIGN KEY (conv_id) REFERENCES Conversations(id) ON DELETE CASCADE
+	);
+		
+	CREATE TABLE IF NOT EXISTS Attachments (
+		id TEXT PRIMARY KEY,
+		message_id INTEGER NOT NULL,
+		file_id TEXT NOT NULL,
+		FOREIGN KEY (message_id) REFERENCES Messages(id) ON DELETE CASCADE,
+		FOREIGN KEY (file_id) REFERENCES Files(id) ON DELETE CASCADE
 	);
 
 	CREATE TABLE IF NOT EXISTS ToolCalls (
@@ -145,6 +145,5 @@ func InitDataSource(dataSourceName string) error {
 	`
 
 	_, err = DB.Exec(schema)
-
 	return err
 }
