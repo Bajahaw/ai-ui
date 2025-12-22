@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "../ui/card";
-import { Edit, ExternalLink, Loader2, Plus, RefreshCw, Trash2, } from "lucide-react";
+import { Database, Edit, ExternalLink, Loader2, Plus, RefreshCw, Trash2, } from "lucide-react";
 import { ProviderForm } from "./ProviderForm";
 import { FrontendProvider, ProviderRequest } from "@/lib/api/types";
 import { useSettingsData } from "@/hooks/useSettingsData";
@@ -46,7 +46,10 @@ export const ProvidersSection = () => {
 	return (
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
-				<h3 className="text-lg font-medium">AI Providers</h3>
+				<h3 className="text-lg font-medium flex items-center gap-2">
+					<Database className="h-5 w-5" />
+					AI Providers
+				</h3>
 				<div className="flex items-center gap-2">
 					<Button onClick={handleRefreshModels} variant="ghost" size="sm" disabled={loadingModels}>
 						{loadingModels ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -84,7 +87,7 @@ export const ProvidersSection = () => {
 								<div className="space-y-3">
 									<div className="flex items-start justify-between gap-4">
 										<div className="flex-1 min-w-0">
-											<h4 className="sm:font-medium truncate max-w-[75px] sm:max-w-[300px]">
+										<h4 className="truncate max-w-[75px] sm:max-w-[300px]">
 												{provider.id}
 											</h4>
 										</div>

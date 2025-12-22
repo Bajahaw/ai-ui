@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { CheckSquare, Eye, EyeOff, Search, ShieldAlert, Square, Wrench, } from "lucide-react";
 import { locallyApplyToolFlags } from "@/lib/api/tools";
 import { Tool } from "@/lib/api/types";
@@ -251,7 +252,7 @@ export const ToolsSection: React.FC = () => {
 									<div className="flex-1 min-h-0 overflow-hidden">
 										<div className="flex items-center gap-2">
 											<span
-												className="font-medium truncate max-w-[200px] sm:max-w-[300px]"
+												className="truncate max-w-[200px] sm:max-w-[300px]"
 												title={tool.name}
 											>
 												{tool.name}
@@ -291,21 +292,12 @@ export const ToolsSection: React.FC = () => {
 										</button>
 
 										{/* Enable/Disable Toggle */}
-										<button
-											onClick={() => handleSingleToggleEnabled(tool)}
+										<Switch
+											checked={!!tool.is_enabled}
+											onCheckedChange={() => handleSingleToggleEnabled(tool)}
 											disabled={pending || bulkBusy}
-											className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shadow-sm ${tool.is_enabled
-													? "bg-primary/80 hover:bg-primary text-primary-foreground"
-													: "bg-muted hover:bg-muted/70"
-												} ${pending ? "opacity-50 cursor-wait" : "cursor-pointer"
-												}`}
 											title={tool.is_enabled ? "Disable tool" : "Enable tool"}
-										>
-											<span
-												className={`inline-block h-5 w-5 transform rounded-full bg-background shadow transition-transform duration-200 ease-out ${tool.is_enabled ? "translate-x-5" : "translate-x-1"
-													}`}
-											/>
-										</button>
+										/>
 									</div>
 								</div>
 							);

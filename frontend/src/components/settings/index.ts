@@ -7,3 +7,4 @@ export { ModelsSection } from "./ModelsSection";
 export { MCPServersSection } from "./MCPServersSection";
 export { MCPServerForm } from "./MCPServerForm";
 export { ToolsSection } from "./ToolsSection";
+export { DocumentsSection } from "./DocumentsSection";

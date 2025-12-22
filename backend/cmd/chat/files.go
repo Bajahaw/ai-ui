@@ -2,8 +2,10 @@ package chat
 
 import (
 	"ai-client/cmd/data"
+	"ai-client/cmd/provider"
 	"ai-client/cmd/utils"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/google/uuid"
@@ -40,6 +42,27 @@ func upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fileRawContent, err := os.ReadFile(filePath)
+	if err != nil {
+		log.Error("Error reading file", "err", err)
+		http.Error(w, "Error reading file", http.StatusInternalServerError)
+		return
+	}
+
+	attType := http.DetectContentType(fileRawContent)
+	log.Debug("Detected file content type", "type", attType)
+
+	fileType := "file"
+	if strings.HasPrefix(attType, "text/") {
+		fileType = "text"
+	} else if strings.HasPrefix(attType, "image/") {
+		fileType = "image"
+	} else if strings.HasPrefix(attType, "video/") {
+		fileType = "video"
+	} else if strings.HasPrefix(attType, "audio/") {
+		fileType = "audio"
+	}
+
 	filePath = strings.TrimPrefix(filePath, ".")
 
 	if !strings.HasPrefix(filePath, "/") {
@@ -53,25 +76,20 @@ func upload(w http.ResponseWriter, r *http.Request) {
 
 	fileUrl := utils.GetServerURL(r) + filePath
 
-	fileContent := extractFileContent(fileUrl)
-
-	log.Debug("Extracted file content", "content", fileContent)
-
-	attType := "file"
-	if strings.HasPrefix(handler.Header.Get("Content-Type"), "image/") {
-		attType = "image"
-	} else if strings.HasPrefix(handler.Header.Get("Content-Type"), "video/") {
-		attType = "video"
-	} else if strings.HasPrefix(handler.Header.Get("Content-Type"), "audio/") {
-		attType = "audio"
-	}
-
 	fileData := File{
-		ID:      uuid.NewString(),
-		Type:    attType,
-		URL:     fileUrl,
-		Content: fileContent,
+		ID:   uuid.NewString(),
+		Type: fileType,
+		URL:  fileUrl,
 	}
+
+	fileContent, err := extractFileContent(fileData)
+	if err != nil {
+		log.Error("Error extracting file content", "err", err)
+		http.Error(w, "Error extracting file content: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	fileData.Content = fileContent
+	log.Debug("Extracted file content", "content", fileContent)
 
 	err = saveFileData(fileData)
 	if err != nil {
@@ -143,10 +161,47 @@ func saveFileData(file File) error {
 // extractFileContent extracts text content from the file at the given URL.
 // It sends a request to the OCR service and returns the extracted text.
 // currently supports images only. if file content is text, then it is not sent to OCR.
-func extractFileContent(fileURL string) string {
+func extractFileContent(file File) (string, error) {
+	splits := strings.Split(file.URL, "/")
+	filename := splits[len(splits)-1]
+	filePath := "./data/resources/" + filename
+
+	log.Debug("Extracting content from file", "path", filePath, "type", file.Type)
+	if file.Type == "text" {
+		fileContent, err := os.ReadFile(filePath)
+		if err != nil {
+			log.Error("Error reading text file", "err", err)
+			return "", err
+		}
+		return string(fileContent), nil
+	}
+
 	ocrModel, _ := getSetting("ocrModel")
 
-	// ...
+	params := provider.RequestParams{
+		Messages: []provider.SimpleMessage{
+			{
+				Role:    "system",
+				Content: "You are an Image recognition and OCR assistant.",
+			},
+			{
+				Role: "user",
+				Content: "Extract text content from the given file. " +
+					"preserve formatting of code, latex, tables etc. " +
+					"as much as possible. If main content is not text, " +
+					"provide a detailed description of the image instead.",
+				Images: []string{
+					file.URL,
+				},
+			},
+		},
+		Model: ocrModel,
+	}
 
-	return "extracted text content using: " + ocrModel
+	response, err := providerClient.SendChatCompletionRequest(params)
+	if err != nil || len(response.Content) == 0 {
+		return "", err
+	}
+
+	return response.Content, nil
 }

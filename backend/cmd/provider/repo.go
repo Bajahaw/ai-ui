@@ -65,7 +65,6 @@ func (repo *Repo) getProvider(id string) (*Provider, error) {
 	query := `SELECT id, url, api_key FROM Providers WHERE id = ?`
 	err := repo.db.QueryRow(query, id).Scan(&p.ID, &p.BaseURL, &p.APIKey)
 	if err != nil {
-		log.Error("Error querying provider", "err", err)
 		return nil, err
 	}
 

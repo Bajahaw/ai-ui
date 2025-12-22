@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Save, RotateCcw } from "lucide-react";
+import { Save, RotateCcw, Settings } from "lucide-react";
 import { ModelSelect } from "@/components/ai-elements/model-select.tsx";
 import {
   Select,
@@ -70,11 +70,14 @@ export const GlobalSettingsSection = () => {
 
     return (
         <div className="space-y-8 max-w-2xl">
-            <h2 className="text-lg text-foreground mb-2">General Settings</h2>
+            <h3 className="text-lg font-medium flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                General Settings
+            </h3>
 
             <div className="space-y-4">
                 <div className="flex justify-between items-center pb-2">
-                    <Label htmlFor="default-model" className="font-medium text-nowrap">
+                    <Label htmlFor="default-model" className="text-nowrap">
                         Default Model
                     </Label>
                     <ModelSelect
@@ -94,7 +97,7 @@ export const GlobalSettingsSection = () => {
                 </div>
 
                 <div className="flex justify-between items-center !my-0 pb-2">
-                    <Label htmlFor="reasoning-effort" className="font-medium text-nowrap">
+                    <Label htmlFor="reasoning-effort" className="text-nowrap">
                         Reasoning Effort
                     </Label>
                     <Select
@@ -119,7 +122,7 @@ export const GlobalSettingsSection = () => {
                 </div>
 
                 <div className="border-b border-border flex justify-between items-center !my-0 pb-2">
-                    <Label htmlFor="enter-behavior" className="font-medium text-nowrap">
+                    <Label htmlFor="enter-behavior" className="text-nowrap">
                         Enter Key Action
                     </Label>
                     <Select
@@ -141,7 +144,7 @@ export const GlobalSettingsSection = () => {
                 </div>
 
                 <div className="space-y-4">
-                    <Label htmlFor="system-prompt" className="font-medium">
+                    <Label htmlFor="system-prompt">
                         System Prompt
                     </Label>
                     <Textarea
@@ -154,18 +157,29 @@ export const GlobalSettingsSection = () => {
                     />
                 </div>
 
-                <div className="flex items-center gap-3 pt-2">
-                    <Button onClick={handleSave} disabled={!hasChanges || isSaving} className="gap-2">
-                        <Save className="h-4 w-4" />
-                        Apply
-                    </Button>
-                    {hasChanges && (
-                        <Button variant="outline" onClick={handleReset} disabled={isSaving} className="gap-2">
+                {hasChanges && (
+                    <div className="flex gap-2 pt-4 border-t">
+                        <Button
+                            onClick={handleSave}
+                            disabled={isSaving}
+                            size="sm"
+                            className="gap-2"
+                        >
+                            <Save className="h-4 w-4" />
+                            {isSaving ? "Saving..." : "Save Changes"}
+                        </Button>
+                        <Button
+                            onClick={handleReset}
+                            disabled={isSaving}
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                        >
                             <RotateCcw className="h-4 w-4" />
                             Reset
                         </Button>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
         </div>
     );

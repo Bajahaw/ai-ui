@@ -55,7 +55,8 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompl
 	providerID, model := utils.ExtractProviderID(params.Model)
 	provider, err := repo.getProvider(providerID)
 	if err != nil {
-		return nil, err
+		log.Error("Error querying provider", "err", err)
+		return nil, errors.New("Model or provider not found")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)

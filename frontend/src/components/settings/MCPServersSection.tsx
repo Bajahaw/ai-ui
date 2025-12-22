@@ -33,7 +33,10 @@ export const MCPServersSection = () => {
 	return (
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
-				<h3 className="text-lg font-medium">MCP Servers</h3>
+				<h3 className="text-lg font-medium flex items-center gap-2">
+					<Server className="h-5 w-5" />
+					MCP Servers
+				</h3>
 				<Button onClick={() => setShowAddForm(true)} variant="outline" size="sm">
 					<Plus className="h-4 w-4" />
 					<span className="hidden sm:inline">Add Server</span>
@@ -60,7 +63,7 @@ export const MCPServersSection = () => {
 							<div className="space-y-3">
 								<div className="flex items-start justify-between gap-4">
 									<div className="flex-1 min-w-0">
-										<h4 className="sm:font-medium truncate max-w-[75px] sm:max-w-[300px]">
+									<h4 className="truncate max-w-[75px] sm:max-w-[300px]">
 											{server.name}
 										</h4>
 									</div>

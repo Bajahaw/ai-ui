@@ -7,12 +7,13 @@ import {
 } from "@/components/ui/dialog";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Settings, Database, ListChecks, Server, Wrench, Loader2 } from "lucide-react";
+import { Settings, Database, ListChecks, Server, Wrench, Loader2, FileText } from "lucide-react";
 import { ProvidersSection } from "./ProvidersSection";
 import { GlobalSettingsSection } from "./GlobalSettingsSection";
 import { ModelsSection } from "./ModelsSection";
 import { MCPServersSection } from "./MCPServersSection";
 import { ToolsSection } from "./ToolsSection";
+import { DocumentsSection } from "./DocumentsSection";
 import { SettingsDataProvider, useSettingsData } from "@/hooks/useSettingsData";
 
 interface SettingsDialogProps {
@@ -20,7 +21,7 @@ interface SettingsDialogProps {
 	onOpenChange: (open: boolean) => void;
 }
 
-type SettingsTab = "providers" | "models" | "global" | "mcp" | "tools";
+type SettingsTab = "providers" | "models" | "global" | "mcp" | "tools" | "documents";
 
 const SettingsDialogContent = () => {
 	const [activeTab, setActiveTab] = useState<SettingsTab>("global");
@@ -59,6 +60,11 @@ const SettingsDialogContent = () => {
 			label: "Tools",
 			icon: Wrench,
 		},
+		{
+			id: "documents" as const,
+			label: "Documents",
+			icon: FileText,
+		},
 	];
 
 	const renderTabContent = () => {
@@ -73,6 +79,8 @@ const SettingsDialogContent = () => {
 				return <MCPServersSection />;
 			case "tools":
 				return <ToolsSection />;
+			case "documents":
+				return <DocumentsSection />;
 			default:
 				return null;
 		}

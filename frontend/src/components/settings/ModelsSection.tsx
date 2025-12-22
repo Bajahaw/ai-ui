@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { CheckSquare, Eye, EyeOff, Search, ShieldCheck, Square, } from "lucide-react";
 import { locallyApplyEnableFlags } from "@/lib/api/models";
 import { Model } from "@/lib/api/types";
@@ -245,7 +246,7 @@ export const ModelsSection: React.FC = () => {
 									<div className="flex-1 min-h-0 overflow-hidden">
 										<div className="flex items-center gap-2">
 											<span
-												className="font-medium truncate max-w-[200px] sm:max-w-[300px]"
+													className="truncate max-w-[200px] sm:max-w-[300px]"
 												title={model.name}
 											>
 												{model.name}
@@ -257,20 +258,12 @@ export const ModelsSection: React.FC = () => {
 										</div>
 									</div>
 
-									<button
-										onClick={() => handleSingleToggle(model)}
+									<Switch
+										checked={model.is_enabled}
+										onCheckedChange={() => handleSingleToggle(model)}
 										disabled={pending || bulkBusy}
-										className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shadow-sm ${model.is_enabled
-												? "bg-primary/80 hover:bg-primary text-primary-foreground"
-												: "bg-muted hover:bg-muted/70"
-											} ${pending ? "opacity-50 cursor-wait" : "cursor-pointer"}`}
 										title={model.is_enabled ? "Disable model" : "Enable model"}
-									>
-										<span
-											className={`inline-block h-5 w-5 transform rounded-full bg-background shadow transition-transform duration-200 ease-out ${model.is_enabled ? "translate-x-5" : "translate-x-1"
-												}`}
-										/>
-									</button>
+									/>
 								</div>
 							);
 						})}
