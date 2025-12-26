@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { PlusIcon, FileIcon, ImageIcon, XIcon } from "lucide-react";
+import { PlusIcon, FileIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PromptInputButton } from "@/components/ai-elements/prompt-input";
 import { cn } from "@/lib/utils";
@@ -125,7 +125,13 @@ export const FilePreview = ({
 		>
 			<div className="flex-shrink-0">
 				{isImage ? (
-					<ImageIcon className="size-4 text-blue-500" />
+					<div className="size-10 rounded overflow-hidden border bg-background">
+						<img
+							src={file.fileData.url}
+							alt={file.file.name}
+							className="size-full object-cover"
+						/>
+					</div>
 				) : (
 					<FileIcon className="size-4 text-gray-500" />
 				)}
