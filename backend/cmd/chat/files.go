@@ -82,14 +82,17 @@ func upload(w http.ResponseWriter, r *http.Request) {
 		URL:  fileUrl,
 	}
 
-	fileContent, err := extractFileContent(fileData)
-	if err != nil {
-		log.Error("Error extracting file content", "err", err)
-		http.Error(w, "Error extracting file content: "+err.Error(), http.StatusInternalServerError)
-		return
+	ocrOnly, _ := getSetting("attachmentOcrOnly")
+	if ocrOnly == "true" {
+		fileContent, err := extractFileContent(fileData)
+		if err != nil {
+			log.Error("Error extracting file content", "err", err)
+			http.Error(w, "Error extracting file content: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		fileData.Content = fileContent
+		log.Debug("Extracted file content", "content", fileContent)
 	}
-	fileData.Content = fileContent
-	log.Debug("Extracted file content", "content", fileContent)
 
 	err = saveFileData(fileData)
 	if err != nil {
