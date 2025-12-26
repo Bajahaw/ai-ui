@@ -104,6 +104,50 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, fileData, http.StatusOK)
 }
 
+func getFile(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	files, err := getFilesDataByID([]string{id})
+	if err != nil || len(files) == 0 {
+		log.Warn("File not found", "id", id, "err", err)
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	utils.RespondWithJSON(w, files[0], http.StatusOK)
+}
+
+func getAllFiles(w http.ResponseWriter, r *http.Request) {
+	fileSql := `
+	SELECT id, type, url, content
+	FROM Files
+	`
+
+	rows, err := data.DB.Query(fileSql)
+	if err != nil {
+		log.Error("Error querying all files", "err", err)
+		http.Error(w, "Error retrieving files", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var files []File
+	for rows.Next() {
+		var file File
+		if err := rows.Scan(
+			&file.ID,
+			&file.Type,
+			&file.URL,
+			&file.Content,
+		); err != nil {
+			log.Error("Error scanning file", "err", err)
+			continue
+		}
+		files = append(files, file)
+	}
+
+	utils.RespondWithJSON(w, files, http.StatusOK)
+}
+
 func getFilesDataByID(fileIDs []string) ([]File, error) {
 	if len(fileIDs) == 0 {
 		return []File{}, nil
@@ -143,7 +187,6 @@ func getFilesDataByID(fileIDs []string) ([]File, error) {
 	}
 
 	return files, nil
-
 }
 
 func saveFileData(file File) error {

@@ -43,6 +43,8 @@ func FileHandler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST /upload", upload)
+	mux.HandleFunc("GET  /{id}", getFile)
+	mux.HandleFunc("GET  /all", getAllFiles)
 
-	return http.StripPrefix("/api/files", mux)
+	return http.StripPrefix("/api/files", auth.Authenticated(mux))
 }
