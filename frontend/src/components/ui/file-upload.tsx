@@ -140,7 +140,7 @@ export const FilePreview = ({
 			<div className="flex-1 min-w-0">
 				<div className="text-sm font-medium truncate">{file.file.name}</div>
 				<div className="text-xs text-muted-foreground">
-					{formatFileSize(file.file.size)}
+					{formatFileSize(file.fileData.size)}
 				</div>
 			</div>
 

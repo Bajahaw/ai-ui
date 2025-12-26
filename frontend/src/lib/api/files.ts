@@ -1,4 +1,4 @@
-import { FileUploadResponse } from "./types";
+import { FileUploadResponse, File as ApiFile } from "./types";
 import { getApiUrl } from "../config";
 
 export class FileUploadError extends Error {
@@ -10,6 +10,19 @@ export class FileUploadError extends Error {
 		this.name = "FileUploadError";
 	}
 }
+
+export const getFiles = async (): Promise<ApiFile[]> => {
+	const response = await fetch(getApiUrl("/api/files/all"), {
+		method: "GET",
+		credentials: "include",
+	});
+
+	if (!response.ok) {
+		throw new Error("Failed to fetch files");
+	}
+
+	return response.json();
+};
 
 export const uploadFile = async (file: File): Promise<FileUploadResponse> => {
 	if (!file) {

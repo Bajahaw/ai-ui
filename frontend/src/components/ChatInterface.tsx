@@ -54,12 +54,13 @@ import {
 	EditableMessageRef,
 } from "@/components/ai-elements/editable-message";
 import {
-	FileUpload,
 	FilesList,
 	AttachmentMessage,
 	UploadedFile,
 } from "@/components/ui/file-upload";
 import { uploadFile, FileUploadError } from "@/lib/api/files";
+import { FileManagerDialog } from "@/components/file-manager/FileManagerDialog";
+import { Paperclip } from "lucide-react";
 
 // Dynamic models are now loaded from providers via useModels hook
 
@@ -96,6 +97,7 @@ export const ChatInterface = ({
 	onUpdateMessage,
 }: ChatInterfaceProps) => {
 	const { models, isLoading: modelsLoading } = useModels();
+	const [fileManagerOpen, setFileManagerOpen] = useState(false);
 	const {
 		updateSingleSetting,
 		getSingleSetting,
@@ -272,13 +274,13 @@ export const ChatInterface = ({
 		onSendMessage(message, webSearch, model, attachments);
 	};
 	
-	const handleFileUploaded = useCallback((fileData: import("@/lib/api/types").File, file: File) => {
-		setUploadedFiles(prev => [...prev, { file, fileData }]);
+	const handleAttachFiles = useCallback((files: import("@/lib/api/types").File[]) => {
+		const newUploadedFiles = files.map(fileData => ({
+			file: new File([], fileData.name), // Dummy file object since we already have the data
+			fileData
+		}));
+		setUploadedFiles(prev => [...prev, ...newUploadedFiles]);
 		setUploadError(null);
-	}, []);
-
-	const handleFileUploadError = useCallback((error: string) => {
-		setUploadError(error);
 	}, []);
 
 	const handleRemoveFile = useCallback((index: number) => {
@@ -692,11 +694,14 @@ export const ChatInterface = ({
 					/>
 					<PromptInputToolbar>
 						<PromptInputTools>
-							<FileUpload
-								onFileUploaded={handleFileUploaded}
-								onError={handleFileUploadError}
+							<PromptInputButton
+								variant="ghost"
+								onClick={() => setFileManagerOpen(true)}
 								disabled={hasPendingMessages}
-							/>
+								title="Attach files"
+							>
+								<Paperclip size={16} />
+							</PromptInputButton>
 							<PromptInputButton
 								variant={webSearch ? "default" : "ghost"}
 								onClick={() => onWebSearchToggle(!webSearch)}
@@ -735,6 +740,12 @@ export const ChatInterface = ({
 					</PromptInputToolbar>
 				</PromptInput>
 			</div>
+
+			<FileManagerDialog
+				open={fileManagerOpen}
+				onOpenChange={setFileManagerOpen}
+				onAttach={handleAttachFiles}
+			/>
 		</div>
 	);
 };
