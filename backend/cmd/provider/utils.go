@@ -68,6 +68,10 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 					},
 				},
 			}
+			// for compatibility with gemini tool messages
+			openaiMessages[i].OfTool.SetExtraFields(
+				map[string]any{"name": msg.ToolCall.Name},
+			)
 
 		default:
 			log.Warn("Unknown role %s in message, skipping", msg.Role)
