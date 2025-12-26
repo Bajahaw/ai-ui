@@ -200,6 +200,9 @@ func GetServerURL(r *http.Request) string {
 		return ServerURL
 	}
 	scheme := "https"
+	if os.Getenv("ENV") == "dev" {
+		scheme = "http"
+	}
 	// if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 	// 	scheme = "https"
 	// }
