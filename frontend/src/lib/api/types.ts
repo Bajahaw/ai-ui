@@ -12,9 +12,13 @@ export interface RegisterResponse {
 // File types
 export interface File {
 	id: string;
+	name: string;
 	type: string;
+	size: number;
+	path: string;
 	url: string;
 	content: string;
+	createdAt: string;
 }
 
 export interface Attachment {

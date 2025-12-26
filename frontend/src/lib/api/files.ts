@@ -24,6 +24,7 @@ export const uploadFile = async (file: File): Promise<FileUploadResponse> => {
 
 	const formData = new FormData();
 	formData.append("file", file);
+	formData.append("lastModified", file.lastModified.toString());
 
 	try {
 		const response = await fetch(getApiUrl("/api/files/upload"), {

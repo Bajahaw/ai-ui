@@ -69,9 +69,13 @@ func InitDataSource(dataSourceName string) error {
 
 	CREATE TABLE IF NOT EXISTS Files (
 		id TEXT PRIMARY KEY,
+		name TEXT,
 		type TEXT NOT NULL,
+		size INTEGER,
+		path TEXT NOT NULL,
 		url TEXT NOT NULL,
-		content TEXT NOT NULL
+		content TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 	
 	CREATE TABLE IF NOT EXISTS Messages (

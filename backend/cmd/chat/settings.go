@@ -84,7 +84,7 @@ func setDefaultSettings() {
 		"systemPrompt": "You are a helpful assistant. Provide clear accurate and helpful responses to the user questions.",
 		// "responseType":      "stream",
 		"reasoningEffort":   "disabled",
-		"attachmentOcrOnly": "true",
+		"attachmentOcrOnly": "false",
 		"ocrModel":          "deepseek-ocr",
 	}
 

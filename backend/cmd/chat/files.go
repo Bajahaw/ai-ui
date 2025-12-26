@@ -6,16 +6,22 @@ import (
 	"ai-client/cmd/utils"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 type File struct {
-	ID      string `json:"id"`
-	Type    string `json:"type"`
-	URL     string `json:"url"`
-	Content string `json:"content"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Type      string `json:"type"`
+	Size      int64  `json:"size"`
+	Path      string `json:"path"`
+	URL       string `json:"url"`
+	Content   string `json:"content"`
+	CreatedAt string `json:"createdAt"`
 }
 
 func upload(w http.ResponseWriter, r *http.Request) {
@@ -42,6 +48,8 @@ func upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Debug("file path", "path", filePath)
+
 	fileRawContent, err := os.ReadFile(filePath)
 	if err != nil {
 		log.Error("Error reading file", "err", err)
@@ -63,24 +71,37 @@ func upload(w http.ResponseWriter, r *http.Request) {
 		fileType = "audio"
 	}
 
-	filePath = strings.TrimPrefix(filePath, ".")
+	urlPath := strings.TrimPrefix(filePath, ".")
 
-	if !strings.HasPrefix(filePath, "/") {
-		filePath = "/" + filePath
+	if !strings.HasPrefix(urlPath, "/") {
+		urlPath = "/" + urlPath
 	}
 
-	if !strings.HasPrefix(filePath, "/data/resources/") {
-		log.Debug("Adjusting file path", "original", filePath)
-		filePath = "/data/resources/" + strings.TrimPrefix(filePath, "/")
+	if !strings.HasPrefix(urlPath, "/data/resources/") {
+		urlPath = "/data/resources/" + strings.TrimPrefix(urlPath, "/")
 	}
 
-	fileUrl := utils.GetServerURL(r) + filePath
+	fileUrl := utils.GetServerURL(r) + urlPath
+
+	createdAt := time.Now()
+	lastModifiedStr := r.FormValue("lastModified")
+	if lastModifiedStr != "" {
+		if ts, err := strconv.ParseInt(lastModifiedStr, 10, 64); err == nil {
+			createdAt = time.UnixMilli(ts)
+		}
+	}
 
 	fileData := File{
-		ID:   uuid.NewString(),
-		Type: fileType,
-		URL:  fileUrl,
+		ID:        uuid.NewString(),
+		Name:      handler.Filename,
+		Type:      fileType,
+		Size:      handler.Size,
+		Path:      filePath,
+		URL:       fileUrl,
+		CreatedAt: createdAt.Format(time.RFC3339),
 	}
+
+	log.Debug("Uploaded file data", "file", fileData)
 
 	ocrOnly, _ := getSetting("attachmentOcrOnly")
 	if ocrOnly == "true" {
@@ -118,7 +139,7 @@ func getFile(w http.ResponseWriter, r *http.Request) {
 
 func getAllFiles(w http.ResponseWriter, r *http.Request) {
 	fileSql := `
-	SELECT id, type, url, content
+	SELECT id, name, type, size, path, url, content, created_at
 	FROM Files
 	`
 
@@ -135,9 +156,13 @@ func getAllFiles(w http.ResponseWriter, r *http.Request) {
 		var file File
 		if err := rows.Scan(
 			&file.ID,
+			&file.Name,
 			&file.Type,
+			&file.Size,
+			&file.Path,
 			&file.URL,
 			&file.Content,
+			&file.CreatedAt,
 		); err != nil {
 			log.Error("Error scanning file", "err", err)
 			continue
@@ -154,7 +179,7 @@ func getFilesDataByID(fileIDs []string) ([]File, error) {
 	}
 
 	fileSql := `
-	SELECT id, type, url, content
+	SELECT id, name, type, size, path, url, content, created_at
 	FROM Files
 	WHERE id IN (` + utils.SqlPlaceholders(len(fileIDs)) + `)
 	`
@@ -176,9 +201,13 @@ func getFilesDataByID(fileIDs []string) ([]File, error) {
 		var file File
 		if err := rows.Scan(
 			&file.ID,
+			&file.Name,
 			&file.Type,
+			&file.Size,
+			&file.Path,
 			&file.URL,
 			&file.Content,
+			&file.CreatedAt,
 		); err != nil {
 			log.Error("Error scanning file", "err", err)
 			continue
@@ -190,12 +219,16 @@ func getFilesDataByID(fileIDs []string) ([]File, error) {
 }
 
 func saveFileData(file File) error {
-	attSql := `INSERT INTO Files (id, type, url, content) VALUES (?, ?, ?, ?)`
+	attSql := `INSERT INTO Files (id, name, type, size, path, url, content, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 	_, err := data.DB.Exec(attSql,
 		file.ID,
+		file.Name,
 		file.Type,
+		file.Size,
+		file.Path,
 		file.URL,
 		file.Content,
+		file.CreatedAt,
 	)
 	if err != nil {
 		return err
@@ -208,13 +241,9 @@ func saveFileData(file File) error {
 // It sends a request to the OCR service and returns the extracted text.
 // currently supports images only. if file content is text, then it is not sent to OCR.
 func extractFileContent(file File) (string, error) {
-	splits := strings.Split(file.URL, "/")
-	filename := splits[len(splits)-1]
-	filePath := "./data/resources/" + filename
-
-	log.Debug("Extracting content from file", "path", filePath, "type", file.Type)
+	log.Debug("Extracting content from file", "path", file.Path, "type", file.Type)
 	if file.Type == "text" {
-		fileContent, err := os.ReadFile(filePath)
+		fileContent, err := os.ReadFile(file.Path)
 		if err != nil {
 			log.Error("Error reading text file", "err", err)
 			return "", err

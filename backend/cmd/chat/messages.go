@@ -239,7 +239,7 @@ func getAllConversationMessages(convID string) map[int]*Message {
 
 func getMessageAttachments(messageID int) []Attachment {
 	attachmentsSql := `
-	SELECT a.id, a.message_id, f.id, f.type, f.url, f.content
+	SELECT a.id, a.message_id, f.id, f.name, f.type, f.size, f.path, f.url, f.content, f.created_at
 	FROM Attachments a
 	JOIN Files f ON a.file_id = f.id
 	WHERE a.message_id = ?
@@ -259,9 +259,13 @@ func getMessageAttachments(messageID int) []Attachment {
 			&att.ID,
 			&att.MessageID,
 			&file.ID,
+			&file.Name,
 			&file.Type,
+			&file.Size,
+			&file.Path,
 			&file.URL,
 			&file.Content,
+			&file.CreatedAt,
 		); err != nil {
 			return nil
 		}
@@ -275,7 +279,7 @@ func getMessageAttachments(messageID int) []Attachment {
 func getAllConversationAttachments(convID string) map[int][]Attachment {
 	attachments := make(map[int][]Attachment)
 	sql := `
-	SELECT a.id, a.message_id, f.id, f.type, f.url, f.content
+	SELECT a.id, a.message_id, f.id, f.name, f.type, f.size, f.path, f.url, f.content, f.created_at
 	FROM Attachments a
 	JOIN Messages m ON a.message_id = m.id
 	JOIN Files f ON a.file_id = f.id
@@ -295,9 +299,13 @@ func getAllConversationAttachments(convID string) map[int][]Attachment {
 			&att.ID,
 			&att.MessageID,
 			&file.ID,
+			&file.Name,
 			&file.Type,
+			&file.Size,
+			&file.Path,
 			&file.URL,
 			&file.Content,
+			&file.CreatedAt,
 		); err != nil {
 			log.Error("Error scanning attachment", "err", err)
 			continue
