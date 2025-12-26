@@ -275,15 +275,20 @@ const components: Options["components"] = {
   pre: ({ node, className, children }) => {
     let language = "javascript";
 
-    if (typeof node?.properties?.className === "string") {
-      language = node.properties.className.replace("language-", "");
-    }
-
     const childrenIsCode =
       typeof children === "object" &&
       children !== null &&
       "type" in children &&
       children.type === "code";
+
+    if (childrenIsCode && "props" in children) {
+      const childProps = children.props as { className?: string };
+      if (typeof childProps.className === "string") {
+        language = childProps.className.replace("language-", "");
+      }
+    } else if (typeof node?.properties?.className === "string") {
+      language = node.properties.className.replace("language-", "");
+    }
 
     if (!childrenIsCode) {
       return (
