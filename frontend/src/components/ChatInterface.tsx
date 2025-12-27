@@ -36,7 +36,7 @@ import {
 	ToolOutput,
 } from "@/components/ai-elements/tool";
 import {
-	GlobeIcon,
+	// GlobeIcon,
 	AlertCircleIcon,
 	RotateCcwIcon,
 	CopyIcon,
@@ -89,7 +89,7 @@ export const ChatInterface = ({
 	messages,
 	webSearch,
 	currentConversation,
-	onWebSearchToggle,
+	// onWebSearchToggle,
 	onSendMessage,
 	onRetryMessage,
 	onSwitchBranch,
@@ -702,13 +702,13 @@ export const ChatInterface = ({
 							>
 								<Paperclip size={16} />
 							</PromptInputButton>
-							<PromptInputButton
+							{/* <PromptInputButton
 								variant={webSearch ? "default" : "ghost"}
 								onClick={() => onWebSearchToggle(!webSearch)}
 							>
 								<GlobeIcon size={16} />
 								<span className="hidden sm:inline">Search</span>
-							</PromptInputButton>
+							</PromptInputButton> */}
 
 							<PromptInputModelSelect
 								models={models}
