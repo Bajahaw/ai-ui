@@ -103,7 +103,7 @@ func startServer() {
 	mux := http.NewServeMux()
 
 	mux.Handle("/", fs)
-	mux.Handle("/data/resources/", http.StripPrefix("/data/resources/", dataFs))
+	mux.Handle("/data/resources/", http.StripPrefix("/data/resources/", auth.Authenticated(dataFs)))
 
 	mux.Handle("/api/chat/", chat.Handler())
 	mux.Handle("/api/files/", chat.FileHandler())
