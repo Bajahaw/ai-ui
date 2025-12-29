@@ -2,7 +2,7 @@
 
 import {Loader2Icon, SendIcon, SquareIcon, XIcon} from "lucide-react";
 import type {ComponentProps, HTMLAttributes, KeyboardEventHandler,} from "react";
-import {Children, useCallback, useState} from "react";
+import {Children, forwardRef, useCallback, useState} from "react";
 import {ModelSelect,} from "@/components/ai-elements/model-select.tsx";
 import {Button} from "@/components/ui/button.tsx";
 import {Textarea} from "@/components/ui/textarea.tsx";
@@ -29,14 +29,14 @@ export type PromptInputTextareaProps = ComponentProps<typeof Textarea> & {
   onFilesPasted?: (files: File[]) => void;
 };
 
-export const PromptInputTextarea = ({
+export const PromptInputTextarea = forwardRef<HTMLTextAreaElement, PromptInputTextareaProps>(({
   onChange,
   onFilesPasted,
   className,
   placeholder = "What would you like to know?",
   value,
   ...props
-}: PromptInputTextareaProps) => {
+}, ref) => {
   const [input, setInput] = useState(value as string || "");
   const { settings } = useSettings();
 
@@ -83,6 +83,7 @@ export const PromptInputTextarea = ({
 
   return (
     <Textarea
+      ref={ref}
       className={cn(
         "w-full resize-none rounded-none border-none py-3 px-5 shadow-none outline-none ring-0",
         "bg-transparent dark:bg-transparent field-sizing-content max-h-[6lh]",
@@ -99,7 +100,8 @@ export const PromptInputTextarea = ({
       {...props}
     />
   );
-};
+});
+PromptInputTextarea.displayName = "PromptInputTextarea";
 
 export type PromptInputToolbarProps = HTMLAttributes<HTMLDivElement>;
 

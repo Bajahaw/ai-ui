@@ -120,6 +120,7 @@ export const ChatInterface = ({
 		{},
 	);
 	const conversationRef = useRef<HTMLDivElement>(null);
+	const promptInputRef = useRef<HTMLTextAreaElement>(null);
 	const [hasInteracted, setHasInteracted] = useState(false);
 	const previousConversationIdRef = useRef<string | undefined>(undefined);
 
@@ -141,6 +142,11 @@ export const ChatInterface = ({
 	useEffect(() => {
 		const currentId = currentConversation?.id;
 		const previousId = previousConversationIdRef.current;
+
+		// Focus prompt input when conversation changes
+		if (currentId !== previousId) {
+			promptInputRef.current?.focus();
+		}
 
 		// Check if this is a real conversation switch (not temp ID -> real ID transition)
 		// Temp IDs start with "conv-", real IDs are UUIDs (contain dashes in UUID format)
@@ -687,6 +693,8 @@ export const ChatInterface = ({
 					)}
 
 					<PromptInputTextarea
+						ref={promptInputRef}
+						autoFocus
 						onChange={(e) => setInput(e.target.value)}
 						value={input}
 						placeholder="Ask anything here ..."
