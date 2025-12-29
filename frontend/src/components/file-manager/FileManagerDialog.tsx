@@ -8,8 +8,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { Loader2, FileIcon, Upload, Search, Check, Paperclip } from "lucide-react";
-import { getFiles, uploadFile, formatFileSize, isImageFile } from "@/lib/api/files";
+import { Loader2, FileIcon, Upload, Search, Check, Paperclip, Trash2 } from "lucide-react";
+import { getFiles, uploadFile, formatFileSize, isImageFile, deleteFile } from "@/lib/api/files";
 import { File as ApiFile } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +27,7 @@ export function FileManagerDialog({
 	const [files, setFiles] = useState<ApiFile[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [uploading, setUploading] = useState(false);
+	const [deleting, setDeleting] = useState(false);
 	const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
 	const [searchQuery, setSearchQuery] = useState("");
 	const [isDragging, setIsDragging] = useState(false);
@@ -165,6 +166,26 @@ export function FileManagerDialog({
 		onOpenChange(false);
 	};
 
+	const handleDelete = async () => {
+		if (selectedFileIds.size === 0) return;
+		
+		setDeleting(true);
+		try {
+			const idsToDelete = Array.from(selectedFileIds);
+			for (const id of idsToDelete) {
+				await deleteFile(id);
+			}
+			
+			setFiles(prev => prev.filter(f => !selectedFileIds.has(f.id)));
+			setSelectedFileIds(new Set());
+		} catch (error) {
+			console.error("Failed to delete files:", error);
+			// TODO: Show error toast
+		} finally {
+			setDeleting(false);
+		}
+	};
+
 	const filteredFiles = files.filter(f => 
 		f.name.toLowerCase().includes(searchQuery.toLowerCase())
 	);
@@ -183,7 +204,7 @@ export function FileManagerDialog({
 					</DialogTitle>
 				</DialogHeader>
 
-				<div className="p-4 border-b flex items-center gap-4 bg-muted/30 flex-shrink-0">
+				<div className="p-4 flex items-center gap-4 flex-shrink-0">
 					<div className="relative flex-1">
 						<Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
 						<Input
@@ -195,7 +216,7 @@ export function FileManagerDialog({
 					</div>
 				</div>
 
-				<ScrollArea className="flex-1 p-4 min-h-0">
+				<ScrollArea className="flex-1 px-4 min-h-0">
 					{loading ? (
 						<div className="flex items-center justify-center h-full min-h-[200px]">
 							<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -260,7 +281,7 @@ export function FileManagerDialog({
 				<div className="p-4 border-t bg-muted/10 space-y-4 flex-shrink-0">
 					<div 
 						className={cn(
-							"border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-colors",
+							"border-2 border-dashed rounded-lg p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-colors",
 							isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/25",
 							uploading && "opacity-50 pointer-events-none"
 						)}
@@ -284,9 +305,6 @@ export function FileManagerDialog({
 						<p className="text-sm font-medium">
 							{uploading ? "Uploading..." : "Click to upload or drag and drop"}
 						</p>
-						<p className="text-xs text-muted-foreground mt-1">
-							Supports images and text files up to 10MB
-						</p>
 					</div>
 
 					<div className="flex items-center justify-between w-full">
@@ -294,10 +312,25 @@ export function FileManagerDialog({
 							{selectedFileIds.size} file{selectedFileIds.size !== 1 ? "s" : ""} selected
 						</div>
 						<div className="flex gap-2">
+							{selectedFileIds.size > 0 && (
+								<Button 
+									variant="destructive" 
+									onClick={handleDelete} 
+									disabled={deleting}
+									className="gap-2"
+								>
+									{deleting ? (
+										<Loader2 className="h-4 w-4 animate-spin" />
+									) : (
+										<Trash2 className="h-4 w-4" />
+									)}
+									Delete
+								</Button>
+							)}
 							<Button variant="outline" onClick={() => onOpenChange(false)}>
 								Cancel
 							</Button>
-							<Button onClick={handleAttach} disabled={selectedFileIds.size === 0}>
+							<Button onClick={handleAttach} disabled={selectedFileIds.size === 0 || deleting}>
 								Attach Selected
 							</Button>
 						</div>

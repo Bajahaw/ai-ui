@@ -63,6 +63,17 @@ export const uploadFile = async (file: File): Promise<FileUploadResponse> => {
 	}
 };
 
+export const deleteFile = async (id: string): Promise<void> => {
+	const response = await fetch(getApiUrl(`/api/files/delete/${id}`), {
+		method: "DELETE",
+		credentials: "include",
+	});
+
+	if (!response.ok) {
+		throw new Error("Failed to delete file");
+	}
+};
+
 export const getFileExtension = (filename: string): string => {
 	return filename.split(".").pop()?.toLowerCase() || "";
 };

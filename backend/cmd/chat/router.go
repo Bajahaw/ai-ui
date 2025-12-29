@@ -45,6 +45,7 @@ func FileHandler() http.Handler {
 	mux.HandleFunc("POST /upload", upload)
 	mux.HandleFunc("GET  /{id}", getFile)
 	mux.HandleFunc("GET  /all", getAllFiles)
+	mux.HandleFunc("DELETE /delete/{id}", deleteFile)
 
 	return http.StripPrefix("/api/files", auth.Authenticated(mux))
 }

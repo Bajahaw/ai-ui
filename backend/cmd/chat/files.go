@@ -126,6 +126,35 @@ func getFile(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, files[0], http.StatusOK)
 }
 
+func deleteFile(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	// First, get the file data to delete the physical file
+	files, err := getFilesDataByID([]string{id})
+	if err != nil || len(files) == 0 {
+		log.Warn("File not found for deletion", "id", id, "err", err)
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	err = os.Remove(files[0].Path)
+	if err != nil {
+		log.Error("Error deleting physical file", "err", err)
+		http.Error(w, "Error deleting file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	deleteSql := `DELETE FROM Files WHERE id = ?`
+	_, err = data.DB.Exec(deleteSql, id)
+	if err != nil {
+		log.Error("Error deleting file record from database", "err", err)
+		http.Error(w, "Error deleting file record: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func getAllFiles(w http.ResponseWriter, r *http.Request) {
 	fileSql := `
 	SELECT id, name, type, size, path, url, content, created_at
