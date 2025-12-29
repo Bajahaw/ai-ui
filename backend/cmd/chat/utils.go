@@ -2,7 +2,10 @@ package chat
 
 import (
 	"ai-client/cmd/provider"
+	"encoding/base64"
 	"fmt"
+	"os"
+	"strings"
 )
 
 // Helper
@@ -68,8 +71,14 @@ func buildContext(convID string, start int) []provider.SimpleMessage {
 		} else {
 			// append only image URLs
 			for _, att := range msg.Attachments {
-				if att.File.Type == "image" && att.File.URL != "" {
-					imageURLs = append(imageURLs, att.File.URL)
+				if strings.HasPrefix(att.File.Type, "image/") && att.File.URL != "" {
+					image, err := os.ReadFile(att.File.Path)
+					if err != nil {
+						log.Error("Error reading attachment file", "err", err)
+						continue
+					}
+					b64url := "data:" + att.File.Type + ";base64," + toBase64(image)
+					imageURLs = append(imageURLs, b64url)
 				}
 			}
 		}
@@ -81,4 +90,8 @@ func buildContext(convID string, start int) []provider.SimpleMessage {
 		})
 	}
 	return messages
+}
+
+func toBase64(data []byte) string {
+	return base64.StdEncoding.EncodeToString(data)
 }

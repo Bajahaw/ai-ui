@@ -221,7 +221,7 @@ export const AttachmentMessage = ({
 
 	const markdownContent = attachments
 		.map((att) => {
-			const isImage = att.file.type === "image";
+			const isImage = att.file.type.startsWith("image/");
 			const filename = att.file.url.split("/").pop() || "file";
 
 			return isImage

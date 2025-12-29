@@ -60,17 +60,6 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	attType := http.DetectContentType(fileRawContent)
 	log.Debug("Detected file content type", "type", attType)
 
-	fileType := "file"
-	if strings.HasPrefix(attType, "text/") {
-		fileType = "text"
-	} else if strings.HasPrefix(attType, "image/") {
-		fileType = "image"
-	} else if strings.HasPrefix(attType, "video/") {
-		fileType = "video"
-	} else if strings.HasPrefix(attType, "audio/") {
-		fileType = "audio"
-	}
-
 	urlPath := strings.TrimPrefix(filePath, ".")
 
 	if !strings.HasPrefix(urlPath, "/") {
@@ -94,7 +83,7 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	fileData := File{
 		ID:        uuid.NewString(),
 		Name:      handler.Filename,
-		Type:      fileType,
+		Type:      attType,
 		Size:      handler.Size,
 		Path:      filePath,
 		URL:       fileUrl,
@@ -242,7 +231,7 @@ func saveFileData(file File) error {
 // currently supports images only. if file content is text, then it is not sent to OCR.
 func extractFileContent(file File) (string, error) {
 	log.Debug("Extracting content from file", "path", file.Path, "type", file.Type)
-	if file.Type == "text" {
+	if strings.HasPrefix(file.Type, "text/") {
 		fileContent, err := os.ReadFile(file.Path)
 		if err != nil {
 			log.Error("Error reading text file", "err", err)
