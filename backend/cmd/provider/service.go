@@ -152,6 +152,12 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 			contentDelta := chunk.Choices[0].Delta.Content
 			reasoningDelta := chunk.Choices[0].Delta.Reasoning
 
+			// for compatibility with specific providers
+			reasoningTxtDelta := chunk.Choices[0].Delta.ReasoningText
+			if reasoningTxtDelta != "" && reasoningDelta == "" {
+				reasoningDelta = reasoningTxtDelta
+			}
+
 			if contentDelta != "" || reasoningDelta != "" {
 
 				chunkData := StreamChunk{
@@ -238,9 +244,15 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 		})
 	}
 
+	// for compatibility with specific providers
+	reasoning := acc.Choices[0].Message.Reasoning
+	if reasoning == "" && acc.Choices[0].Message.ReasoningText != "" {
+		reasoning = acc.Choices[0].Message.ReasoningText
+	}
+
 	return &ChatCompletionMessage{
 		Content:   acc.Choices[0].Message.Content,
-		Reasoning: acc.Choices[0].Message.Reasoning,
+		Reasoning: reasoning,
 		ToolCalls: toolCalls,
 	}, nil
 }
