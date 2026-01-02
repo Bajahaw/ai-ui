@@ -78,15 +78,25 @@ export const EditableMessage = forwardRef<
 
     if (isEditing) {
       return (
-        <Textarea
-          ref={textareaRef}
-          value={editContent}
-          onChange={(e) => setEditContent(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Enter your message..."
-          className={cn("min-h-[100px] resize-none", className)}
-          disabled={disabled}
-        />
+        <div className={cn("grid w-full", className)}>
+          <div
+            aria-hidden="true"
+            className="col-start-1 row-start-1 invisible whitespace-pre-wrap break-words text-inherit font-inherit p-0 border-0"
+            style={{ minHeight: "1lh" }}
+          >
+            {editContent + "\u200b"}
+          </div>
+          <Textarea
+            ref={textareaRef}
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Enter your message..."
+            className="col-start-1 row-start-1 min-h-0 resize-none border-0 shadow-none focus-visible:ring-0 bg-transparent text-inherit overflow-hidden h-full w-full"
+            style={{ textAlign: "inherit" }}
+            disabled={disabled}
+          />
+        </div>
       );
     }
 
