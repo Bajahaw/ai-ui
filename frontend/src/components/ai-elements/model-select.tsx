@@ -76,7 +76,7 @@ export const ModelSelect = ({
                 aria-label={triggerAriaLabel}
                 size={size}
                 className={cn(
-                    "flex w-fit items-center justify-between gap-2 rounded-lg !border-none !bg-transparent transition-colors data-[placeholder]:text-muted-foreground",
+                    "flex w-fit items-center justify-between gap-2 rounded-lg !border-none !bg-transparent transition-colors data-[placeholder]:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0",
                     variantStyles[variant],
                     sizeStyles[size],
                     isDisabled && "opacity-60",
