@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { ConversationSidebar } from "@/components/ai-elements/conversation-sidebar";
@@ -19,6 +19,37 @@ function App() {
 	const [lastMessageContent, setLastMessageContent] = useState<string>("");
 	const [lastMessageTime, setLastMessageTime] = useState<number>(0);
 	const [showSettings, setShowSettings] = useState(false);
+
+	// Touch handling for swipe gestures
+	const touchStartRef = useRef<number | null>(null);
+	const minSwipeDistance = 50;
+	const maxEdgeStart = 50; // Only allow opening swipe from the left edge
+
+	const onTouchStart = (e: React.TouchEvent) => {
+		touchStartRef.current = e.targetTouches[0].clientX;
+	};
+
+	const onTouchEnd = (e: React.TouchEvent) => {
+		if (!touchStartRef.current) return;
+		
+		const touchEnd = e.changedTouches[0].clientX;
+		const distance = touchStartRef.current - touchEnd;
+		const isLeftSwipe = distance > minSwipeDistance;
+		const isRightSwipe = distance < -minSwipeDistance;
+		const startFromLeftEdge = touchStartRef.current < maxEdgeStart;
+
+		// Reset touch start
+		touchStartRef.current = null;
+
+		// Only handle gestures on mobile
+		if (window.innerWidth >= 768) return;
+
+		if (isRightSwipe && startFromLeftEdge && sidebarCollapsed) {
+			setSidebarCollapsed(false);
+		} else if (isLeftSwipe && !sidebarCollapsed) {
+			setSidebarCollapsed(true);
+		}
+	};
 
 	// Conversation management with optimistic updates
 	const {
@@ -167,7 +198,11 @@ function App() {
 	}, [conversations]);
 
 	return (
-		<div className="flex fixed inset-0 overflow-hidden overscroll-none">
+		<div 
+			className="flex fixed inset-0 overflow-hidden overscroll-none"
+			onTouchStart={onTouchStart}
+			onTouchEnd={onTouchEnd}
+		>
 			{/* Overlay for mobile */}
 			{!sidebarCollapsed && window.innerWidth < 768 && (
 				<div className="sidebar-overlay" onClick={handleToggleSidebar} />
