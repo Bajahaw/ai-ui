@@ -143,11 +143,6 @@ export const ChatInterface = ({
 		const currentId = currentConversation?.id;
 		const previousId = previousConversationIdRef.current;
 
-		// Focus prompt input when conversation changes
-		if (currentId !== previousId) {
-			promptInputRef.current?.focus();
-		}
-
 		// Check if this is a real conversation switch (not temp ID -> real ID transition)
 		// Temp IDs start with "conv-", real IDs are UUIDs (contain dashes in UUID format)
 		const isTempId = (id: string | undefined) => id?.startsWith("conv-");
