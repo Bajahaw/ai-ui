@@ -664,7 +664,7 @@ export const ChatInterface = ({
 				<ConversationScrollButton />
 			</Conversation>
 
-			<div className="flex-shrink-0 flex justify-center !p-6 !pt-4">
+			<div className="flex-shrink-0 flex justify-center !p-6 !pt-0">
 				<PromptInput
 					onSubmit={handleSubmit}
 					className="chat-interface w-full max-w-3xl mx-auto"

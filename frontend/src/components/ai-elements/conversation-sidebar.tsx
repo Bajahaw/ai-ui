@@ -17,6 +17,7 @@ import {
     TrashIcon,
     LogInIcon,
     LogOutIcon,
+    SidebarIcon,
 } from "lucide-react";
 import {cn} from "@/lib/utils";
 import {ComponentProps, useState} from "react";
@@ -109,7 +110,17 @@ export const ConversationSidebar = ({
             >
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 flex-shrink-0">
-                    <h2 className="font-semibold text-sm">Conversations</h2>
+                    <div className="flex items-center gap-1">
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={onToggleCollapse}
+							className="hover:bg-accent"
+						>
+							<SidebarIcon className="size-4" />
+                            <h2 className="font-semibold text-sm">Conversations</h2>
+						</Button>
+					</div>
                     <Button
                         variant="ghost"
                         size="sm"

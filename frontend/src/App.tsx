@@ -187,7 +187,7 @@ function App() {
 
 			{/* Main Content */}
 			<div className="chat-container overflow-hidden">
-				<div className="flex justify-between items-center p-6 pb-4">
+				<div className="flex justify-between items-center p-4 pb-2">
 					<div className="flex items-center gap-3">
 						<Button
 							variant="ghost"
