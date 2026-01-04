@@ -236,8 +236,12 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 	// so we generate our own IDs here
 	var toolCalls []tools.ToolCall
 	for _, tc := range acc.Choices[0].Message.ToolCalls {
+		id, ok := uniqueToolIDs[tc.ID]
+		if !ok {
+			id = uuid.New().String()
+		}
 		toolCalls = append(toolCalls, tools.ToolCall{
-			ID:          uniqueToolIDs[tc.ID],
+			ID:          id,
 			ReferenceID: tc.ID,
 			Name:        tc.Function.Name,
 			Args:        tc.Function.Arguments,

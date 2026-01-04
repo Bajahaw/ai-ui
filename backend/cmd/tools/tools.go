@@ -43,7 +43,7 @@ func ExecuteToolCall(toolCall ToolCall) string {
 		output = executeMCPTool(toolCall)
 	}
 
-	toolCallsRepo.SaveToolCall(ToolCall{
+	err := toolCallsRepo.SaveToolCall(ToolCall{
 		ID:          toolCall.ID,
 		ReferenceID: toolCall.ReferenceID,
 		ConvID:      toolCall.ConvID,
@@ -52,6 +52,9 @@ func ExecuteToolCall(toolCall ToolCall) string {
 		Args:        toolCall.Args,
 		Output:      output,
 	})
+	if err != nil {
+		log.Error("Error saving tool call output", "err", err)
+	}
 
 	return output
 }
@@ -59,11 +62,13 @@ func ExecuteToolCall(toolCall ToolCall) string {
 func executeMCPTool(toolCall ToolCall) string {
 	tool, err := toolRepo.GetToolByName(toolCall.Name)
 	if err != nil {
+		log.Error("Error retrieving tool", "err", err)
 		return "Error occurred while retrieving tool."
 	}
 
 	server, err := mcpRepo.GetMCPServer(tool.MCPServerID)
 	if err != nil {
+		log.Error("Error retrieving MCP server", "err", err)
 		return "Error occurred while retrieving MCP server."
 	}
 
