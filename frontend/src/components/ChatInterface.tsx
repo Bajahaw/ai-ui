@@ -64,6 +64,16 @@ import { Paperclip } from "lucide-react";
 
 // Dynamic models are now loaded from providers via useModels hook
 
+const safeParseJSON = (jsonString: string | undefined) => {
+	if (!jsonString) return {};
+	try {
+		return JSON.parse(jsonString);
+	} catch (e) {
+		console.error("Failed to parse JSON:", e);
+		return { error: "Invalid JSON", raw: jsonString };
+	}
+};
+
 interface ChatInterfaceProps {
 	messages: FrontendMessage[];
 	webSearch: boolean;
@@ -610,7 +620,7 @@ export const ChatInterface = ({
 													/>
 													<ToolContent>
 														<ToolInput
-															input={toolCall.args ? JSON.parse(toolCall.args) : {}}
+															input={safeParseJSON(toolCall.args)}
 														/>
 														{toolCall.tool_output && (
 															<ToolOutput
