@@ -14,7 +14,7 @@ import { ModelsSection } from "./ModelsSection";
 import { MCPServersSection } from "./MCPServersSection";
 import { ToolsSection } from "./ToolsSection";
 import { DocumentsSection } from "./DocumentsSection";
-import { SettingsDataProvider, useSettingsData } from "@/hooks/useSettingsData";
+import { useSettingsData } from "@/hooks/useSettingsData";
 
 interface SettingsDialogProps {
 	open: boolean;
@@ -145,9 +145,7 @@ const SettingsDialogContent = () => {
 export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<SettingsDataProvider>
-				<SettingsDialogContent />
-			</SettingsDataProvider>
+			<SettingsDialogContent />
 		</Dialog>
 	);
 };

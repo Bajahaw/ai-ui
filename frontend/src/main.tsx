@@ -5,6 +5,7 @@ import "./globals.css";
 import { ThemeProvider } from "./components/theme-provider.tsx";
 import { AuthProvider, useAuth } from "./hooks/useAuth.tsx";
 import { ModelsProvider } from "./hooks/useModelsContext.tsx";
+import { SettingsDataProvider } from "./hooks/useSettingsData.tsx";
 
 /**
  * RegistrationSuccess - Shows the generated token
@@ -227,7 +228,9 @@ const AppWrapper = isDevelopment ? (
 		<ThemeProvider defaultTheme="dark" storageKey="ai-ui-theme">
 			<AuthGuard>
 				<ModelsProvider>
-					<App />
+					<SettingsDataProvider>
+						<App />
+					</SettingsDataProvider>
 				</ModelsProvider>
 			</AuthGuard>
 		</ThemeProvider>
@@ -238,7 +241,9 @@ const AppWrapper = isDevelopment ? (
 			<ThemeProvider defaultTheme="dark" storageKey="ai-ui-theme">
 				<AuthGuard>
 					<ModelsProvider>
-						<App />
+						<SettingsDataProvider>
+							<App />
+						</SettingsDataProvider>
 					</ModelsProvider>
 				</AuthGuard>
 			</ThemeProvider>

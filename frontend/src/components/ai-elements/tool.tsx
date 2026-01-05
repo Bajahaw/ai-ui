@@ -8,7 +8,7 @@ import {
   WrenchIcon,
   XCircleIcon,
 } from 'lucide-react';
-import type { ComponentProps, ReactNode } from 'react';
+import { type ComponentProps, type ReactNode, useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge.tsx';
 import {
   Collapsible,
@@ -32,6 +32,7 @@ export type ToolHeaderProps = {
   type: ToolUIPart['type'];
   state: ToolUIPart['state'];
   className?: string;
+  mcpUrl?: string;
 };
 
 const getStatusBadge = (status: ToolUIPart['state']) => {
@@ -61,23 +62,61 @@ export const ToolHeader = ({
   className,
   type,
   state,
+  mcpUrl,
   ...props
-}: ToolHeaderProps) => (
-  <CollapsibleTrigger
-    className={cn(
-      'flex w-full items-center gap-4',
-      className,
-    )}
-    {...props}
-  >
-    <div className="flex items-center gap-2">
-      <WrenchIcon className="size-4 text-muted-foreground" />
-      <span className="font-sm text-muted-foreground text-sm">{type}</span>
-      {getStatusBadge(state)}
-    </div>
-    <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-  </CollapsibleTrigger>
-);
+}: ToolHeaderProps) => {
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [mcpUrl]);
+
+  let faviconUrl: string | null = null;
+  if (mcpUrl && !imageError) {
+    try {
+      const url = new URL(mcpUrl);
+      const hostname = url.hostname;
+      // Simple heuristic: if there are more than 2 parts and the first part is 'api' or 'www', remove it.
+      // This is a basic implementation of "trim subdomains".
+      const parts = hostname.split('.');
+      let domain = hostname;
+      if (parts.length > 2) {
+        domain = parts.slice(-2).join('.');
+      }
+      
+      faviconUrl = `https://www.google.com/s2/favicons?domain=https://${domain}&sz=32`;
+    } catch (e) {
+      console.warn('Invalid MCP URL for favicon:', mcpUrl);
+      // invalid url, ignore
+    }
+  }
+
+  return (
+    <CollapsibleTrigger
+      className={cn(
+        'flex w-full items-center gap-4',
+        className,
+      )}
+      {...props}
+    >
+      <div className="flex items-center gap-2">
+        {faviconUrl ? (
+          <img
+            src={faviconUrl}
+            className="size-4 rounded-sm object-contain"
+            onError={() => setImageError(true)}
+            alt="icon"
+          />
+        ) : (
+          <WrenchIcon className="size-4 text-muted-foreground" />
+        )}
+        <span className="font-sm text-muted-foreground text-sm">{type}</span>
+        {getStatusBadge(state)}
+      </div>
+      <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+    </CollapsibleTrigger>
+  );
+};
 
 export type ToolContentProps = ComponentProps<typeof CollapsibleContent>;
 

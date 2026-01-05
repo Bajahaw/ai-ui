@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useModels } from "@/hooks/useModels";
 import { useSettings } from "@/hooks/useSettings";
+import { useSettingsData } from "@/hooks/useSettingsData";
 
 import {
 	Message as MessageComponent,
@@ -113,6 +114,14 @@ export const ChatInterface = ({
 		getSingleSetting,
 		isLoading: settingsLoading,
 	} = useSettings();
+
+	const { data: settingsData, loaded: settingsDataLoaded, fetchAll: fetchSettingsData } = useSettingsData();
+
+	useEffect(() => {
+		if (!settingsDataLoaded) {
+			fetchSettingsData();
+		}
+	}, [settingsDataLoaded, fetchSettingsData]);
 
 	// Auto-select default model when models become available
 	const [model, setModel] = useState<string>("");
@@ -617,6 +626,12 @@ export const ChatInterface = ({
 													<ToolHeader
 														type={`tool-${toolCall.name}` as `tool-${string}`}
 														state={toolState}
+														mcpUrl={(() => {
+															const tool = settingsData.tools.find((t) => t.name === toolCall.name);
+															if (!tool || !tool.mcp_server_id) return undefined;
+															const server = settingsData.mcpServers.find((s) => s.id === tool.mcp_server_id);
+															return server?.endpoint;
+														})()}
 													/>
 													<ToolContent>
 														<ToolInput
