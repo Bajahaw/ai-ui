@@ -29,7 +29,6 @@
 		"ai": "^5.0.108",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
-		"embla-carousel-react": "^8.6.0",
 		"harden-react-markdown": "^1.1.7",
 		"katex": "^0.16.27",
 		"lucide-react": "^0.539.0",
@@ -41,9 +40,7 @@
 		"rehype-katex": "^7.0.1",
 		"remark-gfm": "^4.0.1",
 		"remark-math": "^6.0.0",
-		"tailwind-merge": "^3.4.0",
-		"use-stick-to-bottom": "^1.1.1",
-		"zod": "^3.25.76"
+		"tailwind-merge": "^3.4.0"
 	},
 	"devDependencies": {
 		"@types/node": "^24.10.2",

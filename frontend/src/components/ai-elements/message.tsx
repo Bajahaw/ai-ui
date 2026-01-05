@@ -1,5 +1,4 @@
-import {Avatar} from "@/components/ui/avatar";
-import type {ComponentProps, HTMLAttributes} from "react";
+import type {HTMLAttributes} from "react";
 import {cn} from "@/lib/utils";
 import type {UIMessage} from "ai";
 import {getTextAlignment, getTextDirection} from "@/lib/rtl-utils";
@@ -57,8 +56,3 @@ export const MessageContent = ({
     </div>
   </div>
 );
-
-export type MessageAvatarProps = ComponentProps<typeof Avatar> & {
-  src: string;
-  name?: string;
-};
