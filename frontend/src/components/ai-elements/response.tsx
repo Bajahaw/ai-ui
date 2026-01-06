@@ -149,6 +149,9 @@ function parseIncompleteMarkdown(text: string): string {
     }
   }
 
+  // Remove parentheses from citations e.g. ([link]) -> [link]
+  result = result.replace(/\(\s*(\[[^\]]+\](?:\[[^\]]*\]|\([^\)]+\)))\s*\)/g, "$1");
+
   return result;
 }
 
@@ -199,7 +202,10 @@ const components: Options["components"] = {
   ),
   a: ({ node, children, className, ...props }) => (
     <a
-      className={cn("underline", className)}
+      className={cn(
+        "inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[0.5625rem] leading-[0.8rem] text-secondary-foreground no-underline hover:bg-secondary-foreground/90 hover:text-primary-foreground transition-colors ease-in-out !duration-100",
+        className,
+      )}
       rel="noreferrer"
       target="_blank"
       {...props}

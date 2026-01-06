@@ -358,7 +358,7 @@
 /* Inline code styling NOT for code blocks */
 code:not(pre code) {
     background-color: hsl(var(--muted));
-    padding: 0.25rem 0.25rem;
+    padding: 0.15rem 0.35rem;
     border-radius: 0.2rem;
     font-size: 0.875rem;
     /* font-family: ui-monospace, SFMono-Regular, Menlo, monospace; */
