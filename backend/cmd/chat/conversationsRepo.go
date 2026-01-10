@@ -72,8 +72,12 @@ func (repo *ConversationRepository) touchConversation(id string) error {
 	}
 
 	rowsAffected, err := result.RowsAffected()
-	if err != nil || rowsAffected == 0 {
+	if err != nil {
 		return err
+	}
+
+	if rowsAffected == 0 {
+		return errors.New("conversation not found")
 	}
 
 	return nil
