@@ -47,6 +47,8 @@ export class ChatAPI {
         };
 
         try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minutes timeout
             const response = await fetch(getApiUrl("/api/chat/stream"), {
                 method: "POST",
                 headers: {
@@ -54,7 +56,10 @@ export class ChatAPI {
                 },
                 credentials: "include",
                 body: JSON.stringify(request),
+                signal: controller.signal,
             });
+
+            clearTimeout(timeoutId);
 
             if (!response.ok) {
                 const errorText = await response.text();
@@ -149,6 +154,8 @@ export class ChatAPI {
         };
 
         try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minutes timeout
             const response = await fetch(getApiUrl("/api/chat/retry/stream"), {
                 method: "POST",
                 headers: {
@@ -156,7 +163,10 @@ export class ChatAPI {
                 },
                 credentials: "include",
                 body: JSON.stringify(request),
+                signal: controller.signal,
             });
+
+            clearTimeout(timeoutId);
 
             if (!response.ok) {
                 const errorText = await response.text();
