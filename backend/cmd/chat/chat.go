@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"ai-client/cmd/auth"
 	"ai-client/cmd/provider"
 	"ai-client/cmd/tools"
 	"ai-client/cmd/utils"
@@ -38,6 +39,7 @@ type Response struct {
 }
 
 func chatStream(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	var req Request
 	err := utils.ExtractJSONBody(r, &req)
 	if err != nil || req.ConversationID == "" || req.Content == "" {
@@ -48,9 +50,9 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 
 	// Find or create conversation
 	convID := req.ConversationID
-	err = repo.touchConversation(req.ConversationID)
+	err = repo.touchConversation(req.ConversationID, user)
 	if err != nil {
-		conv := newConversation("admin")
+		conv := newConversation(user)
 		if err = repo.saveConversation(conv); err != nil {
 			log.Error("Error creating conversation", "err", err)
 			http.Error(w, fmt.Sprintf("Error creating conversation: %v", err), http.StatusBadRequest)
@@ -93,11 +95,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set SSE headers
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no")
+	utils.AddStreamHeaders(w)
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -116,8 +114,8 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	flusher.Flush()
 
 	// Build context from user message
-	ctx := buildContext(convID, userMessage.ID)
-	reasoningSetting, _ := getSetting("reasoningEffort")
+	ctx := buildContext(convID, userMessage.ID, user)
+	reasoningSetting, _ := getSetting("reasoningEffort", user)
 
 	providerParams := provider.RequestParams{
 		Messages:        ctx,
@@ -236,6 +234,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 // retryStream streams an alternative assistant response for a given user parent message.
 // It does not create a new user message; it uses the provided ParentID as context root.
 func retryStream(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	var req Retry
 	err := utils.ExtractJSONBody(r, &req)
 	if err != nil || req.ConversationID == "" || req.ParentID <= 0 {
@@ -245,7 +244,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ensure conversation exists
-	if err = repo.touchConversation(req.ConversationID); err != nil {
+	if err = repo.touchConversation(req.ConversationID, user); err != nil {
 		log.Error("Error retrieving conversation", "err", err)
 		http.Error(w, fmt.Sprintf("Error retrieving conversation: %v", err), http.StatusNotFound)
 		return
@@ -259,11 +258,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set SSE headers
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no")
+	utils.AddStreamHeaders(w)
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -283,8 +278,8 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	flusher.Flush()
 
 	// Build context from the parent message
-	ctx := buildContext(req.ConversationID, parent.ID)
-	reasoningSetting, _ := getSetting("reasoningEffort")
+	ctx := buildContext(req.ConversationID, parent.ID, user)
+	reasoningSetting, _ := getSetting("reasoningEffort", user)
 
 	providerParams := provider.RequestParams{
 		Messages:        ctx,
@@ -402,6 +397,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func update(W http.ResponseWriter, R *http.Request) {
+	user := auth.GetUsername(R)
 	var req Update
 	err := utils.ExtractJSONBody(R, &req)
 	if err != nil || req.ConversationID == "" || req.MessageID < 0 || req.Content == "" {
@@ -417,7 +413,7 @@ func update(W http.ResponseWriter, R *http.Request) {
 		return
 	}
 
-	err = repo.touchConversation(req.ConversationID)
+	err = repo.touchConversation(req.ConversationID, user)
 	if err != nil {
 		log.Error("Error touching conversation", "err", err)
 	}

@@ -9,12 +9,12 @@ import (
 )
 
 type ConversationRepo interface {
-	getConversation(id string) (*Conversation, error)
-	touchConversation(id string) error
-	getAllConversations() []*Conversation
+	getConversation(id string, user string) (*Conversation, error)
+	touchConversation(id string, user string) error
+	getAllConversations(user string) []*Conversation
 	saveConversation(conversation *Conversation) error
 	updateConversation(conversation *Conversation) error
-	deleteConversation(id string) error
+	deleteConversation(id string, user string) error
 }
 
 type ConversationRepository struct {
@@ -40,13 +40,13 @@ func newConversationRepository(db *sql.DB) *ConversationRepository {
 	}
 }
 
-func (repo *ConversationRepository) getConversation(id string) (*Conversation, error) {
+func (repo *ConversationRepository) getConversation(id string, user string) (*Conversation, error) {
 	if conv, exists := repo.cache[id]; exists {
 		return conv, nil
 	}
 
-	query := `SELECT * FROM Conversations WHERE id = ?`
-	row := repo.db.QueryRow(query, id)
+	query := `SELECT * FROM Conversations WHERE id = ? AND user = ?`
+	row := repo.db.QueryRow(query, id, user)
 
 	var conv Conversation
 	err := row.Scan(
@@ -64,9 +64,9 @@ func (repo *ConversationRepository) getConversation(id string) (*Conversation, e
 	return nil, errors.New("conversation not found")
 }
 
-func (repo *ConversationRepository) touchConversation(id string) error {
-	query := `UPDATE Conversations SET updated_at = ? WHERE id = ?`
-	result, err := repo.db.Exec(query, time.Now().UTC(), id)
+func (repo *ConversationRepository) touchConversation(id string, user string) error {
+	query := `UPDATE Conversations SET updated_at = ? WHERE id = ? AND user = ?`
+	result, err := repo.db.Exec(query, time.Now().UTC(), id, user)
 	if err != nil {
 		return err
 	}
@@ -83,11 +83,11 @@ func (repo *ConversationRepository) touchConversation(id string) error {
 	return nil
 }
 
-func (repo *ConversationRepository) getAllConversations() []*Conversation {
-	query := `SELECT * FROM Conversations`
+func (repo *ConversationRepository) getAllConversations(user string) []*Conversation {
+	query := `SELECT * FROM Conversations WHERE user = ?`
 	var conversations = make([]*Conversation, 0)
 
-	rows, err := repo.db.Query(query)
+	rows, err := repo.db.Query(query, user)
 	if err != nil {
 		log.Error("Error querying conversations", "err", err)
 		return conversations
@@ -144,9 +144,9 @@ func (repo *ConversationRepository) updateConversation(conversation *Conversatio
 	return nil
 }
 
-func (repo *ConversationRepository) deleteConversation(id string) error {
-	query := `DELETE FROM Conversations WHERE id = ?`
-	_, err := repo.db.Exec(query, id)
+func (repo *ConversationRepository) deleteConversation(id string, user string) error {
+	query := `DELETE FROM Conversations WHERE id = ? AND user = ?`
+	_, err := repo.db.Exec(query, id, user)
 	if err != nil {
 		return err
 	}

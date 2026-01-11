@@ -175,10 +175,15 @@ func updateMessage(id int, msg Message) (*Message, error) {
 	return &updatedMsg, nil
 }
 
-func getAllConversationMessages(convID string) map[int]*Message {
+func getAllConversationMessages(convID string, user string) map[int]*Message {
 	messages := make(map[int]*Message)
-	sql := `SELECT id, conv_id, role, model, content, reasoning, parent_id, error FROM Messages WHERE conv_id = ?`
-	rows, err := data.DB.Query(sql, convID)
+	sql := ` 
+	SELECT m.id, m.conv_id, m.role, m.model, m.content, m.reasoning, m.parent_id, m.error
+	FROM Messages m 
+	INNER JOIN Conversations c ON m.conv_id = c.id
+	WHERE m.conv_id = ? AND c.user = ? 
+	`
+	rows, err := data.DB.Query(sql, convID, user)
 	if err != nil {
 		log.Error("Error querying messages", "err", err)
 		return messages

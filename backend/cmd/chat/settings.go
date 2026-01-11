@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"ai-client/cmd/auth"
 	"ai-client/cmd/data"
 	"ai-client/cmd/utils"
 	"net/http"
@@ -10,9 +11,10 @@ type Settings struct {
 	Settings map[string]string `json:"settings"`
 }
 
-func getAllSettings(w http.ResponseWriter, _ *http.Request) {
-	sql := "SELECT key, value FROM Settings"
-	rows, err := data.DB.Query(sql)
+func getAllSettings(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
+	sql := "SELECT key, value FROM Settings WHERE user = ?"
+	rows, err := data.DB.Query(sql, user)
 	if err != nil {
 		log.Error("Error querying settings", "err", err)
 		http.Error(w, "Error querying settings", http.StatusInternalServerError)
@@ -36,6 +38,7 @@ func getAllSettings(w http.ResponseWriter, _ *http.Request) {
 }
 
 func updateSettings(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	var request Settings
 	err := utils.ExtractJSONBody(r, &request)
 	if err != nil {
@@ -44,7 +47,7 @@ func updateSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = saveUpdatedSettings(request)
+	err = saveUpdatedSettings(request, user)
 	if err != nil {
 		log.Error("Error updating settings", "err", err)
 		http.Error(w, "Error updating settings", http.StatusInternalServerError)
@@ -56,7 +59,7 @@ func updateSettings(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, &response, http.StatusOK)
 }
 
-func saveUpdatedSettings(s Settings) error {
+func saveUpdatedSettings(s Settings, user string) error {
 	for key, value := range s.Settings {
 		if key == "" {
 			log.Error("empty key in settings")
@@ -64,8 +67,8 @@ func saveUpdatedSettings(s Settings) error {
 		}
 
 		// on conflict, update the value
-		sql := "INSERT INTO Settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
-		_, err := data.DB.Exec(sql, key, value)
+		sql := "INSERT INTO Settings (key, value, user) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
+		_, err := data.DB.Exec(sql, key, value, user)
 		if err != nil {
 			return err
 		}
@@ -73,7 +76,7 @@ func saveUpdatedSettings(s Settings) error {
 	return nil
 }
 
-func setDefaultSettings() {
+func setDefaultSettings(user string) {
 	defaults := map[string]string{
 		"model": "gpt-4o",
 		// "temperature":       "0.7",
@@ -95,8 +98,8 @@ func setDefaultSettings() {
 		}
 
 		// on conflict, do not update the value
-		sql := "INSERT INTO Settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=Settings.value"
-		_, err := data.DB.Exec(sql, key, value)
+		sql := "INSERT INTO Settings (key, value, user) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value=Settings.value"
+		_, err := data.DB.Exec(sql, key, value, user)
 		if err != nil {
 			log.Error("Error setting default setting", "key", key, "err", err)
 			continue
@@ -104,9 +107,9 @@ func setDefaultSettings() {
 	}
 }
 
-func getSetting(key string) (string, error) {
-	sql := "SELECT value FROM Settings WHERE key = ?"
-	row := data.DB.QueryRow(sql, key)
+func getSetting(key string, user string) (string, error) {
+	sql := "SELECT value FROM Settings WHERE key = ? AND user = ?"
+	row := data.DB.QueryRow(sql, key, user)
 
 	var value string
 	err := row.Scan(&value)

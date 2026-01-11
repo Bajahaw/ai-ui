@@ -9,8 +9,8 @@ import (
 )
 
 // Helper
-func buildContext(convID string, start int) []provider.SimpleMessage {
-	var convMessages = getAllConversationMessages(convID) // todo: cache or something
+func buildContext(convID string, start int, user string) []provider.SimpleMessage {
+	var convMessages = getAllConversationMessages(convID, user) // todo: cache or something
 	var path []int
 	var current = start
 	log.Debug("Current message ID", "id", current)
@@ -23,8 +23,8 @@ func buildContext(convID string, start int) []provider.SimpleMessage {
 		current = leaf.ParentID
 	}
 
-	systemPrompt, _ := getSetting("systemPrompt")
-	attachmentOcrOnly, _ := getSetting("attachmentOcrOnly")
+	systemPrompt, _ := getSetting("systemPrompt", user)
+	attachmentOcrOnly, _ := getSetting("attachmentOcrOnly", user)
 	ocrOnly := attachmentOcrOnly == "true"
 
 	var messages = []provider.SimpleMessage{

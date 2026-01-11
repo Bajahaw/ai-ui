@@ -127,10 +127,7 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 		Tools:           toOpenAITools(tools.GetAvailableTools()),
 	}
 
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering if behind proxy
+	utils.AddStreamHeaders(w)
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {

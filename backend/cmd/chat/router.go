@@ -20,10 +20,10 @@ func Handler() http.Handler {
 func ConvsHandler() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET     	/", getAllConversations)
+	mux.HandleFunc("GET     /", getAllConversations)
 	mux.HandleFunc("POST 	/add", saveConversation)
 	mux.HandleFunc("GET  	/{id}", getConversation)
-	mux.HandleFunc("DELETE  	/{id}", deleteConversation)
+	mux.HandleFunc("DELETE  /{id}", deleteConversation)
 	mux.HandleFunc("POST 	/{id}/rename", renameConversation)
 	mux.HandleFunc("GET 	/{id}/messages", getConversationMessages)
 
@@ -34,7 +34,7 @@ func SettingsHandler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET 	/", getAllSettings)
-	mux.HandleFunc("POST /update", updateSettings)
+	mux.HandleFunc("POST 	/update", updateSettings)
 
 	return http.StripPrefix("/api/settings", auth.Authenticated(mux))
 }
@@ -42,10 +42,10 @@ func SettingsHandler() http.Handler {
 func FileHandler() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /upload", upload)
-	mux.HandleFunc("GET  /{id}", getFile)
-	mux.HandleFunc("GET  /all", getAllFiles)
-	mux.HandleFunc("DELETE /delete/{id}", deleteFile)
+	mux.HandleFunc("POST 	/upload", upload)
+	mux.HandleFunc("GET 	/{id}", getFile)
+	mux.HandleFunc("GET 	/all", getAllFiles)
+	mux.HandleFunc("DELETE 	/delete/{id}", deleteFile)
 
 	return http.StripPrefix("/api/files", auth.Authenticated(mux))
 }

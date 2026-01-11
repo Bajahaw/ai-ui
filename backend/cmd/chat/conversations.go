@@ -1,10 +1,13 @@
 package chat
 
 import (
+	"ai-client/cmd/auth"
 	"ai-client/cmd/utils"
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Conversation struct {
@@ -26,7 +29,13 @@ func saveConversation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conv := &req.Conv
+	conv := &Conversation{
+		ID:        uuid.NewString(),
+		UserID:    auth.GetUsername(r),
+		Title:     req.Conv.Title,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
 
 	// debug
 	log.Debug("Adding conversation", "conversation", conv)
@@ -42,8 +51,9 @@ func saveConversation(w http.ResponseWriter, r *http.Request) {
 }
 
 func getConversation(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	convId := r.PathValue("id")
-	conv, err := repo.getConversation(convId)
+	conv, err := repo.getConversation(convId, user)
 	if err != nil {
 		log.Error("Error retrieving conversation", "err", err)
 		http.Error(w, "Error retrieving conversation", http.StatusNotFound)
@@ -52,17 +62,19 @@ func getConversation(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, &conv, http.StatusOK)
 }
 
-func getAllConversations(writer http.ResponseWriter, _ *http.Request) {
+func getAllConversations(writer http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	utils.RespondWithJSON(
 		writer,
-		repo.getAllConversations(),
+		repo.getAllConversations(user),
 		http.StatusOK,
 	)
 }
 
 func deleteConversation(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	convId := r.PathValue("id")
-	err := repo.deleteConversation(convId)
+	err := repo.deleteConversation(convId, user)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error deleting conversation: %v", err), http.StatusInternalServerError)
 		return
@@ -71,6 +83,7 @@ func deleteConversation(w http.ResponseWriter, r *http.Request) {
 }
 
 func renameConversation(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	convId := r.PathValue("id")
 	var req struct {
 		Title string `json:"title"`
@@ -82,7 +95,7 @@ func renameConversation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conv, err := repo.getConversation(convId)
+	conv, err := repo.getConversation(convId, user)
 	if err != nil {
 		log.Error("Error retrieving conversation", "err", err)
 		http.Error(w, "Error retrieving conversation", http.StatusNotFound)
@@ -102,7 +115,8 @@ func renameConversation(w http.ResponseWriter, r *http.Request) {
 }
 
 func getConversationMessages(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	convId := r.PathValue("id")
-	messages := getAllConversationMessages(convId)
+	messages := getAllConversationMessages(convId, user)
 	utils.RespondWithJSON(w, &messages, http.StatusOK)
 }

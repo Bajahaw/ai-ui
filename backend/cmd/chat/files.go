@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"ai-client/cmd/auth"
 	"ai-client/cmd/data"
 	"ai-client/cmd/provider"
 	"ai-client/cmd/utils"
@@ -25,6 +26,7 @@ type File struct {
 }
 
 func upload(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	err := r.ParseMultipartForm(10 << 20) // limit to 10MB
 	if err != nil {
 		log.Error("Error parsing multipart form", "err", err)
@@ -92,9 +94,10 @@ func upload(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug("Uploaded file data", "file", fileData)
 
-	ocrOnly, _ := getSetting("attachmentOcrOnly")
+	ocrOnly, _ := getSetting("attachmentOcrOnly", user)
 	if ocrOnly == "true" {
-		fileContent, err := extractFileContent(fileData)
+		ocrModel, _ := getSetting("ocrModel", user)
+		fileContent, err := extractFileContent(fileData, ocrModel)
 		if err != nil {
 			log.Error("Error extracting file content", "err", err)
 			http.Error(w, "Error extracting file content: "+err.Error(), http.StatusInternalServerError)
@@ -258,7 +261,7 @@ func saveFileData(file File) error {
 // extractFileContent extracts text content from the file at the given URL.
 // It sends a request to the OCR service and returns the extracted text.
 // currently supports images only. if file content is text, then it is not sent to OCR.
-func extractFileContent(file File) (string, error) {
+func extractFileContent(file File, model string) (string, error) {
 	log.Debug("Extracting content from file", "path", file.Path, "type", file.Type)
 	if strings.HasPrefix(file.Type, "text/") {
 		fileContent, err := os.ReadFile(file.Path)
@@ -268,8 +271,6 @@ func extractFileContent(file File) (string, error) {
 		}
 		return string(fileContent), nil
 	}
-
-	ocrModel, _ := getSetting("ocrModel")
 
 	params := provider.RequestParams{
 		Messages: []provider.SimpleMessage{
@@ -288,7 +289,7 @@ func extractFileContent(file File) (string, error) {
 				},
 			},
 		},
-		Model: ocrModel,
+		Model: model,
 	}
 
 	response, err := providerClient.SendChatCompletionRequest(params)

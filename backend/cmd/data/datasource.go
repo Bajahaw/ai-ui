@@ -64,7 +64,8 @@ func InitDataSource(dataSourceName string) error {
 		user TEXT,
 		title TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user) REFERENCES Users(id) ON DELETE CASCADE
 	);
 
 	CREATE TABLE IF NOT EXISTS Files (
@@ -143,8 +144,10 @@ func InitDataSource(dataSourceName string) error {
 	);
 
 	CREATE TABLE IF NOT EXISTS Settings (
-		key TEXT PRIMARY KEY,
-		value TEXT NOT NULL
+		key TEXT NOT NULL,
+		value TEXT NOT NULL,
+		user TEXT NOT NULL,
+		PRIMARY KEY (key, user)
 	);
 	`
 

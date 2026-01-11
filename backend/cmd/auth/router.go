@@ -2,6 +2,7 @@ package auth
 
 import (
 	"ai-client/cmd/utils"
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"fmt"
@@ -27,9 +28,9 @@ func Setup(l *logger.Logger, d *sql.DB) {
 	db = d
 
 	// Try to get existing admin token
-	t, err := getAdminToken()
+	_, err := getAdminToken()
 	if err == nil {
-		token = t
+		// token = t
 		return
 	}
 
@@ -97,22 +98,28 @@ func Logout() http.HandlerFunc {
 
 func Authenticated(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t, _ := getAdminToken()
 		cookie, err := r.Cookie(authCookie)
-		if token != "" && (err != nil || cookie.Value != token) {
+		if t != "" && (err != nil || cookie.Value != token) {
 			log.Warn("Unauthorized access attempt", "path", r.URL.Path, "ip", r.RemoteAddr)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
+
+		// add username value to context
+		user := "admin"
+		r = r.WithContext(context.WithValue(r.Context(), "user", user))
+
 		next.ServeHTTP(w, r)
 	})
 }
 
 func Register() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if token != "" {
-			http.Error(w, "Registration is disabled", http.StatusForbidden)
-			return
-		}
+		// if token != "" {
+		// 	http.Error(w, "Registration is disabled", http.StatusForbidden)
+		// 	return
+		// }
 
 		t, err := getAdminToken()
 		if err == nil && t != "" {
@@ -172,10 +179,19 @@ func registerAdminUser(token string) error {
 }
 
 func getAdminToken() (string, error) {
+	if token != "" {
+		return token, nil
+	}
 	var t string
 	err := db.QueryRow(`SELECT token FROM users WHERE username = ?`, "admin").Scan(&t)
 	if err != nil {
 		return "", err
 	}
+	token = t
 	return t, nil
+}
+
+func GetUsername(r *http.Request) string {
+	ctx := r.Context()
+	return ctx.Value("user").(string)
 }
