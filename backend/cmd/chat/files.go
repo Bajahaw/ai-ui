@@ -22,6 +22,7 @@ type File struct {
 	Path      string `json:"path"`
 	URL       string `json:"url"`
 	Content   string `json:"content"`
+	User      string `json:"user,omitempty"`
 	CreatedAt string `json:"createdAt"`
 }
 
@@ -89,6 +90,7 @@ func upload(w http.ResponseWriter, r *http.Request) {
 		Size:      handler.Size,
 		Path:      filePath,
 		URL:       fileUrl,
+		User:      user,
 		CreatedAt: createdAt.Format(time.RFC3339),
 	}
 
@@ -118,8 +120,9 @@ func upload(w http.ResponseWriter, r *http.Request) {
 }
 
 func getFile(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	id := r.PathValue("id")
-	files, err := getFilesDataByID([]string{id})
+	files, err := getFilesDataByID([]string{id}, user)
 	if err != nil || len(files) == 0 {
 		log.Warn("File not found", "id", id, "err", err)
 		http.Error(w, "File not found", http.StatusNotFound)
@@ -130,10 +133,11 @@ func getFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteFile(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	id := r.PathValue("id")
 
 	// First, get the file data to delete the physical file
-	files, err := getFilesDataByID([]string{id})
+	files, err := getFilesDataByID([]string{id}, user)
 	if err != nil || len(files) == 0 {
 		log.Warn("File not found for deletion", "id", id, "err", err)
 		http.Error(w, "File not found", http.StatusNotFound)
@@ -147,8 +151,8 @@ func deleteFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deleteSql := `DELETE FROM Files WHERE id = ?`
-	_, err = data.DB.Exec(deleteSql, id)
+	deleteSql := `DELETE FROM Files WHERE id = ? AND user = ?`
+	_, err = data.DB.Exec(deleteSql, id, user)
 	if err != nil {
 		log.Error("Error deleting file record from database", "err", err)
 		http.Error(w, "Error deleting file record: "+err.Error(), http.StatusInternalServerError)
@@ -159,12 +163,14 @@ func deleteFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAllFiles(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	fileSql := `
 	SELECT id, name, type, size, path, url, content, created_at
 	FROM Files
+	WHERE user = ?
 	`
 
-	rows, err := data.DB.Query(fileSql)
+	rows, err := data.DB.Query(fileSql, user)
 	if err != nil {
 		log.Error("Error querying all files", "err", err)
 		http.Error(w, "Error retrieving files", http.StatusInternalServerError)
@@ -194,7 +200,7 @@ func getAllFiles(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, files, http.StatusOK)
 }
 
-func getFilesDataByID(fileIDs []string) ([]File, error) {
+func getFilesDataByID(fileIDs []string, user string) ([]File, error) {
 	if len(fileIDs) == 0 {
 		return []File{}, nil
 	}
@@ -202,13 +208,14 @@ func getFilesDataByID(fileIDs []string) ([]File, error) {
 	fileSql := `
 	SELECT id, name, type, size, path, url, content, created_at
 	FROM Files
-	WHERE id IN (` + utils.SqlPlaceholders(len(fileIDs)) + `)
+	WHERE id IN (` + utils.SqlPlaceholders(len(fileIDs)) + `) AND user = ?
 	`
 
-	args := make([]interface{}, len(fileIDs))
+	args := make([]any, len(fileIDs)+1)
 	for i, id := range fileIDs {
 		args[i] = id
 	}
+	args[len(fileIDs)] = user
 
 	rows, err := data.DB.Query(fileSql, args...)
 	if err != nil {
@@ -240,7 +247,7 @@ func getFilesDataByID(fileIDs []string) ([]File, error) {
 }
 
 func saveFileData(file File) error {
-	attSql := `INSERT INTO Files (id, name, type, size, path, url, content, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	attSql := `INSERT INTO Files (id, name, type, size, path, url, content, user, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	_, err := data.DB.Exec(attSql,
 		file.ID,
 		file.Name,
@@ -249,6 +256,7 @@ func saveFileData(file File) error {
 		file.Path,
 		file.URL,
 		file.Content,
+		file.User,
 		file.CreatedAt,
 	)
 	if err != nil {

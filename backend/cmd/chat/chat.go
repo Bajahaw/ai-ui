@@ -61,7 +61,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		convID = conv.ID
 	}
 
-	files, err := getFilesDataByID(req.AttachedFileIDs)
+	files, err := getFilesDataByID(req.AttachedFileIDs, user)
 	if err != nil {
 		log.Error("Error getting files data", "err", err)
 		http.Error(w, fmt.Sprintf("Error getting files data: %v", err), http.StatusBadRequest)

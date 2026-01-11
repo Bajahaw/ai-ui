@@ -76,7 +76,9 @@ func InitDataSource(dataSourceName string) error {
 		path TEXT NOT NULL,
 		url TEXT NOT NULL,
 		content TEXT NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		user TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user) REFERENCES Users(username) ON DELETE CASCADE
 	);
 	
 	CREATE TABLE IF NOT EXISTS Messages (
