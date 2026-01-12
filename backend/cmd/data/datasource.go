@@ -153,7 +153,8 @@ func InitDataSource(dataSourceName string) error {
 		key TEXT NOT NULL,
 		value TEXT NOT NULL,
 		user TEXT NOT NULL,
-		PRIMARY KEY (key, user)
+		PRIMARY KEY (key, user),
+		FOREIGN KEY (user) REFERENCES Users(username) ON DELETE CASCADE
 	);
 	`
 

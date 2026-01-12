@@ -67,7 +67,7 @@ func saveUpdatedSettings(s Settings, user string) error {
 		}
 
 		// on conflict, update the value
-		sql := "INSERT INTO Settings (key, value, user) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
+		sql := "INSERT INTO Settings (key, value, user) VALUES (?, ?, ?) ON CONFLICT(key, user) DO UPDATE SET value=excluded.value"
 		_, err := data.DB.Exec(sql, key, value, user)
 		if err != nil {
 			return err
@@ -76,7 +76,7 @@ func saveUpdatedSettings(s Settings, user string) error {
 	return nil
 }
 
-func setDefaultSettings(user string) {
+func SetDefaultSettings(user string) {
 	defaults := map[string]string{
 		"model": "gpt-4o",
 		// "temperature":       "0.7",
@@ -98,7 +98,7 @@ func setDefaultSettings(user string) {
 		}
 
 		// on conflict, do not update the value
-		sql := "INSERT INTO Settings (key, value, user) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value=Settings.value"
+		sql := "INSERT INTO Settings (key, value, user) VALUES (?, ?, ?) ON CONFLICT(key, user) DO NOTHING"
 		_, err := data.DB.Exec(sql, key, value, user)
 		if err != nil {
 			log.Error("Error setting default setting", "key", key, "err", err)
