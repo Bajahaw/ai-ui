@@ -27,8 +27,9 @@ type ToolListResponse struct {
 	Tools []Tool `json:"tools"`
 }
 
-func listAllTools(w http.ResponseWriter, _ *http.Request) {
-	tools := toolRepo.GetAllTools()
+func listAllTools(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
+	tools := toolRepo.GetAllTools(user)
 	response := ToolListResponse{
 		Tools: tools,
 	}
@@ -36,10 +37,26 @@ func listAllTools(w http.ResponseWriter, _ *http.Request) {
 }
 
 func saveListOfTools(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	var req ToolListResponse
 	if err := utils.ExtractJSONBody(r, &req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
+	}
+
+	mcp := mcpRepo.GetAllMCPServers(user)
+	mcpToUserID := make(map[string]string)
+	for _, server := range mcp {
+		mcpToUserID[server.ID] = server.User
+	}
+
+	for _, tool := range req.Tools {
+		if serverUser, exists := mcpToUserID[tool.MCPServerID]; exists {
+			if user != serverUser {
+				http.Error(w, "Unauthorized MCP server reference", http.StatusUnauthorized)
+				return
+			}
+		}
 	}
 
 	if err := toolRepo.SaveListOfTools(req.Tools); err != nil {

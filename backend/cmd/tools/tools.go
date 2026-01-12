@@ -30,7 +30,7 @@ type ToolCall struct {
 	Output      string `json:"tool_output,omitempty"`
 }
 
-func ExecuteToolCall(toolCall ToolCall) string {
+func ExecuteToolCall(toolCall ToolCall, user string) string {
 
 	output := ""
 
@@ -40,7 +40,7 @@ func ExecuteToolCall(toolCall ToolCall) string {
 	case "get_weather":
 		output = weatherTool()
 	default:
-		output = executeMCPTool(toolCall)
+		output = executeMCPTool(toolCall, user)
 	}
 
 	err := toolCallsRepo.SaveToolCall(ToolCall{
@@ -59,14 +59,14 @@ func ExecuteToolCall(toolCall ToolCall) string {
 	return output
 }
 
-func executeMCPTool(toolCall ToolCall) string {
+func executeMCPTool(toolCall ToolCall, user string) string {
 	tool, err := toolRepo.GetToolByName(toolCall.Name)
 	if err != nil {
 		log.Error("Error retrieving tool", "err", err)
 		return "Error occurred while retrieving tool."
 	}
 
-	server, err := mcpRepo.GetMCPServer(tool.MCPServerID)
+	server, err := mcpRepo.GetMCPServer(tool.MCPServerID, user)
 	if err != nil {
 		log.Error("Error retrieving MCP server", "err", err)
 		return "Error occurred while retrieving MCP server."
@@ -134,12 +134,11 @@ func executeMCPTool(toolCall ToolCall) string {
 	return string(rawJSON)
 }
 
-func GetAvailableTools() []Tool {
+func GetAvailableTools(user string) []Tool {
 	// builtInTools := GetBuiltInTools()
 	// mcpTools := toolRepo.GetAllTools()
 
-	allTools := toolRepo.GetAllTools()
-
+	allTools := toolRepo.GetAllTools(user)
 	var enabledTools []Tool
 	for _, t := range allTools {
 		if t.IsEnabled {

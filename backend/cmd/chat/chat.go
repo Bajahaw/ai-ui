@@ -121,6 +121,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		Messages:        ctx,
 		Model:           req.Model,
 		ReasoningEffort: provider.ReasoningEffort(reasoningSetting),
+		User:            user,
 	}
 
 	responseMessage := Message{
@@ -168,7 +169,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		toolCall.MessageID = responseMessage.ID
 		toolCall.ConvID = convID
 
-		output := tools.ExecuteToolCall(toolCall)
+		output := tools.ExecuteToolCall(toolCall, user)
 		toolCall.Output = output
 
 		chunk, _ := json.Marshal(provider.StreamChunk{
@@ -285,6 +286,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		Messages:        ctx,
 		Model:           req.Model,
 		ReasoningEffort: provider.ReasoningEffort(reasoningSetting),
+		User:            user,
 	}
 
 	responseMessage := Message{
@@ -336,7 +338,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		toolCall.MessageID = responseMessage.ID
 		toolCall.ConvID = req.ConversationID
 
-		output := tools.ExecuteToolCall(toolCall)
+		output := tools.ExecuteToolCall(toolCall, user)
 		toolCall.Output = output
 
 		chunk, _ := json.Marshal(provider.StreamChunk{

@@ -57,8 +57,9 @@ func ModelsHandler() http.Handler {
 	return http.StripPrefix("/api/models", auth.Authenticated(mux))
 }
 
-func getAllModels(w http.ResponseWriter, _ *http.Request) {
-	models := repo.getAllModels()
+func getAllModels(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
+	models := repo.getAllModels(user)
 	response := ModelsResponse{
 		Models: models,
 	}
@@ -109,8 +110,9 @@ func fetchAllModels(provider *Provider) []Model {
 	return models
 }
 
-func getProvidersList(w http.ResponseWriter, _ *http.Request) {
-	providers := repo.getAllProviders()
+func getProvidersList(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
+	providers := repo.getAllProviders(user)
 
 	response := make([]Response, 0, len(providers))
 	for _, p := range providers {
@@ -124,8 +126,9 @@ func getProvidersList(w http.ResponseWriter, _ *http.Request) {
 }
 
 func getProvider(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	id := r.PathValue("id")
-	provider, err := repo.getProvider(id)
+	provider, err := repo.getProvider(id, user)
 	if err != nil {
 		log.Error("Provider not found", "err", err)
 		http.Error(w, "Provider not found", http.StatusNotFound)
@@ -153,6 +156,7 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 		ID:      utils.ExtractProviderName(req.BaseURL) + "-" + uuid.New().String()[:4],
 		BaseURL: req.BaseURL,
 		APIKey:  req.APIKey,
+		User:    auth.GetUsername(r),
 	}
 
 	err = repo.saveProvider(provider)
@@ -178,8 +182,9 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteProvider(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	id := r.PathValue("id")
-	err := repo.deleteProvider(id)
+	err := repo.deleteProvider(id, user)
 	if err != nil {
 		log.Error("Error deleting provider", "err", err)
 		http.Error(w, "Error deleting provider", http.StatusInternalServerError)

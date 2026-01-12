@@ -21,7 +21,7 @@ func InitDataSource(dataSourceName string) error {
 	}
 	// Add _pragma=foreign_keys(1) to ensure foreign keys are enabled on every connection
 	// This is critical for modernc.org/sqlite with connection pooling
-	dsn := dataSourceName + "?_pragma=foreign_keys(1)"
+	dsn := dataSourceName + "??_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
 	DB, err = sql.Open("sqlite", dsn)
 	if err != nil {
 		return err
@@ -55,7 +55,7 @@ func InitDataSource(dataSourceName string) error {
 	schema := `
 	CREATE TABLE IF NOT EXISTS Users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		username TEXT NOT NULL,
+		username TEXT NOT NULL UNIQUE,
 		token TEXT NOT NULL
 	);
 	
@@ -128,13 +128,17 @@ func InitDataSource(dataSourceName string) error {
 		id TEXT PRIMARY KEY,
 		name TEXT NOT NULL,
 		endpoint TEXT NOT NULL,
-		api_key TEXT NOT NULL
+		api_key TEXT NOT NULL, 
+		user TEXT NOT NULL,
+		FOREIGN KEY (user) REFERENCES Users(username) ON DELETE CASCADE
 	);
 
 	CREATE TABLE IF NOT EXISTS Providers (
 		id TEXT PRIMARY KEY,
 		url TEXT NOT NULL,
-		api_key TEXT NOT NULL
+		api_key TEXT NOT NULL, 
+		user TEXT NOT NULL, 
+		FOREIGN KEY (user) REFERENCES Users(username) ON DELETE CASCADE
 	);
 
 	CREATE TABLE IF NOT EXISTS Models (

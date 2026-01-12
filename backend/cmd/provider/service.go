@@ -26,6 +26,7 @@ type RequestParams struct {
 	Messages        []SimpleMessage
 	Model           string
 	ReasoningEffort openai.ReasoningEffort
+	User            string
 }
 
 type ChatCompletionMessage struct {
@@ -53,7 +54,7 @@ type StreamComplete struct {
 
 func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompletionMessage, error) {
 	providerID, model := utils.ExtractProviderID(params.Model)
-	provider, err := repo.getProvider(providerID)
+	provider, err := repo.getProvider(providerID, params.User)
 	if err != nil {
 		log.Error("Error querying provider", "err", err)
 		return nil, errors.New("Model or provider not found")
@@ -70,7 +71,7 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompl
 	openAIparams := openai.ChatCompletionNewParams{
 		Model:    model,
 		Messages: OpenAIMessageParams(params.Messages),
-		Tools:    toOpenAITools(tools.GetAvailableTools()),
+		Tools:    toOpenAITools(tools.GetAvailableTools(params.User)),
 	}
 
 	log.Debug("Params ReasoningEffort:", "value", params.ReasoningEffort)
@@ -106,7 +107,7 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompl
 // SendChatCompletionStreamRequest streams chat completions and returns the full content
 func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w http.ResponseWriter) (*ChatCompletionMessage, error) {
 	providerID, model := utils.ExtractProviderID(params.Model)
-	provider, err := repo.getProvider(providerID)
+	provider, err := repo.getProvider(providerID, params.User)
 	if err != nil {
 		return nil, errors.New("Provider not found")
 	}
@@ -124,7 +125,7 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 		Model:           model,
 		Messages:        OpenAIMessageParams(params.Messages),
 		ReasoningEffort: params.ReasoningEffort,
-		Tools:           toOpenAITools(tools.GetAvailableTools()),
+		Tools:           toOpenAITools(tools.GetAvailableTools(params.User)),
 	}
 
 	utils.AddStreamHeaders(w)

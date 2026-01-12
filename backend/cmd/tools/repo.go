@@ -3,7 +3,7 @@ package tools
 import "database/sql"
 
 type ToolRepository interface {
-	GetAllTools() []Tool
+	GetAllTools(user string) []Tool
 	GetToolsByMCPServerID(mcpID string) []Tool
 	GetToolByName(name string) (Tool, error)
 	GetTool(id string) (Tool, error)
@@ -20,10 +20,15 @@ func NewToolRepository(db *sql.DB) ToolRepository {
 	return &ToolRepositoryImpl{db: db}
 }
 
-func (repo *ToolRepositoryImpl) GetAllTools() []Tool {
+func (repo *ToolRepositoryImpl) GetAllTools(user string) []Tool {
 	var allTools = make([]Tool, 0)
-	sql := `SELECT id, mcp_server_id, name, description, input_schema, require_approval, is_enabled FROM Tools`
-	rows, err := repo.db.Query(sql)
+	sql := `
+		SELECT t.id, t.mcp_server_id, t.name, t.description, t.input_schema, t.require_approval, t.is_enabled 
+		FROM Tools t
+		JOIN MCPServers m ON t.mcp_server_id = m.id
+		WHERE m.user = ?
+	`
+	rows, err := repo.db.Query(sql, user)
 
 	if err != nil {
 		log.Error("Error querying tools", "err", err)

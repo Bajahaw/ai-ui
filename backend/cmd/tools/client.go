@@ -31,5 +31,6 @@ func SetUpTools(l *logger.Logger, database *sql.DB) {
 		ID:    "default",
 		Name:  "Default Server",
 		Tools: GetBuiltInTools(),
+		User:  "admin",
 	})
 }

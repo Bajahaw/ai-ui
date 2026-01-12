@@ -9,15 +9,16 @@ type Provider struct {
 	ID      string `json:"id"`
 	BaseURL string `json:"base_url"`
 	APIKey  string `json:"api_key"`
+	User    string `json:"-"`
 }
 
 type Repository interface {
-	getAllProviders() []*Provider
-	getProvider(id string) (*Provider, error)
+	getAllProviders(user string) []*Provider
+	getProvider(id string, user string) (*Provider, error)
 	saveProvider(provider *Provider) error
-	deleteProvider(id string) error
+	deleteProvider(id string, user string) error
 	saveModels(models []Model) error
-	getAllModels() []Model
+	getAllModels(user string) []Model
 }
 
 type Repo struct {
@@ -32,10 +33,10 @@ func newProviderRepo(db *sql.DB) *Repo {
 	}
 }
 
-func (repo *Repo) getAllProviders() []*Provider {
+func (repo *Repo) getAllProviders(user string) []*Provider {
 	var allProviders = make([]*Provider, 0)
-	query := `SELECT id, url, api_key FROM Providers`
-	rows, err := repo.db.Query(query)
+	query := `SELECT id, url, api_key FROM Providers WHERE user = ?`
+	rows, err := repo.db.Query(query, user)
 	if err != nil {
 		log.Error("Error querying providers", "err", err)
 		return allProviders
@@ -51,6 +52,7 @@ func (repo *Repo) getAllProviders() []*Provider {
 			ID:      p.ID,
 			BaseURL: p.BaseURL,
 			APIKey:  p.APIKey,
+			User:    user,
 		})
 	}
 	if err = rows.Err(); err != nil {
@@ -60,10 +62,10 @@ func (repo *Repo) getAllProviders() []*Provider {
 	return allProviders
 }
 
-func (repo *Repo) getProvider(id string) (*Provider, error) {
+func (repo *Repo) getProvider(id string, user string) (*Provider, error) {
 	var p Provider
-	query := `SELECT id, url, api_key FROM Providers WHERE id = ?`
-	err := repo.db.QueryRow(query, id).Scan(&p.ID, &p.BaseURL, &p.APIKey)
+	query := `SELECT id, url, api_key FROM Providers WHERE id = ? AND user = ?`
+	err := repo.db.QueryRow(query, id, user).Scan(&p.ID, &p.BaseURL, &p.APIKey)
 	if err != nil {
 		return nil, err
 	}
@@ -72,22 +74,19 @@ func (repo *Repo) getProvider(id string) (*Provider, error) {
 		ID:      p.ID,
 		BaseURL: p.BaseURL,
 		APIKey:  p.APIKey,
+		User:    user,
 	}, nil
 }
 
 func (repo *Repo) saveProvider(provider *Provider) error {
-	query := `INSERT INTO Providers (id, url, api_key) VALUES (?, ?, ?)`
-	_, err := repo.db.Exec(query, provider.ID, provider.BaseURL, provider.APIKey)
-	if err != nil {
-		log.Error("Error saving provider", "err", err)
-	}
-
+	query := `INSERT INTO Providers (id, url, api_key, user) VALUES (?, ?, ?, ?)`
+	_, err := repo.db.Exec(query, provider.ID, provider.BaseURL, provider.APIKey, provider.User)
 	return err
 }
 
-func (repo *Repo) deleteProvider(id string) error {
-	query := `DELETE FROM Providers WHERE id = ?`
-	_, err := repo.db.Exec(query, id)
+func (repo *Repo) deleteProvider(id string, user string) error {
+	query := `DELETE FROM Providers WHERE id = ? AND user = ?`
+	_, err := repo.db.Exec(query, id, user)
 	return err
 }
 
@@ -116,10 +115,15 @@ func (repo *Repo) saveModels(models []Model) error {
 	return err
 }
 
-func (repo *Repo) getAllModels() []Model {
+func (repo *Repo) getAllModels(user string) []Model {
 	var models = make([]Model, 0)
-	query := `SELECT id, provider_id, name, is_enabled FROM Models`
-	rows, err := repo.db.Query(query)
+	query := `
+		SELECT m.id, m.provider_id, m.name, m.is_enabled 
+		FROM Models m
+		JOIN Providers p ON m.provider_id = p.id
+		WHERE p.user = ?
+	`
+	rows, err := repo.db.Query(query, user)
 	if err != nil {
 		log.Error("Error querying models", "err", err)
 		return models

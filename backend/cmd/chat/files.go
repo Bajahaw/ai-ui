@@ -298,6 +298,7 @@ func extractFileContent(file File, model string) (string, error) {
 			},
 		},
 		Model: model,
+		User:  file.User,
 	}
 
 	response, err := providerClient.SendChatCompletionRequest(params)

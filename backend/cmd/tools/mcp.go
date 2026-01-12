@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"ai-client/cmd/auth"
 	"ai-client/cmd/utils"
 	"context"
 	"encoding/json"
@@ -17,6 +18,7 @@ type MCPServer struct {
 	Name     string `json:"name"`
 	Endpoint string `json:"endpoint"`
 	APIKey   string `json:"api_key"`
+	User     string `json:"-"`
 	Tools    []Tool `json:"tools,omitempty"`
 }
 
@@ -39,8 +41,9 @@ type MCPServerRequest struct {
 	APIKey   string `json:"api_key"`
 }
 
-func listMCPServers(w http.ResponseWriter, _ *http.Request) {
-	servers := mcpRepo.GetAllMCPServers()
+func listMCPServers(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
+	servers := mcpRepo.GetAllMCPServers(user)
 	response := make([]MCPServerResponse, len(servers))
 	for i, server := range servers {
 		response[i] = MCPServerResponse{
@@ -54,8 +57,9 @@ func listMCPServers(w http.ResponseWriter, _ *http.Request) {
 }
 
 func getMCPServer(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	id := r.PathValue("id")
-	server, err := mcpRepo.GetMCPServer(id)
+	server, err := mcpRepo.GetMCPServer(id, user)
 	if err != nil {
 		log.Error("Error getting MCP server", "err", err)
 		http.Error(w, "MCP server not found", http.StatusNotFound)
@@ -72,6 +76,7 @@ func getMCPServer(w http.ResponseWriter, r *http.Request) {
 }
 
 func saveMCPServer(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	var req MCPServerRequest
 	err := utils.ExtractJSONBody(r, &req)
 	if err != nil {
@@ -85,6 +90,7 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 		Name:     req.Name,
 		Endpoint: req.Endpoint,
 		APIKey:   req.APIKey,
+		User:     user,
 	}
 
 	server.Tools, err = GetMCPTools(server)
@@ -113,8 +119,9 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteMCPServer(w http.ResponseWriter, r *http.Request) {
+	user := auth.GetUsername(r)
 	id := r.PathValue("id")
-	err := mcpRepo.DeleteMCPServer(id)
+	err := mcpRepo.DeleteMCPServer(id, user)
 	if err != nil {
 		log.Error("Error deleting MCP server", "err", err)
 		http.Error(w, "Error deleting MCP server", http.StatusInternalServerError)
