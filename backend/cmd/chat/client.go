@@ -18,5 +18,5 @@ func SetupChat(l *logger.Logger, db *sql.DB, pc provider.Client) {
 	providerClient = pc
 	repo = newConversationRepository(db)
 	toolCallsRepo = tools.NewToolCallsRepository(db)
-	setDefaultSettings("admin")
+	// SetDefaultSettings("admin")
 }

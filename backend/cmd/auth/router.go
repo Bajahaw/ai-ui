@@ -3,7 +3,6 @@ package auth
 import (
 	"ai-client/cmd/utils"
 	"context"
-	"crypto/rand"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -114,32 +113,6 @@ func Authenticated(next http.Handler) http.Handler {
 	})
 }
 
-func Register() http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// if token != "" {
-		// 	http.Error(w, "Registration is disabled", http.StatusForbidden)
-		// 	return
-		// }
-
-		t, err := getAdminToken()
-		if err == nil && t != "" {
-			http.Error(w, "Registration is disabled", http.StatusForbidden)
-			return
-		}
-
-		token = rand.Text()
-
-		err = registerAdminUser(token)
-		if err != nil {
-			log.Error("Failed to register admin user", "error", err)
-			http.Error(w, "Failed to register admin user", http.StatusInternalServerError)
-			return
-		}
-
-		utils.RespondWithJSON(w, map[string]string{"token": token}, http.StatusOK)
-	})
-}
-
 func GetAuthStatus() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var status = AuthStatus{
@@ -169,13 +142,6 @@ func GetAuthStatus() http.HandlerFunc {
 
 		utils.RespondWithJSON(w, &status, statusCode)
 	})
-}
-
-func registerAdminUser(token string) error {
-	_, err := db.Exec(
-		`INSERT INTO users (username, token) VALUES (?, ?)`,
-		"admin", token)
-	return err
 }
 
 func getAdminToken() (string, error) {

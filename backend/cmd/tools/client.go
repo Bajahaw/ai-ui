@@ -26,11 +26,21 @@ func SetUpTools(l *logger.Logger, database *sql.DB) {
 	}
 	log = l
 
-	// might get unique constraint error but that's fine
-	_ = mcpRepo.SaveMCPServer(MCPServer{
+	// // might get unique constraint error but that's fine
+	// _ = mcpRepo.SaveMCPServer(MCPServer{
+	// 	ID:    "default",
+	// 	Name:  "Default Server",
+	// 	Tools: GetBuiltInTools(),
+	// 	User:  "admin",
+	// })
+}
+
+func SaveDefaultMCPServer(user string) {
+	defaultServer := MCPServer{
 		ID:    "default",
 		Name:  "Default Server",
 		Tools: GetBuiltInTools(),
-		User:  "admin",
-	})
+		User:  user,
+	}
+	mcpRepo.SaveMCPServer(defaultServer)
 }

@@ -94,6 +94,10 @@ func startDataSource() {
 
 func setupAuth() {
 	auth.Setup(log, db)
+	auth.OnRegister = []auth.PostRegisterHook{
+		chat.SetDefaultSettings,
+		tools.SaveDefaultMCPServer,
+	}
 }
 
 func startServer() {
