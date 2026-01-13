@@ -24,12 +24,12 @@ func Handler() http.Handler {
 }
 
 type ToolListResponse struct {
-	Tools []Tool `json:"tools"`
+	Tools []*Tool `json:"tools"`
 }
 
 func listAllTools(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUsername(r)
-	tools := toolRepo.GetAllTools(user)
+	tools := tools.GetAll(user)
 	response := ToolListResponse{
 		Tools: tools,
 	}
@@ -44,7 +44,7 @@ func saveListOfTools(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mcp := mcpRepo.GetAllMCPServers(user)
+	mcp := mcps.GetAll(user)
 	mcpToUserID := make(map[string]string)
 	for _, server := range mcp {
 		mcpToUserID[server.ID] = server.User
@@ -59,7 +59,7 @@ func saveListOfTools(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := toolRepo.SaveListOfTools(req.Tools); err != nil {
+	if err := tools.SaveAll(req.Tools); err != nil {
 		http.Error(w, "Error saving tools", http.StatusInternalServerError)
 		return
 	}

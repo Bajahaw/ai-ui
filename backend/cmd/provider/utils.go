@@ -98,7 +98,7 @@ func ReasoningEffort(level string) openai.ReasoningEffort {
 	}
 }
 
-func toOpenAITools(tool []tools.Tool) []openai.ChatCompletionToolUnionParam {
+func toOpenAITools(tool []*tools.Tool) []openai.ChatCompletionToolUnionParam {
 	var result []openai.ChatCompletionToolUnionParam
 	for _, t := range tool {
 		var inputSchema map[string]any

@@ -54,7 +54,7 @@ type StreamComplete struct {
 
 func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompletionMessage, error) {
 	providerID, model := utils.ExtractProviderID(params.Model)
-	provider, err := repo.getProvider(providerID, params.User)
+	provider, err := providers.GetByID(providerID, params.User)
 	if err != nil {
 		log.Error("Error querying provider", "err", err)
 		return nil, errors.New("Model or provider not found")
@@ -107,7 +107,7 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompl
 // SendChatCompletionStreamRequest streams chat completions and returns the full content
 func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w http.ResponseWriter) (*ChatCompletionMessage, error) {
 	providerID, model := utils.ExtractProviderID(params.Model)
-	provider, err := repo.getProvider(providerID, params.User)
+	provider, err := providers.GetByID(providerID, params.User)
 	if err != nil {
 		return nil, errors.New("Provider not found")
 	}

@@ -40,7 +40,7 @@ func saveConversation(w http.ResponseWriter, r *http.Request) {
 	// debug
 	log.Debug("Adding conversation", "conversation", conv)
 
-	err = repo.saveConversation(conv)
+	err = conversations.Save(conv)
 	if err != nil {
 		log.Error("Error adding conversation", "err", err)
 		http.Error(w, fmt.Sprintf("Error adding conversation: %v", err), http.StatusInternalServerError)
@@ -53,7 +53,7 @@ func saveConversation(w http.ResponseWriter, r *http.Request) {
 func getConversation(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUsername(r)
 	convId := r.PathValue("id")
-	conv, err := repo.getConversation(convId, user)
+	conv, err := conversations.GetByID(convId, user)
 	if err != nil {
 		log.Error("Error retrieving conversation", "err", err)
 		http.Error(w, "Error retrieving conversation", http.StatusNotFound)
@@ -66,7 +66,7 @@ func getAllConversations(writer http.ResponseWriter, r *http.Request) {
 	user := auth.GetUsername(r)
 	utils.RespondWithJSON(
 		writer,
-		repo.getAllConversations(user),
+		conversations.GetAll(user),
 		http.StatusOK,
 	)
 }
@@ -74,7 +74,7 @@ func getAllConversations(writer http.ResponseWriter, r *http.Request) {
 func deleteConversation(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUsername(r)
 	convId := r.PathValue("id")
-	err := repo.deleteConversation(convId, user)
+	err := conversations.DeleteByID(convId, user)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error deleting conversation: %v", err), http.StatusInternalServerError)
 		return
@@ -95,7 +95,7 @@ func renameConversation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conv, err := repo.getConversation(convId, user)
+	conv, err := conversations.GetByID(convId, user)
 	if err != nil {
 		log.Error("Error retrieving conversation", "err", err)
 		http.Error(w, "Error retrieving conversation", http.StatusNotFound)
@@ -104,7 +104,7 @@ func renameConversation(w http.ResponseWriter, r *http.Request) {
 
 	conv.Title = req.Title
 
-	err = repo.updateConversation(conv)
+	err = conversations.Update(conv)
 	if err != nil {
 		log.Error("Error updating conversation", "err", err)
 		http.Error(w, fmt.Sprintf("Error updating conversation: %v", err), http.StatusInternalServerError)

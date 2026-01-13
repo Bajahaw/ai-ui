@@ -9,12 +9,12 @@ import (
 )
 
 type ConversationRepo interface {
-	getConversation(id string, user string) (*Conversation, error)
-	touchConversation(id string, user string) error
-	getAllConversations(user string) []*Conversation
-	saveConversation(conversation *Conversation) error
-	updateConversation(conversation *Conversation) error
-	deleteConversation(id string, user string) error
+	GetByID(id string, user string) (*Conversation, error)
+	Touch(id string, user string) error
+	GetAll(user string) []*Conversation
+	Save(conversation *Conversation) error
+	Update(conversation *Conversation) error
+	DeleteByID(id string, user string) error
 }
 
 type ConversationRepository struct {
@@ -40,7 +40,7 @@ func newConversationRepository(db *sql.DB) *ConversationRepository {
 	}
 }
 
-func (repo *ConversationRepository) getConversation(id string, user string) (*Conversation, error) {
+func (repo *ConversationRepository) GetByID(id string, user string) (*Conversation, error) {
 	if conv, exists := repo.cache[id]; exists {
 		return conv, nil
 	}
@@ -64,7 +64,7 @@ func (repo *ConversationRepository) getConversation(id string, user string) (*Co
 	return nil, errors.New("conversation not found")
 }
 
-func (repo *ConversationRepository) touchConversation(id string, user string) error {
+func (repo *ConversationRepository) Touch(id string, user string) error {
 	query := `UPDATE Conversations SET updated_at = ? WHERE id = ? AND user = ?`
 	result, err := repo.db.Exec(query, time.Now().UTC(), id, user)
 	if err != nil {
@@ -83,7 +83,7 @@ func (repo *ConversationRepository) touchConversation(id string, user string) er
 	return nil
 }
 
-func (repo *ConversationRepository) getAllConversations(user string) []*Conversation {
+func (repo *ConversationRepository) GetAll(user string) []*Conversation {
 	query := `SELECT * FROM Conversations WHERE user = ?`
 	var conversations = make([]*Conversation, 0)
 
@@ -112,7 +112,7 @@ func (repo *ConversationRepository) getAllConversations(user string) []*Conversa
 	return conversations
 }
 
-func (repo *ConversationRepository) saveConversation(conversation *Conversation) error {
+func (repo *ConversationRepository) Save(conversation *Conversation) error {
 	query := `INSERT INTO Conversations (id, user, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`
 	_, err := repo.db.Exec(query,
 		conversation.ID,
@@ -129,7 +129,7 @@ func (repo *ConversationRepository) saveConversation(conversation *Conversation)
 	return nil
 }
 
-func (repo *ConversationRepository) updateConversation(conversation *Conversation) error {
+func (repo *ConversationRepository) Update(conversation *Conversation) error {
 	query := `UPDATE Conversations SET title = ?, updated_at = ? WHERE id = ?`
 	_, err := repo.db.Exec(query,
 		conversation.Title,
@@ -144,7 +144,7 @@ func (repo *ConversationRepository) updateConversation(conversation *Conversatio
 	return nil
 }
 
-func (repo *ConversationRepository) deleteConversation(id string, user string) error {
+func (repo *ConversationRepository) DeleteByID(id string, user string) error {
 	query := `DELETE FROM Conversations WHERE id = ? AND user = ?`
 	_, err := repo.db.Exec(query, id, user)
 	if err != nil {

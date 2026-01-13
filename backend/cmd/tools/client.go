@@ -10,17 +10,17 @@ import (
 var (
 	log               *logger.Logger
 	db                *sql.DB
-	mcpRepo           MCPServerRepository
-	toolRepo          ToolRepository
-	toolCallsRepo     ToolCallsRepository
+	mcps              MCPServerRepository
+	tools             ToolRepository
+	toolCalls         ToolCallsRepository
 	mcpSessionManager MCPSessionManager
 )
 
 func SetUpTools(l *logger.Logger, database *sql.DB) {
 	db = database
-	toolCallsRepo = NewToolCallsRepository(db)
-	toolRepo = NewToolRepository(db)
-	mcpRepo = NewMCPRepository(db, toolRepo)
+	toolCalls = NewToolCallsRepository(db)
+	tools = NewToolRepository(db)
+	mcps = NewMCPRepository(db, tools)
 	mcpSessionManager = MCPSessionManager{
 		sessions: sync.Map{},
 	}
@@ -42,5 +42,5 @@ func SaveDefaultMCPServer(user string) {
 		Tools: GetBuiltInTools(),
 		User:  user,
 	}
-	mcpRepo.SaveMCPServer(defaultServer)
+	mcps.Save(&defaultServer)
 }

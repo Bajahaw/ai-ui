@@ -13,12 +13,12 @@ type Provider struct {
 }
 
 type Repository interface {
-	getAllProviders(user string) []*Provider
-	getProvider(id string, user string) (*Provider, error)
-	saveProvider(provider *Provider) error
-	deleteProvider(id string, user string) error
-	saveModels(models []Model) error
-	getAllModels(user string) []Model
+	GetAll(user string) []*Provider
+	GetByID(id string, user string) (*Provider, error)
+	Save(provider *Provider) error
+	DeleteByID(id string, user string) error
+	SaveModels(models []*Model) error
+	GetAllModels(user string) []*Model
 }
 
 type Repo struct {
@@ -26,14 +26,14 @@ type Repo struct {
 	//cache map[string]*Provider
 }
 
-func newProviderRepo(db *sql.DB) *Repo {
+func newProviderRepo(db *sql.DB) Repository {
 	return &Repo{
 		db: db,
 		//cache: make(map[string]*Provider),
 	}
 }
 
-func (repo *Repo) getAllProviders(user string) []*Provider {
+func (repo *Repo) GetAll(user string) []*Provider {
 	var allProviders = make([]*Provider, 0)
 	query := `SELECT id, url, api_key FROM Providers WHERE user = ?`
 	rows, err := repo.db.Query(query, user)
@@ -62,7 +62,7 @@ func (repo *Repo) getAllProviders(user string) []*Provider {
 	return allProviders
 }
 
-func (repo *Repo) getProvider(id string, user string) (*Provider, error) {
+func (repo *Repo) GetByID(id string, user string) (*Provider, error) {
 	var p Provider
 	query := `SELECT id, url, api_key FROM Providers WHERE id = ? AND user = ?`
 	err := repo.db.QueryRow(query, id, user).Scan(&p.ID, &p.BaseURL, &p.APIKey)
@@ -78,19 +78,19 @@ func (repo *Repo) getProvider(id string, user string) (*Provider, error) {
 	}, nil
 }
 
-func (repo *Repo) saveProvider(provider *Provider) error {
+func (repo *Repo) Save(provider *Provider) error {
 	query := `INSERT INTO Providers (id, url, api_key, user) VALUES (?, ?, ?, ?)`
 	_, err := repo.db.Exec(query, provider.ID, provider.BaseURL, provider.APIKey, provider.User)
 	return err
 }
 
-func (repo *Repo) deleteProvider(id string, user string) error {
+func (repo *Repo) DeleteByID(id string, user string) error {
 	query := `DELETE FROM Providers WHERE id = ? AND user = ?`
 	_, err := repo.db.Exec(query, id, user)
 	return err
 }
 
-func (repo *Repo) saveModels(models []Model) error {
+func (repo *Repo) SaveModels(models []*Model) error {
 	if len(models) == 0 {
 		return nil
 	}
@@ -115,8 +115,8 @@ func (repo *Repo) saveModels(models []Model) error {
 	return err
 }
 
-func (repo *Repo) getAllModels(user string) []Model {
-	var models = make([]Model, 0)
+func (repo *Repo) GetAllModels(user string) []*Model {
+	var models = make([]*Model, 0)
 	query := `
 		SELECT m.id, m.provider_id, m.name, m.is_enabled 
 		FROM Models m
@@ -135,7 +135,7 @@ func (repo *Repo) getAllModels(user string) []Model {
 			log.Error("Error scanning model", "err", err)
 			continue
 		}
-		models = append(models, Model{
+		models = append(models, &Model{
 			ID:         m.ID,
 			Name:       m.Name,
 			ProviderID: m.ProviderID,

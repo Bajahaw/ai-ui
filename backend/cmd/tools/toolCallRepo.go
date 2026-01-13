@@ -5,9 +5,9 @@ import (
 )
 
 type ToolCallsRepository interface {
-	SaveToolCall(toolCall ToolCall) error
-	GetToolCallsByMessageID(messageID int) []*ToolCall
-	GetToolCallsByConvID(convID string) []*ToolCall
+	Save(toolCall *ToolCall) error
+	GetAllByMessageID(messageID int) []*ToolCall
+	GetAllByConvID(convID string) []*ToolCall
 }
 
 type ToolCallsRepositoryImpl struct {
@@ -18,13 +18,13 @@ func NewToolCallsRepository(db *sql.DB) ToolCallsRepository {
 	return &ToolCallsRepositoryImpl{db: db}
 }
 
-func (repo *ToolCallsRepositoryImpl) SaveToolCall(toolCall ToolCall) error {
+func (repo *ToolCallsRepositoryImpl) Save(toolCall *ToolCall) error {
 	query := `INSERT INTO ToolCalls (id, reference_id, conv_id, message_id, name, args, output) VALUES (?, ?, ?, ?, ?, ?, ?)`
 	_, err := repo.db.Exec(query, toolCall.ID, toolCall.ReferenceID, toolCall.ConvID, toolCall.MessageID, toolCall.Name, toolCall.Args, toolCall.Output)
 	return err
 }
 
-func (repo *ToolCallsRepositoryImpl) GetToolCallsByMessageID(messageID int) []*ToolCall {
+func (repo *ToolCallsRepositoryImpl) GetAllByMessageID(messageID int) []*ToolCall {
 	query := `SELECT id, reference_id, name, args, output FROM ToolCalls WHERE message_id = ?`
 	var toolCalls = make([]*ToolCall, 0)
 
@@ -53,7 +53,7 @@ func (repo *ToolCallsRepositoryImpl) GetToolCallsByMessageID(messageID int) []*T
 	return toolCalls
 }
 
-func (repo *ToolCallsRepositoryImpl) GetToolCallsByConvID(convID string) []*ToolCall {
+func (repo *ToolCallsRepositoryImpl) GetAllByConvID(convID string) []*ToolCall {
 	query := `SELECT id, reference_id, message_id, name, args, output FROM ToolCalls WHERE conv_id = ?`
 	var toolCalls = make([]*ToolCall, 0)
 

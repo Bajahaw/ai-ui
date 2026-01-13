@@ -8,7 +8,7 @@ import (
 )
 
 var log *logger.Logger
-var repo *Repo
+var providers Repository
 
 type Client interface {
 	SendChatCompletionRequest(params RequestParams) (*ChatCompletionMessage, error)
@@ -23,5 +23,5 @@ func NewClient() Client {
 
 func SetupProviderClient(l *logger.Logger, db *sql.DB) {
 	log = l
-	repo = newProviderRepo(db)
+	providers = newProviderRepo(db)
 }

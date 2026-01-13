@@ -3,13 +3,13 @@ package tools
 import "database/sql"
 
 type ToolRepository interface {
-	GetAllTools(user string) []Tool
-	GetToolsByMCPServerID(mcpID string) []Tool
-	GetToolByName(name string) (Tool, error)
-	GetTool(id string) (Tool, error)
-	SaveTool(tool Tool) error
-	SaveListOfTools(tools []Tool) error
-	DeleteTool(id string) error
+	GetAll(user string) []*Tool
+	GetAllByMCPServerID(mcpID string) []*Tool
+	GetByName(name string) (*Tool, error)
+	GetByID(id string) (*Tool, error)
+	Save(tool *Tool) error
+	SaveAll(tools []*Tool) error
+	DeleteByID(id string) error
 }
 
 type ToolRepositoryImpl struct {
@@ -20,8 +20,8 @@ func NewToolRepository(db *sql.DB) ToolRepository {
 	return &ToolRepositoryImpl{db: db}
 }
 
-func (repo *ToolRepositoryImpl) GetAllTools(user string) []Tool {
-	var allTools = make([]Tool, 0)
+func (repo *ToolRepositoryImpl) GetAll(user string) []*Tool {
+	var allTools = make([]*Tool, 0)
 	sql := `
 		SELECT t.id, t.mcp_server_id, t.name, t.description, t.input_schema, t.require_approval, t.is_enabled 
 		FROM Tools t
@@ -50,13 +50,13 @@ func (repo *ToolRepositoryImpl) GetAllTools(user string) []Tool {
 			log.Error("Error scanning tool", "err", err)
 			continue
 		}
-		allTools = append(allTools, tool)
+		allTools = append(allTools, &tool)
 	}
 
 	return allTools
 }
 
-func (repo *ToolRepositoryImpl) GetToolByName(name string) (Tool, error) {
+func (repo *ToolRepositoryImpl) GetByName(name string) (*Tool, error) {
 	var tool Tool
 	sql := `SELECT id, mcp_server_id, name, description, input_schema, require_approval, is_enabled FROM Tools WHERE name = ?`
 	err := repo.db.QueryRow(sql, name).Scan(
@@ -68,13 +68,13 @@ func (repo *ToolRepositoryImpl) GetToolByName(name string) (Tool, error) {
 		&tool.RequireApproval,
 		&tool.IsEnabled)
 	if err != nil {
-		return Tool{}, err
+		return nil, err
 	}
-	return tool, nil
+	return &tool, nil
 }
 
-func (repo *ToolRepositoryImpl) GetToolsByMCPServerID(mcpID string) []Tool {
-	var tools = make([]Tool, 0)
+func (repo *ToolRepositoryImpl) GetAllByMCPServerID(mcpID string) []*Tool {
+	var tools = make([]*Tool, 0)
 	sql := `SELECT id, mcp_server_id, name, description, input_schema, require_approval, is_enabled FROM Tools WHERE mcp_server_id = ?`
 	rows, err := repo.db.Query(sql, mcpID)
 	if err != nil {
@@ -97,13 +97,13 @@ func (repo *ToolRepositoryImpl) GetToolsByMCPServerID(mcpID string) []Tool {
 			log.Error("Error scanning tool", "err", err)
 			continue
 		}
-		tools = append(tools, tool)
+		tools = append(tools, &tool)
 	}
 
 	return tools
 }
 
-func (repo *ToolRepositoryImpl) GetTool(id string) (Tool, error) {
+func (repo *ToolRepositoryImpl) GetByID(id string) (*Tool, error) {
 	var tool Tool
 	sql := `SELECT id, mcp_server_id, name, description, input_schema, require_approval, is_enabled FROM Tools WHERE id = ?`
 	err := repo.db.QueryRow(sql, id).Scan(
@@ -115,12 +115,12 @@ func (repo *ToolRepositoryImpl) GetTool(id string) (Tool, error) {
 		&tool.RequireApproval,
 		&tool.IsEnabled)
 	if err != nil {
-		return Tool{}, err
+		return nil, err
 	}
-	return tool, nil
+	return &tool, nil
 }
 
-func (repo *ToolRepositoryImpl) SaveTool(tool Tool) error {
+func (repo *ToolRepositoryImpl) Save(tool *Tool) error {
 	sql := `INSERT INTO Tools (id, mcp_server_id, name, description, input_schema, require_approval, is_enabled) VALUES (?, ?, ?, ?, ?, ?, ?)`
 	_, err := repo.db.Exec(sql, tool.ID, tool.MCPServerID, tool.Name, tool.Description, tool.InputSchema, tool.RequireApproval, tool.IsEnabled)
 	if err != nil {
@@ -129,7 +129,7 @@ func (repo *ToolRepositoryImpl) SaveTool(tool Tool) error {
 	return nil
 }
 
-func (repo *ToolRepositoryImpl) SaveListOfTools(tools []Tool) error {
+func (repo *ToolRepositoryImpl) SaveAll(tools []*Tool) error {
 	sql := `
 	INSERT INTO Tools (id, mcp_server_id, name, description, input_schema, require_approval, is_enabled)
 	VALUES (?, ?, ?, ?, ?, ?, ?) 
@@ -152,7 +152,7 @@ func (repo *ToolRepositoryImpl) SaveListOfTools(tools []Tool) error {
 	return nil
 }
 
-func (repo *ToolRepositoryImpl) DeleteTool(id string) error {
+func (repo *ToolRepositoryImpl) DeleteByID(id string) error {
 	sql := `DELETE FROM Tools WHERE id = ?`
 	_, err := repo.db.Exec(sql, id)
 	if err != nil {

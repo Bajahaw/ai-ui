@@ -9,14 +9,14 @@ import (
 )
 
 var log *logger.Logger
-var repo ConversationRepo
-var toolCallsRepo tools.ToolCallsRepository
+var conversations ConversationRepo
+var toolCalls tools.ToolCallsRepository
 var providerClient provider.Client
 
 func SetupChat(l *logger.Logger, db *sql.DB, pc provider.Client) {
 	log = l
 	providerClient = pc
-	repo = newConversationRepository(db)
-	toolCallsRepo = tools.NewToolCallsRepository(db)
+	conversations = newConversationRepository(db)
+	toolCalls = tools.NewToolCallsRepository(db)
 	// SetDefaultSettings("admin")
 }

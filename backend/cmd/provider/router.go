@@ -29,11 +29,11 @@ type Model struct {
 }
 
 type ModelRequest struct {
-	Models []Model `json:"models"`
+	Models []*Model `json:"models"`
 }
 
 type ModelsResponse struct {
-	Models []Model `json:"models"`
+	Models []*Model `json:"models"`
 }
 
 func Handler() http.Handler {
@@ -59,7 +59,7 @@ func ModelsHandler() http.Handler {
 
 func getAllModels(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUsername(r)
-	models := repo.getAllModels(user)
+	models := providers.GetAllModels(user)
 	response := ModelsResponse{
 		Models: models,
 	}
@@ -75,7 +75,7 @@ func saveModels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = repo.saveModels(models.Models)
+	err = providers.SaveModels(models.Models)
 	if err != nil {
 		log.Error("Error saving models for provider", "err", err)
 		http.Error(w, "Error saving models for provider", http.StatusInternalServerError)
@@ -85,8 +85,8 @@ func saveModels(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func fetchAllModels(provider *Provider) []Model {
-	models := make([]Model, 0)
+func fetchAllModels(provider *Provider) []*Model {
+	models := make([]*Model, 0)
 	client := openai.NewClient(
 		option.WithAPIKey(provider.APIKey),
 		option.WithBaseURL(provider.BaseURL),
@@ -99,7 +99,7 @@ func fetchAllModels(provider *Provider) []Model {
 	}
 
 	for _, model := range list.Data {
-		models = append(models, Model{
+		models = append(models, &Model{
 			ID:         provider.ID + "/" + model.ID,
 			Name:       model.ID,
 			ProviderID: provider.ID,
@@ -112,7 +112,7 @@ func fetchAllModels(provider *Provider) []Model {
 
 func getProvidersList(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUsername(r)
-	providers := repo.getAllProviders(user)
+	providers := providers.GetAll(user)
 
 	response := make([]Response, 0, len(providers))
 	for _, p := range providers {
@@ -128,7 +128,7 @@ func getProvidersList(w http.ResponseWriter, r *http.Request) {
 func getProvider(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUsername(r)
 	id := r.PathValue("id")
-	provider, err := repo.getProvider(id, user)
+	provider, err := providers.GetByID(id, user)
 	if err != nil {
 		log.Error("Provider not found", "err", err)
 		http.Error(w, "Provider not found", http.StatusNotFound)
@@ -159,7 +159,7 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 		User:    auth.GetUsername(r),
 	}
 
-	err = repo.saveProvider(provider)
+	err = providers.Save(provider)
 	if err != nil {
 		log.Error("Error saving provider", "err", err)
 		http.Error(w, "Error saving provider", http.StatusInternalServerError)
@@ -168,7 +168,7 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 
 	models := fetchAllModels(provider)
 
-	err = repo.saveModels(models)
+	err = providers.SaveModels(models)
 	if err != nil {
 		log.Error("Error saving models for provider", "err", err)
 	}
@@ -184,7 +184,7 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 func deleteProvider(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUsername(r)
 	id := r.PathValue("id")
-	err := repo.deleteProvider(id, user)
+	err := providers.DeleteByID(id, user)
 	if err != nil {
 		log.Error("Error deleting provider", "err", err)
 		http.Error(w, "Error deleting provider", http.StatusInternalServerError)

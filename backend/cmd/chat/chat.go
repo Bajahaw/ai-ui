@@ -50,10 +50,10 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 
 	// Find or create conversation
 	convID := req.ConversationID
-	err = repo.touchConversation(req.ConversationID, user)
+	err = conversations.Touch(req.ConversationID, user)
 	if err != nil {
 		conv := newConversation(user)
-		if err = repo.saveConversation(conv); err != nil {
+		if err = conversations.Save(conv); err != nil {
 			log.Error("Error creating conversation", "err", err)
 			http.Error(w, fmt.Sprintf("Error creating conversation: %v", err), http.StatusBadRequest)
 			return
@@ -245,7 +245,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ensure conversation exists
-	if err = repo.touchConversation(req.ConversationID, user); err != nil {
+	if err = conversations.Touch(req.ConversationID, user); err != nil {
 		log.Error("Error retrieving conversation", "err", err)
 		http.Error(w, fmt.Sprintf("Error retrieving conversation: %v", err), http.StatusNotFound)
 		return
@@ -415,7 +415,7 @@ func update(W http.ResponseWriter, R *http.Request) {
 		return
 	}
 
-	err = repo.touchConversation(req.ConversationID, user)
+	err = conversations.Touch(req.ConversationID, user)
 	if err != nil {
 		log.Error("Error touching conversation", "err", err)
 	}

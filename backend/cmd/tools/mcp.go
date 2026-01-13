@@ -14,12 +14,12 @@ import (
 )
 
 type MCPServer struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Endpoint string `json:"endpoint"`
-	APIKey   string `json:"api_key"`
-	User     string `json:"-"`
-	Tools    []Tool `json:"tools,omitempty"`
+	ID       string  `json:"id"`
+	Name     string  `json:"name"`
+	Endpoint string  `json:"endpoint"`
+	APIKey   string  `json:"api_key"`
+	User     string  `json:"-"`
+	Tools    []*Tool `json:"tools,omitempty"`
 }
 
 type MCPServerResponse struct {
@@ -27,7 +27,7 @@ type MCPServerResponse struct {
 	Name     string `json:"name"`
 	Endpoint string `json:"endpoint"`
 	// APIKey string
-	Tools []Tool `json:"tools"`
+	Tools []*Tool `json:"tools"`
 }
 
 type MCPServerListResponse struct {
@@ -43,7 +43,7 @@ type MCPServerRequest struct {
 
 func listMCPServers(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUsername(r)
-	servers := mcpRepo.GetAllMCPServers(user)
+	servers := mcps.GetAll(user)
 	response := make([]MCPServerResponse, len(servers))
 	for i, server := range servers {
 		response[i] = MCPServerResponse{
@@ -59,7 +59,7 @@ func listMCPServers(w http.ResponseWriter, r *http.Request) {
 func getMCPServer(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUsername(r)
 	id := r.PathValue("id")
-	server, err := mcpRepo.GetMCPServer(id, user)
+	server, err := mcps.GetByID(id, user)
 	if err != nil {
 		log.Error("Error getting MCP server", "err", err)
 		http.Error(w, "MCP server not found", http.StatusNotFound)
@@ -101,7 +101,7 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save MCP server does save tools as well
-	err = mcpRepo.SaveMCPServer(server)
+	err = mcps.Save(&server)
 	if err != nil {
 		log.Error("Error saving MCP server", "err", err)
 		http.Error(w, "Error saving MCP server", http.StatusInternalServerError)
@@ -121,7 +121,7 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 func deleteMCPServer(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUsername(r)
 	id := r.PathValue("id")
-	err := mcpRepo.DeleteMCPServer(id, user)
+	err := mcps.DeleteByID(id, user)
 	if err != nil {
 		log.Error("Error deleting MCP server", "err", err)
 		http.Error(w, "Error deleting MCP server", http.StatusInternalServerError)
@@ -131,7 +131,7 @@ func deleteMCPServer(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, "MCP server deleted successfully", http.StatusOK)
 }
 
-func GetMCPTools(server MCPServer) ([]Tool, error) {
+func GetMCPTools(server MCPServer) ([]*Tool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
@@ -148,11 +148,11 @@ func GetMCPTools(server MCPServer) ([]Tool, error) {
 
 	if err != nil {
 		log.Error("Error connecting to MCP server", "err", err)
-		return []Tool{}, err
+		return []*Tool{}, err
 	}
 	defer session.Close()
 
-	var tools []Tool
+	var tools []*Tool
 	if session.InitializeResult().Capabilities.Tools != nil {
 		mcpTools := session.Tools(ctx, nil)
 		for tool, err := range mcpTools {
@@ -160,7 +160,7 @@ func GetMCPTools(server MCPServer) ([]Tool, error) {
 				log.Error("Error fetching tool from MCP server", "err", err)
 				continue
 			}
-			tools = append(tools, Tool{
+			tools = append(tools, &Tool{
 				ID:          uuid.New().String(),
 				MCPServerID: server.ID,
 				Name:        tool.Name,

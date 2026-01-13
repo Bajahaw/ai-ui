@@ -43,7 +43,7 @@ func ExecuteToolCall(toolCall ToolCall, user string) string {
 		output = executeMCPTool(toolCall, user)
 	}
 
-	err := toolCallsRepo.SaveToolCall(ToolCall{
+	err := toolCalls.Save(&ToolCall{
 		ID:          toolCall.ID,
 		ReferenceID: toolCall.ReferenceID,
 		ConvID:      toolCall.ConvID,
@@ -60,13 +60,13 @@ func ExecuteToolCall(toolCall ToolCall, user string) string {
 }
 
 func executeMCPTool(toolCall ToolCall, user string) string {
-	tool, err := toolRepo.GetToolByName(toolCall.Name)
+	tool, err := tools.GetByName(toolCall.Name)
 	if err != nil {
 		log.Error("Error retrieving tool", "err", err)
 		return "Error occurred while retrieving tool."
 	}
 
-	server, err := mcpRepo.GetMCPServer(tool.MCPServerID, user)
+	server, err := mcps.GetByID(tool.MCPServerID, user)
 	if err != nil {
 		log.Error("Error retrieving MCP server", "err", err)
 		return "Error occurred while retrieving MCP server."
@@ -134,12 +134,12 @@ func executeMCPTool(toolCall ToolCall, user string) string {
 	return string(rawJSON)
 }
 
-func GetAvailableTools(user string) []Tool {
+func GetAvailableTools(user string) []*Tool {
 	// builtInTools := GetBuiltInTools()
 	// mcpTools := toolRepo.GetAllTools()
 
-	allTools := toolRepo.GetAllTools(user)
-	var enabledTools []Tool
+	allTools := tools.GetAll(user)
+	var enabledTools []*Tool
 	for _, t := range allTools {
 		if t.IsEnabled {
 			enabledTools = append(enabledTools, t)
@@ -148,8 +148,8 @@ func GetAvailableTools(user string) []Tool {
 	return enabledTools
 }
 
-func GetBuiltInTools() []Tool {
-	return []Tool{
+func GetBuiltInTools() []*Tool {
+	return []*Tool{
 		{
 			ID:          "search_ddgs",
 			Name:        "search_ddgs",

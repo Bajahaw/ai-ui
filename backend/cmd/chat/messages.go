@@ -66,7 +66,7 @@ func getMessage(id int) (*Message, error) {
 	msg.Attachments = getMessageAttachments(id)
 
 	// Fetch tool calls
-	toolCalls := toolCallsRepo.GetToolCallsByMessageID(id)
+	toolCalls := toolCalls.GetAllByMessageID(id)
 	msg.Tools = make([]tools.ToolCall, 0)
 	for _, t := range toolCalls {
 		msg.Tools = append(msg.Tools, *t)
@@ -166,7 +166,7 @@ func updateMessage(id int, msg Message) (*Message, error) {
 	updatedMsg.Attachments = getMessageAttachments(id)
 
 	// Fetch tool calls
-	toolCalls := toolCallsRepo.GetToolCallsByMessageID(id)
+	toolCalls := toolCalls.GetAllByMessageID(id)
 	updatedMsg.Tools = make([]tools.ToolCall, 0)
 	for _, tool := range toolCalls {
 		updatedMsg.Tools = append(updatedMsg.Tools, *tool)
@@ -231,7 +231,7 @@ func getAllConversationMessages(convID string, user string) map[int]*Message {
 		}
 	}
 
-	toolCalls := toolCallsRepo.GetToolCallsByConvID(convID)
+	toolCalls := toolCalls.GetAllByConvID(convID)
 	log.Debug("Retrieved tool calls for conversation", "convID", convID, "tools", toolCalls)
 	for _, tool := range toolCalls {
 		if msg, exists := messages[tool.MessageID]; exists {
