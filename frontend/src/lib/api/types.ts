@@ -1,12 +1,7 @@
 // Backend API Types matching Go structures
 
 export interface AuthStatus {
-	registered: boolean;
 	authenticated: boolean;
-}
-
-export interface RegisterResponse {
-	token: string;
 }
 
 // File types

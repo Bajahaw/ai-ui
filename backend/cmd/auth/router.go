@@ -6,18 +6,15 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	logger "github.com/charmbracelet/log"
 )
 
 type AuthStatus struct {
-	Registered    bool `json:"registered"`
 	Authenticated bool `json:"authenticated"`
 }
 
-var token string
 var authCookie = "auth_token"
 var log *logger.Logger
 var db *sql.DB
@@ -26,25 +23,24 @@ func Setup(l *logger.Logger, d *sql.DB) {
 	log = l
 	db = d
 
-	// Try to get existing admin token
-	_, err := getAdminToken()
-	if err == nil {
-		// token = t
-		return
-	}
+	// _, err := verifyUserCredentials("admin")
+	// if err == nil {
+	// 	// token = t
+	// 	return
+	// }
 
-	// If not found, check environment variable
-	token = os.Getenv("APP_TOKEN")
-	if token != "" {
-		err := registerAdminUser(token)
-		if err != nil {
-			log.Error("Failed to register admin", "error", err)
-		} else {
-			log.Info("Admin user registered")
-		}
-	}
+	// // If not found, check environment variable
+	// token := os.Getenv("APP_TOKEN")
+	// if token != "" {
+	// 	err := registerNewUser("admin", token)
+	// 	if err != nil {
+	// 		log.Error("Failed to register admin", "error", err)
+	// 	} else {
+	// 		log.Info("Admin user registered")
+	// 	}
+	// }
 
-	// If still not found, /api/auth/register can be used to create one
+	// // If still not found, /api/auth/register can be used to create one
 }
 
 func Handler() http.Handler {
@@ -59,15 +55,18 @@ func Handler() http.Handler {
 
 func Login() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		inputToken := r.FormValue("token")
-		if inputToken != token {
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
+		username := r.FormValue("username")
+		password := r.FormValue("password")
+
+		err := verifyUserCredentials(username, password)
+		if err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
 		cookie := &http.Cookie{
 			Name:     authCookie,
-			Value:    token,
+			Value:    password,
 			Path:     "/",
 			Expires:  time.Now().Add(30 * 24 * time.Hour),
 			HttpOnly: true,
@@ -97,17 +96,21 @@ func Logout() http.HandlerFunc {
 
 func Authenticated(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t, _ := getAdminToken()
 		cookie, err := r.Cookie(authCookie)
-		if t != "" && (err != nil || cookie.Value != token) {
+		if err != nil {
 			log.Warn("Unauthorized access attempt", "path", r.URL.Path, "ip", r.RemoteAddr)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		// add username value to context
-		user := "admin"
-		r = r.WithContext(context.WithValue(r.Context(), "user", user))
+		username, err := extractUsername(cookie.Value)
+		if err != nil || username == "" {
+			log.Warn("Invalid auth token", "path", r.URL.Path, "ip", r.RemoteAddr)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		r = r.WithContext(context.WithValue(r.Context(), "user", username))
 
 		next.ServeHTTP(w, r)
 	})
@@ -116,45 +119,49 @@ func Authenticated(next http.Handler) http.Handler {
 func GetAuthStatus() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var status = AuthStatus{
-			Registered:    true,
 			Authenticated: false,
 		}
 
-		if token == "" {
-			status.Registered = false
+		cookie, err := r.Cookie(authCookie)
+		if err != nil {
+			status.Authenticated = false
+			utils.RespondWithJSON(w, &status, http.StatusOK)
+			return
 		}
 
-		cookie, err := r.Cookie(authCookie)
-		if err == nil && cookie.Value == token {
+		username, err := extractUsername(cookie.Value)
+		if err == nil && username != "" {
 			status.Authenticated = true
 		}
 
-		var statusCode int
-
-		switch {
-		case status.Registered && status.Authenticated:
-			statusCode = http.StatusOK
-		case status.Registered && !status.Authenticated:
-			statusCode = http.StatusUnauthorized
-		default:
-			statusCode = http.StatusForbidden
-		}
-
-		utils.RespondWithJSON(w, &status, statusCode)
+		utils.RespondWithJSON(w, &status, http.StatusOK)
 	})
 }
 
-func getAdminToken() (string, error) {
-	if token != "" {
-		return token, nil
-	}
-	var t string
-	err := db.QueryRow(`SELECT token FROM users WHERE username = ?`, "admin").Scan(&t)
+// extractUsername retrieves the username associated with the given token.
+// Until a proper jwt implementation is in place, this function just queries the database.
+func extractUsername(token string) (string, error) {
+	var username string
+	err := db.QueryRow(`SELECT username FROM users WHERE token = ?`, token).Scan(&username)
 	if err != nil {
 		return "", err
 	}
-	token = t
-	return t, nil
+
+	return username, nil
+}
+
+func verifyUserCredentials(username, password string) error {
+	var storedPass string
+	err := db.QueryRow(`SELECT token FROM users WHERE username = ?`, username).Scan(&storedPass)
+	if err != nil {
+		return err
+	}
+
+	if storedPass != password {
+		return fmt.Errorf("invalid credentials")
+	}
+
+	return nil
 }
 
 func GetUsername(r *http.Request) string {

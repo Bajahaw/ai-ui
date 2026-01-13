@@ -3,15 +3,12 @@ import { authAPI } from '@/lib/api/auth.ts';
 
 interface AuthContextType {
     isAuthenticated: boolean;
-    isRegistered: boolean;
     isLoading: boolean;
-    login: (token: string) => Promise<void>;
+    login: (username: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
-    register: () => Promise<string>;
+    register: (username: string, password: string) => Promise<void>;
     error: string | null;
     clearError: () => void;
-    registeredToken: string | null;
-    clearRegisteredToken: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,21 +19,17 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [isRegistered, setIsRegistered] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [registeredToken, setRegisteredToken] = useState<string | null>(null);
 
     // Check authentication status on mount
     useEffect(() => {
         const checkAuth = async () => {
             try {
                 const status = await authAPI.getAuthStatus();
-                setIsRegistered(status.registered);
                 setIsAuthenticated(status.authenticated);
             } catch (err) {
                 console.error('Error checking auth status:', err);
-                setIsRegistered(false);
                 setIsAuthenticated(false);
             } finally {
                 setIsLoading(false);
@@ -46,14 +39,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         checkAuth();
     }, []);
 
-    const register = async (): Promise<string> => {
+    const register = async (username: string, password: string): Promise<void> => {
         try {
             setError(null);
             setIsLoading(true);
-            const token = await authAPI.register();
-            setIsRegistered(true);
-            setRegisteredToken(token);
-            return token;
+            await authAPI.register(username, password);
+            await login(username, password);
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Registration failed';
             setError(errorMessage);
@@ -63,15 +54,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
     };
 
-    const clearRegisteredToken = () => {
-        setRegisteredToken(null);
-    };
-
-    const login = async (token: string) => {
+    const login = async (username: string, password: string) => {
         try {
             setError(null);
             setIsLoading(true);
-            await authAPI.login(token);
+            await authAPI.login(username, password);
             // After login, re-check auth status
             const status = await authAPI.getAuthStatus();
             if (!status.authenticated) {
@@ -109,15 +96,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const value: AuthContextType = {
         isAuthenticated,
-        isRegistered,
         isLoading,
         login,
         logout,
         register,
         error,
         clearError,
-        registeredToken,
-        clearRegisteredToken,
     };
 
     return (

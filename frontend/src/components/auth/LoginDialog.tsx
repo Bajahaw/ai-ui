@@ -24,8 +24,9 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
     open,
     onOpenChange,
 }) => {
-    const [token, setToken] = useState('');
-    const [showToken, setShowToken] = useState(false);
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const { login, isLoading, error, clearError } = useAuth();
 
@@ -35,11 +36,12 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!token.trim()) return;
+        if (!username.trim() || !password.trim()) return;
 
         try {
-            await login(token.trim());
-            setToken('');
+            await login(username.trim(), password.trim());
+            setUsername('');
+            setPassword('');
             setDialogOpen(false);
         } catch (err) {
             // Error is handled by the auth context
@@ -51,13 +53,21 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
         setDialogOpen(newOpen);
         if (!newOpen) {
             // Clear form and errors when dialog closes
-            setToken('');
+            setUsername('');
+            setPassword('');
             clearError();
         }
     };
 
-    const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setToken(e.target.value);
+    const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setUsername(e.target.value);
+        if (error) {
+            clearError();
+        }
+    };
+
+    const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setPassword(e.target.value);
         if (error) {
             clearError();
         }
@@ -77,32 +87,45 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
                 <DialogHeader>
                     <DialogTitle>Login</DialogTitle>
                     <DialogDescription>
-                        Enter your authentication token to access the chat interface.
+                        Enter your credentials to access the chat interface.
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
-                        <Label htmlFor="token">Authentication Token</Label>
+                        <Label htmlFor="username">Username</Label>
+                        <Input
+                            id="username"
+                            type="text"
+                            placeholder="Username"
+                            value={username}
+                            onChange={handleUsernameChange}
+                            className={error ? 'border-destructive focus-visible:ring-destructive' : ''}
+                            disabled={isLoading}
+                            autoComplete="username"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="password">Password</Label>
                         <div className="relative">
                             <Input
-                                id="token"
-                                type={showToken ? 'text' : 'password'}
-                                placeholder="Enter your token..."
-                                value={token}
-                                onChange={handleTokenChange}
+                                id="password"
+                                type={showPassword ? 'text' : 'password'}
+                                placeholder="Password"
+                                value={password}
+                                onChange={handlePasswordChange}
                                 className={error ? 'border-destructive focus-visible:ring-destructive' : ''}
                                 disabled={isLoading}
-                                autoComplete="off"
+                                autoComplete="current-password"
                             />
                             <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
                                 className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                                onClick={() => setShowToken(!showToken)}
+                                onClick={() => setShowPassword(!showPassword)}
                                 disabled={isLoading}
                             >
-                                {showToken ? (
+                                {showPassword ? (
                                     <EyeOffIcon className="size-4" />
                                 ) : (
                                     <EyeIcon className="size-4" />
@@ -122,7 +145,7 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
                         >
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={!token.trim() || isLoading}>
+                        <Button type="submit" disabled={!username.trim() || !password.trim() || isLoading}>
                             {isLoading ? (
                                 <>
                                     <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" />

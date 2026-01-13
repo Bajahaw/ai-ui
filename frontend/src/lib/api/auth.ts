@@ -1,6 +1,6 @@
 import { ApiErrorHandler } from "./errorHandler.ts";
 import { getApiUrl } from "../config.ts";
-import { AuthStatus, RegisterResponse } from "./types.ts";
+import { AuthStatus } from "./types.ts";
 
 // Authentication API client
 export class AuthAPI {
@@ -31,35 +31,38 @@ export class AuthAPI {
 		}, "getAuthStatus");
 	}
 
-	// POST /api/auth/register - Register a new instance (returns token)
-	async register(): Promise<string> {
+	// POST /api/auth/register - Register a new instance
+	async register(username: string, password: string): Promise<void> {
+		if (!username || !password) {
+			throw new Error("Username and password are required");
+		}
+
 		return ApiErrorHandler.handleApiCall(async () => {
 			const response = await fetch(getApiUrl("/api/auth/register"), {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
 				},
+				body: JSON.stringify({ username, password }),
 				credentials: "include",
 			});
 
 			if (!response.ok) {
 				await ApiErrorHandler.handleFetchError(response, "Registration");
 			}
-
-			const data: RegisterResponse = await response.json();
-			return data.token;
 		}, "register");
 	}
 
-	// POST /api/auth/login - Login with token
-	async login(token: string): Promise<void> {
-		if (!token || token.trim() === "") {
-			throw new Error("Authentication token is required");
+	// POST /api/auth/login - Login with username and password
+	async login(username: string, password: string): Promise<void> {
+		if (!username || !password) {
+			throw new Error("Username and password are required");
 		}
 
 		return ApiErrorHandler.handleApiCall(async () => {
 			const formData = new URLSearchParams();
-			formData.append('token', token.trim());
+			formData.append('username', username);
+			formData.append('password', password);
 
 			const response = await fetch(getApiUrl("/api/auth/login"), {
 				method: "POST",

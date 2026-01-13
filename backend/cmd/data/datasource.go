@@ -65,7 +65,7 @@ func InitDataSource(dataSourceName string) error {
 		title TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (user) REFERENCES Users(id) ON DELETE CASCADE
+		FOREIGN KEY (user) REFERENCES Users(username) ON DELETE CASCADE
 	);
 
 	CREATE TABLE IF NOT EXISTS Files (
