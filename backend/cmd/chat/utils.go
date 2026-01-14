@@ -1,7 +1,7 @@
 package chat
 
 import (
-	"ai-client/cmd/provider"
+	"ai-client/cmd/providers"
 	"encoding/base64"
 	"fmt"
 	"os"
@@ -9,7 +9,7 @@ import (
 )
 
 // Helper
-func buildContext(convID string, start int, user string) []provider.SimpleMessage {
+func buildContext(convID string, start int, user string) []providers.SimpleMessage {
 	var convMessages = getAllConversationMessages(convID, user) // todo: cache or something
 	var path []int
 	var current = start
@@ -23,11 +23,11 @@ func buildContext(convID string, start int, user string) []provider.SimpleMessag
 		current = leaf.ParentID
 	}
 
-	systemPrompt, _ := getSetting("systemPrompt", user)
-	attachmentOcrOnly, _ := getSetting("attachmentOcrOnly", user)
+	systemPrompt, _ := settings.Get("systemPrompt", user)
+	attachmentOcrOnly, _ := settings.Get("attachmentOcrOnly", user)
 	ocrOnly := attachmentOcrOnly == "true"
 
-	var messages = []provider.SimpleMessage{
+	var messages = []providers.SimpleMessage{
 		{
 			Role:    "system",
 			Content: systemPrompt,
@@ -44,12 +44,12 @@ func buildContext(convID string, start int, user string) []provider.SimpleMessag
 		if msg.Role == "assistant" && len(msg.Tools) > 0 {
 			for _, tool := range msg.Tools {
 
-				messages = append(messages, provider.SimpleMessage{
+				messages = append(messages, providers.SimpleMessage{
 					Role:     "assistant",
 					ToolCall: tool,
 				})
 
-				messages = append(messages, provider.SimpleMessage{
+				messages = append(messages, providers.SimpleMessage{
 					Role:     "tool",
 					ToolCall: tool,
 				})
@@ -83,7 +83,7 @@ func buildContext(convID string, start int, user string) []provider.SimpleMessag
 			}
 		}
 
-		messages = append(messages, provider.SimpleMessage{
+		messages = append(messages, providers.SimpleMessage{
 			Role:    msg.Role,
 			Content: msg.Content,
 			Images:  imageURLs,

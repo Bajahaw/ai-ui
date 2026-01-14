@@ -2,7 +2,7 @@ package chat
 
 import (
 	"ai-client/cmd/auth"
-	"ai-client/cmd/provider"
+	"ai-client/cmd/providers"
 	"ai-client/cmd/tools"
 	"ai-client/cmd/utils"
 
@@ -61,7 +61,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		convID = conv.ID
 	}
 
-	files, err := getFilesDataByID(req.AttachedFileIDs, user)
+	attachedFiles, err := files.GetByIDs(req.AttachedFileIDs, user)
 	if err != nil {
 		log.Error("Error getting files data", "err", err)
 		http.Error(w, fmt.Sprintf("Error getting files data: %v", err), http.StatusBadRequest)
@@ -79,7 +79,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userMessage.Attachments = make([]Attachment, 0)
-	for _, file := range files {
+	for _, file := range attachedFiles {
 		attachment := Attachment{
 			ID:        uuid.NewString(),
 			MessageID: -1, // will be updated with correct message ID when saving
@@ -105,7 +105,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send metadata first (conversation ID, user message ID)
-	metadata := provider.StreamMetadata{
+	metadata := providers.StreamMetadata{
 		ConversationID: convID,
 		UserMessageID:  userMessage.ID,
 	}
@@ -115,12 +115,12 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 
 	// Build context from user message
 	ctx := buildContext(convID, userMessage.ID, user)
-	reasoningSetting, _ := getSetting("reasoningEffort", user)
+	reasoningSetting, _ := settings.Get("reasoningEffort", user)
 
-	providerParams := provider.RequestParams{
+	providerParams := providers.RequestParams{
 		Messages:        ctx,
 		Model:           req.Model,
-		ReasoningEffort: provider.ReasoningEffort(reasoningSetting),
+		ReasoningEffort: providers.ReasoningEffort(reasoningSetting),
 		User:            user,
 	}
 
@@ -138,7 +138,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	var toolCalls []tools.ToolCall
 	var isToolsUsed bool
 
-	completion, err := providerClient.SendChatCompletionStreamRequest(providerParams, w)
+	completion, err := provider.SendChatCompletionStreamRequest(providerParams, w)
 	if err != nil {
 		log.Error("Error streaming chat completion", "err", err)
 		fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
@@ -161,7 +161,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 
 		toolCall := toolCalls[0]
 
-		providerParams.Messages = append(providerParams.Messages, provider.SimpleMessage{
+		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
 			Role:     "assistant",
 			ToolCall: toolCall,
 		})
@@ -172,14 +172,14 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		output := tools.ExecuteToolCall(toolCall, user)
 		toolCall.Output = output
 
-		chunk, _ := json.Marshal(provider.StreamChunk{
+		chunk, _ := json.Marshal(providers.StreamChunk{
 			ToolCall: toolCall,
 		})
 		fmt.Fprintf(w, "data: %s\n\n", chunk)
 		flusher.Flush()
 
 		// Append tool result message to context for continued completion
-		providerParams.Messages = append(providerParams.Messages, provider.SimpleMessage{
+		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
 			Role: "tool",
 			ToolCall: tools.ToolCall{
 				ID:          toolCall.ID,
@@ -191,7 +191,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 
 		toolCalls = toolCalls[1:]
 		if len(toolCalls) == 0 {
-			completion, err = providerClient.SendChatCompletionStreamRequest(providerParams, w)
+			completion, err = provider.SendChatCompletionStreamRequest(providerParams, w)
 			if err != nil {
 				log.Error("Error streaming chat completion after tool call", "err", err)
 				fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
@@ -222,7 +222,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Completed streaming chat response", "responseMessageID", responseMessage.ID)
 
 	// Send completion event with message IDs
-	completionData := provider.StreamComplete{
+	completionData := providers.StreamComplete{
 		UserMessageID:      userMessage.ID,
 		AssistantMessageID: responseMessage.ID,
 	}
@@ -270,7 +270,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 
 	// Metadata: no new user message; client already knows conversation
 	// We can still send conversationId and echo parent id in userMessageId for consistency if needed.
-	metadata := provider.StreamMetadata{
+	metadata := providers.StreamMetadata{
 		ConversationID: req.ConversationID,
 		UserMessageID:  parent.ID,
 	}
@@ -280,12 +280,12 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 
 	// Build context from the parent message
 	ctx := buildContext(req.ConversationID, parent.ID, user)
-	reasoningSetting, _ := getSetting("reasoningEffort", user)
+	reasoningSetting, _ := settings.Get("reasoningEffort", user)
 
-	providerParams := provider.RequestParams{
+	providerParams := providers.RequestParams{
 		Messages:        ctx,
 		Model:           req.Model,
-		ReasoningEffort: provider.ReasoningEffort(reasoningSetting),
+		ReasoningEffort: providers.ReasoningEffort(reasoningSetting),
 		User:            user,
 	}
 
@@ -304,7 +304,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	var isToolsUsed bool
 
 	// Stream assistant content
-	completion, err := providerClient.SendChatCompletionStreamRequest(providerParams, w)
+	completion, err := provider.SendChatCompletionStreamRequest(providerParams, w)
 	if err != nil {
 		log.Error("Error streaming retry completion", "err", err)
 		fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
@@ -330,7 +330,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 
 		toolCall := toolCalls[0]
 
-		providerParams.Messages = append(providerParams.Messages, provider.SimpleMessage{
+		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
 			Role:     "assistant",
 			ToolCall: toolCall,
 		})
@@ -341,14 +341,14 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		output := tools.ExecuteToolCall(toolCall, user)
 		toolCall.Output = output
 
-		chunk, _ := json.Marshal(provider.StreamChunk{
+		chunk, _ := json.Marshal(providers.StreamChunk{
 			ToolCall: toolCall,
 		})
 		fmt.Fprintf(w, "data: %s\n\n", chunk)
 		flusher.Flush()
 
 		// Append tool result message to context for continued completion
-		providerParams.Messages = append(providerParams.Messages, provider.SimpleMessage{
+		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
 			Role: "tool",
 			ToolCall: tools.ToolCall{
 				ID:          toolCall.ID,
@@ -360,7 +360,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 
 		toolCalls = toolCalls[1:]
 		if len(toolCalls) == 0 {
-			completion, err = providerClient.SendChatCompletionStreamRequest(providerParams, w)
+			completion, err = provider.SendChatCompletionStreamRequest(providerParams, w)
 			if err != nil {
 				log.Error("Error streaming chat completion after tool call", "err", err)
 				fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
@@ -389,7 +389,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send completion event with the new assistant message id
-	completionData := provider.StreamComplete{
+	completionData := providers.StreamComplete{
 		UserMessageID:      parent.ID,
 		AssistantMessageID: responseMessage.ID,
 	}

@@ -4,7 +4,9 @@ import (
 	"ai-client/cmd/auth"
 	"ai-client/cmd/chat"
 	"ai-client/cmd/data"
-	"ai-client/cmd/provider"
+	"ai-client/cmd/files"
+	"ai-client/cmd/providers"
+	"ai-client/cmd/settings"
 	"ai-client/cmd/tools"
 	"ai-client/cmd/utils"
 	"context"
@@ -23,7 +25,7 @@ import (
 
 var log *logger.Logger
 var db *sql.DB
-var providerClient provider.Client
+var provider providers.Client
 
 func main() {
 	setupEnv()
@@ -34,6 +36,8 @@ func main() {
 
 	setupAuth()
 	setupProviderClient()
+	setupSettings()
+	setupFiles()
 	setupChatClient()
 	setupTools()
 
@@ -73,14 +77,24 @@ func setupUtils() {
 }
 
 func setupProviderClient() {
-	provider.SetupProviderClient(log, db)
-	providerClient = provider.NewClient()
+	providers.SetupProviderClient(log, db)
+	provider = providers.NewClient()
 	log.Info("Provider client set up successfully")
 }
 
 func setupChatClient() {
-	chat.SetupChat(log, db, providerClient)
+	chat.SetupChat(log, db, provider)
 	log.Info("Chat client set up successfully")
+}
+
+func setupSettings() {
+	settings.SetupSettings(log, db)
+	log.Info("Settings set up successfully")
+}
+
+func setupFiles() {
+	files.SetupFiles(log, db, provider)
+	log.Info("Files set up successfully")
 }
 
 func startDataSource() {
@@ -95,7 +109,7 @@ func startDataSource() {
 func setupAuth() {
 	auth.Setup(log, db)
 	auth.OnRegister = []auth.PostRegisterHook{
-		chat.SetDefaultSettings,
+		settings.SetDefaults,
 		tools.SaveDefaultMCPServer,
 	}
 }
@@ -110,11 +124,11 @@ func startServer() {
 	mux.Handle("/data/resources/", http.StripPrefix("/data/resources/", auth.Authenticated(dataFs)))
 
 	mux.Handle("/api/chat/", chat.Handler())
-	mux.Handle("/api/files/", chat.FileHandler())
+	mux.Handle("/api/files/", files.FileHandler())
 	mux.Handle("/api/conversations/", chat.ConvsHandler())
-	mux.Handle("/api/providers/", provider.Handler())
-	mux.Handle("/api/models/", provider.ModelsHandler())
-	mux.Handle("/api/settings/", chat.SettingsHandler())
+	mux.Handle("/api/providers/", providers.Handler())
+	mux.Handle("/api/models/", providers.ModelsHandler())
+	mux.Handle("/api/settings/", settings.SettingsHandler())
 	mux.Handle("/api/tools/", tools.Handler())
 	mux.Handle("/api/auth/", auth.Handler())
 

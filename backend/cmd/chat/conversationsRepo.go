@@ -32,7 +32,7 @@ func newConversation(userId string) *Conversation {
 	}
 }
 
-func newConversationRepository(db *sql.DB) *ConversationRepository {
+func NewRepository(db *sql.DB) *ConversationRepository {
 	return &ConversationRepository{
 		db: db,
 		// todo

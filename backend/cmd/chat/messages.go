@@ -2,6 +2,7 @@ package chat
 
 import (
 	"ai-client/cmd/data"
+	fs "ai-client/cmd/files"
 	"ai-client/cmd/tools"
 )
 
@@ -20,9 +21,9 @@ type Message struct {
 }
 
 type Attachment struct {
-	ID        string `json:"id"`
-	MessageID int    `json:"messageId"`
-	File      File   `json:"file"`
+	ID        string  `json:"id"`
+	MessageID int     `json:"messageId"`
+	File      fs.File `json:"file"`
 }
 
 func getMessage(id int) (*Message, error) {
@@ -259,7 +260,7 @@ func getMessageAttachments(messageID int) []Attachment {
 	attachments := make([]Attachment, 0)
 	for attRows.Next() {
 		var att Attachment
-		var file File
+		var file fs.File
 		if err := attRows.Scan(
 			&att.ID,
 			&att.MessageID,
@@ -299,7 +300,7 @@ func getAllConversationAttachments(convID string) map[int][]Attachment {
 
 	for rows.Next() {
 		var att Attachment
-		var file File
+		var file fs.File
 		if err := rows.Scan(
 			&att.ID,
 			&att.MessageID,

@@ -29,23 +29,3 @@ func ConvsHandler() http.Handler {
 
 	return http.StripPrefix("/api/conversations", auth.Authenticated(mux))
 }
-
-func SettingsHandler() http.Handler {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("GET 	/", getAllSettings)
-	mux.HandleFunc("POST 	/update", updateSettings)
-
-	return http.StripPrefix("/api/settings", auth.Authenticated(mux))
-}
-
-func FileHandler() http.Handler {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("POST 	/upload", upload)
-	mux.HandleFunc("GET 	/{id}", getFile)
-	mux.HandleFunc("GET 	/all", getAllFiles)
-	mux.HandleFunc("DELETE 	/delete/{id}", deleteFile)
-
-	return http.StripPrefix("/api/files", auth.Authenticated(mux))
-}

@@ -1,7 +1,9 @@
 package chat
 
 import (
-	"ai-client/cmd/provider"
+	fs "ai-client/cmd/files"
+	"ai-client/cmd/providers"
+	stngs "ai-client/cmd/settings"
 	"ai-client/cmd/tools"
 	"database/sql"
 
@@ -11,12 +13,19 @@ import (
 var log *logger.Logger
 var conversations ConversationRepo
 var toolCalls tools.ToolCallsRepository
-var providerClient provider.Client
+var provider providers.Client
+var settings stngs.Repository
+var files fs.Repository
 
-func SetupChat(l *logger.Logger, db *sql.DB, pc provider.Client) {
+func SetupChat(
+	l *logger.Logger,
+	db *sql.DB,
+	p providers.Client,
+) {
 	log = l
-	providerClient = pc
-	conversations = newConversationRepository(db)
+	provider = p
+	conversations = NewRepository(db)
 	toolCalls = tools.NewToolCallsRepository(db)
-	// SetDefaultSettings("admin")
+	settings = stngs.NewRepository(db)
+	files = fs.NewRepository(db)
 }

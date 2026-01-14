@@ -1,9 +1,7 @@
-package chat
+package files
 
 import (
 	"ai-client/cmd/auth"
-	"ai-client/cmd/data"
-	"ai-client/cmd/provider"
 	"ai-client/cmd/utils"
 	"net/http"
 	"os"
@@ -14,16 +12,15 @@ import (
 	"github.com/google/uuid"
 )
 
-type File struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	Size      int64  `json:"size"`
-	Path      string `json:"path"`
-	URL       string `json:"url"`
-	Content   string `json:"content"`
-	User      string `json:"user,omitempty"`
-	CreatedAt string `json:"createdAt"`
+func FileHandler() http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("POST 	/upload", upload)
+	mux.HandleFunc("GET 	/{id}", getFile)
+	mux.HandleFunc("GET 	/all", getAllFiles)
+	mux.HandleFunc("DELETE 	/delete/{id}", deleteFile)
+
+	return http.StripPrefix("/api/files", auth.Authenticated(mux))
 }
 
 func upload(w http.ResponseWriter, r *http.Request) {
@@ -96,9 +93,9 @@ func upload(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug("Uploaded file data", "file", fileData)
 
-	ocrOnly, _ := getSetting("attachmentOcrOnly", user)
+	ocrOnly, _ := settings.Get("attachmentOcrOnly", user)
 	if ocrOnly == "true" {
-		ocrModel, _ := getSetting("ocrModel", user)
+		ocrModel, _ := settings.Get("ocrModel", user)
 		fileContent, err := extractFileContent(fileData, ocrModel)
 		if err != nil {
 			log.Error("Error extracting file content", "err", err)
@@ -109,7 +106,7 @@ func upload(w http.ResponseWriter, r *http.Request) {
 		log.Debug("Extracted file content", "content", fileContent)
 	}
 
-	err = saveFileData(fileData)
+	err = repo.Save(fileData)
 	if err != nil {
 		log.Error("Error saving file data", "err", err)
 		http.Error(w, "Error saving file data", http.StatusInternalServerError)
@@ -122,7 +119,7 @@ func upload(w http.ResponseWriter, r *http.Request) {
 func getFile(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUsername(r)
 	id := r.PathValue("id")
-	files, err := getFilesDataByID([]string{id}, user)
+	files, err := repo.GetByIDs([]string{id}, user)
 	if err != nil || len(files) == 0 {
 		log.Warn("File not found", "id", id, "err", err)
 		http.Error(w, "File not found", http.StatusNotFound)
@@ -137,7 +134,7 @@ func deleteFile(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
 	// First, get the file data to delete the physical file
-	files, err := getFilesDataByID([]string{id}, user)
+	files, err := repo.GetByIDs([]string{id}, user)
 	if err != nil || len(files) == 0 {
 		log.Warn("File not found for deletion", "id", id, "err", err)
 		http.Error(w, "File not found", http.StatusNotFound)
@@ -151,8 +148,7 @@ func deleteFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deleteSql := `DELETE FROM Files WHERE id = ? AND user = ?`
-	_, err = data.DB.Exec(deleteSql, id, user)
+	err = repo.DeleteByID(id, user)
 	if err != nil {
 		log.Error("Error deleting file record from database", "err", err)
 		http.Error(w, "Error deleting file record: "+err.Error(), http.StatusInternalServerError)
@@ -164,147 +160,13 @@ func deleteFile(w http.ResponseWriter, r *http.Request) {
 
 func getAllFiles(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUsername(r)
-	fileSql := `
-	SELECT id, name, type, size, path, url, content, created_at
-	FROM Files
-	WHERE user = ?
-	`
 
-	rows, err := data.DB.Query(fileSql, user)
+	files, err := repo.GetAll(user)
 	if err != nil {
 		log.Error("Error querying all files", "err", err)
 		http.Error(w, "Error retrieving files", http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
-
-	var files []File
-	for rows.Next() {
-		var file File
-		if err := rows.Scan(
-			&file.ID,
-			&file.Name,
-			&file.Type,
-			&file.Size,
-			&file.Path,
-			&file.URL,
-			&file.Content,
-			&file.CreatedAt,
-		); err != nil {
-			log.Error("Error scanning file", "err", err)
-			continue
-		}
-		files = append(files, file)
-	}
 
 	utils.RespondWithJSON(w, files, http.StatusOK)
-}
-
-func getFilesDataByID(fileIDs []string, user string) ([]File, error) {
-	if len(fileIDs) == 0 {
-		return []File{}, nil
-	}
-
-	fileSql := `
-	SELECT id, name, type, size, path, url, content, created_at
-	FROM Files
-	WHERE id IN (` + utils.SqlPlaceholders(len(fileIDs)) + `) AND user = ?
-	`
-
-	args := make([]any, len(fileIDs)+1)
-	for i, id := range fileIDs {
-		args[i] = id
-	}
-	args[len(fileIDs)] = user
-
-	rows, err := data.DB.Query(fileSql, args...)
-	if err != nil {
-		log.Error("Error querying files", "err", err)
-		return []File{}, err
-	}
-	defer rows.Close()
-
-	var files []File
-	for rows.Next() {
-		var file File
-		if err := rows.Scan(
-			&file.ID,
-			&file.Name,
-			&file.Type,
-			&file.Size,
-			&file.Path,
-			&file.URL,
-			&file.Content,
-			&file.CreatedAt,
-		); err != nil {
-			log.Error("Error scanning file", "err", err)
-			continue
-		}
-		files = append(files, file)
-	}
-
-	return files, nil
-}
-
-func saveFileData(file File) error {
-	attSql := `INSERT INTO Files (id, name, type, size, path, url, content, user, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err := data.DB.Exec(attSql,
-		file.ID,
-		file.Name,
-		file.Type,
-		file.Size,
-		file.Path,
-		file.URL,
-		file.Content,
-		file.User,
-		file.CreatedAt,
-	)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// extractFileContent extracts text content from the file at the given URL.
-// It sends a request to the OCR service and returns the extracted text.
-// currently supports images only. if file content is text, then it is not sent to OCR.
-func extractFileContent(file File, model string) (string, error) {
-	log.Debug("Extracting content from file", "path", file.Path, "type", file.Type)
-	if strings.HasPrefix(file.Type, "text/") {
-		fileContent, err := os.ReadFile(file.Path)
-		if err != nil {
-			log.Error("Error reading text file", "err", err)
-			return "", err
-		}
-		return string(fileContent), nil
-	}
-
-	params := provider.RequestParams{
-		Messages: []provider.SimpleMessage{
-			{
-				Role:    "system",
-				Content: "You are an Image recognition and OCR assistant.",
-			},
-			{
-				Role: "user",
-				Content: "Extract text content from the given file. " +
-					"preserve formatting of code, latex, tables etc. " +
-					"as much as possible. If main content is not text, " +
-					"provide a detailed description of the image instead.",
-				Images: []string{
-					file.URL,
-				},
-			},
-		},
-		Model: model,
-		User:  file.User,
-	}
-
-	response, err := providerClient.SendChatCompletionRequest(params)
-	if err != nil || len(response.Content) == 0 {
-		return "", err
-	}
-
-	return response.Content, nil
 }
