@@ -3,9 +3,11 @@ package auth
 import (
 	"ai-client/cmd/utils"
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	logger "github.com/charmbracelet/log"
@@ -15,32 +17,32 @@ type AuthStatus struct {
 	Authenticated bool `json:"authenticated"`
 }
 
-var authCookie = "auth_token"
+type RegisterRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// PostRegisterHook defines the signature for actions after registration
+type PostRegisterHook func(username string)
+
+// OnRegister is a list of functions to run after successful registration
+var OnRegister []PostRegisterHook
 var log *logger.Logger
 var db *sql.DB
+var users UserRepository
+var JWT_SECRET string
+
+const AUTH_COOKIE = "auth_token"
 
 func Setup(l *logger.Logger, d *sql.DB) {
 	log = l
 	db = d
-
-	// _, err := verifyUserCredentials("admin")
-	// if err == nil {
-	// 	// token = t
-	// 	return
-	// }
-
-	// // If not found, check environment variable
-	// token := os.Getenv("APP_TOKEN")
-	// if token != "" {
-	// 	err := registerNewUser("admin", token)
-	// 	if err != nil {
-	// 		log.Error("Failed to register admin", "error", err)
-	// 	} else {
-	// 		log.Info("Admin user registered")
-	// 	}
-	// }
-
-	// // If still not found, /api/auth/register can be used to create one
+	users = NewUserRepository(db)
+	JWT_SECRET = os.Getenv("JWT_SECRET")
+	if JWT_SECRET == "" {
+		JWT_SECRET = rand.Text()
+		log.Warn("JWT_SECRET not set in environment; using random secret for this session")
+	}
 }
 
 func Handler() http.Handler {
@@ -53,6 +55,35 @@ func Handler() http.Handler {
 	return http.StripPrefix("/api/auth", mux)
 }
 
+func Register() http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req RegisterRequest
+		if err := utils.ExtractJSONBody(r, &req); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		if len(req.Username) == 0 || len(req.Password) < 8 {
+			http.Error(w, "Bad Credentials", http.StatusBadRequest)
+			return
+		}
+
+		err := registerNewUser(req.Username, req.Password)
+		if err != nil {
+			log.Error("Failed to register user", "error", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		log.Debug("calling hooks")
+		for _, hook := range OnRegister {
+			hook(req.Username)
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	})
+}
+
 func Login() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		username := r.FormValue("username")
@@ -60,15 +91,21 @@ func Login() http.HandlerFunc {
 
 		err := verifyUserCredentials(username, password)
 		if err != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
+
+		signedToken, err := generateJWT(username)
+		if err != nil {
+			http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 			return
 		}
 
 		cookie := &http.Cookie{
-			Name:     authCookie,
-			Value:    password,
+			Name:     AUTH_COOKIE,
+			Value:    signedToken,
 			Path:     "/",
-			Expires:  time.Now().Add(30 * 24 * time.Hour),
+			Expires:  time.Now().Add(7 * 24 * time.Hour),
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteStrictMode,
@@ -81,7 +118,7 @@ func Login() http.HandlerFunc {
 func Logout() http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		cookie := &http.Cookie{
-			Name:     authCookie,
+			Name:     AUTH_COOKIE,
 			Value:    "",
 			Path:     "/",
 			Expires:  time.Unix(0, 0),
@@ -96,16 +133,24 @@ func Logout() http.HandlerFunc {
 
 func Authenticated(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie(authCookie)
+		cookie, err := r.Cookie(AUTH_COOKIE)
 		if err != nil {
 			log.Warn("Unauthorized access attempt", "path", r.URL.Path, "ip", r.RemoteAddr)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		username, err := extractUsername(cookie.Value)
-		if err != nil || username == "" {
+		claims, err := extractClaims(cookie.Value)
+		if err != nil {
 			log.Warn("Invalid auth token", "path", r.URL.Path, "ip", r.RemoteAddr)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		username := claims["username"].(string)
+		exp := claims["exp"].(float64)
+		if time.Now().After(time.Unix(int64(exp), 0)) {
+			log.Warn("Auth token expired", "path", r.URL.Path, "ip", r.RemoteAddr)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -122,49 +167,18 @@ func GetAuthStatus() http.HandlerFunc {
 			Authenticated: false,
 		}
 
-		cookie, err := r.Cookie(authCookie)
+		cookie, err := r.Cookie(AUTH_COOKIE)
 		if err != nil {
 			status.Authenticated = false
 			utils.RespondWithJSON(w, &status, http.StatusOK)
 			return
 		}
 
-		username, err := extractUsername(cookie.Value)
-		if err == nil && username != "" {
+		claims, err := extractClaims(cookie.Value)
+		if err == nil && claims["username"] != "" {
 			status.Authenticated = true
 		}
 
 		utils.RespondWithJSON(w, &status, http.StatusOK)
 	})
-}
-
-// extractUsername retrieves the username associated with the given token.
-// Until a proper jwt implementation is in place, this function just queries the database.
-func extractUsername(token string) (string, error) {
-	var username string
-	err := db.QueryRow(`SELECT username FROM users WHERE token = ?`, token).Scan(&username)
-	if err != nil {
-		return "", err
-	}
-
-	return username, nil
-}
-
-func verifyUserCredentials(username, password string) error {
-	var storedPass string
-	err := db.QueryRow(`SELECT token FROM users WHERE username = ?`, username).Scan(&storedPass)
-	if err != nil {
-		return err
-	}
-
-	if storedPass != password {
-		return fmt.Errorf("invalid credentials")
-	}
-
-	return nil
-}
-
-func GetUsername(r *http.Request) string {
-	ctx := r.Context()
-	return ctx.Value("user").(string)
 }

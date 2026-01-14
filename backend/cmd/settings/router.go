@@ -16,7 +16,7 @@ func SettingsHandler() http.Handler {
 }
 
 func getAllSettings(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	settings, err := repo.GetAll(user)
 	if err != nil {
 		log.Error("Error querying settings", "err", err)
@@ -29,7 +29,7 @@ func getAllSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateSettings(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	var request Settings
 	err := utils.ExtractJSONBody(r, &request)
 	if err != nil {

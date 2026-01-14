@@ -58,7 +58,7 @@ func ModelsHandler() http.Handler {
 }
 
 func getAllModels(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	models := providers.GetAllModels(user)
 	response := ModelsResponse{
 		Models: models,
@@ -111,7 +111,7 @@ func fetchAllModels(provider *Provider) []*Model {
 }
 
 func getProvidersList(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	providers := providers.GetAll(user)
 
 	response := make([]Response, 0, len(providers))
@@ -126,7 +126,7 @@ func getProvidersList(w http.ResponseWriter, r *http.Request) {
 }
 
 func getProvider(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	id := r.PathValue("id")
 	provider, err := providers.GetByID(id, user)
 	if err != nil {
@@ -156,7 +156,7 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 		ID:      utils.ExtractProviderName(req.BaseURL) + "-" + uuid.New().String()[:4],
 		BaseURL: req.BaseURL,
 		APIKey:  req.APIKey,
-		User:    auth.GetUsername(r),
+		User:    utils.ExtractContextUser(r),
 	}
 
 	err = providers.Save(provider)
@@ -182,7 +182,7 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteProvider(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	id := r.PathValue("id")
 	err := providers.DeleteByID(id, user)
 	if err != nil {

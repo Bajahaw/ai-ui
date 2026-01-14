@@ -1,7 +1,6 @@
 package chat
 
 import (
-	"ai-client/cmd/auth"
 	"ai-client/cmd/utils"
 	"fmt"
 	"net/http"
@@ -31,7 +30,7 @@ func saveConversation(w http.ResponseWriter, r *http.Request) {
 
 	conv := &Conversation{
 		ID:        uuid.NewString(),
-		UserID:    auth.GetUsername(r),
+		UserID:    utils.ExtractContextUser(r),
 		Title:     req.Conv.Title,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -51,7 +50,7 @@ func saveConversation(w http.ResponseWriter, r *http.Request) {
 }
 
 func getConversation(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	convId := r.PathValue("id")
 	conv, err := conversations.GetByID(convId, user)
 	if err != nil {
@@ -63,7 +62,7 @@ func getConversation(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAllConversations(writer http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	utils.RespondWithJSON(
 		writer,
 		conversations.GetAll(user),
@@ -72,7 +71,7 @@ func getAllConversations(writer http.ResponseWriter, r *http.Request) {
 }
 
 func deleteConversation(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	convId := r.PathValue("id")
 	err := conversations.DeleteByID(convId, user)
 	if err != nil {
@@ -83,7 +82,7 @@ func deleteConversation(w http.ResponseWriter, r *http.Request) {
 }
 
 func renameConversation(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	convId := r.PathValue("id")
 	var req struct {
 		Title string `json:"title"`
@@ -115,7 +114,7 @@ func renameConversation(w http.ResponseWriter, r *http.Request) {
 }
 
 func getConversationMessages(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	convId := r.PathValue("id")
 	messages := getAllConversationMessages(convId, user)
 	utils.RespondWithJSON(w, &messages, http.StatusOK)

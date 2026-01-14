@@ -28,7 +28,7 @@ type ToolListResponse struct {
 }
 
 func listAllTools(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	tools := tools.GetAll(user)
 	response := ToolListResponse{
 		Tools: tools,
@@ -37,7 +37,7 @@ func listAllTools(w http.ResponseWriter, r *http.Request) {
 }
 
 func saveListOfTools(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	var req ToolListResponse
 	if err := utils.ExtractJSONBody(r, &req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)

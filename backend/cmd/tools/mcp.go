@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"ai-client/cmd/auth"
 	"ai-client/cmd/utils"
 	"context"
 	"encoding/json"
@@ -42,7 +41,7 @@ type MCPServerRequest struct {
 }
 
 func listMCPServers(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	servers := mcps.GetAll(user)
 	response := make([]MCPServerResponse, len(servers))
 	for i, server := range servers {
@@ -57,7 +56,7 @@ func listMCPServers(w http.ResponseWriter, r *http.Request) {
 }
 
 func getMCPServer(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	id := r.PathValue("id")
 	server, err := mcps.GetByID(id, user)
 	if err != nil {
@@ -76,7 +75,7 @@ func getMCPServer(w http.ResponseWriter, r *http.Request) {
 }
 
 func saveMCPServer(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	var req MCPServerRequest
 	err := utils.ExtractJSONBody(r, &req)
 	if err != nil {
@@ -119,7 +118,7 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteMCPServer(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	id := r.PathValue("id")
 	err := mcps.DeleteByID(id, user)
 	if err != nil {

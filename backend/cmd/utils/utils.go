@@ -42,21 +42,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-//func ExtractBody(r *http.Request) ([]byte, error) {
-//	defer func(Body io.ReadCloser) {
-//		err := Body.Close()
-//		if err != nil {
-//			fmt.Println("Error closing request body:", err)
-//		}
-//	}(r.Body)
-//	body, err := io.ReadAll(r.Body)
-//	if err != nil {
-//		return nil, err
-//	}
-//	return body, nil
-//}
-
-func ExtractJSONBody(r *http.Request, v interface{}) error {
+func ExtractJSONBody(r *http.Request, v any) error {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	err := dec.Decode(v)
@@ -69,7 +55,7 @@ func ExtractJSONBody(r *http.Request, v interface{}) error {
 	return nil
 }
 
-func RespondWithJSON(w http.ResponseWriter, data interface{}, statusCode int) {
+func RespondWithJSON(w http.ResponseWriter, data any, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 
 	buf, err := json.Marshal(data)
@@ -236,18 +222,14 @@ func SqlPlaceholders(n int) string {
 	return strings.Join(placeholders, ", ")
 }
 
-//func ExtractModelName(id string) string {
-//	// "openai/gpt-4-turbo" -> "gpt-4-turbo"
-//	parts := strings.Split(id, "/")
-//	if len(parts) < 2 {
-//		return id
-//	}
-//	return parts[len(parts)-1]
-//}
-
 func AddStreamHeaders(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
+}
+
+func ExtractContextUser(r *http.Request) string {
+	user := r.Context().Value("user").(string)
+	return user
 }

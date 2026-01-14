@@ -1,7 +1,6 @@
 package chat
 
 import (
-	"ai-client/cmd/auth"
 	"ai-client/cmd/providers"
 	"ai-client/cmd/tools"
 	"ai-client/cmd/utils"
@@ -39,7 +38,7 @@ type Response struct {
 }
 
 func chatStream(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	var req Request
 	err := utils.ExtractJSONBody(r, &req)
 	if err != nil || req.ConversationID == "" || req.Content == "" {
@@ -235,7 +234,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 // retryStream streams an alternative assistant response for a given user parent message.
 // It does not create a new user message; it uses the provided ParentID as context root.
 func retryStream(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	var req Retry
 	err := utils.ExtractJSONBody(r, &req)
 	if err != nil || req.ConversationID == "" || req.ParentID <= 0 {
@@ -398,20 +397,20 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	flusher.Flush()
 }
 
-func update(W http.ResponseWriter, R *http.Request) {
-	user := auth.GetUsername(R)
+func update(w http.ResponseWriter, r *http.Request) {
+	user := utils.ExtractContextUser(r)
 	var req Update
-	err := utils.ExtractJSONBody(R, &req)
+	err := utils.ExtractJSONBody(r, &req)
 	if err != nil || req.ConversationID == "" || req.MessageID < 0 || req.Content == "" {
 		log.Error("Error unmarshalling request body", "err", err)
-		http.Error(W, "Invalid request body", http.StatusBadRequest)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	msg, err := updateMessage(req.MessageID, Message{Content: req.Content})
 	if err != nil {
 		log.Error("Error updating message", "err", err)
-		http.Error(W, fmt.Sprintf("Error updating message: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Error updating message: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -425,5 +424,5 @@ func update(W http.ResponseWriter, R *http.Request) {
 	}
 	response.Messages[msg.ID] = msg
 
-	utils.RespondWithJSON(W, &response, http.StatusOK)
+	utils.RespondWithJSON(w, &response, http.StatusOK)
 }

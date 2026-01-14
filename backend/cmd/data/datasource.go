@@ -56,7 +56,7 @@ func InitDataSource(dataSourceName string) error {
 	CREATE TABLE IF NOT EXISTS Users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		username TEXT NOT NULL UNIQUE,
-		token TEXT NOT NULL
+		pass_hash TEXT NOT NULL
 	);
 	
 	CREATE TABLE IF NOT EXISTS Conversations (
@@ -78,6 +78,7 @@ func InitDataSource(dataSourceName string) error {
 		content TEXT NOT NULL,
 		user TEXT NOT NULL,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (user) REFERENCES Users(username) ON DELETE CASCADE
 	);
 	

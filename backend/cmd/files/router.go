@@ -24,7 +24,7 @@ func FileHandler() http.Handler {
 }
 
 func upload(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	err := r.ParseMultipartForm(10 << 20) // limit to 10MB
 	if err != nil {
 		log.Error("Error parsing multipart form", "err", err)
@@ -117,7 +117,7 @@ func upload(w http.ResponseWriter, r *http.Request) {
 }
 
 func getFile(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	id := r.PathValue("id")
 	files, err := repo.GetByIDs([]string{id}, user)
 	if err != nil || len(files) == 0 {
@@ -130,7 +130,7 @@ func getFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteFile(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 	id := r.PathValue("id")
 
 	// First, get the file data to delete the physical file
@@ -159,7 +159,7 @@ func deleteFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAllFiles(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUsername(r)
+	user := utils.ExtractContextUser(r)
 
 	files, err := repo.GetAll(user)
 	if err != nil {
