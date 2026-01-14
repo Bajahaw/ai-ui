@@ -1,0 +1,24 @@
+{
+  "short_name": "AI UI",
+  "name": "AI UI - AI Chat",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#19191a",
+  "background_color": "#19191a",
+  "description": "A modern AI chat interface for various providers.",
+  "orientation": "portrait"
+}
