@@ -6,7 +6,6 @@ import { ThemeProvider } from "./components/theme-provider.tsx";
 import { AuthProvider, useAuth } from "./hooks/useAuth.tsx";
 import { ModelsProvider } from "./hooks/useModelsContext.tsx";
 import { SettingsDataProvider } from "./hooks/useSettingsData.tsx";
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 
 /**
@@ -103,7 +102,7 @@ const LoginScreen = () => {
 			</div>
 
 			<form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4">
-				<div className="space-y-4">
+				<div className="flex flex-col gap-5">
 					<div className="space-y-2">
 						<input
 							type="text"
@@ -146,8 +145,11 @@ const LoginScreen = () => {
 						</button>
 					</div>
 
-					<Collapsible open={!isLoginMode} className="w-full space-y-2">
-						<CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+					<div className={cn(
+						"grid w-full transition-all !duration-200 ease-in-out",
+						!isLoginMode ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0 -mt-4"
+					)}>
+						<div className="overflow-hidden">
 							<div className="space-y-2 pt-1">
 								<input
 									type="password"
@@ -162,16 +164,19 @@ const LoginScreen = () => {
 									autoComplete="new-password"
 								/>
 							</div>
-						</CollapsibleContent>
-					</Collapsible>
+						</div>
+					</div>
 
-					<Collapsible open={!!(error || validationError)} className="w-full">
-						<CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+					<div className={cn(
+						"grid w-full transition-all !duration-200 ease-in-out",
+						error || validationError ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0 -mt-4"
+					)}>
+						<div className="overflow-hidden">
 							<p className="text-sm text-destructive font-medium pt-1 px-1">
 								{validationError || error}
 							</p>
-						</CollapsibleContent>
-					</Collapsible>
+						</div>
+					</div>
 				</div>
 
 				<button
