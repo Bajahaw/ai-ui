@@ -248,7 +248,7 @@ export const ChatInterface = ({
 	// Check if there are recent error messages (within last 2 messages)
 	const hasRecentError = messages
 		.slice(-2)
-		.some((message) => message.status === "error");
+		.some((message) => !!message.error);
 
 	// Validate selected model exists in the loaded models list
 	const isModelValid = useMemo(() => {
@@ -449,11 +449,11 @@ export const ChatInterface = ({
 
 						<Action
 							tooltip={
-								message.status === "error" ? "Copy error" : "Copy message"
+								message.error ? "Copy error" : "Copy message"
 							}
 							onClick={() =>
 								copyMessage(
-									message.status === "error"
+									message.error
 										? message.error || "Error occurred"
 										: message.content,
 								)
@@ -465,7 +465,7 @@ export const ChatInterface = ({
 						{message.role === "assistant" && message.status !== "pending" && (
 							<Action
 								tooltip={
-									message.status === "error"
+									message.error
 										? "Retry getting response"
 										: "Regenerate response"
 								}
@@ -476,7 +476,7 @@ export const ChatInterface = ({
 									models.length === 0
 								}
 								className={
-									message.status === "error"
+									message.error
 										? "text-destructive hover:text-destructive-foreground hover:bg-destructive"
 										: ""
 								}
@@ -525,7 +525,7 @@ export const ChatInterface = ({
 	);
 
 	const renderMessageContent = (message: FrontendMessage) => {
-		if (message.status === "error") {
+		if (message.error) {
 			return (
 				<div className="space-y-2">
 					<div className="flex items-center gap-2 text-destructive">
@@ -563,6 +563,7 @@ export const ChatInterface = ({
 					}
 				}}
 				content={message.content}
+				status={message.status}
 				isEditing={editingMessageId === message.id}
 				onSave={(newContent) => handleUpdateMessage(message.id, newContent)}
 				onCancel={() => setEditingMessageId(null)}
@@ -581,7 +582,7 @@ export const ChatInterface = ({
 				{hasAttachments && (
 					<MessageComponent
 						from={message.role}
-						status="success"
+						status="completed"
 						className="pb-0"
 					>
 						<MessageContent className="!p-0">
@@ -596,6 +597,7 @@ export const ChatInterface = ({
 				<MessageComponent
 					from={message.role}
 					status={message.status}
+					error={message.error}
 					className={message.role === "user" ? "pb-1" : ""}
 				>
 					<MessageContent content={message.content}>

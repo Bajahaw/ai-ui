@@ -30,6 +30,7 @@ export interface Message {
 
 	content: string;
 	reasoning?: string;
+	status: string;
 	tools?: ToolCall[];
 
 	parentId?: number;
@@ -115,19 +116,18 @@ export interface FrontendMessage {
 	reasoning?: string;
 	reasoningDuration?: number; // Duration in seconds for reasoning (if reasoning was used)
 	toolCalls?: ToolCall[];
-	status?: "success" | "error" | "pending";
+	status?: "completed" | "pending";
 	error?: string;
 	timestamp: number;
 	attachments?: Attachment[];
 }
-// Utility function to generate optimistic client-only conversation ID (placeholder)
 
 // Note: Backend now uses UUIDs. When creating a new conversation implicitly,
 // read the real UUID from the returned messages' convId. - removed
 // Convert backend message to frontend message
 export const backendToFrontendMessage = (
 	backendMsg: Message,
-	status: "success" | "error" | "pending" = "success",
+	status: "completed" | "pending" = "completed",
 ): FrontendMessage => {
 	// Safety checks for null/undefined message
 	if (!backendMsg || typeof backendMsg !== "object") {
@@ -136,7 +136,8 @@ export const backendToFrontendMessage = (
 			id: "error",
 			role: "assistant",
 			content: "Error: Invalid message data",
-			status: "error",
+			status: "completed",
+			error: "Invalid message data",
 			timestamp: Date.now(),
 		};
 	}
@@ -155,7 +156,7 @@ export const backendToFrontendMessage = (
 		content: backendMsg.content || "",
 		reasoning: backendMsg.reasoning,
 		toolCalls: backendMsg.tools,
-		status: backendMsg.error ? "error" : status,
+		status: status,
 		error: backendMsg.error,
 		timestamp: Date.now(), // Backend doesn't provide timestamp, use current time
 		attachments: backendMsg.attachments,

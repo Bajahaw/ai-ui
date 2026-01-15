@@ -46,12 +46,12 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 
 				messages = append(messages, providers.SimpleMessage{
 					Role:     "assistant",
-					ToolCall: tool,
+					ToolCall: *tool,
 				})
 
 				messages = append(messages, providers.SimpleMessage{
 					Role:     "tool",
-					ToolCall: tool,
+					ToolCall: *tool,
 				})
 			}
 		}

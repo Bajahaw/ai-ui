@@ -5,13 +5,15 @@ import {getTextAlignment, getTextDirection} from "@/lib/rtl-utils";
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage["role"];
-  status?: "success" | "error" | "pending";
+  status?: "completed" | "pending";
+  error?: string;
 };
 
 export const Message = ({
   className,
   from,
   status,
+  error,
   ...props
 }: MessageProps) => (
   <div
@@ -21,7 +23,7 @@ export const Message = ({
       from === "user"
         ? "[&>div]:max-w-[85%] sm:[&>div]:max-w-[75%] md:[&>div]:max-w-[65%] lg:[&>div]:max-w-[60%]"
         : "[&>div]:max-w-full",
-      status === "error" && "is-error",
+      error && "is-error",
       className,
     )}
     {...props}

@@ -75,6 +75,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		Content:  req.Content,
 		ParentID: req.ParentID,
 		Children: []int{},
+		Status:   "completed",
 	}
 
 	userMessage.Attachments = make([]Attachment, 0)
@@ -150,6 +151,10 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		isToolsUsed = len(toolCalls) > 0
 	}
 
+	if !isToolsUsed {
+		responseMessage.Status = "completed"
+	}
+
 	// Save assistant message after streaming completes
 	responseMessage.ID, err = saveMessage(responseMessage)
 	if err != nil {
@@ -196,6 +201,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
 				flusher.Flush()
 				responseMessage.Error = err.Error()
+				responseMessage.Status = "completed"
 				break
 			}
 			toolCalls = append(toolCalls, completion.ToolCalls...)
@@ -211,6 +217,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	if isToolsUsed {
 		if err == nil {
 			responseMessage.Content = completion.Content
+			responseMessage.Status = "completed"
 		}
 		_, err = updateMessage(responseMessage.ID, responseMessage)
 		if err != nil {
@@ -243,7 +250,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Ensure conversation exists
+	// Ensure conversation exists and update its timestamp
 	if err = conversations.Touch(req.ConversationID, user); err != nil {
 		log.Error("Error retrieving conversation", "err", err)
 		http.Error(w, fmt.Sprintf("Error retrieving conversation: %v", err), http.StatusNotFound)
@@ -268,7 +275,6 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Metadata: no new user message; client already knows conversation
-	// We can still send conversationId and echo parent id in userMessageId for consistency if needed.
 	metadata := providers.StreamMetadata{
 		ConversationID: req.ConversationID,
 		UserMessageID:  parent.ID,
@@ -314,6 +320,10 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		responseMessage.Reasoning = completion.Reasoning
 		toolCalls = completion.ToolCalls
 		isToolsUsed = len(toolCalls) > 0
+	}
+
+	if !isToolsUsed {
+		responseMessage.Status = "completed"
 	}
 
 	responseID, saveErr := saveMessage(responseMessage)
@@ -365,6 +375,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
 				flusher.Flush()
 				responseMessage.Error = err.Error()
+				responseMessage.Status = "completed"
 				break
 			}
 			toolCalls = append(toolCalls, completion.ToolCalls...)
@@ -380,6 +391,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	if isToolsUsed {
 		if err == nil {
 			responseMessage.Content = completion.Content
+			responseMessage.Status = "completed"
 		}
 		_, err = updateMessage(responseMessage.ID, responseMessage)
 		if err != nil {

@@ -18,6 +18,7 @@ interface EditableMessageProps {
   onCancel: () => void;
   disabled?: boolean;
   className?: string;
+  status?: "completed" | "pending";
 }
 
 export interface EditableMessageRef {
@@ -29,7 +30,15 @@ export const EditableMessage = forwardRef<
   EditableMessageProps
 >(
   (
-    { content, isEditing, onSave, onCancel, disabled = false, className },
+    {
+      content,
+      isEditing,
+      onSave,
+      onCancel,
+      disabled = false,
+      className,
+      status,
+    },
     ref,
   ) => {
     const [editContent, setEditContent] = useState(content);
@@ -100,7 +109,14 @@ export const EditableMessage = forwardRef<
       );
     }
 
-    return <Response className={className}>{content}</Response>;
+    return (
+      <Response
+        className={className}
+        parseIncompleteMarkdown={status === "pending"}
+      >
+        {content}
+      </Response>
+    );
   },
 );
 

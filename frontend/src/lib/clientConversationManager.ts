@@ -187,8 +187,8 @@ export class ClientConversationManager {
 		// Preserve only pending/error messages that don't have real backend IDs yet
 		// Messages with real IDs (numeric) are already in backend and will be included via buildMessagesFromBackend
 		const pendingAndErrorMessages = conversation.messages.filter(
-			(m) => 
-				(m.status === "pending" || m.status === "error") && 
+			(m) =>
+				(m.status === "pending" || !!m.error) &&
 				isNaN(parseInt(m.id)) // Only preserve temp IDs (temp_xxx format)
 		);
 
@@ -224,7 +224,7 @@ export class ClientConversationManager {
 			if (existingMessage) {
 				// Update existing message
 				existingMessage.content = backendMsg.content;
-				existingMessage.status = "success";
+				existingMessage.status = "completed";
 			existingMessage.attachments = backendMsg.attachments;
 				messageUpdated = true;
 			} else {
@@ -241,7 +241,7 @@ export class ClientConversationManager {
 					const oldId = pendingMessage.id;
 
 					pendingMessage.id = backendMsg.id.toString();
-					pendingMessage.status = "success";
+					pendingMessage.status = "completed";
 			pendingMessage.attachments = backendMsg.attachments;
 					conversation.pendingMessageIds.delete(oldId);
 					messageUpdated = true;
@@ -261,7 +261,7 @@ export class ClientConversationManager {
 
 						placeholderMessage.id = backendMsg.id.toString();
 						placeholderMessage.content = backendMsg.content;
-						placeholderMessage.status = backendMsg.error ? "error" : "success";
+						placeholderMessage.status = "completed";
 						placeholderMessage.error = backendMsg.error;
 					placeholderMessage.attachments = backendMsg.attachments;
 						conversation.pendingMessageIds.delete(oldId);
@@ -277,7 +277,7 @@ export class ClientConversationManager {
 				);
 				if (!exists) {
 					conversation.messages.push(
-						backendToFrontendMessage(backendMsg, "success"),
+						backendToFrontendMessage(backendMsg, "completed"),
 					);
 				}
 			}
@@ -301,7 +301,7 @@ export class ClientConversationManager {
 			);
 
 			if (matchingBackendMsg) {
-				message.status = "success";
+				message.status = "completed";
 				if (message.role === "assistant" && message.content === "") {
 					message.content = matchingBackendMsg.content;
 					message.id = matchingBackendMsg.id.toString();
@@ -321,13 +321,13 @@ export class ClientConversationManager {
 					message.content === ""
 				) {
 					// For empty assistant placeholders, update with any assistant response
-					message.status = "success";
+					message.status = "completed";
 					message.content = similarBackendMsg.content;
 					message.id = similarBackendMsg.id.toString();
 					conversation.pendingMessageIds.delete(message.id);
 				} else if (similarBackendMsg && message.role === "user") {
 					// For user messages, if we have a user message in the backend response, mark as success
-					message.status = "success";
+					message.status = "completed";
 					conversation.pendingMessageIds.delete(message.id);
 				} else {
 					console.warn(
@@ -358,7 +358,7 @@ export class ClientConversationManager {
 
 		if (assistantMessage) {
 			// Mark as error - this message will be preserved even when rebuilding from backend
-			assistantMessage.status = "error";
+			assistantMessage.status = "completed";
 			assistantMessage.error = error;
 			conversation.pendingMessageIds.delete(assistantMessageId);
 		}
@@ -490,7 +490,7 @@ export class ClientConversationManager {
 			if (!current) break;
 		}
 
-		return path.map((m) => backendToFrontendMessage(m, "success"));
+		return path.map((m) => backendToFrontendMessage(m, "completed"));
 	}
 
 	hasPendingMessages(conversationId: string): boolean {
@@ -588,8 +588,8 @@ export class ClientConversationManager {
 
 		// Preserve only pending/error messages that don't have real backend IDs yet
 		const pendingAndErrorMessages = conversation.messages.filter(
-			(m) => 
-				(m.status === "pending" || m.status === "error") && 
+			(m) =>
+				(m.status === "pending" || !!m.error) &&
 				isNaN(parseInt(m.id)) // Only preserve temp IDs
 		);
 
@@ -719,7 +719,7 @@ export class ClientConversationManager {
 		const message = conversation.messages.find((m) => m.id === messageId);
 		if (message) {
 			message.content = newContent;
-			message.status = "success";
+			message.status = "completed";
 		}
 	}
 

@@ -155,6 +155,7 @@ function ensureBackendParentMessage(
             convId: conversationId,
             role: "user",
             content: "",
+            status: "completed",
             parentId: undefined,
             children: [],
         };
@@ -195,7 +196,7 @@ function updateUserMessageAfterSave(
     if (!userMsg) return;
 
     userMsg.id = realMessageId.toString();
-    userMsg.status = "success"; // Message is saved, show actions now!
+    userMsg.status = "completed"; // Message is saved, show actions now!
     conv.pendingMessageIds.delete(tempMessageId);
 
     ensureBackendStructure(conv, conversationId);
@@ -238,7 +239,7 @@ function updateAssistantMessageAfterComplete(
 
     // Update frontend message
     assistMsg.id = realMessageId.toString();
-    assistMsg.status = error ? "error" : "success";
+    assistMsg.status = "completed";
     assistMsg.content = streamingState.content;
     assistMsg.reasoning = streamingState.reasoning;
     assistMsg.reasoningDuration = reasoningDuration;

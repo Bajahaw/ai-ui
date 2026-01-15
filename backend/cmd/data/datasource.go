@@ -91,6 +91,9 @@ func InitDataSource(dataSourceName string) error {
 		content TEXT NOT NULL,
 		reasoning TEXT,
 		error TEXT,
+		status TEXT NOT NULL DEFAULT 'pending',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (conv_id) REFERENCES Conversations(id) ON DELETE CASCADE
 	);
 		
