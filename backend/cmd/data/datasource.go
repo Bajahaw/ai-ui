@@ -21,7 +21,7 @@ func InitDataSource(dataSourceName string) error {
 	}
 	// Add _pragma=foreign_keys(1) to ensure foreign keys are enabled on every connection
 	// This is critical for modernc.org/sqlite with connection pooling
-	dsn := dataSourceName + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
+	dsn := dataSourceName + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
 	DB, err = sql.Open("sqlite", dsn)
 	if err != nil {
 		return err
@@ -43,10 +43,10 @@ func InitDataSource(dataSourceName string) error {
 		return err
 	}
 
-	// Standard optimizations (these are persistent per database file)
-	if _, err = DB.Exec(`PRAGMA journal_mode = WAL;`); err != nil {
-		return err
-	}
+	// // Standard optimizations - disabled due to issues in development
+	// if _, err = DB.Exec(`PRAGMA journal_mode = WAL;`); err != nil {
+	// 	return err
+	// }
 
 	if _, err = DB.Exec(`PRAGMA busy_timeout = 5000;`); err != nil {
 		return err
