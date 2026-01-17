@@ -95,8 +95,8 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// prepare for streaming response
 	utils.AddStreamHeaders(w)
-
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		log.Error("Streaming not supported")

@@ -65,7 +65,6 @@ export class ClientConversationManager {
 			id: conversationId,
 			title,
 			messages: [userMessage, assistantPlaceholder],
-			// Do not create a fake backendConversation here; we will populate it when real data arrives
 			pendingMessageIds: new Set([tempMessageId, assistantPlaceholderId]),
 			activeBranches: new Map(),
 		};
@@ -572,7 +571,6 @@ export class ClientConversationManager {
 		conversation.activeBranches.set(messageId, newActiveChildId);
 
 		// Active branch is tracked client-side via activeBranches Map
-
 		// Update activeMessageId to the new branch if it's the current active path
 
 		if (
@@ -583,21 +581,17 @@ export class ClientConversationManager {
 		}
 
 		// Always rebuild messages to reflect the new active branch selection
-
 		// This ensures the conversation view updates to show the selected branch
-
-		// Preserve only pending/error messages that don't have real backend IDs yet
+		// Preserve only pending messages that don't have real backend IDs yet
 		const pendingAndErrorMessages = conversation.messages.filter(
-			(m) =>
-				(m.status === "pending" || !!m.error) &&
-				isNaN(parseInt(m.id)) // Only preserve temp IDs
+			(m) => m.status === "pending"
 		);
 
 		conversation.messages = this.buildMessagesFromBackend(
 			conversation.backendConversation,
 		);
 
-		// Add back pending and error messages that haven't been saved to backend yet
+		// Add back pending messages that haven't been saved to backend yet
 		for (const msg of pendingAndErrorMessages) {
 			const exists = conversation.messages.some(m => m.id === msg.id);
 			if (!exists) {
@@ -622,54 +616,6 @@ export class ClientConversationManager {
 
 			if (assistantMessage && assistantMessage.role === "assistant") {
 				return assistantMessage.parentId;
-			}
-		}
-
-		// Fallback: Find the assistant message by content matching
-		const frontendMessage = conversation.messages.find(
-			(m) => m.id === assistantMessageId && m.role === "assistant",
-		);
-
-		if (!frontendMessage) return undefined;
-
-		// Find matching backend message by content
-		const backendMessages = Object.values(
-			conversation.backendConversation.messages,
-		);
-		const matchingBackendMessage = backendMessages.find(
-			(msg) =>
-				msg.role === "assistant" && msg.content === frontendMessage.content,
-		);
-
-		if (matchingBackendMessage) {
-			return matchingBackendMessage.parentId;
-		}
-
-		// Fallback: infer from the visible messages path (frontend list)
-		// Find the assistant message in the current conversation.messages array
-		const idx = conversation.messages.findIndex(
-			(m) => m.id === assistantMessageId && m.role === "assistant",
-		);
-		if (idx > 0) {
-			// Search backwards for the nearest user message
-			for (let i = idx - 1; i >= 0; i--) {
-				const prev = conversation.messages[i];
-				if (prev.role === "user") {
-					const pid = parseInt(prev.id, 10);
-					if (!Number.isNaN(pid)) return pid;
-					break;
-				}
-			}
-		}
-
-		// Last resort: Use the current activeMessageId if it's an assistant message
-		if (conversation.backendConversation.activeMessageId) {
-			const activeMessage =
-				conversation.backendConversation.messages[
-				conversation.backendConversation.activeMessageId
-				];
-			if (activeMessage && activeMessage.role === "assistant") {
-				return activeMessage.parentId;
 			}
 		}
 

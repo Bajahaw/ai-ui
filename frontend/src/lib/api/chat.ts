@@ -16,7 +16,7 @@ export class ChatAPI {
     constructor() { }
 
     async sendMessageStream(
-        conversationId: string | null,
+        conversationId: string,
         parentId: number | null,
         model: string,
         content: string,

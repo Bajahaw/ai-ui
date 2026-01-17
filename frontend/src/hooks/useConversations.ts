@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { chatAPI, conversationsAPI, FrontendMessage, ToolCall, Attachment } from "@/lib/api";
+import { chatAPI, conversationsAPI, FrontendMessage, ToolCall } from "@/lib/api";
 import { ApiErrorHandler } from "@/lib/api/errorHandler";
 import { ClientConversation, ClientConversationManager, } from "@/lib/clientConversationManager";
 import { useAuth } from "@/hooks/useAuth";
@@ -601,7 +601,6 @@ export const useConversations = () => {
             model: string,
             webSearch: boolean = false,
             attachedFileIds?: string[],
-            attachments?: Attachment[],
         ): Promise<string> => {
             let tempMessageId: string | undefined;
             let assistantPlaceholderId: string | undefined;
@@ -611,11 +610,13 @@ export const useConversations = () => {
                 setError(null);
 
                 // Handle new conversation case
+                let isNewConversation = false;
                 if (!conversationId) {
+
+                    isNewConversation = true;
                     // Create conversation optimistically
                     const clientConversation = manager.createConversation(
                         message,
-                        attachments, // Use local attachment data for optimistic rendering
                     );
                     clientConversationId = clientConversation.id;
 
@@ -625,118 +626,19 @@ export const useConversations = () => {
                     );
                     tempMessageId = userMessage?.id;
 
-                    const assistantPlaceholder = clientConversation.messages.find(
-                        (m) => m.role === "assistant" && m.status === "pending",
-                    );
-                    assistantPlaceholderId = assistantPlaceholder?.id;
+                    const createdConv = await conversationsAPI.createConversation(clientConversation.title);
+                   
+                    manager.rekeyConversation(clientConversationId, createdConv.id);
+                    clientConversation.backendConversation = {
+                        ...createdConv,
+                        messages: {},
+                        activeMessageId: 0,
+                    };
 
-                    syncConversations();
-                    setActiveConversationId(clientConversationId);
-
-                    // Create conversation on server first to get real UUID
-                    const title =
-                        message.length > 60 ? message.substring(0, 60) + "..." : message;
-                    const createdConv = await conversationsAPI.createConversation(title);
-
-                    // Initialize streaming state and handlers
-                    const streamingState = new StreamingState();
-                    let realConvId = createdConv.id;
-                    let realAssistantMessageId: number | null = null;
-                    let streamError: string | undefined;
-
-                    const handlers = createStreamingHandlers(
-                        manager,
-                        clientConversationId,
-                        assistantPlaceholderId!,
-                        streamingState,
-                        syncConversations,
-                    );
-
-                    // Stream the message
-                    await chatAPI.sendMessageStream(
-                        createdConv.id,
-                        null,
-                        model,
-                        message,
-                        webSearch,
-                        attachedFileIds,
-                        handlers.onChunk,
-                        handlers.onReasoning,
-                        handlers.onToolCall,
-                        // onMetadata - Get the real backend ID and update user message immediately
-                        (metadata) => {
-                            realConvId = metadata.conversationId;
-
-                            if (tempMessageId && clientConversationId) {
-                                updateUserMessageAfterSave(
-                                    manager,
-                                    clientConversationId,
-                                    tempMessageId,
-                                    metadata.userMessageId,
-                                    syncConversations,
-                                );
-                            }
-                        },
-                        // onComplete - Update IDs (called even after errors!)
-                        (data) => {
-                            streamingState.cancelPendingSync();
-
-                            // Store the real assistant message ID
-                            realAssistantMessageId = data.assistantMessageId;
-
-                            // Re-key conversation from temp to real ID
-                            if (clientConversationId && realConvId !== clientConversationId) {
-                                manager.rekeyConversation(clientConversationId, realConvId);
-                            }
-
-                            // Update assistant message with real ID and status (success or error)
-                            if (assistantPlaceholderId) {
-                                updateAssistantMessageAfterComplete(
-                                    manager,
-                                    realConvId,
-                                    assistantPlaceholderId,
-                                    data.assistantMessageId,
-                                    streamingState,
-                                    data.userMessageId,
-                                    syncConversations,
-                                    streamError, // Pass error if one occurred
-                                );
-                            }
-                        },
-                        // onError - Just capture the error, onComplete will handle it
-                        (error) => {
-                            console.error("Stream error:", error);
-                            streamingState.cancelPendingSync();
-                            streamError = error;
-                        },
-                    );
-
-                    // If streaming completed successfully, update conversation metadata
-                    if (realAssistantMessageId) {
-                        // Use the conversation data we got from createConversation (includes timestamps)
-                        const conv = manager.getConversation(realConvId);
-                        if (conv) {
-                            // Use the createdConv data which has all the proper fields including timestamps
-                            if (!conv.backendConversation) {
-                                conv.backendConversation = {
-                                    ...createdConv,
-                                    messages: {},
-                                    activeMessageId: realAssistantMessageId,
-                                };
-                            } else {
-                                // Update timestamps and activeMessageId
-                                conv.backendConversation.createdAt = createdConv.createdAt;
-                                conv.backendConversation.updatedAt = createdConv.updatedAt;
-                                conv.backendConversation.activeMessageId = realAssistantMessageId;
-                            }
-                        }
-                    }
-
-                    // Final sync ONCE after streaming completes
-                    setActiveConversationId(realConvId);
+                    setActiveConversationId(createdConv.id);
                     syncConversations();
 
-                    return realConvId;
+                    conversationId = createdConv.id;
                 }
 
                 // Handle existing conversation case
@@ -747,15 +649,17 @@ export const useConversations = () => {
 
                 // Add user message optimistically
                 if (conversation.backendConversation) {
-                    tempMessageId = manager.addMessageOptimistically(
-                        conversationId,
-                        message,
-                        undefined, // Attachments will be populated from backend response
-                    );
+                    if (!isNewConversation) {
+                        tempMessageId = manager.addMessageOptimistically(
+                            conversationId,
+                            message,
+                            undefined, // Attachments will be populated from backend response
+                        );
+                    }
 
                     // Get assistant placeholder ID
                     const assistantPlaceholder = conversation.messages.find(
-                        (m) => m.role === "assistant" && m.status === "pending" && !m.content,
+                        (m) => m.role === "assistant" && m.status === "pending",
                     );
                     assistantPlaceholderId = assistantPlaceholder?.id;
 
@@ -765,11 +669,6 @@ export const useConversations = () => {
                 const activeMessageId = manager.getActiveMessageId(conversationId);
                 if (activeMessageId === undefined) {
                     throw new Error("Cannot send message: conversation not ready");
-                }
-
-                const finalActiveMessageId = manager.getActiveMessageId(conversationId);
-                if (finalActiveMessageId === undefined) {
-                    throw new Error("Cannot determine active message ID");
                 }
 
                 // Initialize streaming state and handlers
@@ -787,7 +686,7 @@ export const useConversations = () => {
                 // Stream the message
                 await chatAPI.sendMessageStream(
                     conversationId,
-                    finalActiveMessageId,
+                    activeMessageId,
                     model,
                     message,
                     webSearch,
@@ -800,7 +699,7 @@ export const useConversations = () => {
                         if (tempMessageId) {
                             updateUserMessageAfterSave(
                                 manager,
-                                conversationId,
+                                conversationId!,
                                 tempMessageId,
                                 metadata.userMessageId,
                                 syncConversations,
@@ -812,7 +711,7 @@ export const useConversations = () => {
                         if (assistantPlaceholderId) {
                             updateAssistantMessageAfterComplete(
                                 manager,
-                                conversationId,
+                                conversationId!,
                                 assistantPlaceholderId,
                                 data.assistantMessageId,
                                 streamingState,

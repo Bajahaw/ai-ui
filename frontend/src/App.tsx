@@ -105,7 +105,6 @@ function App() {
 				model,
 				webSearchEnabled,
 				attachedFileIds,
-				attachments,
 			);
 		} finally {
 			setIsProcessing(false);

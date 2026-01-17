@@ -43,25 +43,12 @@ export class ConversationsAPI {
 			throw new Error("Valid conversation title is required");
 		}
 
-		// Local UUIDv4 generator (fallback if crypto.randomUUID is unavailable)
-		const genUuid = (): string => {
-			const anyCrypto: any = (globalThis as any).crypto;
-			if (anyCrypto && typeof anyCrypto.randomUUID === "function") {
-				return anyCrypto.randomUUID();
-			}
-			return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-				const r = (Math.random() * 16) | 0;
-				const v = c === "x" ? r : (r & 0x3) | 0x8;
-				return v.toString(16);
-			});
-		};
-
 		return ApiErrorHandler.handleApiCall(async () => {
 			const now = new Date().toISOString();
 
 			// Only send fields that the backend expects
 			const conversationPayload = {
-				id: genUuid(),
+				id: "test123",
 				userId: "admin",
 				title: title.trim(),
 				createdAt: now,
