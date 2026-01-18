@@ -18,6 +18,7 @@ import {
     LogInIcon,
     LogOutIcon,
     SidebarIcon,
+    SearchIcon,
 } from "lucide-react";
 import {cn} from "@/lib/utils";
 import {ComponentProps, useState} from "react";
@@ -37,6 +38,24 @@ export interface ConversationSidebarProps extends ComponentProps<"div"> {
     maxWidth?: string;
 }
 
+const getConversationGroup = (conversation: ClientConversation): string => {
+    const dateStr = conversation.backendConversation?.updatedAt || conversation.backendConversation?.createdAt;
+    if (!dateStr) return "Today";
+
+    const date = new Date(dateStr);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const last7Days = new Date(today);
+    last7Days.setDate(last7Days.getDate() - 7);
+
+    if (date >= today) return "Today";
+    if (date >= yesterday) return "Yesterday";
+    if (date >= last7Days) return "Last 7 Days";
+    return "Older";
+};
+
 export const ConversationSidebar = ({
                                         conversations = [],
                                         activeConversationId,
@@ -49,9 +68,38 @@ export const ConversationSidebar = ({
                                         className,
                                         ...props
                                     }: ConversationSidebarProps) => {
-    const width = 280; // Fixed width in pixels
+    const width = 272; // Fixed width in pixels
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingTitle, setEditingTitle] = useState<string>("");
+    const [searchTerm, setSearchTerm] = useState<string>("");
+
+    // Sort and filter conversations
+    const filteredConversations = conversations
+        .filter(conversation =>
+            conversation.title.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+        .sort((a, b) => {
+            const dateA = new Date(a.backendConversation?.updatedAt || a.backendConversation?.createdAt || Date.now());
+            const dateB = new Date(b.backendConversation?.updatedAt || b.backendConversation?.createdAt || Date.now());
+            return dateB.getTime() - dateA.getTime();
+        });
+
+    // Group conversations
+    const groupedConversations = {
+        "Today": [] as ClientConversation[],
+        "Yesterday": [] as ClientConversation[],
+        "Last 7 Days": [] as ClientConversation[],
+        "Older": [] as ClientConversation[],
+    };
+
+    filteredConversations.forEach(conversation => {
+        const group = getConversationGroup(conversation);
+        if (group in groupedConversations) {
+            groupedConversations[group as keyof typeof groupedConversations].push(conversation);
+        } else {
+             groupedConversations["Older"].push(conversation);
+        }
+    });
 
     const handleRename = (conversationId: string, currentTitle: string) => {
         setEditingId(conversationId);
@@ -86,7 +134,7 @@ export const ConversationSidebar = ({
             )}
             style={{
                 width: isCollapsed ? "0px" : `${width}px`,
-                minWidth: isCollapsed ? "0px" : "280px",
+                minWidth: isCollapsed ? "0px" : "272px",
                 maxWidth: isCollapsed
                     ? "0px"
                     : `${Math.min(window.innerWidth * 0.4, 500)}px`,
@@ -109,7 +157,7 @@ export const ConversationSidebar = ({
                 }}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 flex-shrink-0">
+                <div className="flex items-center justify-between px-3 py-4 flex-shrink-0">
                     <div className="flex items-center gap-1">
 						<Button
 							variant="ghost"
@@ -117,8 +165,8 @@ export const ConversationSidebar = ({
 							onClick={onToggleCollapse}
 							className="hover:bg-accent"
 						>
-							<SidebarIcon className="size-4" />
-                            <h2 className="font-semibold text-sm">Conversations</h2>
+							<SidebarIcon className="size-4 mr-1 text-foreground/80" />
+                            <h2 className="text-xl font-bold text-foreground/80">AI Chat</h2>
 						</Button>
 					</div>
                     <Button
@@ -132,113 +180,145 @@ export const ConversationSidebar = ({
                 </div>
 
                 {/* New Chat Button */}
-                <div className="p-4 flex-shrink-0">
+                <div className="px-3 pt-4 pb-2 flex-shrink-0">
                     <Button
                         variant="outline"
                         onClick={onNewChat}
-                        className="w-full justify-start gap-2"
+                        className="w-full justify-start gap-2 rounded-lg text-foreground/80 font-semibold"
                     >
-                        <PlusIcon className="size-4"/>
+                        <PlusIcon className="size-4 text-foreground/80"/>
                         New Chat
                     </Button>
                 </div>
 
+                {/* Search Input */}
+                <div className="px-3 pt-3 flex-shrink-0"> 
+                    <div className="relative">
+                        <SearchIcon className="absolute left-2 top-2.5 size-4 text-muted-foreground pointer-events-none"/>
+                        <Input
+                            placeholder="Search conversations ..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-8 h-9 text-sm border-0 border-b rounded-none focus-visible:ring-0 focus-visible:border-muted-foreground !bg-transparent"
+                        />
+                    </div>
+                </div>
+
                 {/* Conversations List */}
-                <div className="flex-1 min-h-0"> {/* Added min-h-0 to allow ScrollArea to shrink */}
-                    <ScrollArea className="h-full">
-                        <div className="p-2 space-y-1">
+                <div 
+                    className="flex-1 min-h-0"
+                    style={{
+                        maskImage: 'linear-gradient(to bottom, black 90%, transparent 100%)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, black 90%, transparent 100%)'
+                    }}
+                >
+                    
+                    <ScrollArea className="h-full" type="scroll">
+                        <div className="px-3 py-4 space-y-6">
                             {conversations.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground text-sm">
                                     No conversations yet.
                                     <br/>
                                     Start a new chat to begin.
                                 </div>
+                            ) : filteredConversations.length === 0 ? (
+                                <div className="text-center py-8 text-muted-foreground text-sm">
+                                    No matching conversations found.
+                                </div>
                             ) : (
-                                conversations.map((conversation) => (
-                                    <div
-                                        key={conversation.id}
-                                        className={cn(
-                                            "group relative w-full rounded-md transition-colors",
-                                            activeConversationId === conversation.id
-                                                ? "bg-secondary"
-                                                : "hover:bg-accent",
-                                        )}
-                                    >
-                                        {editingId === conversation.id ? (
-                                            <div className="flex items-center gap-2 p-2">
-                                                {/* <MessageSquareIcon className="size-3"/> */}
-                                                <Input
-                                                    value={editingTitle}
-                                                    onChange={(e) => setEditingTitle(e.target.value)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === "Enter") {
-                                                            handleSaveRename(conversation.id);
-                                                        } else if (e.key === "Escape") {
-                                                            handleCancelRename();
-                                                        }
-                                                    }}
-                                                    onBlur={() => handleSaveRename(conversation.id)}
-                                                    className="flex-1 h-7 text-sm"
-                                                    autoFocus
-                                                />
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center group/item">
-                                                <Button
-                                                    variant="ghost"
-                                                    onClick={() => onConversationSelect?.(conversation.id)}
+                                (Object.keys(groupedConversations) as Array<keyof typeof groupedConversations>).map((group) => {
+                                    const groupItems = groupedConversations[group];
+                                    if (groupItems.length === 0) return null;
+
+                                    return (
+                                        <div key={group}>
+                                            <h3 className="px-1 text-xs font-semibold text-muted-foreground/70 mb-2">
+                                                {group}
+                                            </h3>
+                                            {groupItems.map((conversation) => (
+                                                <div
+                                                    key={conversation.id}
                                                     className={cn(
-                                                        "flex-1 justify-start h-auto p-2 text-left hover:bg-transparent",
-                                                        activeConversationId === conversation.id &&
-                                                        "bg-transparent",
+                                                        "group relative w-full rounded-lg transition-colors py-[0.1rem]",
+                                                        activeConversationId === conversation.id
+                                                            ? "bg-secondary/80"
+                                                            : "hover:bg-secondary/80",
                                                     )}
                                                 >
-                                                    <div className="flex items-center gap-2 w-full">
-                                                        {/* <MessageSquareIcon className="size-3"/> */}
-                                                        <span className="font-medium text-sm flex-1 max-w-[215px] truncate">
-                              {conversation.title}
-                            </span>
-                                                    </div>
-                                                </Button>
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="opacity-0 group-hover/item:opacity-100 h-8 w-8 p-0 shrink-0"
-                                                        >
-                                                            <MoreHorizontalIcon className="size-4"/>
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-                                                        <DropdownMenuItem
-                                                            onClick={() =>
-                                                                handleRename(conversation.id, conversation.title)
-                                                            }
-                                                        >
-                                                            <PencilIcon className="size-4 mr-2"/>
-                                                            Rename
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem
-                                                            onClick={() => handleDelete(conversation.id)}
-                                                            className="text-destructive focus:text-destructive"
-                                                        >
-                                                            <TrashIcon className="size-4 mr-2"/>
-                                                            Delete
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))
+                                                    {editingId === conversation.id ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <Input
+                                                                value={editingTitle}
+                                                                onChange={(e) => setEditingTitle(e.target.value)}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === "Enter") {
+                                                                        handleSaveRename(conversation.id);
+                                                                    } else if (e.key === "Escape") {
+                                                                        handleCancelRename();
+                                                                    }
+                                                                }}
+                                                                onBlur={() => handleSaveRename(conversation.id)}
+                                                                className="flex-1 text-sm border-0"
+                                                                autoFocus
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center group/item">
+                                                            <Button
+                                                                variant="ghost"
+                                                                onClick={() => onConversationSelect?.(conversation.id)}
+                                                                className={cn(
+                                                                    "flex-1 justify-start h-auto p-2 text-left hover:!bg-transparent",
+                                                                )}
+                                                            >
+                                                                <div className="flex items-center gap-2 w-full">
+                                                                    <span className="text-sm flex-1 max-w-[200px] truncate text-foreground/80">
+                                                                        {conversation.title}
+                                                                    </span>
+                                                                </div>
+                                                            </Button>
+                                                            <DropdownMenu>
+                                                                <DropdownMenuTrigger asChild>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="opacity-0 group-hover/item:opacity-100 hover:!bg-secondary h-8 w-8 p-0 shrink-0"
+                                                                    >
+                                                                        <MoreHorizontalIcon className="size-4"/>
+                                                                    </Button>
+                                                                </DropdownMenuTrigger>
+                                                                <DropdownMenuContent align="end">
+                                                                    <DropdownMenuItem
+                                                                        onClick={() =>
+                                                                            handleRename(conversation.id, conversation.title)
+                                                                        }
+                                                                    >
+                                                                        <PencilIcon className="size-4 mr-2"/>
+                                                                        Rename
+                                                                    </DropdownMenuItem>
+                                                                    <DropdownMenuItem
+                                                                        onClick={() => handleDelete(conversation.id)}
+                                                                        className="text-destructive focus:text-destructive"
+                                                                    >
+                                                                        <TrashIcon className="size-4 mr-2"/>
+                                                                        Delete
+                                                                    </DropdownMenuItem>
+                                                                </DropdownMenuContent>
+                                                            </DropdownMenu>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })
                             )}
                         </div>
                     </ScrollArea>
                 </div>
 
                 {/* Login/Logout Section */}
-                <div className="p-4 border-t flex-shrink-0">
+                <div className="px-3 pb-4 flex-shrink-0 font-semibold text-foreground/80">
                     <AuthButton/>
                 </div>
             </div>
@@ -263,7 +343,7 @@ const AuthButton = () => {
                 variant="outline"
                 onClick={handleLogout}
                 disabled={isLoading}
-                className="w-full justify-start gap-2"
+                className="w-full justify-start rounded-lg gap-2"
             >
                 {isLoading ? (
                     <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent"/>

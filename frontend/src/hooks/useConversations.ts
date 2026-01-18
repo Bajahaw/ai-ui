@@ -330,22 +330,6 @@ export const useConversations = () => {
         }
     }, [manager, syncConversations]);
 
-    // Removed non-streaming sendMessage: use sendMessageStream exclusively
-
-    /**
-     * Retry an assistant message to generate an alternative response.
-     *
-     * This creates a new branch in the conversation tree:
-     * - Finds the user message that preceded the assistant message
-     * - Sends a retry request to generate a new response from that point
-     * - The new response becomes an alternative branch (child) of the user message
-     * - Users can navigate between branches using the branch navigation controls
-     * - Backend returns both the parent message (with updated children) and new assistant message
-     */
-    // Removed non-streaming retryMessage: use retryMessageStream exclusively
-
-    // Streamed retry to generate an alternative assistant response with chunks
-
     const getCurrentMessages = useCallback(
         (conversation: ClientConversation): FrontendMessage[] => {
             // Return a new array reference to ensure React detects changes

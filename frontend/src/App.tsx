@@ -231,7 +231,6 @@ function App() {
 						>
 							<MessageSquareIcon className="size-4" />
 						</Button>
-						<h1 className="text-2xl font-bold">AI Chat</h1>
 					</div>
 					<div className="flex items-center gap-2">
 						<Button
