@@ -35,23 +35,6 @@ type ChatCompletionMessage struct {
 	ToolCalls []tools.ToolCall
 }
 
-type StreamChunk struct {
-	Content   string         `json:"content,omitempty"`
-	Reasoning string         `json:"reasoning,omitempty"`
-	ToolCall  tools.ToolCall `json:"tool_call,omitzero"`
-}
-
-type StreamMetadata struct {
-	ConversationID string `json:"conversationId"`
-	UserMessageID  int    `json:"userMessageId"`
-}
-
-// StreamComplete sent when stream is complete
-type StreamComplete struct {
-	UserMessageID      int `json:"userMessageId"`
-	AssistantMessageID int `json:"assistantMessageId"`
-}
-
 func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompletionMessage, error) {
 	providerID, model := utils.ExtractProviderID(params.Model)
 	provider, err := providers.GetByID(providerID, params.User)
@@ -130,11 +113,6 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 
 	utils.AddStreamHeaders(w)
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		return nil, fmt.Errorf("streaming not supported")
-	}
-
 	stream := client.Chat.Completions.NewStreaming(ctx, openAIparams)
 	acc := openai.ChatCompletionAccumulator{}
 	uniqueToolIDs := make(map[string]string)
@@ -156,34 +134,33 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 				reasoningDelta = reasoningTxtDelta
 			}
 
-			if contentDelta != "" || reasoningDelta != "" {
+			if reasoningDelta != "" {
+				utils.SendStreamChunk(w, utils.StreamChunk{
+					Payload: reasoningDelta,
+					Type:    utils.REASONING,
+				})
+			}
 
-				chunkData := StreamChunk{
-					Content:   contentDelta,
-					Reasoning: reasoningDelta,
-				}
-
-				chunkJSON, _ := json.Marshal(chunkData)
-				fmt.Fprintf(w, "data: %s\n\n", chunkJSON)
-				flusher.Flush()
+			if contentDelta != "" {
+				utils.SendStreamChunk(w, utils.StreamChunk{
+					Payload: contentDelta,
+					Type:    utils.CONTENT,
+				})
 			}
 
 			if toolCall, ok := acc.JustFinishedToolCall(); ok {
 
 				uniqueToolIDs[toolCall.ID] = uuid.New().String()
 
-				toolCallData := StreamChunk{
-					ToolCall: tools.ToolCall{
+				utils.SendStreamChunk(w, utils.StreamChunk{
+					Type: utils.TOOL_CALL,
+					Payload: tools.ToolCall{
 						ID: uniqueToolIDs[toolCall.ID],
 						// ReferenceID: toolCall.ID,
 						Name: toolCall.Name,
 						Args: toolCall.Arguments,
 					},
-				}
-
-				toolCallJSON, _ := json.Marshal(toolCallData)
-				fmt.Fprintf(w, "data: %s\n\n", toolCallJSON)
-				flusher.Flush()
+				})
 			}
 
 		}

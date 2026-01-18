@@ -5,7 +5,6 @@ import (
 	"ai-client/cmd/tools"
 	"ai-client/cmd/utils"
 
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -105,13 +104,16 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send metadata first (conversation ID, user message ID)
-	metadata := providers.StreamMetadata{
+	metadata := utils.StreamMetadata{
 		ConversationID: convID,
 		UserMessageID:  userMessage.ID,
 	}
-	metadataJSON, _ := json.Marshal(metadata)
-	fmt.Fprintf(w, "event: metadata\ndata: %s\n\n", metadataJSON)
-	flusher.Flush()
+
+	utils.SendStreamChunk(w, utils.StreamChunk{
+		Event:   utils.EVENT_METADATA,
+		Type:    utils.EVENT_METADATA,
+		Payload: metadata,
+	})
 
 	// Build context from user message
 	ctx := buildContext(convID, userMessage.ID, user)
@@ -135,21 +137,24 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		Children:  []int{},
 	}
 
-	var toolCalls []tools.ToolCall
+	var calls []tools.ToolCall
 	var isToolsUsed bool
 
 	completion, err := provider.SendChatCompletionStreamRequest(providerParams, w)
 	if err != nil {
 		log.Error("Error streaming chat completion", "err", err)
-		fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
-		flusher.Flush()
+		utils.SendStreamChunk(w, utils.StreamChunk{
+			Event:   utils.EVENT_ERROR,
+			Type:    utils.EVENT_ERROR,
+			Payload: err.Error(),
+		})
 		responseMessage.Error = err.Error()
-	} else {
-		responseMessage.Content = completion.Content
-		responseMessage.Reasoning = completion.Reasoning
-		toolCalls = completion.ToolCalls
-		isToolsUsed = len(toolCalls) > 0
 	}
+
+	responseMessage.Content = completion.Content
+	responseMessage.Reasoning = completion.Reasoning
+	calls = completion.ToolCalls
+	isToolsUsed = len(calls) > 0
 
 	if !isToolsUsed {
 		responseMessage.Status = "completed"
@@ -161,26 +166,29 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		log.Error("Error saving response message", "err", err)
 	}
 
-	for len(toolCalls) > 0 {
+	for len(calls) > 0 {
 
-		toolCall := toolCalls[0]
+		toolCall := calls[0]
+		toolCall.MessageID = responseMessage.ID
+		toolCall.ConvID = convID
+
+		output := tools.ExecuteMCPTool(toolCall, user)
+		toolCall.Output = output
+
+		utils.SendStreamChunk(w, utils.StreamChunk{
+			Type:    utils.TOOL_CALL,
+			Payload: toolCall,
+		})
+
+		err := toolCalls.Save(&toolCall)
+		if err != nil {
+			log.Error("Error saving tool call output", "err", err)
+		}
 
 		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
 			Role:     "assistant",
 			ToolCall: toolCall,
 		})
-
-		toolCall.MessageID = responseMessage.ID
-		toolCall.ConvID = convID
-
-		output := tools.ExecuteToolCall(toolCall, user)
-		toolCall.Output = output
-
-		chunk, _ := json.Marshal(providers.StreamChunk{
-			ToolCall: toolCall,
-		})
-		fmt.Fprintf(w, "data: %s\n\n", chunk)
-		flusher.Flush()
 
 		// Append tool result message to context for continued completion
 		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
@@ -193,8 +201,8 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 			},
 		})
 
-		toolCalls = toolCalls[1:]
-		if len(toolCalls) == 0 {
+		calls = calls[1:]
+		if len(calls) == 0 {
 			completion, err = provider.SendChatCompletionStreamRequest(providerParams, w)
 			if err != nil {
 				log.Error("Error streaming chat completion after tool call", "err", err)
@@ -204,7 +212,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 				responseMessage.Status = "completed"
 				break
 			}
-			toolCalls = append(toolCalls, completion.ToolCalls...)
+			calls = append(calls, completion.ToolCalls...)
 		}
 
 		// Accumulate reasoning for all tool calls
@@ -228,13 +236,15 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Completed streaming chat response", "responseMessageID", responseMessage.ID)
 
 	// Send completion event with message IDs
-	completionData := providers.StreamComplete{
+	completionData := utils.StreamComplete{
 		UserMessageID:      userMessage.ID,
 		AssistantMessageID: responseMessage.ID,
 	}
-	completionJSON, _ := json.Marshal(completionData)
-	fmt.Fprintf(w, "event: complete\ndata: %s\n\n", completionJSON)
-	flusher.Flush()
+	utils.SendStreamChunk(w, utils.StreamChunk{
+		Event:   utils.EVENT_COMPLETE,
+		Type:    utils.EVENT_COMPLETE,
+		Payload: completionData,
+	})
 
 }
 
@@ -275,13 +285,18 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Metadata: no new user message; client already knows conversation
-	metadata := providers.StreamMetadata{
+	metadata := utils.StreamMetadata{
 		ConversationID: req.ConversationID,
 		UserMessageID:  parent.ID,
 	}
-	metadataJSON, _ := json.Marshal(metadata)
-	fmt.Fprintf(w, "event: metadata\ndata: %s\n\n", metadataJSON)
-	flusher.Flush()
+	// metadataJSON, _ := json.Marshal(metadata)
+	// fmt.Fprintf(w, "event: metadata\ndata: %s\n\n", metadataJSON)
+	// flusher.Flush()
+	utils.SendStreamChunk(w, utils.StreamChunk{
+		Event:   utils.EVENT_METADATA,
+		Type:    utils.EVENT_METADATA,
+		Payload: metadata,
+	})
 
 	// Build context from the parent message
 	ctx := buildContext(req.ConversationID, parent.ID, user)
@@ -305,7 +320,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		Children:  []int{},
 	}
 
-	var toolCalls []tools.ToolCall
+	var calls []tools.ToolCall
 	var isToolsUsed bool
 
 	// Stream assistant content
@@ -318,8 +333,8 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	} else {
 		responseMessage.Content = completion.Content
 		responseMessage.Reasoning = completion.Reasoning
-		toolCalls = completion.ToolCalls
-		isToolsUsed = len(toolCalls) > 0
+		calls = completion.ToolCalls
+		isToolsUsed = len(calls) > 0
 	}
 
 	if !isToolsUsed {
@@ -335,9 +350,9 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		parent.Children = append(parent.Children, responseID)
 	}
 
-	for len(toolCalls) > 0 {
+	for len(calls) > 0 {
 
-		toolCall := toolCalls[0]
+		toolCall := calls[0]
 
 		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
 			Role:     "assistant",
@@ -347,14 +362,18 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		toolCall.MessageID = responseMessage.ID
 		toolCall.ConvID = req.ConversationID
 
-		output := tools.ExecuteToolCall(toolCall, user)
+		output := tools.ExecuteMCPTool(toolCall, user)
 		toolCall.Output = output
 
-		chunk, _ := json.Marshal(providers.StreamChunk{
-			ToolCall: toolCall,
+		utils.SendStreamChunk(w, utils.StreamChunk{
+			Type:    utils.TOOL_CALL,
+			Payload: toolCall,
 		})
-		fmt.Fprintf(w, "data: %s\n\n", chunk)
-		flusher.Flush()
+
+		err := toolCalls.Save(&toolCall)
+		if err != nil {
+			log.Error("Error saving tool call output", "err", err)
+		}
 
 		// Append tool result message to context for continued completion
 		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
@@ -367,8 +386,8 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 			},
 		})
 
-		toolCalls = toolCalls[1:]
-		if len(toolCalls) == 0 {
+		calls = calls[1:]
+		if len(calls) == 0 {
 			completion, err = provider.SendChatCompletionStreamRequest(providerParams, w)
 			if err != nil {
 				log.Error("Error streaming chat completion after tool call", "err", err)
@@ -378,7 +397,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 				responseMessage.Status = "completed"
 				break
 			}
-			toolCalls = append(toolCalls, completion.ToolCalls...)
+			calls = append(calls, completion.ToolCalls...)
 		}
 
 		// Accumulate reasoning for all tool calls
@@ -400,13 +419,15 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send completion event with the new assistant message id
-	completionData := providers.StreamComplete{
+	completionData := utils.StreamComplete{
 		UserMessageID:      parent.ID,
 		AssistantMessageID: responseMessage.ID,
 	}
-	completionJSON, _ := json.Marshal(completionData)
-	fmt.Fprintf(w, "event: complete\ndata: %s\n\n", completionJSON)
-	flusher.Flush()
+	utils.SendStreamChunk(w, utils.StreamChunk{
+		Event:   utils.EVENT_COMPLETE,
+		Type:    utils.EVENT_COMPLETE,
+		Payload: completionData,
+	})
 }
 
 func update(w http.ResponseWriter, r *http.Request) {

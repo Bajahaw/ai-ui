@@ -222,13 +222,6 @@ func SqlPlaceholders(n int) string {
 	return strings.Join(placeholders, ", ")
 }
 
-func AddStreamHeaders(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no")
-}
-
 func ExtractContextUser(r *http.Request) string {
 	user := r.Context().Value("user").(string)
 	return user

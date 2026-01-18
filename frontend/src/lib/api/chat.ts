@@ -218,7 +218,8 @@ export class ChatAPI {
 
                         if (currentEvent === "metadata" && onMetadata) {
                             try {
-                                const metadata: StreamMetadata = JSON.parse(data);
+                                const parsed = JSON.parse(data);
+                                const metadata: StreamMetadata = parsed.metadata || parsed;
                                 onMetadata(metadata);
                             } catch (e) {
                                 console.error("Failed to parse metadata:", e);
@@ -226,7 +227,8 @@ export class ChatAPI {
                             currentEvent = "";
                         } else if (currentEvent === "complete" && onComplete) {
                             try {
-                                const completeData: StreamComplete = JSON.parse(data);
+                                const parsed = JSON.parse(data);
+                                const completeData: StreamComplete = parsed.complete || parsed;
                                 onComplete(completeData);
                             } catch (e) {
                                 console.error("Failed to parse complete data:", e);

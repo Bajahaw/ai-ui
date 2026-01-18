@@ -35,6 +35,7 @@ import {
 	ToolContent,
 	ToolInput,
 	ToolOutput,
+	ToolApproval,
 } from "@/components/ai-elements/tool";
 import {
 	// GlobeIcon,
@@ -47,7 +48,7 @@ import {
 } from "lucide-react";
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
-import { FrontendMessage } from "@/lib/api/types";
+import { FrontendMessage, ToolCall } from "@/lib/api/types";
 import { BranchNavigation } from "@/components/BranchNavigation";
 import { ClientConversation } from "@/lib/clientConversationManager";
 import {
@@ -73,6 +74,55 @@ const safeParseJSON = (jsonString: string | undefined) => {
 		console.error("Failed to parse JSON:", e);
 		return { error: "Invalid JSON", raw: jsonString };
 	}
+};
+
+const ToolCallItem = ({ toolCall, settingsData }: { toolCall: ToolCall; settingsData: any }) => {
+	// Find tool definition
+	const tool = settingsData.tools.find((t: any) => t.name === toolCall.name);
+
+	// Determine the state based on whether output has arrived or approval is needed
+	const initialState = toolCall.tool_output
+		? ("output-available" as const)
+		: tool?.require_approval
+			? ("awaiting-approval" as const)
+			: ("input-available" as const);
+
+	const [localState, setLocalState] = useState(initialState);
+
+	// Update local state if the toolCall changes (e.g. output arrives)
+	useEffect(() => {
+		setLocalState(initialState);
+	}, [initialState]);
+
+	return (
+		<Tool key={toolCall.id} defaultOpen={localState === "awaiting-approval"}>
+			<ToolHeader
+				type={`tool-${toolCall.name}` as `tool-${string}`}
+				state={localState}
+				mcpUrl={(() => {
+					if (!tool || !tool.mcp_server_id) return undefined;
+					const server = settingsData.mcpServers.find((s: any) => s.id === tool.mcp_server_id);
+					return server?.endpoint;
+				})()}
+			/>
+			<ToolContent>
+				<ToolInput input={safeParseJSON(toolCall.args)} />
+				{localState === "awaiting-approval" && (
+					<ToolApproval
+						toolCallId={toolCall.id}
+						onAction={(approved) => {
+							if (approved) {
+								setLocalState("input-available");
+							}
+						}}
+					/>
+				)}
+				{toolCall.tool_output && (
+					<ToolOutput output={toolCall.tool_output} errorText={undefined} />
+				)}
+			</ToolContent>
+		</Tool>
+	);
 };
 
 interface ChatInterfaceProps {
@@ -617,38 +667,13 @@ export const ChatInterface = ({
 								)}
 								{message.toolCalls && message.toolCalls.length > 0 && (
 									<div className="">
-										{message.toolCalls.map((toolCall) => {
-											// Determine the state based on whether output has arrived
-											const toolState = toolCall.tool_output
-												? "output-available" as const
-												: "input-available" as const;
-
-											return (
-												<Tool key={toolCall.id} defaultOpen={false}>
-													<ToolHeader
-														type={`tool-${toolCall.name}` as `tool-${string}`}
-														state={toolState}
-														mcpUrl={(() => {
-															const tool = settingsData.tools.find((t) => t.name === toolCall.name);
-															if (!tool || !tool.mcp_server_id) return undefined;
-															const server = settingsData.mcpServers.find((s) => s.id === tool.mcp_server_id);
-															return server?.endpoint;
-														})()}
-													/>
-													<ToolContent>
-														<ToolInput
-															input={safeParseJSON(toolCall.args)}
-														/>
-														{toolCall.tool_output && (
-															<ToolOutput
-																output={toolCall.tool_output}
-																errorText={undefined}
-															/>
-														)}
-													</ToolContent>
-												</Tool>
-											);
-										})}
+										{message.toolCalls.map((toolCall) => (
+											<ToolCallItem
+												key={toolCall.id}
+												toolCall={toolCall}
+												settingsData={settingsData}
+											/>
+										))}
 									</div>
 								)}
 								{renderMessageContent(message)}

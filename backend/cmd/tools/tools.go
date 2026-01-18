@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/evgensoft/ddgo"
@@ -30,36 +31,44 @@ type ToolCall struct {
 	Output      string `json:"tool_output,omitempty"`
 }
 
-func ExecuteToolCall(toolCall ToolCall, user string) string {
-
-	output := ""
-
-	switch toolCall.Name {
-	case "search_ddgs":
-		output = ddgsTool(toolCall.Args)
-	case "get_weather":
-		output = weatherTool()
-	default:
-		output = executeMCPTool(toolCall, user)
-	}
-
-	err := toolCalls.Save(&ToolCall{
-		ID:          toolCall.ID,
-		ReferenceID: toolCall.ReferenceID,
-		ConvID:      toolCall.ConvID,
-		MessageID:   toolCall.MessageID,
-		Name:        toolCall.Name,
-		Args:        toolCall.Args,
-		Output:      output,
-	})
-	if err != nil {
-		log.Error("Error saving tool call output", "err", err)
-	}
-
-	return output
+type PendingToolCall struct {
+	User     string
+	ToolCall ToolCall
+	Channel  chan bool
 }
 
-func executeMCPTool(toolCall ToolCall, user string) string {
+type ToolCallManager struct {
+	pending map[string]PendingToolCall
+	mu      sync.Mutex
+}
+
+var toolCallManager = ToolCallManager{
+	pending: make(map[string]PendingToolCall),
+	mu:      sync.Mutex{},
+}
+
+// // ExecuteListOfToolCalls executes a list of tool calls parallelly and returns them with outputs.
+// func ExecuteListOfToolCalls(toolCalls []ToolCall, user string) []ToolCall {
+// 	results := make([]ToolCall, len(toolCalls))
+// 	ch := make(chan ToolCall)
+
+// 	for _, tc := range toolCalls {
+// 		go func(tc ToolCall) {
+// 			// output := ExecuteToolCall(tc, user)
+// 			// tc.Output = output
+// 			ch <- tc
+// 		}(tc)
+// 	}
+
+// 	for i := range toolCalls {
+// 		result := <-ch
+// 		results[i] = result
+// 	}
+
+// 	return results
+// }
+
+func ExecuteMCPTool(toolCall ToolCall, user string) string {
 	tool, err := tools.GetByName(toolCall.Name)
 	if err != nil {
 		log.Error("Error retrieving tool", "err", err)
@@ -72,11 +81,48 @@ func executeMCPTool(toolCall ToolCall, user string) string {
 		return "Error occurred while retrieving MCP server."
 	}
 
-	log.Debug("Executing MCP tool", "tool", tool.Name, "server", server.Name, "args", toolCall.Args)
-	log.Debug("MCP tool input schema", "schema", tool.InputSchema, "args", toolCall.Args)
-
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
+
+	if tool.RequireApproval {
+		// wait for approval
+		responseChan := make(chan bool, 1)
+
+		toolCallManager.mu.Lock()
+		toolCallManager.pending[toolCall.ID] = PendingToolCall{
+			User:     user,
+			ToolCall: toolCall,
+			Channel:  responseChan,
+		}
+		toolCallManager.mu.Unlock()
+
+		defer func() {
+			toolCallManager.mu.Lock()
+			delete(toolCallManager.pending, toolCall.ID)
+			toolCallManager.mu.Unlock()
+		}()
+
+		select {
+		case <-ctx.Done():
+			return "Tool call approval timed out."
+		case approved := <-responseChan:
+			if !approved {
+				return "Tool call was not approved."
+			}
+		}
+	}
+
+	if server.ID == "default" {
+		switch tool.Name {
+		case "search_ddgs":
+			return ddgsTool(toolCall.Args)
+		case "get_weather":
+			return weatherTool()
+		}
+	}
+
+	log.Debug("Executing MCP tool", "tool", tool.Name, "server", server.Name, "args", toolCall.Args)
+	log.Debug("MCP tool input schema", "schema", tool.InputSchema, "args", toolCall.Args)
 
 	var session *mcp.ClientSession
 	session, ok := mcpSessionManager.get(server.ID)

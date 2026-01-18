@@ -7,9 +7,12 @@ import {
   ClockIcon,
   WrenchIcon,
   XCircleIcon,
+  CheckIcon,
+  XIcon,
 } from 'lucide-react';
 import { type ComponentProps, type ReactNode, useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge.tsx';
+import { Button } from '@/components/ui/button.tsx';
 import {
   Collapsible,
   CollapsibleContent,
@@ -18,6 +21,7 @@ import {
 import { cn } from '@/lib/utils.ts';
 import type { ToolUIPart } from 'ai';
 import { CodeBlock } from './code-block.tsx';
+import { getApiUrl } from '@/lib/config.ts';
 
 export type ToolProps = ComponentProps<typeof Collapsible>;
 
@@ -30,12 +34,12 @@ export const Tool = ({ className, ...props }: ToolProps) => (
 
 export type ToolHeaderProps = {
   type: ToolUIPart['type'];
-  state: ToolUIPart['state'];
+  state: ToolUIPart['state'] | 'awaiting-approval';
   className?: string;
   mcpUrl?: string;
 };
 
-const getStatusBadge = (status: ToolUIPart['state']) => {
+const getStatusBadge = (status: ToolUIPart['state'] | 'awaiting-approval') => {
   // const labels = {
   //   'input-streaming': 'Pending',
   //   'input-available': 'Running',
@@ -48,7 +52,17 @@ const getStatusBadge = (status: ToolUIPart['state']) => {
     'input-available': <ClockIcon className="size-4 animate-pulse" />,
     'output-available': <CheckCircleIcon className="size-4 text-green-600" />,
     'output-error': <XCircleIcon className="size-4 text-red-600" />,
+    'awaiting-approval': <CircleIcon className="size-4 text-orange-500" />,
   } as const;
+
+  if (status === 'awaiting-approval') {
+     return (
+        <Badge className="rounded-full text-xs text-muted-foreground" variant="outline">
+          <ClockIcon className="mr-1 size-3 text-orange-500" />
+          Awaiting Approval
+        </Badge>
+     )
+  }
 
   return (
     <Badge className="rounded-full text-xs" variant="secondary">
@@ -115,6 +129,60 @@ export const ToolHeader = ({
       </div>
       <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
     </CollapsibleTrigger>
+  );
+};
+
+export type ToolApprovalProps = {
+  toolCallId: string;
+  onAction?: (approved: boolean) => void;
+};
+
+export const ToolApproval = ({ toolCallId, onAction }: ToolApprovalProps) => {
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleApproval = async (approved: boolean) => {
+    if (isUpdating) return;
+    setIsUpdating(true);
+    try {
+      await fetch(getApiUrl(`/api/tools/approve?call_id=${toolCallId}&approved=${approved}`), {
+        method: 'GET',
+        credentials: 'include',
+      });
+      onAction?.(approved);
+    } catch (error) {
+      console.error("Failed to approve/reject tool:", error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  return (
+    <div className="flex justify-between gap-3 p-4 border rounded-lg my-2">
+      <div className="text-sm text-muted-foreground leading-8">
+        This tool requires your approval to run.
+      </div>
+      <div className="flex gap-2 justify-end">
+        <Button 
+          size="sm"
+          variant="outline"
+          onClick={() => handleApproval(false)} 
+          disabled={isUpdating}
+          className="rounded-lg font-medium"
+        >
+          <XIcon className="pl-0 size-4" />
+          Reject
+        </Button>
+        <Button 
+          size="sm"
+          onClick={() => handleApproval(true)} 
+          disabled={isUpdating}
+          className="border-black bg-primary/90 font-medium rounded-lg"
+        >
+          <CheckIcon className="pl-0 size-4" />
+          Approve
+        </Button>
+      </div>
+    </div>
   );
 };
 
