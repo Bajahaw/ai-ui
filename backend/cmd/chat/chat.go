@@ -149,13 +149,13 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 			Payload: err.Error(),
 		})
 		responseMessage.Error = err.Error()
+	} else {
+		responseMessage.Content = completion.Content
+		responseMessage.Reasoning = completion.Reasoning
+		calls = completion.ToolCalls
 	}
 
-	responseMessage.Content = completion.Content
-	responseMessage.Reasoning = completion.Reasoning
-	calls = completion.ToolCalls
 	isToolsUsed = len(calls) > 0
-
 	if !isToolsUsed {
 		responseMessage.Status = "completed"
 	}
@@ -334,9 +334,9 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		responseMessage.Content = completion.Content
 		responseMessage.Reasoning = completion.Reasoning
 		calls = completion.ToolCalls
-		isToolsUsed = len(calls) > 0
 	}
 
+	isToolsUsed = len(calls) > 0
 	if !isToolsUsed {
 		responseMessage.Status = "completed"
 	}
