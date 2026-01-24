@@ -96,7 +96,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 
 	// prepare for streaming response
 	utils.AddStreamHeaders(w)
-	flusher, ok := w.(http.Flusher)
+	_, ok := w.(http.Flusher)
 	if !ok {
 		log.Error("Streaming not supported")
 		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
@@ -180,7 +180,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 			Payload: toolCall,
 		})
 
-		err := toolCalls.Save(&toolCall)
+		err = toolCalls.Save(&toolCall)
 		if err != nil {
 			log.Error("Error saving tool call output", "err", err)
 		}
@@ -206,8 +206,11 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 			completion, err = provider.SendChatCompletionStreamRequest(providerParams, w)
 			if err != nil {
 				log.Error("Error streaming chat completion after tool call", "err", err)
-				fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
-				flusher.Flush()
+				utils.SendStreamChunk(w, utils.StreamChunk{
+					Event:   utils.EVENT_ERROR,
+					Type:    utils.EVENT_ERROR,
+					Payload: err.Error(),
+				})
 				responseMessage.Error = err.Error()
 				responseMessage.Status = "completed"
 				break
@@ -224,7 +227,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	// Update assistant message with full content after all tool calls
 	if isToolsUsed {
 		if err == nil {
-			responseMessage.Content = completion.Content
+			responseMessage.Content += completion.Content
 			responseMessage.Status = "completed"
 		}
 		_, err = updateMessage(responseMessage.ID, responseMessage)
@@ -370,7 +373,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 			Payload: toolCall,
 		})
 
-		err := toolCalls.Save(&toolCall)
+		err = toolCalls.Save(&toolCall)
 		if err != nil {
 			log.Error("Error saving tool call output", "err", err)
 		}
