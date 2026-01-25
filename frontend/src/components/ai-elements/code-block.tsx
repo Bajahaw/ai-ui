@@ -2,7 +2,7 @@
 
 import { CheckIcon, CopyIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
-import { createContext, useContext, useState, lazy, Suspense } from "react";
+import { createContext, useContext, useState, lazy, Suspense, useEffect } from "react";
 // import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import {
   oneDark,
@@ -39,92 +39,105 @@ export const CodeBlock = ({
   className,
   children,
   ...props
-}: CodeBlockProps) => (
-  <CodeBlockContext.Provider value={{ code }}>
-    <div
-      className={cn(
-        "relative w-full overflow-hidden rounded-xl border bg-[hsl(var(--code-background))] text-foreground",
-        className,
-      )}
-      {...props}
-    >
-      <div className="flex items-center justify-between p-1 pb-0">
-        <span className="text-xs font-medium text-muted-foreground px-3">
-          {language}
-        </span>
-        <div className="flex items-center gap-2">{children}</div>
-      </div>
-      <div className="relative">
-        {ENABLE_HIGHLIGHTING ? (
-          <Suspense
-            fallback={
-              <pre className="overflow-x-auto p-4 pt-0 font-mono text-base">
-                {code}
-              </pre>
-            }
-          >
-            <SyntaxHighlighter
-              language={language}
-              style={oneLight}
-              customStyle={{
-                margin: 0,
-                padding: "0 1rem 1rem",
-                fontSize: "1rem",
-                background: "hsl(var(--code-background))",
-                color: "hsl(var(--foreground))",
-                overflowX: "auto",
-                maxWidth: "100%",
-              }}
-              showLineNumbers={showLineNumbers}
-              lineNumberStyle={{
-                color: "hsl(var(--muted-foreground))",
-                paddingRight: "1rem",
-                minWidth: "2.5rem",
-              }}
-              codeTagProps={{
-                className: "font-mono text-base",
-              }}
-              className="dark:hidden overflow-x-auto"
-              wrapLongLines={false}
-            >
-              {code}
-            </SyntaxHighlighter>
-            <SyntaxHighlighter
-              language={language}
-              style={oneDark}
-              customStyle={{
-                margin: 0,
-                padding: "0 1rem 1rem",
-                fontSize: "1rem",
-                background: "hsl(var(--code-background))", 
-                color: "hsl(var(--foreground))",
-                overflowX: "auto",
-                maxWidth: "100%",
-              }}
-              showLineNumbers={showLineNumbers}
-              lineNumberStyle={{
-                color: "hsl(var(--muted-foreground))",
-                paddingRight: "1rem",
-                minWidth: "2.5rem",
-              }}
-              codeTagProps={{
-                className: "font-mono text-base",
-              }}
-              className="hidden dark:block overflow-x-auto"
-              wrapLongLines={false}
-            >
-              {code}
-            </SyntaxHighlighter>
-          </Suspense>
-        ) : (
-          <pre className="overflow-x-auto p-4 pt-0 font-mono text-base">
-            {code}
-          </pre>
+}: CodeBlockProps) => {
+  const [showHighlight, setShowHighlight] = useState(false);
+
+  useEffect(() => {
+    // Small delay to ensure raw code is rendered and visible first,
+    // especially for large code blocks that might block the UI during highlighting.
+    const timer = setTimeout(() => {
+      setShowHighlight(true);
+    }, 10);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <CodeBlockContext.Provider value={{ code }}>
+      <div
+        className={cn(
+          "relative w-full overflow-hidden rounded-xl border bg-[hsl(var(--code-background))] text-foreground",
+          className,
         )}
+        {...props}
+      >
+        <div className="flex items-center justify-between p-1 pb-0">
+          <span className="text-xs font-medium text-muted-foreground px-3">
+            {language}
+          </span>
+          <div className="flex items-center gap-2">{children}</div>
+        </div>
+        <div className="relative">
+          {ENABLE_HIGHLIGHTING && showHighlight ? (
+            <Suspense
+              fallback={
+                <pre className="overflow-x-auto p-4 pt-0 font-mono text-base">
+                  {code}
+                </pre>
+              }
+            >
+              <SyntaxHighlighter
+                language={language}
+                style={oneLight}
+                customStyle={{
+                  margin: 0,
+                  padding: "0 1rem 1rem",
+                  fontSize: "1rem",
+                  background: "hsl(var(--code-background))",
+                  color: "hsl(var(--foreground))",
+                  overflowX: "auto",
+                  maxWidth: "100%",
+                }}
+                showLineNumbers={showLineNumbers}
+                lineNumberStyle={{
+                  color: "hsl(var(--muted-foreground))",
+                  paddingRight: "1rem",
+                  minWidth: "2.5rem",
+                }}
+                codeTagProps={{
+                  className: "font-mono text-base",
+                }}
+                className="dark:hidden overflow-x-auto"
+                wrapLongLines={false}
+              >
+                {code}
+              </SyntaxHighlighter>
+              <SyntaxHighlighter
+                language={language}
+                style={oneDark}
+                customStyle={{
+                  margin: 0,
+                  padding: "0 1rem 1rem",
+                  fontSize: "1rem",
+                  background: "hsl(var(--code-background))",
+                  color: "hsl(var(--foreground))",
+                  overflowX: "auto",
+                  maxWidth: "100%",
+                }}
+                showLineNumbers={showLineNumbers}
+                lineNumberStyle={{
+                  color: "hsl(var(--muted-foreground))",
+                  paddingRight: "1rem",
+                  minWidth: "2.5rem",
+                }}
+                codeTagProps={{
+                  className: "font-mono text-base",
+                }}
+                className="hidden dark:block overflow-x-auto"
+                wrapLongLines={false}
+              >
+                {code}
+              </SyntaxHighlighter>
+            </Suspense>
+          ) : (
+            <pre className="overflow-x-auto p-4 pt-0 font-mono text-base">
+              {code}
+            </pre>
+          )}
+        </div>
       </div>
-    </div>
-  </CodeBlockContext.Provider>
-);
+    </CodeBlockContext.Provider>
+  );
+};
 
 export type CodeBlockCopyButtonProps = ComponentProps<typeof Button> & {
   onCopy?: () => void;

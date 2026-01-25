@@ -337,7 +337,7 @@ const components: Options["components"] = {
     </p>
   ),
   pre: ({ node, className, children }) => {
-    let language = "javascript";
+    let language = "text";
 
     const childrenIsCode =
       typeof children === "object" &&
