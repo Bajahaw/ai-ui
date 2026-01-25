@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	logger "github.com/charmbracelet/log"
 	"github.com/google/uuid"
@@ -112,9 +113,13 @@ func (r *statusRecorder) Flush() {
 
 func logMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 
 		next.ServeHTTP(recorder, r)
+
+		elapsed := time.Since(start)
+		durationStr := fmt.Sprintf("%.2fms", float64(elapsed.Microseconds())/1000)
 
 		var level logger.Level
 		switch {
@@ -125,7 +130,12 @@ func logMiddleware(next http.Handler) http.Handler {
 		default:
 			level = logger.InfoLevel
 		}
-		log.Log(level, "Received request", "status", recorder.status, "method", r.Method, "path", r.URL.Path)
+		log.Log(level, "Received request",
+			"status", recorder.status,
+			"method", r.Method,
+			"path", r.URL.Path,
+			"duration", durationStr,
+		)
 	})
 }
 
