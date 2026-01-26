@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"time"
 
@@ -33,6 +34,7 @@ type ChatCompletionMessage struct {
 	Content   string
 	Reasoning string
 	ToolCalls []tools.ToolCall
+	Stats     utils.StreamStats
 }
 
 func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompletionMessage, error) {
@@ -119,6 +121,8 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 	// isDeepseekThinkStyle := -1
 	// isDeepseekReasoningFinished := false
 
+	start := time.Now()
+
 	for stream.Next() {
 		chunk := stream.Current()
 		acc.AddChunk(chunk)
@@ -165,6 +169,8 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 
 		}
 	}
+
+	duration := time.Since(start)
 
 	if err := stream.Err(); err != nil {
 		var apiErr *openai.Error
@@ -229,9 +235,18 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 		reasoning = acc.Choices[0].Message.ReasoningText
 	}
 
+	log.Debug("response completed", "content", acc.Choices[0].Message.Content)
+	log.Debug("Usage stats:", "tokens", acc.Usage.TotalTokens, "prompt", acc.Usage.PromptTokens, "completion", acc.Usage.CompletionTokens)
+
 	return &ChatCompletionMessage{
 		Content:   acc.Choices[0].Message.Content,
 		Reasoning: reasoning,
 		ToolCalls: toolCalls,
+		Stats: utils.StreamStats{
+			PromptTokens:     int(acc.Usage.PromptTokens),
+			CompletionTokens: int(acc.Usage.CompletionTokens),
+			// TotalTokens:      int(acc.Usage.TotalTokens),
+			Speed: math.Round(float64(acc.Usage.CompletionTokens)/duration.Seconds()*10) / 10,
+		},
 	}, nil
 }

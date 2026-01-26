@@ -54,7 +54,7 @@ export const Action = ({
         <Tooltip>
           <TooltipTrigger asChild>{button}</TooltipTrigger>
           <TooltipContent>
-            <p>{tooltip}</p>
+            <div className="whitespace-pre-line leading-5">{tooltip}</div>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>

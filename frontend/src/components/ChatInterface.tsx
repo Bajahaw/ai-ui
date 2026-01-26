@@ -43,6 +43,7 @@ import {
 	RotateCcwIcon,
 	CopyIcon,
 	EditIcon,
+	InfoIcon,
 	CheckIcon,
 	XIcon,
 } from "lucide-react";
@@ -538,6 +539,20 @@ export const ChatInterface = ({
 								)}
 							</Action>
 						)}
+
+					{/* Info button showing model / tokens / context / speed (assistant only) */}
+					{message.role === "assistant" && (
+						<Action
+							tooltip={
+								`${message.model || "-"}
+								Tokens: ${message.tokenCount ?  `${Math.round(message.tokenCount * 0.001 * 10) / 10}` : "-"}k
+								Context: ${message.contextSize ? `${Math.round(message.contextSize * 0.001 * 10) / 10}` : "-"}k
+								Speed: ${ message.speed !== undefined ? `${message.speed}` : "-" } t/s`}
+							aria-label="Message metadata"
+						>
+							<InfoIcon className="size-4" />
+						</Action>
+					)}
 					</Actions>
 
 					{/* Branch navigation for assistant messages with multiple branches */}

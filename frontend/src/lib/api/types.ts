@@ -27,6 +27,7 @@ export interface Message {
 
 	convId: string;
 	role: string;
+	model?: string;
 
 	content: string;
 	reasoning?: string;
@@ -39,6 +40,10 @@ export interface Message {
 
 	attachments?: Attachment[];
 	error?: string;
+	// New metadata fields from streaming/completion
+	speed?: number;
+	tokenCount?: number;
+	contextSize?: number;
 }
 
 export interface Conversation {
@@ -104,14 +109,25 @@ export interface StreamChunk {
 	tool_call?: ToolCall;
 }
 
+export interface StreamStats {
+	// PromptTokens or Context Size
+	PromptTokens?: number;
+	// CompletionTokens or Response message size
+	CompletionTokens?: number;
+	// Tokens per second
+	Speed?: number;
+}
+
 export interface StreamComplete {
 	userMessageId: number;
 	assistantMessageId: number;
+	streamStats?: StreamStats;
 }
 // Frontend types for compatibility
 export interface FrontendMessage {
 	id: string;
 	role: "user" | "assistant";
+	model?: string;
 	content: string;
 	reasoning?: string;
 	reasoningDuration?: number; // Duration in seconds for reasoning (if reasoning was used)
@@ -120,6 +136,10 @@ export interface FrontendMessage {
 	error?: string;
 	timestamp: number;
 	attachments?: Attachment[];
+	// Optional frontend-facing metadata
+	speed?: number;
+	tokenCount?: number;
+	contextSize?: number;
 }
 
 // Note: Backend now uses UUIDs. When creating a new conversation implicitly,
@@ -160,6 +180,11 @@ export const backendToFrontendMessage = (
 		error: backendMsg.error,
 		timestamp: Date.now(), // Backend doesn't provide timestamp, use current time
 		attachments: backendMsg.attachments,
+		model: (backendMsg as any).model,
+		// map backend metadata into frontend message
+		speed: (backendMsg as any).speed,
+		tokenCount: (backendMsg as any).tokenCount,
+		contextSize: (backendMsg as any).contextSize,
 	};
 };
 

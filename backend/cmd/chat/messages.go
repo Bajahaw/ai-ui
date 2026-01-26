@@ -20,6 +20,9 @@ type Message struct {
 	Attachments []Attachment      `json:"attachments,omitempty"`
 	Error       string            `json:"error,omitempty"`
 	Tools       []*tools.ToolCall `json:"tools,omitempty"`
+	Speed       float64           `json:"speed,omitempty"`
+	TokenCount  int               `json:"tokenCount,omitempty"`
+	ContextSize int               `json:"contextSize,omitempty"`
 	CreatedAt   time.Time         `json:"createdAt"`
 	UpdatedAt   time.Time         `json:"updatedAt"`
 }
@@ -32,7 +35,7 @@ type Attachment struct {
 
 func getMessage(id int) (*Message, error) {
 	sql := `
-	SELECT id, conv_id, role, content, reasoning, parent_id, error, status, created_at, updated_at 
+	SELECT id, conv_id, role, content, reasoning, parent_id, error, status, speed, token_count, context_size, created_at, updated_at 
 	FROM Messages 
 	WHERE id = ?
 	`
@@ -49,6 +52,9 @@ func getMessage(id int) (*Message, error) {
 		&msg.ParentID,
 		&msg.Error,
 		&msg.Status,
+		&msg.Speed,
+		&msg.TokenCount,
+		&msg.ContextSize,
 		&msg.CreatedAt,
 		&msg.UpdatedAt,
 	)
@@ -82,8 +88,8 @@ func getMessage(id int) (*Message, error) {
 
 func saveMessage(msg Message) (int, error) {
 	sql := `
-	INSERT INTO Messages (conv_id, role, model, parent_id, content, reasoning, error, status, created_at, updated_at) 
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	INSERT INTO Messages (conv_id, role, model, parent_id, content, reasoning, error, status, speed, token_count, context_size, created_at, updated_at) 
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	result, err := data.DB.Exec(sql,
 		msg.ConvID,
@@ -94,6 +100,9 @@ func saveMessage(msg Message) (int, error) {
 		msg.Reasoning,
 		msg.Error,
 		msg.Status,
+		msg.Speed,
+		msg.TokenCount,
+		msg.ContextSize,
 		time.Now(),
 		time.Now(),
 	)
@@ -132,11 +141,11 @@ func saveMessageAttachments(id int, attachments []Attachment) error {
 
 func updateMessage(id int, msg Message) (*Message, error) {
 	sql := `
-	UPDATE Messages SET content = ?, reasoning = ?, error = ?, status = ?, updated_at = ?
+	UPDATE Messages SET content = ?, reasoning = ?, error = ?, status = ?, speed = ?, token_count = ?, context_size = ?, updated_at = ?
 	WHERE id = ?
-	RETURNING id, conv_id, role, model, content, reasoning, parent_id, error, status, created_at, updated_at
+	RETURNING id, conv_id, role, model, content, reasoning, parent_id, error, status, speed, token_count, context_size, created_at, updated_at
 	`
-	row := data.DB.QueryRow(sql, msg.Content, msg.Reasoning, msg.Error, msg.Status, time.Now(), id)
+	row := data.DB.QueryRow(sql, msg.Content, msg.Reasoning, msg.Error, msg.Status, msg.Speed, msg.TokenCount, msg.ContextSize, time.Now(), id)
 	var updatedMsg Message
 	err := row.Scan(
 		&updatedMsg.ID,
@@ -148,6 +157,9 @@ func updateMessage(id int, msg Message) (*Message, error) {
 		&updatedMsg.ParentID,
 		&updatedMsg.Error,
 		&updatedMsg.Status,
+		&updatedMsg.Speed,
+		&updatedMsg.TokenCount,
+		&updatedMsg.ContextSize,
 		&updatedMsg.CreatedAt,
 		&updatedMsg.UpdatedAt,
 	)
@@ -184,7 +196,7 @@ func updateMessage(id int, msg Message) (*Message, error) {
 func getAllConversationMessages(convID string, user string) map[int]*Message {
 	messages := make(map[int]*Message)
 	sql := ` 
-	SELECT m.id, m.conv_id, m.role, m.model, m.content, m.reasoning, m.parent_id, m.error, m.status, m.created_at, m.updated_at
+	SELECT m.id, m.conv_id, m.role, m.model, m.content, m.reasoning, m.parent_id, m.error, m.status, m.speed, m.token_count, m.context_size, m.created_at, m.updated_at
 	FROM Messages m 
 	INNER JOIN Conversations c ON m.conv_id = c.id
 	WHERE m.conv_id = ? AND c.user = ? 
@@ -208,6 +220,9 @@ func getAllConversationMessages(convID string, user string) map[int]*Message {
 			&msg.ParentID,
 			&msg.Error,
 			&msg.Status,
+			&msg.Speed,
+			&msg.TokenCount,
+			&msg.ContextSize,
 			&msg.CreatedAt,
 			&msg.UpdatedAt,
 		)

@@ -137,7 +137,7 @@ export type ToolApprovalProps = {
   onAction?: (approved: boolean) => void;
 };
 
-export const ToolApproval = ({ toolCallId, onAction }: ToolApprovalProps) => {
+export const  ToolApproval = ({ toolCallId, onAction }: ToolApprovalProps) => {
   const [isUpdating, setIsUpdating] = useState(false);
 
   const handleApproval = async (approved: boolean) => {

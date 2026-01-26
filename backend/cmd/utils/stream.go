@@ -29,8 +29,20 @@ type StreamMetadata struct {
 
 // StreamComplete sent when stream is complete
 type StreamComplete struct {
-	UserMessageID      int `json:"userMessageId"`
-	AssistantMessageID int `json:"assistantMessageId"`
+	UserMessageID      int         `json:"userMessageId"`
+	AssistantMessageID int         `json:"assistantMessageId"`
+	StreamStats        StreamStats `json:"streamStats"`
+}
+
+type StreamStats struct {
+	// PromptTokens or Context Size
+	PromptTokens int
+	// CompletionTokens or Response message size
+	CompletionTokens int
+	// // TotalTokens = context + response
+	// TotalTokens int
+	// Tokens per second
+	Speed float64
 }
 
 func AddStreamHeaders(w http.ResponseWriter) {

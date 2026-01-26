@@ -13,7 +13,7 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 	var convMessages = getAllConversationMessages(convID, user) // todo: cache or something
 	var path []int
 	var current = start
-	log.Debug("Current message ID", "id", current)
+	// log.Debug("Current message ID", "id", current)
 	for {
 		leaf, ok := convMessages[current]
 		if !ok {

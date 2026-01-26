@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { chatAPI, conversationsAPI, FrontendMessage, ToolCall } from "@/lib/api";
+import { chatAPI, conversationsAPI, FrontendMessage, ToolCall, StreamStats } from "@/lib/api";
 import { ApiErrorHandler } from "@/lib/api/errorHandler";
 import { ClientConversation, ClientConversationManager, } from "@/lib/clientConversationManager";
 import { useAuth } from "@/hooks/useAuth";
@@ -226,6 +226,8 @@ function updateAssistantMessageAfterComplete(
     parentMessageId: number,
     syncConversations: () => void,
     error?: string,
+    streamStats?: StreamStats,
+    model?: string,
 ): void {
     streamingState.cancelPendingSync();
 
@@ -254,10 +256,15 @@ function updateAssistantMessageAfterComplete(
         id: realMessageId,
         convId: conversationId,
         role: assistMsg.role,
+        model: model,
         content: assistMsg.content,
         reasoning: assistMsg.reasoning,
         toolCalls: assistMsg.toolCalls,
         parentId: parentMessageId,
+        // Persist stream stats metadata if present
+        speed: streamStats?.Speed,
+        tokenCount: streamStats?.CompletionTokens,
+        contextSize: streamStats?.PromptTokens,
         error: error,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -268,6 +275,16 @@ function updateAssistantMessageAfterComplete(
 
     // Set as active message
     conv.backendConversation!.activeMessageId = realMessageId;
+
+    // Also persist metadata on the frontend message object for quick access
+    if (streamStats) {
+        assistMsg.speed = streamStats.Speed;
+        assistMsg.tokenCount = streamStats.CompletionTokens;
+        assistMsg.contextSize = streamStats.PromptTokens;
+    }
+    if (model) {
+        assistMsg.model = model;
+    }
 
     // Sync immediately to update UI
     syncConversations();
@@ -702,6 +719,8 @@ export const useConversations = () => {
                                 data.userMessageId,
                                 syncConversations,
                                 streamError, // Pass error if one occurred
+                                data.streamStats,
+                                model,
                             );
                         }
                     },
@@ -812,6 +831,8 @@ export const useConversations = () => {
                             parentId,
                             syncConversations,
                             streamError,
+                            data.streamStats,
+                            model,
                         );
 
                         // After completing, refresh conversation to rebuild tree/branches accurately

@@ -133,8 +133,8 @@ func logMiddleware(next http.Handler) http.Handler {
 		log.Log(level, "Received request",
 			"status", recorder.status,
 			"method", r.Method,
-			"path", r.URL.Path,
 			"duration", durationStr,
+			"path", r.URL.Path,
 		)
 	})
 }

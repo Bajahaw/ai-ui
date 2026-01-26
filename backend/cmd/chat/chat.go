@@ -158,6 +158,9 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	isToolsUsed = len(calls) > 0
 	if !isToolsUsed {
 		responseMessage.Status = "completed"
+		responseMessage.Speed = completion.Stats.Speed
+		responseMessage.TokenCount = completion.Stats.CompletionTokens
+		responseMessage.ContextSize = completion.Stats.PromptTokens
 	}
 
 	// Save assistant message after streaming completes
@@ -229,6 +232,9 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			responseMessage.Content += completion.Content
 			responseMessage.Status = "completed"
+			responseMessage.Speed = completion.Stats.Speed
+			responseMessage.TokenCount = completion.Stats.CompletionTokens
+			responseMessage.ContextSize = completion.Stats.PromptTokens
 		}
 		_, err = updateMessage(responseMessage.ID, responseMessage)
 		if err != nil {
@@ -242,6 +248,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	completionData := utils.StreamComplete{
 		UserMessageID:      userMessage.ID,
 		AssistantMessageID: responseMessage.ID,
+		StreamStats:        completion.Stats,
 	}
 	utils.SendStreamChunk(w, utils.StreamChunk{
 		Event:   utils.EVENT_COMPLETE,
@@ -280,7 +287,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 
 	utils.AddStreamHeaders(w)
 
-	flusher, ok := w.(http.Flusher)
+	_, ok := w.(http.Flusher)
 	if !ok {
 		log.Error("Streaming not supported")
 		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
@@ -330,8 +337,11 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	completion, err := provider.SendChatCompletionStreamRequest(providerParams, w)
 	if err != nil {
 		log.Error("Error streaming retry completion", "err", err)
-		fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
-		flusher.Flush()
+		utils.SendStreamChunk(w, utils.StreamChunk{
+			Event:   utils.EVENT_ERROR,
+			Type:    utils.EVENT_ERROR,
+			Payload: err.Error(),
+		})
 		responseMessage.Error = err.Error()
 	} else {
 		responseMessage.Content = completion.Content
@@ -342,6 +352,9 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	isToolsUsed = len(calls) > 0
 	if !isToolsUsed {
 		responseMessage.Status = "completed"
+		responseMessage.Speed = completion.Stats.Speed
+		responseMessage.TokenCount = completion.Stats.CompletionTokens
+		responseMessage.ContextSize = completion.Stats.PromptTokens
 	}
 
 	responseID, saveErr := saveMessage(responseMessage)
@@ -394,8 +407,11 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 			completion, err = provider.SendChatCompletionStreamRequest(providerParams, w)
 			if err != nil {
 				log.Error("Error streaming chat completion after tool call", "err", err)
-				fmt.Fprintf(w, "event: error\ndata: {\"error\": \"%s\"}\n\n", err.Error())
-				flusher.Flush()
+				utils.SendStreamChunk(w, utils.StreamChunk{
+					Event:   utils.EVENT_ERROR,
+					Type:    utils.EVENT_ERROR,
+					Payload: err.Error(),
+				})
 				responseMessage.Error = err.Error()
 				responseMessage.Status = "completed"
 				break
@@ -414,6 +430,9 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			responseMessage.Content = completion.Content
 			responseMessage.Status = "completed"
+			responseMessage.Speed = completion.Stats.Speed
+			responseMessage.TokenCount = completion.Stats.CompletionTokens
+			responseMessage.ContextSize = completion.Stats.PromptTokens
 		}
 		_, err = updateMessage(responseMessage.ID, responseMessage)
 		if err != nil {
@@ -425,6 +444,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	completionData := utils.StreamComplete{
 		UserMessageID:      parent.ID,
 		AssistantMessageID: responseMessage.ID,
+		StreamStats:        completion.Stats,
 	}
 	utils.SendStreamChunk(w, utils.StreamChunk{
 		Event:   utils.EVENT_COMPLETE,
