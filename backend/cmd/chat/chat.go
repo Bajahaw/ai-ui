@@ -139,6 +139,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 
 	var calls []tools.ToolCall
 	var isToolsUsed bool
+	var streamStats utils.StreamStats
 
 	completion, err := provider.SendChatCompletionStreamRequest(providerParams, w)
 	if err != nil {
@@ -152,6 +153,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	} else {
 		responseMessage.Content = completion.Content
 		responseMessage.Reasoning = completion.Reasoning
+		streamStats = completion.Stats
 		calls = completion.ToolCalls
 	}
 
@@ -235,6 +237,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 			responseMessage.Speed = completion.Stats.Speed
 			responseMessage.TokenCount = completion.Stats.CompletionTokens
 			responseMessage.ContextSize = completion.Stats.PromptTokens
+			streamStats = completion.Stats
 		}
 		_, err = updateMessage(responseMessage.ID, responseMessage)
 		if err != nil {
@@ -248,7 +251,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	completionData := utils.StreamComplete{
 		UserMessageID:      userMessage.ID,
 		AssistantMessageID: responseMessage.ID,
-		StreamStats:        completion.Stats,
+		StreamStats:        streamStats,
 	}
 	utils.SendStreamChunk(w, utils.StreamChunk{
 		Event:   utils.EVENT_COMPLETE,
@@ -332,6 +335,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 
 	var calls []tools.ToolCall
 	var isToolsUsed bool
+	var streamStats utils.StreamStats
 
 	// Stream assistant content
 	completion, err := provider.SendChatCompletionStreamRequest(providerParams, w)
@@ -346,6 +350,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	} else {
 		responseMessage.Content = completion.Content
 		responseMessage.Reasoning = completion.Reasoning
+		streamStats = completion.Stats
 		calls = completion.ToolCalls
 	}
 
@@ -433,6 +438,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 			responseMessage.Speed = completion.Stats.Speed
 			responseMessage.TokenCount = completion.Stats.CompletionTokens
 			responseMessage.ContextSize = completion.Stats.PromptTokens
+			streamStats = completion.Stats
 		}
 		_, err = updateMessage(responseMessage.ID, responseMessage)
 		if err != nil {
@@ -444,7 +450,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	completionData := utils.StreamComplete{
 		UserMessageID:      parent.ID,
 		AssistantMessageID: responseMessage.ID,
-		StreamStats:        completion.Stats,
+		StreamStats:        streamStats,
 	}
 	utils.SendStreamChunk(w, utils.StreamChunk{
 		Event:   utils.EVENT_COMPLETE,
