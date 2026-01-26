@@ -6,7 +6,35 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
+
+const platformInstructions = `
+Respond with short, accurate, concise responses. Do not hullucinate. Format your answer, Markdown, code, latex, emojis, all supported.
+
+<platform>
+
+- to utilize the platform features, make sure to format and beautify your responses. make them clear to read and understand.
+- tool calls must be one at a time! parellal calling is not supported yet!
+- when search is used, site all your used sources inline and at the end of the response. IMPORTANT to render inline citation correctly, they should be as the following format:
+>some facts from the enternet. ([Source name][number])([Another source][number]) // single source at a time
+>rest of the response till the end ... 
+>
+>
+>[number]: https://source.link/article "Discription or snippet"
+
+- for latex to render correctly, use $inline syntax$ or $$$ for blocks of latex. e.g. as the following:
+>The equation $e=mc...$
+>the explanation:
+>$$$
+>latex
+>$$$
+
+- because ` + "`$`" + ` is reserved for latex, when the symbol is used as the currency it must be escaped! 
+>I bought this for only 20\$ 
+
+<platform>
+`
 
 // Helper
 func buildContext(convID string, start int, user string) []providers.SimpleMessage {
@@ -24,13 +52,24 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 	}
 
 	systemPrompt, _ := settings.Get("systemPrompt", user)
+	appendDateFlag, _ := settings.Get("appendDateToSystemPrompt", user)
+	appendPlatformFlag, _ := settings.Get("appendPlatformInstructions", user)
+
+	// Append date and/or platform instructions based on user settings
+	finalSystemPrompt := systemPrompt
+	if appendDateFlag == "true" {
+		finalSystemPrompt = "Current date: " + time.Now().Format("2006-01-02") + "\n\n" + finalSystemPrompt
+	}
+	if appendPlatformFlag == "true" {
+		finalSystemPrompt += "\n\n" + platformInstructions
+	}
 	attachmentOcrOnly, _ := settings.Get("attachmentOcrOnly", user)
 	ocrOnly := attachmentOcrOnly == "true"
 
 	var messages = []providers.SimpleMessage{
 		{
 			Role:    "system",
-			Content: systemPrompt,
+			Content: finalSystemPrompt,
 		},
 	}
 

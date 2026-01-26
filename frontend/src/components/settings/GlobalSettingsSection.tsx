@@ -4,6 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Save, RotateCcw, Settings } from "lucide-react";
 import { ModelSelect } from "@/components/ai-elements/model-select.tsx";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -25,6 +26,8 @@ export const GlobalSettingsSection = () => {
     );
 
     const systemPrompt = data.settings.systemPrompt || "";
+    const appendDate = data.settings.appendDateToSystemPrompt || "false";
+    const appendPlatform = data.settings.appendPlatformInstructions || "false";
     const defaultModel = data.settings.defaultModel || "";
     const reasoningEffort = data.settings.reasoningEffort || "medium";
     const enterBehavior = data.settings.enterBehavior || "send";
@@ -33,13 +36,15 @@ export const GlobalSettingsSection = () => {
         systemPrompt,
         defaultModel,
         reasoningEffort,
-        enterBehavior
+        enterBehavior,
+        appendDateToSystemPrompt: appendDate,
+        appendPlatformInstructions: appendPlatform,
     });
 
     useEffect(() => {
-        setLocal({ systemPrompt, defaultModel, reasoningEffort, enterBehavior });
+        setLocal({ systemPrompt, defaultModel, reasoningEffort, enterBehavior, appendDateToSystemPrompt: appendDate, appendPlatformInstructions: appendPlatform });
         setHasChanges(false);
-    }, [systemPrompt, defaultModel, reasoningEffort, enterBehavior]);
+    }, [systemPrompt, defaultModel, reasoningEffort, enterBehavior, appendDate, appendPlatform]);
 
     const handleChange = (key: string, value: string) => {
         setLocal(prev => ({ ...prev, [key]: value }));
@@ -62,7 +67,7 @@ export const GlobalSettingsSection = () => {
     };
 
     const handleReset = () => {
-        setLocal({ systemPrompt, defaultModel, reasoningEffort, enterBehavior });
+        setLocal({ systemPrompt, defaultModel, reasoningEffort, enterBehavior, appendDateToSystemPrompt: appendDate, appendPlatformInstructions: appendPlatform });
         setHasChanges(false);
     };
 
@@ -147,6 +152,28 @@ export const GlobalSettingsSection = () => {
                     <Label htmlFor="system-prompt">
                         System Prompt
                     </Label>
+                    <div className="flex items-center justify-between pt-2">
+                        <div>
+                            <Label className="!mb-0">Append current date</Label>
+                        </div>
+                        <Switch
+                            className="mx-1"
+                            checked={local.appendDateToSystemPrompt === "true"}
+                            onCheckedChange={() => handleChange("appendDateToSystemPrompt", local.appendDateToSystemPrompt === "true" ? "false" : "true")}
+                            disabled={isSaving}
+                        />
+                    </div>
+                    <div className="flex items-center justify-between pt-2">
+                        <div>
+                            <Label className="!mb-0">Append platform instructions</Label>
+                        </div>
+                        <Switch
+                            className="mx-1"
+                            checked={local.appendPlatformInstructions === "true"}
+                            onCheckedChange={() => handleChange("appendPlatformInstructions", local.appendPlatformInstructions === "true" ? "false" : "true")}
+                            disabled={isSaving}
+                        />
+                    </div>
                     <Textarea
                         id="system-prompt"
                         placeholder="You are a helpful AI assistant. Provide clear, accurate, and helpful responses to user questions."

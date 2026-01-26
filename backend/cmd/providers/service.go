@@ -237,6 +237,8 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 
 	log.Debug("response completed", "content", acc.Choices[0].Message.Content)
 	log.Debug("Usage stats:", "tokens", acc.Usage.TotalTokens, "prompt", acc.Usage.PromptTokens, "completion", acc.Usage.CompletionTokens)
+	speed := float64(acc.Usage.CompletionTokens) / duration.Seconds()
+	log.Debug("Response speed:", "tokens_per_second", speed)
 
 	return &ChatCompletionMessage{
 		Content:   acc.Choices[0].Message.Content,
