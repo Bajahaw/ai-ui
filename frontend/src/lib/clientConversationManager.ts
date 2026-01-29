@@ -276,7 +276,7 @@ export class ClientConversationManager {
 				);
 				if (!exists) {
 					conversation.messages.push(
-						backendToFrontendMessage(backendMsg, "completed"),
+						backendToFrontendMessage(backendMsg),
 					);
 				}
 			}
@@ -489,7 +489,7 @@ export class ClientConversationManager {
 			if (!current) break;
 		}
 
-		return path.map((m) => backendToFrontendMessage(m, "completed"));
+		return path.map((m) => backendToFrontendMessage(m));
 	}
 
 	hasPendingMessages(conversationId: string): boolean {
@@ -665,7 +665,10 @@ export class ClientConversationManager {
 		const message = conversation.messages.find((m) => m.id === messageId);
 		if (message) {
 			message.content = newContent;
-			message.status = "completed";
+			// While streaming, keep the message marked as pending so UI
+			// continues to show the spinner and hides action buttons.
+			// Only mark as completed when the stream fully finishes.
+			message.status = "pending";
 		}
 	}
 

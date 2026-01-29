@@ -457,6 +457,14 @@ export const ChatInterface = ({
 
 	const renderMessageActions = useCallback(
 		(message: FrontendMessage) => {
+			// If assistant message is pending, replace action buttons with a small spinner
+			if (message.role === "assistant" && message.status === "pending") {
+				return (
+					<div className="flex items-center py-2 text-muted-foreground">
+						<Loader size={16} />
+					</div>
+				);
+			}
 			const messageInfo = branchInfoCache.get(message.id);
 			if (!messageInfo) return null;
 
@@ -544,10 +552,10 @@ export const ChatInterface = ({
 					{message.role === "assistant" && (
 						<Action
 							tooltip={
-								`${message.model || "-"}
-								Tokens: ${message.tokenCount ?  `${Math.round(message.tokenCount * 0.001 * 10) / 10}` : "-"}k
-								Context: ${message.contextSize ? `${Math.round(message.contextSize * 0.001 * 10) / 10}` : "-"}k
-								Speed: ${ message.speed !== undefined ? `${message.speed}` : "-" } t/s`}
+								`${message.model || "model unknown"}
+								Tokens: ${message.tokenCount ?  `${Math.round(message.tokenCount * 0.001 * 10) / 10}` : "0"}k
+								Context: ${message.contextSize ? `${Math.round(message.contextSize * 0.001 * 10) / 10}` : "0"}k
+								Speed: ${ message.speed !== undefined ? `${message.speed}` : "0" } t/s`}
 							aria-label="Message metadata"
 						>
 							<InfoIcon className="size-4" />
@@ -604,18 +612,6 @@ export const ChatInterface = ({
 					<div className="text-base text-destructive/80">
 						{message.error || "An unknown error occurred"}
 					</div>
-				</div>
-			);
-		}
-
-		if (
-			message.status === "pending" &&
-			message.role === "assistant" &&
-			message.content === ""
-		) {
-			return (
-				<div className="flex items-center gap-2 text-muted-foreground">
-					<Loader size={16} />
 				</div>
 			);
 		}
@@ -692,7 +688,7 @@ export const ChatInterface = ({
 									</div>
 								)}
 								{renderMessageContent(message)}
-								{message.status !== "pending" && renderMessageActions(message)}
+								{renderMessageActions(message)}
 							</div>
 						)}
 					</MessageContent>

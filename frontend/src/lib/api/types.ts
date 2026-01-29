@@ -147,7 +147,6 @@ export interface FrontendMessage {
 // Convert backend message to frontend message
 export const backendToFrontendMessage = (
 	backendMsg: Message,
-	status: "completed" | "pending" = "completed",
 ): FrontendMessage => {
 	// Safety checks for null/undefined message
 	if (!backendMsg || typeof backendMsg !== "object") {
@@ -176,15 +175,15 @@ export const backendToFrontendMessage = (
 		content: backendMsg.content || "",
 		reasoning: backendMsg.reasoning,
 		toolCalls: backendMsg.tools,
-		status: status,
+		status: backendMsg.status === "pending" ? "pending" : "completed",
 		error: backendMsg.error,
 		timestamp: Date.now(), // Backend doesn't provide timestamp, use current time
 		attachments: backendMsg.attachments,
-		model: (backendMsg as any).model,
+		model: backendMsg.model,
 		// map backend metadata into frontend message
-		speed: (backendMsg as any).speed,
-		tokenCount: (backendMsg as any).tokenCount,
-		contextSize: (backendMsg as any).contextSize,
+		speed: backendMsg.speed,
+		tokenCount: backendMsg.tokenCount,
+		contextSize: backendMsg.contextSize,
 	};
 };
 
