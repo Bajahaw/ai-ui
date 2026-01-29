@@ -4,6 +4,7 @@ import (
 	"ai-client/cmd/providers"
 	"ai-client/cmd/tools"
 	"ai-client/cmd/utils"
+	"strconv"
 
 	"fmt"
 	"net/http"
@@ -95,8 +96,13 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// prepare for streaming response
-	utils.AddStreamHeaders(w)
-	_, ok := w.(http.Flusher)
+	sc := utils.StreamClient{
+		User:      user,
+		MessageID: userMessage.ID,
+		Writer:    w,
+	}
+	utils.AddStreamHeaders(sc.Writer)
+	_, ok := sc.Writer.(http.Flusher)
 	if !ok {
 		log.Error("Streaming not supported")
 		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
@@ -109,8 +115,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		UserMessageID:  userMessage.ID,
 	}
 
-	utils.SendStreamChunk(w, utils.StreamChunk{
-		Event:   utils.EVENT_METADATA,
+	utils.SendStreamChunk(sc, utils.StreamChunk{
 		Type:    utils.EVENT_METADATA,
 		Payload: metadata,
 	})
@@ -141,11 +146,10 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	var isToolsUsed bool
 	var streamStats utils.StreamStats
 
-	completion, err := provider.SendChatCompletionStreamRequest(providerParams, w)
+	completion, err := provider.SendChatCompletionStreamRequest(providerParams, sc)
 	if err != nil {
 		log.Error("Error streaming chat completion", "err", err)
-		utils.SendStreamChunk(w, utils.StreamChunk{
-			Event:   utils.EVENT_ERROR,
+		utils.SendStreamChunk(sc, utils.StreamChunk{
 			Type:    utils.EVENT_ERROR,
 			Payload: err.Error(),
 		})
@@ -160,9 +164,9 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	isToolsUsed = len(calls) > 0
 	if !isToolsUsed {
 		responseMessage.Status = "completed"
-		responseMessage.Speed = completion.Stats.Speed
-		responseMessage.TokenCount = completion.Stats.CompletionTokens
-		responseMessage.ContextSize = completion.Stats.PromptTokens
+		responseMessage.Speed = streamStats.Speed
+		responseMessage.TokenCount = streamStats.CompletionTokens
+		responseMessage.ContextSize = streamStats.PromptTokens
 	}
 
 	// Save assistant message after streaming completes
@@ -180,7 +184,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		output := tools.ExecuteMCPTool(toolCall, user)
 		toolCall.Output = output
 
-		utils.SendStreamChunk(w, utils.StreamChunk{
+		utils.SendStreamChunk(sc, utils.StreamChunk{
 			Type:    utils.TOOL_CALL,
 			Payload: toolCall,
 		})
@@ -208,11 +212,10 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 
 		calls = calls[1:]
 		if len(calls) == 0 {
-			completion, err = provider.SendChatCompletionStreamRequest(providerParams, w)
+			completion, err = provider.SendChatCompletionStreamRequest(providerParams, sc)
 			if err != nil {
 				log.Error("Error streaming chat completion after tool call", "err", err)
-				utils.SendStreamChunk(w, utils.StreamChunk{
-					Event:   utils.EVENT_ERROR,
+				utils.SendStreamChunk(sc, utils.StreamChunk{
 					Type:    utils.EVENT_ERROR,
 					Payload: err.Error(),
 				})
@@ -253,8 +256,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		AssistantMessageID: responseMessage.ID,
 		StreamStats:        streamStats,
 	}
-	utils.SendStreamChunk(w, utils.StreamChunk{
-		Event:   utils.EVENT_COMPLETE,
+	utils.SendStreamChunk(sc, utils.StreamChunk{
 		Type:    utils.EVENT_COMPLETE,
 		Payload: completionData,
 	})
@@ -288,9 +290,15 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.AddStreamHeaders(w)
+	sc := utils.StreamClient{
+		User:      user,
+		MessageID: parent.ID,
+		Writer:    w,
+	}
 
-	_, ok := w.(http.Flusher)
+	utils.AddStreamHeaders(sc.Writer)
+
+	_, ok := sc.Writer.(http.Flusher)
 	if !ok {
 		log.Error("Streaming not supported")
 		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
@@ -305,8 +313,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	// metadataJSON, _ := json.Marshal(metadata)
 	// fmt.Fprintf(w, "event: metadata\ndata: %s\n\n", metadataJSON)
 	// flusher.Flush()
-	utils.SendStreamChunk(w, utils.StreamChunk{
-		Event:   utils.EVENT_METADATA,
+	utils.SendStreamChunk(sc, utils.StreamChunk{
 		Type:    utils.EVENT_METADATA,
 		Payload: metadata,
 	})
@@ -338,11 +345,10 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	var streamStats utils.StreamStats
 
 	// Stream assistant content
-	completion, err := provider.SendChatCompletionStreamRequest(providerParams, w)
+	completion, err := provider.SendChatCompletionStreamRequest(providerParams, sc)
 	if err != nil {
 		log.Error("Error streaming retry completion", "err", err)
-		utils.SendStreamChunk(w, utils.StreamChunk{
-			Event:   utils.EVENT_ERROR,
+		utils.SendStreamChunk(sc, utils.StreamChunk{
 			Type:    utils.EVENT_ERROR,
 			Payload: err.Error(),
 		})
@@ -357,9 +363,9 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	isToolsUsed = len(calls) > 0
 	if !isToolsUsed {
 		responseMessage.Status = "completed"
-		responseMessage.Speed = completion.Stats.Speed
-		responseMessage.TokenCount = completion.Stats.CompletionTokens
-		responseMessage.ContextSize = completion.Stats.PromptTokens
+		responseMessage.Speed = streamStats.Speed
+		responseMessage.TokenCount = streamStats.CompletionTokens
+		responseMessage.ContextSize = streamStats.PromptTokens
 	}
 
 	responseID, saveErr := saveMessage(responseMessage)
@@ -386,7 +392,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		output := tools.ExecuteMCPTool(toolCall, user)
 		toolCall.Output = output
 
-		utils.SendStreamChunk(w, utils.StreamChunk{
+		utils.SendStreamChunk(sc, utils.StreamChunk{
 			Type:    utils.TOOL_CALL,
 			Payload: toolCall,
 		})
@@ -409,11 +415,10 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 
 		calls = calls[1:]
 		if len(calls) == 0 {
-			completion, err = provider.SendChatCompletionStreamRequest(providerParams, w)
+			completion, err = provider.SendChatCompletionStreamRequest(providerParams, sc)
 			if err != nil {
 				log.Error("Error streaming chat completion after tool call", "err", err)
-				utils.SendStreamChunk(w, utils.StreamChunk{
-					Event:   utils.EVENT_ERROR,
+				utils.SendStreamChunk(sc, utils.StreamChunk{
 					Type:    utils.EVENT_ERROR,
 					Payload: err.Error(),
 				})
@@ -452,8 +457,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		AssistantMessageID: responseMessage.ID,
 		StreamStats:        streamStats,
 	}
-	utils.SendStreamChunk(w, utils.StreamChunk{
-		Event:   utils.EVENT_COMPLETE,
+	utils.SendStreamChunk(sc, utils.StreamChunk{
 		Type:    utils.EVENT_COMPLETE,
 		Payload: completionData,
 	})
@@ -469,16 +473,18 @@ func update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = conversations.Touch(req.ConversationID, user)
+	if err != nil {
+		log.Error("Error updating conversation", "err", err)
+		http.Error(w, fmt.Sprintf("Error updating conversation: %v", err), http.StatusNotFound)
+		return
+	}
+
 	msg, err := updateMessage(req.MessageID, Message{Content: req.Content})
 	if err != nil {
 		log.Error("Error updating message", "err", err)
 		http.Error(w, fmt.Sprintf("Error updating message: %v", err), http.StatusInternalServerError)
 		return
-	}
-
-	err = conversations.Touch(req.ConversationID, user)
-	if err != nil {
-		log.Error("Error touching conversation", "err", err)
 	}
 
 	response := &Response{
@@ -487,4 +493,123 @@ func update(w http.ResponseWriter, r *http.Request) {
 	response.Messages[msg.ID] = msg
 
 	utils.RespondWithJSON(w, &response, http.StatusOK)
+}
+
+func resumeStream(w http.ResponseWriter, r *http.Request) {
+	user := utils.ExtractContextUser(r)
+	convID := r.URL.Query().Get("convId")
+	param := r.URL.Query().Get("msgId")
+	msgID, err := strconv.Atoi(param)
+	if err != nil || msgID <= 0 {
+		log.Error("Invalid parentId query parameter", "err", err)
+		http.Error(w, "Invalid parentId query parameter", http.StatusBadRequest)
+		return
+	}
+
+	sc := utils.StreamClient{
+		User:      user,
+		MessageID: msgID,
+		Writer:    w,
+	}
+
+	utils.AddStreamHeaders(sc.Writer)
+	_, ok := sc.Writer.(http.Flusher)
+	if !ok {
+		log.Error("Streaming not supported")
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	if chunks, found := utils.StreamCache.GetChunks(user, msgID); found && len(chunks) > 0 {
+		ch, cancel := utils.StreamCache.Subscribe(user, msgID)
+		defer cancel()
+
+		ctx := r.Context()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case chunk, ok := <-ch:
+				if !ok {
+					return
+				}
+				if err := utils.ReplayChunk(sc, chunk); err != nil {
+					log.Error("Error writing replayed chunk", "err", err)
+					return
+				}
+			}
+		}
+	}
+
+	// this should not happen often, because /resume be called while cache has data
+	// but if not, this probably means the message is completed already
+
+	conv, err := conversations.GetByID(convID, user)
+	if err != nil {
+		log.Error("Error getting conversation", "err", err)
+		http.Error(w, "Error getting conversation", http.StatusNotFound)
+		return
+	}
+
+	msg, err := getMessage(msgID)
+	if err != nil {
+		log.Error("Error getting message", "err", err)
+		http.Error(w, "Error getting message", http.StatusNotFound)
+		return
+	}
+
+	if msg.ConvID != conv.ID || conv.UserID != user || msg.Role != "assistant" {
+		log.Error("Message does not belong to user or conversation")
+		http.Error(w, "Message does not belong to user or conversation", http.StatusUnauthorized)
+		return
+	}
+
+	if msg.Status == "completed" {
+		metadata := utils.StreamMetadata{
+			ConversationID: conv.ID,
+			UserMessageID:  msg.ParentID,
+		}
+		utils.SendStreamChunk(sc, utils.StreamChunk{
+			Type:    utils.EVENT_METADATA,
+			Payload: metadata,
+		})
+
+		utils.SendStreamChunk(sc, utils.StreamChunk{
+			Type:    utils.REASONING,
+			Payload: msg.Reasoning,
+		})
+
+		utils.SendStreamChunk(sc, utils.StreamChunk{
+			Type:    utils.CONTENT,
+			Payload: msg.Content,
+		})
+
+		if msg.Error != "" {
+			utils.SendStreamChunk(sc, utils.StreamChunk{
+				Type:    utils.EVENT_ERROR,
+				Payload: msg.Error,
+			})
+		}
+
+		for _, call := range msg.Tools {
+			utils.SendStreamChunk(sc, utils.StreamChunk{
+				Type:    utils.TOOL_CALL,
+				Payload: call,
+			})
+		}
+
+		utils.SendStreamChunk(sc, utils.StreamChunk{
+			Type: utils.EVENT_COMPLETE,
+			Payload: utils.StreamComplete{
+				UserMessageID:      msg.ParentID,
+				AssistantMessageID: msg.ID,
+				StreamStats: utils.StreamStats{
+					PromptTokens:     msg.ContextSize,
+					CompletionTokens: msg.TokenCount,
+					Speed:            msg.Speed,
+				},
+			},
+		})
+		return
+	}
 }

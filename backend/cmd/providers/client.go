@@ -1,8 +1,8 @@
 package providers
 
 import (
+	"ai-client/cmd/utils"
 	"database/sql"
-	"net/http"
 
 	logger "github.com/charmbracelet/log"
 )
@@ -12,7 +12,7 @@ var providers Repository
 
 type Client interface {
 	SendChatCompletionRequest(params RequestParams) (*ChatCompletionMessage, error)
-	SendChatCompletionStreamRequest(params RequestParams, w http.ResponseWriter) (*ChatCompletionMessage, error)
+	SendChatCompletionStreamRequest(params RequestParams, sc utils.StreamClient) (*ChatCompletionMessage, error)
 }
 
 type ClientImpl struct{}

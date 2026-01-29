@@ -11,6 +11,7 @@ func Handler() http.Handler {
 	mux.HandleFunc("POST /stream", chatStream)
 	mux.HandleFunc("POST /retry/stream", retryStream)
 	mux.HandleFunc("POST /update", update)
+	mux.HandleFunc("GET /resume", resumeStream)
 	// mux.HandleFunc("POST /new", chat) // Temporarily disabled, use /stream instead
 	// mux.HandleFunc("POST /retry", retry)
 

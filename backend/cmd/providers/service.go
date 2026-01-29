@@ -90,7 +90,7 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompl
 }
 
 // SendChatCompletionStreamRequest streams chat completions and returns the full content
-func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w http.ResponseWriter) (*ChatCompletionMessage, error) {
+func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc utils.StreamClient) (*ChatCompletionMessage, error) {
 	providerID, model := utils.ExtractProviderID(params.Model)
 	provider, err := providers.GetByID(providerID, params.User)
 	if err != nil {
@@ -113,7 +113,7 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 		Tools:           toOpenAITools(tools.GetAvailableTools(params.User)),
 	}
 
-	utils.AddStreamHeaders(w)
+	utils.AddStreamHeaders(sc.Writer)
 
 	stream := client.Chat.Completions.NewStreaming(ctx, openAIparams)
 	acc := openai.ChatCompletionAccumulator{}
@@ -139,14 +139,14 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 			}
 
 			if reasoningDelta != "" {
-				utils.SendStreamChunk(w, utils.StreamChunk{
+				utils.SendStreamChunk(sc, utils.StreamChunk{
 					Payload: reasoningDelta,
 					Type:    utils.REASONING,
 				})
 			}
 
 			if contentDelta != "" {
-				utils.SendStreamChunk(w, utils.StreamChunk{
+				utils.SendStreamChunk(sc, utils.StreamChunk{
 					Payload: contentDelta,
 					Type:    utils.CONTENT,
 				})
@@ -156,7 +156,7 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, w htt
 
 				uniqueToolIDs[toolCall.ID] = uuid.New().String()
 
-				utils.SendStreamChunk(w, utils.StreamChunk{
+				utils.SendStreamChunk(sc, utils.StreamChunk{
 					Type: utils.TOOL_CALL,
 					Payload: tools.ToolCall{
 						ID: uniqueToolIDs[toolCall.ID],
