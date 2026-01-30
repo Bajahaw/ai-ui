@@ -5,6 +5,7 @@ import (
 	"ai-client/cmd/tools"
 	"ai-client/cmd/utils"
 	"strconv"
+	"time"
 
 	"fmt"
 	"net/http"
@@ -543,6 +544,7 @@ func resumeStream(w http.ResponseWriter, r *http.Request) {
 
 	// this should not happen often, because /resume be called while cache has data
 	// but if not, this probably means the message is completed already
+	time.Sleep(1000 * time.Millisecond)
 
 	conv, err := conversations.GetByID(convID, user)
 	if err != nil {
@@ -610,6 +612,9 @@ func resumeStream(w http.ResponseWriter, r *http.Request) {
 				},
 			},
 		})
+
 		return
 	}
+
+	http.Error(w, "No active stream found for message", http.StatusNotFound)
 }

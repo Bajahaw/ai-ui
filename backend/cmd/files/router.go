@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 func FileHandler() http.Handler {
@@ -41,26 +39,14 @@ func upload(w http.ResponseWriter, r *http.Request) {
 
 	defer file.Close()
 
-	filePath, err := utils.SaveUploadedFile(file, handler)
+	fileData, err := saveUploadedFile(file, handler)
 	if err != nil {
 		log.Error("Error saving uploaded file", "err", err)
 		http.Error(w, "Error saving file", http.StatusInternalServerError)
 		return
 	}
 
-	log.Debug("file path", "path", filePath)
-
-	fileRawContent, err := os.ReadFile(filePath)
-	if err != nil {
-		log.Error("Error reading file", "err", err)
-		http.Error(w, "Error reading file", http.StatusInternalServerError)
-		return
-	}
-
-	attType := http.DetectContentType(fileRawContent)
-	log.Debug("Detected file content type", "type", attType)
-
-	urlPath := strings.TrimPrefix(filePath, ".")
+	urlPath := strings.TrimPrefix(fileData.Path, ".")
 
 	if !strings.HasPrefix(urlPath, "/") {
 		urlPath = "/" + urlPath
@@ -80,16 +66,9 @@ func upload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	fileData := File{
-		ID:        uuid.NewString(),
-		Name:      handler.Filename,
-		Type:      attType,
-		Size:      handler.Size,
-		Path:      filePath,
-		URL:       fileUrl,
-		User:      user,
-		CreatedAt: createdAt.Format(time.RFC3339),
-	}
+	fileData.User = user
+	fileData.URL = fileUrl
+	fileData.CreatedAt = createdAt.Format(time.RFC3339)
 
 	log.Debug("Uploaded file data", "file", fileData)
 

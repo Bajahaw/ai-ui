@@ -37,9 +37,9 @@ export function FileManagerDialog({
 		setLoading(true);
 		try {
 			const data = await getFiles();
-			// Sort by createdAt desc
-			const sorted = data.sort((a, b) => 
-				new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+			// Sort by uploadedAt (if provided) else createdAt, desc
+			const sorted = data.sort((a, b) =>
+				new Date(b.uploadedAt || b.createdAt).getTime() - new Date(a.uploadedAt || a.createdAt).getTime()
 			);
 			setFiles(sorted);
 		} catch (error) {
@@ -109,9 +109,14 @@ export function FileManagerDialog({
 		try {
 			const uploadPromises = filesToUpload.map(file => uploadFile(file));
 			const uploadedFiles = await Promise.all(uploadPromises);
-			
+			// Ensure newly-uploaded files have an `uploadedAt` timestamp so the UI
+			// can sort/display consistently. If backend provided one, keep it.
+			const uploadedWithTs = uploadedFiles.map(f => ({
+				...f,
+				uploadedAt: (f as any).uploadedAt || new Date().toISOString(),
+			} as ApiFile));
 			// Add new files to the list and select them
-			setFiles(prev => [...uploadedFiles, ...prev]);
+			setFiles(prev => [...uploadedWithTs, ...prev]);
 			
 			setSelectedFileIds(prev => {
 				const newSelected = new Set(prev);

@@ -14,6 +14,9 @@ export interface File {
 	url: string;
 	content: string;
 	createdAt: string;
+	// Optional uploaded timestamp (server may provide this). If present,
+	// use `uploadedAt` for UI sorting/labeling; otherwise fall back to `createdAt`.
+	uploadedAt?: string;
 }
 
 export interface Attachment {

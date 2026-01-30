@@ -140,7 +140,12 @@ export const FilePreview = ({
 			<div className="flex-1 min-w-0">
 				<div className="text-sm font-medium truncate">{file.file.name}</div>
 				<div className="text-xs text-muted-foreground">
-					{formatFileSize(file.fileData.size)}
+					<div className="flex items-center gap-2">
+						<span>{formatFileSize(file.fileData.size)}</span>
+						<span className="text-[11px]">
+							{new Date(file.fileData.uploadedAt || file.fileData.createdAt).toLocaleString()}
+						</span>
+					</div>
 				</div>
 			</div>
 

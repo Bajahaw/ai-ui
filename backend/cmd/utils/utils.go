@@ -3,17 +3,13 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"mime/multipart"
 	"net/http"
 	url2 "net/url"
 	"os"
-	"path"
 	"strings"
 	"time"
 
 	logger "github.com/charmbracelet/log"
-	"github.com/google/uuid"
 )
 
 var log *logger.Logger
@@ -153,42 +149,6 @@ func Middleware(next http.Handler) http.Handler {
 		next = m(next)
 	}
 	return next
-}
-
-func SaveUploadedFile(file multipart.File, handler *multipart.FileHeader) (string, error) {
-	const maxUploadSize = 10 << 20 // 10 MB
-	defer file.Close()
-
-	if handler.Size > 0 && handler.Size > maxUploadSize {
-		return "", fmt.Errorf("file too large: %d bytes (max %d)", handler.Size, maxUploadSize)
-	}
-
-	uploadDir := path.Join(".", "data", "resources")
-	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
-		return "", err
-	}
-
-	fileName := uuid.New().String() + path.Ext(handler.Filename)
-	filePath := path.Join(uploadDir, fileName)
-
-	dst, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return "", err
-	}
-	defer dst.Close()
-
-	limitedReader := io.LimitReader(file, maxUploadSize+1)
-	n, err := io.Copy(dst, limitedReader)
-	if err != nil {
-		_ = os.Remove(filePath)
-		return "", err
-	}
-	if n > maxUploadSize {
-		_ = os.Remove(filePath)
-		return "", fmt.Errorf("file too large after copy: %d bytes (max %d)", n, maxUploadSize)
-	}
-
-	return filePath, nil
 }
 
 func GetServerURL(r *http.Request) string {

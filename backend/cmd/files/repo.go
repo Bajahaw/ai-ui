@@ -5,6 +5,19 @@ import (
 	"database/sql"
 )
 
+type File struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Size       int64  `json:"size"`
+	Path       string `json:"path"`
+	URL        string `json:"url"`
+	Content    string `json:"content"`
+	User       string `json:"user,omitempty"`
+	CreatedAt  string `json:"createdAt"`
+	UploadedAt string `json:"uploadedAt"`
+}
+
 type Repository interface {
 	GetAll(user string) ([]File, error)
 	GetByIDs(fileIDs []string, user string) ([]File, error)
@@ -22,7 +35,7 @@ func NewRepository(db *sql.DB) Repository {
 
 func (r *RepositoryImpl) GetAll(user string) ([]File, error) {
 	fileSql := `
-	SELECT id, name, type, size, path, url, content, created_at
+	SELECT id, name, type, size, path, url, content, created_at, uploaded_at
 	FROM Files
 	WHERE user = ?
 	`
@@ -45,6 +58,7 @@ func (r *RepositoryImpl) GetAll(user string) ([]File, error) {
 			&file.URL,
 			&file.Content,
 			&file.CreatedAt,
+			&file.UploadedAt,
 		); err != nil {
 			continue // mimic original behavior of skipping errors?
 		}
@@ -59,7 +73,7 @@ func (r *RepositoryImpl) GetByIDs(fileIDs []string, user string) ([]File, error)
 	}
 
 	fileSql := `
-	SELECT id, name, type, size, path, url, content, created_at
+	SELECT id, name, type, size, path, url, content, created_at, uploaded_at
 	FROM Files
 	WHERE id IN (` + utils.SqlPlaceholders(len(fileIDs)) + `) AND user = ?
 	`
@@ -88,6 +102,7 @@ func (r *RepositoryImpl) GetByIDs(fileIDs []string, user string) ([]File, error)
 			&file.URL,
 			&file.Content,
 			&file.CreatedAt,
+			&file.UploadedAt,
 		); err != nil {
 			continue
 		}
@@ -98,7 +113,7 @@ func (r *RepositoryImpl) GetByIDs(fileIDs []string, user string) ([]File, error)
 }
 
 func (r *RepositoryImpl) Save(file File) error {
-	attSql := `INSERT INTO Files (id, name, type, size, path, url, content, user, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	attSql := `INSERT INTO Files (id, name, type, size, path, url, content, user, created_at, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	_, err := r.db.Exec(attSql,
 		file.ID,
 		file.Name,
@@ -109,6 +124,7 @@ func (r *RepositoryImpl) Save(file File) error {
 		file.Content,
 		file.User,
 		file.CreatedAt,
+		file.UploadedAt,
 	)
 	return err
 }
