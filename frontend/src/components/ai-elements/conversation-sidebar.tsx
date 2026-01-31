@@ -268,11 +268,11 @@ export const ConversationSidebar = ({
                                                                 variant="ghost"
                                                                 onClick={() => onConversationSelect?.(conversation.id)}
                                                                 className={cn(
-                                                                    "flex-1 justify-start h-auto p-2 text-left hover:!bg-transparent",
+                                                                    "flex-1 justify-start h-auto p-2 text-left hover:!bg-transparent max-w-[240px] group-hover/item:max-w-[210px] transition-all !duration-100 ease-in-out",
                                                                 )}
                                                             >
                                                                 <div className="flex items-center gap-2 w-full">
-                                                                    <span className="text-sm flex-1 max-w-[200px] truncate text-foreground/80">
+                                                                    <span className="text-sm flex-1 truncate text-foreground/80">
                                                                         {conversation.title}
                                                                     </span>
                                                                 </div>
@@ -282,7 +282,7 @@ export const ConversationSidebar = ({
                                                                     <Button
                                                                         variant="ghost"
                                                                         size="sm"
-                                                                        className="opacity-0 group-hover/item:opacity-100 hover:!bg-secondary h-8 w-8 p-0 shrink-0"
+                                                                        className="opacity-0 group-hover/item:opacity-100 pointer-events-none group-hover/item:pointer-events-auto hover:!bg-secondary h-8 w-8 p-0 shrink-0 absolute right-2 top-1/2 -translate-y-1/2"
                                                                     >
                                                                         <MoreHorizontalIcon className="size-4"/>
                                                                     </Button>
