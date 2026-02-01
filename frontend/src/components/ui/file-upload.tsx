@@ -11,7 +11,6 @@ import {
 	formatFileSize,
 	FileUploadError,
 } from "@/lib/api/files";
-import { Response } from "@/components/ai-elements/response";
 import type { File as APIFile } from "@/lib/api/types";
 
 export interface FileUploadProps {
@@ -192,6 +191,7 @@ export const FilesList = ({
 
 export interface AttachmentMessageProps {
 	attachments?: import("@/lib/api/types").Attachment[];
+	role?: "user" | "assistant";
 	// Legacy support for single attachment
 	attachment?: string;
 	filename?: string;
@@ -200,44 +200,75 @@ export interface AttachmentMessageProps {
 
 export const AttachmentMessage = ({
 	attachments,
+	role = "user",
 	attachment,
 	filename,
 	className,
 }: AttachmentMessageProps) => {
-	// Handle legacy single attachment
-	if (attachment && !attachments) {
-		const isImage = filename
-			? isImageFile(filename)
-			: attachment.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i);
+	// Normalize input to array of Attachment-like objects
+	const items = (() => {
+		if (attachments && attachments.length > 0) {
+			return attachments;
+		}
+		if (attachment) {
+			// Legacy support
+			const name = filename || attachment.split("/").pop() || "File";
+			const isImage = isImageFile(name);
+			return [{
+				id: "legacy",
+				messageId: 0,
+				file: {
+					id: "legacy",
+					name,
+					type: isImage ? "image/unknown" : "application/octet-stream",
+					size: 0,
+					path: attachment,
+					url: attachment,
+					content: "",
+					createdAt: new Date().toISOString()
+				}
+			}];
+		}
+		return [];
+	})();
 
-		const markdownContent = isImage
-			? `![${filename || "Attached image"}](${attachment})`
-			: `[${filename || attachment.split("/").pop() || "Download file"}](${attachment})`;
-
-		return (
-			<div className={cn("max-w-full", className)}>
-				<Response>{markdownContent}</Response>
-			</div>
-		);
-	}
-
-	// Handle multiple attachments
-	if (!attachments || attachments.length === 0) return null;
-
-	const markdownContent = attachments
-		.map((att) => {
-			const isImage = att.file.type.startsWith("image/");
-			const filename = att.file.url.split("/").pop() || "file";
-
-			return isImage
-				? `![${filename}](${att.file.url})`
-				: `[${filename}](${att.file.url})`;
-		})
-		.join("\n\n");
+	if (items.length === 0) return null;
 
 	return (
-		<div className={cn("max-w-full", className)}>
-			<Response>{markdownContent}</Response>
+		<div className={cn(
+			"flex flex-wrap gap-2 w-full",
+			role === "user" ? "justify-end" : "justify-start",
+			className
+		)}>
+			{items.map((att, index) => {
+				const isImage = isImageFile(att.file.name) || att.file.type.startsWith("image/");
+				
+				return (
+					<a
+						key={att.id || index}
+						href={att.file.url}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="relative flex flex-col overflow-hidden rounded-xl border bg-card w-40 sm:w-48 aspect-video shrink-0 shadow-sm"
+						title={`${att.file.name} (${formatFileSize(att.file.size)})`}
+						onClick={(e) => e.stopPropagation()} 
+					>
+						<div className="size-full overflow-hidden flex items-center justify-center bg-muted/10">
+							{isImage ? (
+								<img
+									src={att.file.url}
+									alt={att.file.name}
+									className="size-full object-cover"
+								/>
+							) : (
+								<div className="flex flex-col items-center justify-center p-4">
+									<FileIcon className="h-8 w-8 text-muted-foreground/40" />
+								</div>
+							)}
+						</div>
+					</a>
+				);
+			})}
 		</div>
 	);
 };

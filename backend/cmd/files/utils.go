@@ -56,14 +56,11 @@ func saveUploadedFile(file multipart.File, handler *multipart.FileHeader) (File,
 	// Basic image compression for image types. If compression produces a smaller
 	// payload, use it; otherwise keep original bytes.
 	if strings.HasPrefix(fileType, "image/") {
-		if compressed, err := compressImage(bytes.NewReader(data)); err == nil && compressed != nil {
-			if compressed.Len() > 0 && compressed.Len() < len(data) {
-				log.Debug("Compressed image", "orig", len(data), "compressed", compressed.Len())
-				data = compressed.Bytes()
-			}
-		} else {
-			log.Debug("Image compression skipped", "err", err)
+		compressed, err := compressImage(bytes.NewReader(data))
+		if err != nil {
+			return File{}, err
 		}
+		data = compressed.Bytes()
 	}
 
 	uploadDir := path.Join(".", "data", "resources")

@@ -95,16 +95,13 @@ function App() {
 		setLastMessageTime(currentTime);
 
 		try {
-			// Extract file IDs for API call
-			const attachedFileIds = attachments?.map(a => a.file.id);
-			
 			// Use streaming for better UX
 			await sendMessageStream(
 				activeConversationId,
 				message,
 				model,
 				webSearchEnabled,
-				attachedFileIds,
+				attachments,
 			);
 		} finally {
 			setIsProcessing(false);
@@ -126,6 +123,7 @@ function App() {
 					failedMessage.content,
 					model,
 					webSearch,
+					failedMessage.attachments,
 				);
 			} else if (failedMessage.role === "assistant") {
 				// Use streaming retry for assistant messages

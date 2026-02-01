@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { chatAPI, conversationsAPI, FrontendMessage, ToolCall, StreamStats } from "@/lib/api";
+import { chatAPI, conversationsAPI, FrontendMessage, ToolCall, StreamStats, Attachment } from "@/lib/api";
 import { ApiErrorHandler } from "@/lib/api/errorHandler";
 import { ClientConversation, ClientConversationManager, } from "@/lib/clientConversationManager";
 import { useAuth } from "@/hooks/useAuth";
@@ -601,7 +601,7 @@ export const useConversations = () => {
             message: string,
             model: string,
             webSearch: boolean = false,
-            attachedFileIds?: string[],
+            attachments?: Attachment[],
         ): Promise<string> => {
             let tempMessageId: string | undefined;
             let assistantPlaceholderId: string | undefined;
@@ -618,6 +618,7 @@ export const useConversations = () => {
                     // Create conversation optimistically
                     const clientConversation = manager.createConversation(
                         message,
+                        attachments,
                     );
                     clientConversationId = clientConversation.id;
 
@@ -654,7 +655,7 @@ export const useConversations = () => {
                         tempMessageId = manager.addMessageOptimistically(
                             conversationId,
                             message,
-                            undefined, // Attachments will be populated from backend response
+                            attachments,
                         );
                     }
 
@@ -683,6 +684,9 @@ export const useConversations = () => {
                 );
 
                 let streamError: string | undefined;
+
+                // Extract file IDs for API call
+                const attachedFileIds = attachments?.map(a => a.file.id);
 
                 // Stream the message
                 await chatAPI.sendMessageStream(

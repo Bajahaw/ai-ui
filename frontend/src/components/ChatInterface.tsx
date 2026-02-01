@@ -646,9 +646,10 @@ export const ChatInterface = ({
 						status="completed"
 						className="pb-0"
 					>
-						<MessageContent className="!p-0">
+						<MessageContent className="!p-0 !bg-transparent !shadow-none !border-none !w-full">
 							<AttachmentMessage
 								attachments={message.attachments}
+								role={message.role}
 							/>
 						</MessageContent>
 					</MessageComponent>
