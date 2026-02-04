@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { cn } from "@/lib/utils";
 import { useModels } from "@/hooks/useModels";
 import { useSettings } from "@/hooks/useSettings";
 import { useSettingsData } from "@/hooks/useSettingsData";
@@ -639,60 +640,58 @@ export const ChatInterface = ({
 
 		return (
 			<div key={message.id}>
-				{/* Render attachments message first if exists (not counted in conversation tree) */}
-				{hasAttachments && (
-					<MessageComponent
-						from={message.role}
-						status="completed"
-						className="pb-0"
-					>
-						<MessageContent className="!p-0 !bg-transparent !shadow-none !border-none !w-full">
-							<AttachmentMessage
-								attachments={message.attachments}
-								role={message.role}
-							/>
-						</MessageContent>
-					</MessageComponent>
-				)}
-
-				{/* Render main message */}
+				{/* Render message with optional attachments in a single component to manage margins better */}
 				<MessageComponent
 					from={message.role}
 					status={message.status}
 					error={message.error}
 					className={message.role === "user" ? "pb-1" : ""}
 				>
-					<MessageContent content={message.content}>
-						{message.role === "user" ? (
-							renderMessageContent(message)
-						) : (
-							<div className="space-y-4">
-								{message.reasoning && (
-									<Reasoning
-										isStreaming={message.status === "pending"}
-										duration={message.reasoningDuration}
-										defaultOpen={false}
-									>
-										<ReasoningTrigger />
-										<ReasoningContent>{message.reasoning}</ReasoningContent>
-									</Reasoning>
-								)}
-								{message.toolCalls && message.toolCalls.length > 0 && (
-									<div className="">
-										{message.toolCalls.map((toolCall) => (
-											<ToolCallItem
-												key={toolCall.id}
-												toolCall={toolCall}
-												settingsData={settingsData}
-											/>
-										))}
-									</div>
-								)}
-								{renderMessageContent(message)}
-								{renderMessageActions(message)}
-							</div>
+					<div className={cn(
+						"flex flex-col gap-3 w-full",
+						message.role === "user" ? "items-end" : "items-start"
+					)}>
+						{/* Render attachments first if they exists */}
+						{hasAttachments && (
+							<AttachmentMessage
+								attachments={message.attachments}
+								role={message.role}
+							/>
 						)}
-					</MessageContent>
+
+						{/* Render main message content */}
+						<MessageContent content={message.content}>
+							{message.role === "user" ? (
+								renderMessageContent(message)
+							) : (
+								<div className="space-y-4">
+									{message.reasoning && (
+										<Reasoning
+											isStreaming={message.status === "pending"}
+											duration={message.reasoningDuration}
+											defaultOpen={false}
+										>
+											<ReasoningTrigger />
+											<ReasoningContent>{message.reasoning}</ReasoningContent>
+										</Reasoning>
+									)}
+									{message.toolCalls && message.toolCalls.length > 0 && (
+										<div className="">
+											{message.toolCalls.map((toolCall) => (
+												<ToolCallItem
+													key={toolCall.id}
+													toolCall={toolCall}
+													settingsData={settingsData}
+												/>
+											))}
+										</div>
+									)}
+									{renderMessageContent(message)}
+									{renderMessageActions(message)}
+								</div>
+							)}
+						</MessageContent>
+					</div>
 				</MessageComponent>
 
 				{message.role === "user" && message.status !== "pending" && (
