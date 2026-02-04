@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { Loader2, FileIcon, Upload, Search, Check, Paperclip, Trash2 } from "lucide-react";
+import { Loader2, FileIcon, Upload, Search, Check, Paperclip, Trash2, ScanText } from "lucide-react";
 import { getFiles, uploadFile, formatFileSize, isImageFile, deleteFile } from "@/lib/api/files";
 import { File as ApiFile } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -191,6 +191,12 @@ export function FileManagerDialog({
 		}
 	};
 
+	const handleOCR = async () => {
+		if (selectedFileIds.size === 0) return;
+		// Backend endpoint to be implemented later
+		console.log("Trigger OCR for:", Array.from(selectedFileIds));
+	};
+
 	const filteredFiles = files.filter(f => 
 		f.name.toLowerCase().includes(searchQuery.toLowerCase())
 	);
@@ -209,15 +215,41 @@ export function FileManagerDialog({
 					</DialogTitle>
 				</DialogHeader>
 
-				<div className="p-4 flex items-center gap-4 flex-shrink-0">
+				<div className="p-4 flex items-center gap-2 flex-shrink-0">
 					<div className="relative flex-1">
 						<Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
 						<Input
 							placeholder="Search files..."
 							value={searchQuery}
 							onChange={(e) => setSearchQuery(e.target.value)}
-							className="pl-9 bg-background"
+							className="pl-9 bg-background focus-visible:ring-1"
 						/>
+					</div>
+					<div className="flex items-center gap-2">
+						<Button
+							variant="outline"
+							size="icon"
+							onClick={handleOCR}
+							disabled={selectedFileIds.size === 0}
+							title="Trigger OCR"
+							className="h-9 w-9"
+						>
+							<ScanText className="h-4 w-4" />
+						</Button>
+						<Button
+							variant="outline"
+							size="icon"
+							onClick={handleDelete}
+							disabled={selectedFileIds.size === 0 || deleting}
+							title="Delete files"
+							className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/5"
+						>
+							{deleting ? (
+								<Loader2 className="h-4 w-4 animate-spin" />
+							) : (
+								<Trash2 className="h-4 w-4" />
+							)}
+						</Button>
 					</div>
 				</div>
 
@@ -256,6 +288,12 @@ export function FileManagerDialog({
 												/>
 											) : (
 												<FileIcon className="h-8 w-8 text-muted-foreground/50" />
+											)}
+
+											{file.content && (
+												<div className="absolute bottom-1 right-1 bg-green-500/80 text-[8px] text-white px-1 py-0.5 rounded-sm font-bold uppercase tracking-wider transform scale-90 origin-bottom-right z-10">
+													<ScanText className="inline-block h-4 w-3" />
+												</div>
 											)}
 											
 											{isSelected && (
@@ -317,21 +355,6 @@ export function FileManagerDialog({
 							{selectedFileIds.size} file{selectedFileIds.size !== 1 ? "s" : ""} selected
 						</div>
 						<div className="flex gap-2">
-							{selectedFileIds.size > 0 && (
-								<Button 
-									variant="destructive" 
-									onClick={handleDelete} 
-									disabled={deleting}
-									className="gap-2"
-								>
-									{deleting ? (
-										<Loader2 className="h-4 w-4 animate-spin" />
-									) : (
-										<Trash2 className="h-4 w-4" />
-									)}
-									Delete
-								</Button>
-							)}
 							<Button variant="outline" onClick={() => onOpenChange(false)}>
 								Cancel
 							</Button>
