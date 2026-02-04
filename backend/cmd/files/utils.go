@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dslipak/pdf"
 	"github.com/google/uuid"
 )
 
@@ -23,24 +24,9 @@ func saveUploadedFile(file multipart.File, handler *multipart.FileHeader) (File,
 	const maxUploadSize = 10 << 20 // 10 MB
 	defer file.Close()
 
-	buf := make([]byte, 512)
-	n, err := file.Read(buf)
-	if err != nil && err != io.EOF {
+	fileType, err := detectFileType(file)
+	if err != nil {
 		return File{}, err
-	}
-	if n == 0 {
-		return File{}, fmt.Errorf("empty file")
-	}
-
-	fileType := http.DetectContentType(buf[:n])
-	log.Debug("Uploaded file type", "type", fileType)
-
-	// Reset file read pointer: prefer Seek if available
-	if seeker, ok := file.(io.Seeker); ok {
-		_, err = seeker.Seek(0, io.SeekStart)
-		if err != nil {
-			return File{}, err
-		}
 	}
 
 	// Read uploaded data (bounded) into memory first so we can optionally compress
@@ -49,8 +35,10 @@ func saveUploadedFile(file multipart.File, handler *multipart.FileHeader) (File,
 	if err != nil {
 		return File{}, err
 	}
-	if int64(len(data)) > maxUploadSize {
-		return File{}, fmt.Errorf("file too large: %d bytes (max %d)", len(data), maxUploadSize)
+
+	n := len(data)
+	if n > maxUploadSize {
+		return File{}, fmt.Errorf("file too large: %d bytes (max %d)", n, maxUploadSize)
 	}
 
 	// Basic image compression for image types. If compression produces a smaller
@@ -91,12 +79,36 @@ func saveUploadedFile(file multipart.File, handler *multipart.FileHeader) (File,
 
 	return File{
 		ID:         uuid.NewString(),
-		Name:       fileName,
+		Name:       handler.Filename,
 		Type:       fileType,
 		Size:       int64(len(data)),
 		Path:       filePath,
 		UploadedAt: uploadedAt.Format(time.RFC3339),
 	}, nil
+}
+
+func detectFileType(file multipart.File) (string, error) {
+	buf := make([]byte, 512)
+	n, err := file.Read(buf)
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+	if n == 0 {
+		return "", fmt.Errorf("empty file")
+	}
+
+	fileType := http.DetectContentType(buf[:n])
+	log.Debug("Uploaded file type", "type", fileType)
+
+	// Reset file read pointer: prefer Seek if available
+	if seeker, ok := file.(io.Seeker); ok {
+		_, err = seeker.Seek(0, io.SeekStart)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return fileType, nil
 }
 
 // compressImage reads an image from r and re-encodes it with conservative
@@ -151,6 +163,16 @@ func extractFileContent(file File, model string) (string, error) {
 		return string(fileContent), nil
 	}
 
+	// if pdf
+	if file.Type == "application/pdf" {
+		text, err := readPDF(file.Path)
+		if err != nil {
+			log.Error("Error reading pdf file", "err", err)
+			return "", err
+		}
+		return text, nil
+	}
+
 	if strings.HasPrefix(file.Type, "image/") {
 		params := providers.RequestParams{
 			Messages: []providers.SimpleMessage{
@@ -182,4 +204,27 @@ func extractFileContent(file File, model string) (string, error) {
 	}
 
 	return "", fmt.Errorf("unsupported file type for content extraction: %s", file.Type)
+}
+
+func readPDF(path string) (string, error) {
+	r, err := pdf.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer r.Trailer().Reader().Close()
+
+	var totalText string
+	totalPage := r.NumPage()
+
+	for i := 1; i <= totalPage; i++ {
+		p := r.Page(i)
+		if p.V.IsNull() {
+			continue
+		}
+		text, _ := p.GetPlainText(nil)
+		totalText += text
+	}
+
+	log.Debug("Extracted text from PDF", "chars", len(totalText))
+	return totalText, nil
 }

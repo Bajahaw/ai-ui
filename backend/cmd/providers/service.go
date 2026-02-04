@@ -21,6 +21,7 @@ type SimpleMessage struct {
 	Content  string
 	ToolCall tools.ToolCall
 	Images   []string
+	Files    []string
 }
 
 type RequestParams struct {

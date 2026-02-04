@@ -41,6 +41,20 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 						append(openaiMessages[i].OfUser.Content.OfArrayOfContentParts, file)
 				}
 			}
+
+			if len(msg.Files) > 0 {
+				for _, fileData := range msg.Files {
+					file := openai.ChatCompletionContentPartUnionParam{
+						OfFile: &openai.ChatCompletionContentPartFileParam{
+							File: openai.ChatCompletionContentPartFileFileParam{
+								FileData: param.Opt[string]{Value: fileData},
+							},
+						},
+					}
+					openaiMessages[i].OfUser.Content.OfArrayOfContentParts =
+						append(openaiMessages[i].OfUser.Content.OfArrayOfContentParts, file)
+				}
+			}
 		case "assistant":
 			openaiMessages[i] = openai.AssistantMessage(msg.Content)
 			if msg.ToolCall.ID != "" {

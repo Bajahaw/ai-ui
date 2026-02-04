@@ -10,8 +10,6 @@ import (
 )
 
 const platformInstructions = `
-Respond with short, accurate, concise responses. Do not hullucinate. Format your answer, Markdown, code, latex, emojis, all supported.
-
 <platform>
 
 - to utilize the platform features, make sure to format and beautify your responses. make them clear to read and understand.
@@ -96,6 +94,7 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 		}
 
 		var imageURLs []string
+		var fileURLs []string
 		if ocrOnly {
 			// For each attachment, append attachments content to message content
 			for i, att := range msg.Attachments {
@@ -110,14 +109,17 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 		} else {
 			// append only image URLs
 			for _, att := range msg.Attachments {
-				if strings.HasPrefix(att.File.Type, "image/") && att.File.URL != "" {
-					image, err := os.ReadFile(att.File.Path)
-					if err != nil {
-						log.Error("Error reading attachment file", "err", err)
-						continue
-					}
-					b64url := "data:" + att.File.Type + ";base64," + toBase64(image)
+				file, err := os.ReadFile(att.File.Path)
+				if err != nil {
+					log.Error("Error reading attachment file", "err", err)
+					continue
+				}
+				b64url := "data:" + att.File.Type + ";base64," + toBase64(file)
+
+				if strings.HasPrefix(att.File.Type, "image/") {
 					imageURLs = append(imageURLs, b64url)
+				} else {
+					fileURLs = append(fileURLs, b64url)
 				}
 			}
 		}
@@ -126,6 +128,7 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 			Role:    msg.Role,
 			Content: msg.Content,
 			Images:  imageURLs,
+			Files:   fileURLs,
 		})
 	}
 	return messages
