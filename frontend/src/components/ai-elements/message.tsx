@@ -42,7 +42,7 @@ export const MessageContent = ({
 }: MessageContentProps) => (
   <div
     className={cn(
-      "flex flex-col gap-2 text-base text-foreground overflow-hidden",
+      "flex flex-col gap-2 text-base text-foreground overflow-hidden max-w-full",
       "[line-height:1.75rem]",
       "group-[.is-user]:bg-secondary group-[.is-user]:text-secondary-foreground group-[.is-user]:rounded-xl group-[.is-user]:px-3 group-[.is-user]:py-2 sm:group-[.is-user]:px-4 sm:group-[.is-user]:py-3 group-[.is-user]:w-fit group-[.is-user]:min-w-0",
       "group-[.is-assistant]:bg-transparent group-[.is-assistant]:text-foreground group-[.is-assistant]:px-0 group-[.is-assistant]:py-0 group-[.is-assistant]:w-full group-[.is-assistant]:min-w-0",
@@ -53,7 +53,7 @@ export const MessageContent = ({
     )}
     {...props}
   >
-    <div className="group-[.is-user]:dark space-y-4 overflow-hidden break-words">
+    <div className="group-[.is-user]:dark space-y-4 overflow-hidden break-words w-full">
       {children}
     </div>
   </div>
