@@ -5,7 +5,7 @@ import "database/sql"
 type ToolRepository interface {
 	GetAll(user string) []*Tool
 	GetAllByMCPServerID(mcpID string) []*Tool
-	GetByName(name string) (*Tool, error)
+	GetByName(name, user string) (*Tool, error)
 	GetByID(id string) (*Tool, error)
 	Save(tool *Tool) error
 	SaveAll(tools []*Tool) error
@@ -56,10 +56,10 @@ func (repo *ToolRepositoryImpl) GetAll(user string) []*Tool {
 	return allTools
 }
 
-func (repo *ToolRepositoryImpl) GetByName(name string) (*Tool, error) {
+func (repo *ToolRepositoryImpl) GetByName(name, user string) (*Tool, error) {
 	var tool Tool
-	sql := `SELECT id, mcp_server_id, name, description, input_schema, require_approval, is_enabled FROM Tools WHERE name = ?`
-	err := repo.db.QueryRow(sql, name).Scan(
+	sql := `SELECT id, mcp_server_id, name, description, input_schema, require_approval, is_enabled FROM Tools WHERE name = ? and mcp_server_id IN (SELECT id FROM MCPServers WHERE user = ?)`
+	err := repo.db.QueryRow(sql, name, user).Scan(
 		&tool.ID,
 		&tool.MCPServerID,
 		&tool.Name,

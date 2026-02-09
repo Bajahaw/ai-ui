@@ -69,7 +69,7 @@ var toolCallManager = ToolCallManager{
 // }
 
 func ExecuteMCPTool(toolCall ToolCall, user string) string {
-	tool, err := tools.GetByName(toolCall.Name)
+	tool, err := tools.GetByName(toolCall.Name, user)
 	if err != nil {
 		log.Error("Error retrieving tool", "err", err)
 		return "Error occurred while retrieving tool."

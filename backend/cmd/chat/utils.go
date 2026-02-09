@@ -15,11 +15,14 @@ const platformInstructions = `
 - to utilize the platform features, make sure to format and beautify your responses. make them clear to read and understand.
 - tool calls must be one at a time! parellal calling is not supported yet!
 - when search is used, site all your used sources inline and at the end of the response. IMPORTANT to render inline citation correctly, they should be as the following format:
->some facts from the enternet. ([Source name][number])([Another source][number]) // single source at a time
+>some facts from the enternet. ([Source name][number])([Another source][number++]) // single source at a time
 >rest of the response till the end ... 
 >
 >
+> // Empty new line before the sources list
+>
 >[number]: https://source.link/article "Discription or snippet"
+>[number++]: https://source.link/another-article "Discription or snippet"
 
 - for latex to render correctly, use $inline syntax$ or $$$ for blocks of latex. e.g. as the following:
 >The equation $e=mc...$
