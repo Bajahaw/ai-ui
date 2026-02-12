@@ -16,6 +16,7 @@ type UserRepository interface {
 	GetAll() []*User
 	GetByUsername(username string) (*User, error)
 	Save(user *User) error
+	Update(user *User) error
 }
 
 type UserRepositoryImpl struct {
@@ -77,5 +78,13 @@ func (r *UserRepositoryImpl) Save(user *User) error {
 		return errors.New("Username already exists")
 	}
 
+	return err
+}
+
+func (r *UserRepositoryImpl) Update(user *User) error {
+	_, err := r.db.Exec(
+		`UPDATE users SET pass_hash = ? WHERE username = ?`,
+		user.passHash, user.Username,
+	)
 	return err
 }

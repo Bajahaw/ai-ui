@@ -51,8 +51,45 @@ func Handler() http.Handler {
 	mux.Handle("POST /logout", Authenticated(Logout()))
 	mux.Handle("POST /register", Register())
 	mux.Handle("GET /status", GetAuthStatus())
+	mux.Handle("POST /change-pass", Authenticated(http.HandlerFunc(UpdateUser)))
 
 	return http.StripPrefix("/api/auth", mux)
+}
+
+func UpdateUser(w http.ResponseWriter, r *http.Request) {
+	username := utils.ExtractContextUser(r)
+	if username == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := utils.ExtractJSONBody(r, &req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	hash, err := hashPassword(req.Password)
+	if err != nil {
+		http.Error(w, "Failed to hash password", http.StatusInternalServerError)
+		return
+	}
+
+	user := &User{
+		Username: username,
+		passHash: string(hash),
+	}
+
+	log.Debug("changed password", "new pass", user.passHash)
+
+	if err := users.Update(user); err != nil {
+		http.Error(w, "Failed to update password", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func Register() http.HandlerFunc {

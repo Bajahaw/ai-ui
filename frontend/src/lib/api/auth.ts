@@ -79,6 +79,29 @@ export class AuthAPI {
 		}, "login");
 	}
 
+	// POST /api/auth/change-pass - Change user password
+	async changePassword(password: string): Promise<void> {
+		if (!password) {
+			throw new Error("Password is required");
+		}
+
+		return ApiErrorHandler.handleApiCall(async () => {
+			const response = await fetch(getApiUrl("/api/auth/change-pass"), {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ password: password }),
+				credentials: "include",
+			});
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				throw new Error(errorText || "Failed to change password");
+			}
+		}, "changePassword");
+	}
+
 	// POST /api/auth/logout - Logout and clear cookie
 	async logout(): Promise<void> {
 		return ApiErrorHandler.handleApiCall(async () => {

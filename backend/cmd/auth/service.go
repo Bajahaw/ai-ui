@@ -70,11 +70,7 @@ func verifyUserCredentials(username, password string) error {
 }
 
 func registerNewUser(username, password string) error {
-	if len(password) < 8 || len(password) > 64 {
-		return fmt.Errorf("Invalid password length")
-	}
-
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hash, err := hashPassword(password)
 	if err != nil {
 		return err
 	}
@@ -87,4 +83,16 @@ func registerNewUser(username, password string) error {
 	err = users.Save(user)
 
 	return err
+}
+
+func hashPassword(password string) ([]byte, error) {
+	if len(password) < 8 || len(password) > 64 {
+		return nil, fmt.Errorf("Invalid password length")
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+	return hash, nil
 }
