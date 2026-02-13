@@ -5,6 +5,9 @@ Lightweight AI chat interface built with React and Golang.
 > [!WARNING]
 > This is not intended for production use, please use locally or in your own secure environment!
 
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/7638386f-8d70-48ae-aef3-b56e4869ed01" />
+
+
 ## Features
 
 - Conversation management with history, edits, and branching
