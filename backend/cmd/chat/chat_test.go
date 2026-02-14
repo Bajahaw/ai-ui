@@ -137,3 +137,150 @@ func TestChatStream_ProviderError(t *testing.T) {
 }
 
 func contains(s, sub string) bool { return bytes.Contains([]byte(s), []byte(sub)) }
+
+func TestChatStream_DBContentSaved(t *testing.T) {
+	mock := &mockProviderSuccess{}
+	teardown := setupTest(t, mock)
+	defer teardown()
+
+	userContent := "test user message"
+	model := "provider-x/model"
+
+	// build request
+	reqBody := map[string]any{
+		"conversationId": "new-conv",
+		"parentId":       0,
+		"model":          model,
+		"content":        userContent,
+	}
+	b, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/chat/stream", bytes.NewReader(b))
+	req = req.WithContext(context.WithValue(req.Context(), "user", "test-user"))
+
+	rr := &flushRecorder{httptest.NewRecorder()}
+
+	chatStream(rr, req)
+
+	// Extract conversation ID and user message ID from stream metadata
+	body := rr.Body.String()
+	var convID string
+	var userMsgID int
+
+	// Parse SSE stream to extract metadata
+	lines := bytes.Split([]byte(body), []byte("\n"))
+	for i, line := range lines {
+		if bytes.HasPrefix(line, []byte("event: metadata")) {
+			// Next line should be data:
+			if i+1 < len(lines) && bytes.HasPrefix(lines[i+1], []byte("data: ")) {
+				dataLine := bytes.TrimPrefix(lines[i+1], []byte("data: "))
+				// The data is wrapped as: { "metadata": {...} }
+				var wrapper struct {
+					Metadata struct {
+						ConversationID string `json:"conversationId"`
+						UserMessageID  int    `json:"userMessageId"`
+					} `json:"metadata"`
+				}
+				if err := json.Unmarshal(dataLine, &wrapper); err == nil {
+					convID = wrapper.Metadata.ConversationID
+					userMsgID = wrapper.Metadata.UserMessageID
+					break
+				}
+			}
+		}
+	}
+
+	if convID == "" || userMsgID == 0 {
+		t.Fatalf("failed to extract metadata from stream response: convID=%s, userMsgID=%d", convID, userMsgID)
+	}
+
+	// Verify conversation was created using repository
+	conv, err := conversations.GetByID(convID, "test-user")
+	if err != nil {
+		t.Fatalf("conversation not found: %v", err)
+	}
+	if conv.ID != convID {
+		t.Errorf("expected conversation ID %s, got %s", convID, conv.ID)
+	}
+	if conv.UserID != "test-user" {
+		t.Errorf("expected user ID 'test-user', got %s", conv.UserID)
+	}
+
+	// Get all messages for the conversation using repository
+	messages := getAllConversationMessages(convID, "test-user")
+	if len(messages) != 2 {
+		t.Fatalf("expected 2 messages in conversation, got %d", len(messages))
+	}
+
+	// Verify user message was saved
+	userMsg, err := getMessage(userMsgID)
+	if err != nil {
+		t.Fatalf("user message not found: %v", err)
+	}
+	if userMsg.ID != userMsgID {
+		t.Errorf("expected user message ID %d, got %d", userMsgID, userMsg.ID)
+	}
+	if userMsg.Content != userContent {
+		t.Errorf("expected user message content '%s', got '%s'", userContent, userMsg.Content)
+	}
+	if userMsg.Role != "user" {
+		t.Errorf("expected user message role 'user', got '%s'", userMsg.Role)
+	}
+	if userMsg.ParentID != 0 {
+		t.Errorf("expected user message parent_id 0, got %d", userMsg.ParentID)
+	}
+	if userMsg.ConvID != convID {
+		t.Errorf("expected user message conv_id %s, got %s", convID, userMsg.ConvID)
+	}
+
+	// Find and verify assistant message
+	var assistantMsg *Message
+	for _, msg := range messages {
+		if msg.Role == "assistant" {
+			assistantMsg = msg
+			break
+		}
+	}
+	if assistantMsg == nil {
+		t.Fatalf("assistant message not found in conversation")
+	}
+
+	if assistantMsg.Content != "final content" {
+		t.Errorf("expected assistant message content 'final content', got '%s'", assistantMsg.Content)
+	}
+	if assistantMsg.Reasoning != "final reasoning" {
+		t.Errorf("expected assistant message reasoning 'final reasoning', got '%s'", assistantMsg.Reasoning)
+	}
+	if assistantMsg.Role != "assistant" {
+		t.Errorf("expected assistant message role 'assistant', got '%s'", assistantMsg.Role)
+	}
+	if assistantMsg.Model != model {
+		t.Errorf("expected assistant message model %s, got %s", model, assistantMsg.Model)
+	}
+	if assistantMsg.ParentID != userMsgID {
+		t.Errorf("expected assistant message parent_id %d, got %d", userMsgID, assistantMsg.ParentID)
+	}
+	if assistantMsg.Status != "completed" {
+		t.Errorf("expected assistant message status 'completed', got '%s'", assistantMsg.Status)
+	}
+	if assistantMsg.ConvID != convID {
+		t.Errorf("expected assistant message conv_id %s, got %s", convID, assistantMsg.ConvID)
+	}
+
+	// Verify stats were saved correctly
+	if assistantMsg.TokenCount != 2 {
+		t.Errorf("expected assistant message token_count 2, got %d", assistantMsg.TokenCount)
+	}
+	if assistantMsg.ContextSize != 1 {
+		t.Errorf("expected assistant message context_size 1, got %d", assistantMsg.ContextSize)
+	}
+	if assistantMsg.Speed != 3 {
+		t.Errorf("expected assistant message speed 3, got %f", assistantMsg.Speed)
+	}
+
+	// Verify message parent-child relationship
+	if len(userMsg.Children) != 1 {
+		t.Errorf("expected 1 child message for user message, got %d", len(userMsg.Children))
+	} else if userMsg.Children[0] != assistantMsg.ID {
+		t.Errorf("expected child message ID %d, got %d", assistantMsg.ID, userMsg.Children[0])
+	}
+}

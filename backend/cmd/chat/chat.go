@@ -143,6 +143,12 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		Children:  []int{},
 	}
 
+	// Save assistant message, so /resume can find it even if no content is generated before interruption
+	responseMessage.ID, err = saveMessage(responseMessage)
+	if err != nil {
+		log.Error("Error saving response message", "err", err)
+	}
+
 	var calls []tools.ToolCall
 	var isToolsUsed bool
 	var streamStats utils.StreamStats
@@ -168,12 +174,6 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		responseMessage.Speed = streamStats.Speed
 		responseMessage.TokenCount = streamStats.CompletionTokens
 		responseMessage.ContextSize = streamStats.PromptTokens
-	}
-
-	// Save assistant message after streaming completes
-	responseMessage.ID, err = saveMessage(responseMessage)
-	if err != nil {
-		log.Error("Error saving response message", "err", err)
 	}
 
 	for len(calls) > 0 {
@@ -234,19 +234,18 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update assistant message with full content after all tool calls
-	if isToolsUsed {
-		if err == nil {
-			responseMessage.Content += completion.Content
-			responseMessage.Status = "completed"
-			responseMessage.Speed = completion.Stats.Speed
-			responseMessage.TokenCount = completion.Stats.CompletionTokens
-			responseMessage.ContextSize = completion.Stats.PromptTokens
-			streamStats = completion.Stats
-		}
-		_, err = updateMessage(responseMessage.ID, responseMessage)
-		if err != nil {
-			log.Error("Error updating assistant message after tool calls", "err", err)
-		}
+	if isToolsUsed && err == nil {
+		responseMessage.Content += completion.Content
+		responseMessage.Status = "completed"
+		responseMessage.Speed = completion.Stats.Speed
+		responseMessage.TokenCount = completion.Stats.CompletionTokens
+		responseMessage.ContextSize = completion.Stats.PromptTokens
+		streamStats = completion.Stats
+	}
+
+	_, err = updateMessage(responseMessage.ID, responseMessage)
+	if err != nil {
+		log.Error("Error updating assistant message after tool calls", "err", err)
 	}
 
 	log.Debug("Completed streaming chat response", "responseMessageID", responseMessage.ID)
@@ -311,9 +310,6 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		ConversationID: req.ConversationID,
 		UserMessageID:  parent.ID,
 	}
-	// metadataJSON, _ := json.Marshal(metadata)
-	// fmt.Fprintf(w, "event: metadata\ndata: %s\n\n", metadataJSON)
-	// flusher.Flush()
 	utils.SendStreamChunk(sc, utils.StreamChunk{
 		Type:    utils.EVENT_METADATA,
 		Payload: metadata,
@@ -339,6 +335,11 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		Reasoning: "",
 		ParentID:  parent.ID,
 		Children:  []int{},
+	}
+
+	responseMessage.ID, err = saveMessage(responseMessage)
+	if err != nil {
+		log.Error("Error saving retry response message", "err", err)
 	}
 
 	var calls []tools.ToolCall
@@ -367,15 +368,6 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		responseMessage.Speed = streamStats.Speed
 		responseMessage.TokenCount = streamStats.CompletionTokens
 		responseMessage.ContextSize = streamStats.PromptTokens
-	}
-
-	responseID, saveErr := saveMessage(responseMessage)
-	if saveErr != nil {
-		log.Error("Error saving retry response message", "err", saveErr)
-	} else {
-		responseMessage.ID = responseID
-		// Update parent's children in memory (DB linkage already by parent_id)
-		parent.Children = append(parent.Children, responseID)
 	}
 
 	for len(calls) > 0 {
@@ -437,19 +429,18 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update assistant message with full content after all tool calls
-	if isToolsUsed {
-		if err == nil {
-			responseMessage.Content = completion.Content
-			responseMessage.Status = "completed"
-			responseMessage.Speed = completion.Stats.Speed
-			responseMessage.TokenCount = completion.Stats.CompletionTokens
-			responseMessage.ContextSize = completion.Stats.PromptTokens
-			streamStats = completion.Stats
-		}
-		_, err = updateMessage(responseMessage.ID, responseMessage)
-		if err != nil {
-			log.Error("Error updating assistant message after tool calls", "err", err)
-		}
+	if isToolsUsed && err == nil {
+		responseMessage.Content = completion.Content
+		responseMessage.Status = "completed"
+		responseMessage.Speed = completion.Stats.Speed
+		responseMessage.TokenCount = completion.Stats.CompletionTokens
+		responseMessage.ContextSize = completion.Stats.PromptTokens
+		streamStats = completion.Stats
+	}
+
+	_, err = updateMessage(responseMessage.ID, responseMessage)
+	if err != nil {
+		log.Error("Error updating assistant message after tool calls", "err", err)
 	}
 
 	// Send completion event with the new assistant message id
