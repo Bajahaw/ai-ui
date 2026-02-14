@@ -244,6 +244,11 @@ export interface MCPServerResponse {
 	endpoint: string;
 	tools: Tool[];
 }
+
+export interface ToolListResponse {
+	tools: Tool[];
+}
+
 // Tool types
 export interface Tool {
 	id: string;
@@ -255,6 +260,9 @@ export interface Tool {
 	is_enabled?: boolean;
 }
 
-export interface ToolListResponse {
-	tools: Tool[];
-}
+
+export type ConversationEvent = 
+    | { type: "conversation_created"; conversationId: string; conversation: Conversation }
+    | { type: "conversation_updated"; conversationId: string; conversation: Conversation }
+    | { type: "conversation_deleted"; conversationId: string };
+

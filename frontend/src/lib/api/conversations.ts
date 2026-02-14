@@ -4,6 +4,8 @@ import { ApiErrorHandler, isConversation, isConversationArray, isMessagesMap, } 
 
 import { getApiUrl } from "../config.ts";
 
+import { getHeaders } from "./headers.ts";
+
 // API client for conversation endpoints
 export class ConversationsAPI {
 	constructor() { }
@@ -13,9 +15,9 @@ export class ConversationsAPI {
 		return ApiErrorHandler.handleApiCall(async () => {
 			const response = await fetch(getApiUrl("/api/conversations"), {
 				method: "GET",
-				headers: {
+				headers: getHeaders({
 					"Content-Type": "application/json",
-				},
+				}),
 				credentials: "include",
 			});
 
@@ -58,9 +60,9 @@ export class ConversationsAPI {
 			const response = await fetch(getApiUrl("/api/conversations/add"), {
 				method: "POST",
 
-				headers: {
+				headers: getHeaders({
 					"Content-Type": "application/json",
-				},
+				}),
 
 				credentials: "include",
 
@@ -88,7 +90,33 @@ export class ConversationsAPI {
 		}, "createConversation");
 	}
 
-	// GET /api/conversations/{id} removed - not needed currently
+	// GET /api/conversations/sync
+	async syncConversations(sessionId: string, signal?: AbortSignal): Promise<import("./types.ts").ConversationEvent | null> {
+		if (!sessionId) return null;
+		
+		return ApiErrorHandler.handleApiCall(async () => {
+			const response = await fetch(getApiUrl("/api/conversations/sync"), {
+				method: "GET",
+				headers: getHeaders({
+					"Content-Type": "application/json",
+					"X-Session-ID": sessionId,
+				}),
+				credentials: "include",
+				signal,
+			});
+
+			if (response.status === 204) {
+				return null;
+			}
+
+			if (!response.ok) {
+				await ApiErrorHandler.handleFetchError(response, "Sync conversations");
+			}
+
+			return await response.json();
+		}, "syncConversations");
+	}
+
 	// GET /api/conversations/{id}/messages
 	async fetchConversationMessages(
 		id: string,
@@ -102,9 +130,9 @@ export class ConversationsAPI {
 				getApiUrl(`/api/conversations/${encodeURIComponent(id)}/messages`),
 				{
 					method: "GET",
-					headers: {
+					headers: getHeaders({
 						"Content-Type": "application/json",
-					},
+					}),
 					credentials: "include",
 				},
 			);
@@ -139,9 +167,9 @@ export class ConversationsAPI {
 				getApiUrl(`/api/conversations/${encodeURIComponent(id)}`),
 				{
 					method: "DELETE",
-					headers: {
+					headers: getHeaders({
 						"Content-Type": "application/json",
-					},
+					}),
 					credentials: "include",
 				},
 			);
@@ -170,9 +198,9 @@ export class ConversationsAPI {
 				getApiUrl(`/api/conversations/${encodeURIComponent(id)}/rename`),
 				{
 					method: "POST",
-					headers: {
+					headers: getHeaders({
 						"Content-Type": "application/json",
-					},
+					}),
 					credentials: "include",
 					body: JSON.stringify({ title: title.trim() }),
 				},

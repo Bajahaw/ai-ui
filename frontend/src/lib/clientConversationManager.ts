@@ -142,7 +142,7 @@ export class ClientConversationManager {
 				id: realConvId || conversation.id,
 				userId: "",
 				title: conversation.title,
-				messages: {},
+				messages: {}, // Ensure messages object is initialized
 			} as unknown as Conversation;
 		}
 
@@ -711,5 +711,53 @@ export class ClientConversationManager {
 		this.conversations.delete(oldId);
 		conversation.id = newId;
 		this.conversations.set(newId, conversation);
+	}
+
+	handleExternalCreate(conversation: Conversation): void {
+		if (this.conversations.has(conversation.id)) {
+			this.handleExternalUpdate(conversation);
+			return;
+		}
+
+		// Create client conversation wrapper
+		const clientConv: ClientConversation = {
+			id: conversation.id,
+			title: conversation.title || "New Conversation",
+			messages: [], // Initially empty, user will fetch messages when opening
+			backendConversation: conversation,
+			pendingMessageIds: new Set(),
+			activeBranches: new Map(),
+		};
+		// Populate initial messages from backend if any are provided (usually unlikely for just metadata)
+		if (conversation.messages && Object.keys(conversation.messages).length > 0) {
+			clientConv.messages = this.buildMessagesFromBackend(conversation);
+		}
+
+		this.conversations.set(conversation.id, clientConv);
+	}
+
+	handleExternalUpdate(conversation: Conversation): void {
+		const existing = this.conversations.get(conversation.id);
+		if (!existing) {
+			this.handleExternalCreate(conversation);
+			return;
+		}
+
+		// Update metadata
+		existing.title = conversation.title || existing.title;
+		
+		// Update backend struct
+		if (!existing.backendConversation) {
+			existing.backendConversation = conversation;
+		} else {
+			existing.backendConversation.title = conversation.title;
+			existing.backendConversation.updatedAt = conversation.updatedAt;
+			// Merge messages if provided? Usually update event might just be title change
+			// If we want to sync messages, we'd need more logic, but for now assuming metadata sync primarily
+		}
+	}
+
+	handleExternalDelete(conversationId: string): void {
+		this.conversations.delete(conversationId);
 	}
 }

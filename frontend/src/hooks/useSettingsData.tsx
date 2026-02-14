@@ -8,7 +8,7 @@ import {
 import { deleteMCPServer as deleteMCPServerApi, getMCPServers, saveMCPServer } from "@/lib/api/mcpServers";
 import { getAllTools, saveAllTools } from "@/lib/api/tools";
 import { getSettings, updateSetting, updateSystemPrompt } from "@/lib/api/settings";
-import { FrontendProvider, MCPServerRequest, MCPServerResponse, Model, ProviderRequest, Tool } from "@/lib/api/types";
+import { FrontendProvider, MCPServerRequest, MCPServerResponse, Model, ProviderRequest, ProviderResponse, Tool } from "@/lib/api/types";
 import { useModelsContext } from "./useModelsContext";
 
 interface SettingsData {
@@ -88,12 +88,12 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
                 getSettings()
             ]);
 
-            const frontendProviders = providersRes.map((p) => backendToFrontendProvider(p));
+            const frontendProviders = providersRes.map((p: ProviderResponse) => backendToFrontendProvider(p));
 
             setData({
                 providers: frontendProviders,
                 mcpServers: mcpRes,
-                tools: toolsRes.tools.map(t => ({
+                tools: toolsRes.tools.map((t: Tool) => ({
                     ...t,
                     is_enabled: t.is_enabled ?? true,
                     require_approval: t.require_approval ?? false
@@ -139,7 +139,7 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
         const toolsRes = await getAllTools();
         setData(d => ({
             ...d,
-            tools: toolsRes.tools.map(t => ({
+            tools: toolsRes.tools.map((t: Tool) => ({
                 ...t,
                 is_enabled: t.is_enabled ?? true,
                 require_approval: t.require_approval ?? false

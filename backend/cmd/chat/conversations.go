@@ -47,6 +47,14 @@ func saveConversation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, conv, http.StatusCreated)
+
+	// Broadcast the new conversation to other sessions
+	sessionID := r.Header.Get("X-Session-ID")
+	syncManager.Broadcast(conv.UserID, sessionID, ConversationEvent{
+		Type:           EventConversationCreated,
+		ConversationID: conv.ID,
+		Conversation:   conv,
+	})
 }
 
 func getConversation(w http.ResponseWriter, r *http.Request) {
@@ -78,6 +86,14 @@ func deleteConversation(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Error deleting conversation: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	// Broadcast the deletion to other sessions
+	sessionID := r.Header.Get("X-Session-ID")
+	syncManager.Broadcast(user, sessionID, ConversationEvent{
+		Type:           EventConversationDeleted,
+		ConversationID: convId,
+	})
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -109,6 +125,14 @@ func renameConversation(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Error updating conversation: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	// Broadcast the update to other sessions
+	sessionID := r.Header.Get("X-Session-ID")
+	syncManager.Broadcast(user, sessionID, ConversationEvent{
+		Type:           EventConversationUpdated,
+		ConversationID: convId,
+		Conversation:   conv,
+	})
 
 	utils.RespondWithJSON(w, &conv, http.StatusOK)
 }

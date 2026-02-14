@@ -1,13 +1,14 @@
 import { getApiUrl } from "@/lib/config";
 import { FrontendProvider, ProviderRequest, ProviderResponse } from "./types";
+import { getHeaders } from "./headers";
 
 // Get all providers
 export const getProviders = async (): Promise<ProviderResponse[]> => {
 	const response = await fetch(getApiUrl("/api/providers/"), {
 		method: "GET",
-		headers: {
+		headers: getHeaders({
 			"Content-Type": "application/json",
-		},
+		}),
 		credentials: "include",
 	});
 
@@ -25,9 +26,9 @@ export const saveProvider = async (
 ): Promise<ProviderResponse> => {
 	const response = await fetch(getApiUrl("/api/providers/save"), {
 		method: "POST",
-		headers: {
+		headers: getHeaders({
 			"Content-Type": "application/json",
-		},
+		}),
 		body: JSON.stringify(providerData),
 		credentials: "include",
 	});
@@ -43,9 +44,9 @@ export const saveProvider = async (
 export const deleteProvider = async (id: string): Promise<void> => {
 	const response = await fetch(getApiUrl(`/api/providers/delete/${id}`), {
 		method: "DELETE",
-		headers: {
+		headers: getHeaders({
 			"Content-Type": "application/json",
-		},
+		}),
 		credentials: "include",
 	});
 

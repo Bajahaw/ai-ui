@@ -427,7 +427,7 @@ export const ChatInterface = ({
 				const messageId = parseInt(message.id);
 				// messages may be undefined until fetched — use optional chaining
 				const assistantMessage =
-					currentConversation?.backendConversation?.messages[messageId];
+					currentConversation?.backendConversation?.messages?.[messageId];
 
 				if (assistantMessage?.parentId) {
 					const parentId = assistantMessage.parentId;

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"ai-client/cmd/data"
 	"ai-client/cmd/providers"
@@ -282,5 +283,113 @@ func TestChatStream_DBContentSaved(t *testing.T) {
 		t.Errorf("expected 1 child message for user message, got %d", len(userMsg.Children))
 	} else if userMsg.Children[0] != assistantMsg.ID {
 		t.Errorf("expected child message ID %d, got %d", assistantMsg.ID, userMsg.Children[0])
+	}
+}
+func TestSync_Simple(t *testing.T) {
+	teardown := setupTest(t, nil)
+	defer teardown()
+
+	userID := "test-user"
+
+	// 1. Session A starts long polling
+	reqSync := httptest.NewRequest(http.MethodGet, "/conversations/sync", nil)
+	reqSync.Header.Set("X-Session-ID", "session-a")
+	reqSync = reqSync.WithContext(context.WithValue(reqSync.Context(), "user", userID))
+
+	rrSync := httptest.NewRecorder()
+
+	syncDone := make(chan struct{})
+	go func() {
+		syncHandler(rrSync, reqSync)
+		close(syncDone)
+	}()
+
+	// Give it a moment to subscribe
+	time.Sleep(100 * time.Millisecond)
+
+	// 2. Session B creates a conversation
+	convBody := Conversation{Title: "Synced Conv"}
+	reqBody := map[string]any{"conversation": convBody}
+	b, _ := json.Marshal(reqBody)
+	reqAdd := httptest.NewRequest(http.MethodPost, "/conversations/add", bytes.NewReader(b))
+	reqAdd.Header.Set("X-Session-ID", "session-b")
+	reqAdd = reqAdd.WithContext(context.WithValue(reqAdd.Context(), "user", userID))
+
+	rrAdd := httptest.NewRecorder()
+	saveConversation(rrAdd, reqAdd)
+
+	if rrAdd.Code != http.StatusCreated {
+		t.Fatalf("failed to create conversation: %v", rrAdd.Body.String())
+	}
+
+	// 3. Session A should receive the event
+	select {
+	case <-syncDone:
+		if rrSync.Code != http.StatusOK {
+			t.Errorf("expected 200 OK for sync, got %d", rrSync.Code)
+		}
+		var event ConversationEvent
+		if err := json.Unmarshal(rrSync.Body.Bytes(), &event); err != nil {
+			t.Fatalf("failed to unmarshal sync event: %v", err)
+		}
+		if event.Type != EventConversationCreated {
+			t.Errorf("expected event type %s, got %s", EventConversationCreated, event.Type)
+		}
+		if event.Conversation.Title != "Synced Conv" {
+			t.Errorf("expected title 'Synced Conv', got '%s'", event.Conversation.Title)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for sync event")
+	}
+}
+
+func TestSync_ExcludeSender(t *testing.T) {
+	teardown := setupTest(t, nil)
+	defer teardown()
+
+	userID := "test-user"
+
+	// 1. Session A starts long polling
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	reqSync := httptest.NewRequest(http.MethodGet, "/conversations/sync", nil)
+	reqSync.Header.Set("X-Session-ID", "session-a")
+	reqSync = reqSync.WithContext(context.WithValue(ctx, "user", userID))
+
+	rrSync := httptest.NewRecorder()
+
+	syncDone := make(chan struct{})
+	go func() {
+		syncHandler(rrSync, reqSync)
+		close(syncDone)
+	}()
+
+	// Give it a moment to subscribe
+	time.Sleep(100 * time.Millisecond)
+
+	// 2. Session A (SAME SESSION) creates a conversation
+	convBody := Conversation{Title: "Same Session Conv"}
+	reqBody := map[string]any{"conversation": convBody}
+	b, _ := json.Marshal(reqBody)
+	reqAdd := httptest.NewRequest(http.MethodPost, "/conversations/add", bytes.NewReader(b))
+	reqAdd.Header.Set("X-Session-ID", "session-a") // SAME SESSION ID
+	reqAdd = reqAdd.WithContext(context.WithValue(reqAdd.Context(), "user", userID))
+
+	rrAdd := httptest.NewRecorder()
+	saveConversation(rrAdd, reqAdd)
+
+	if rrAdd.Code != http.StatusCreated {
+		t.Fatalf("failed to create conversation: %v", rrAdd.Body.String())
+	}
+
+	// 3. Session A should NOT receive the event immediately
+	select {
+	case <-syncDone:
+		t.Fatal("sync should NOT have finished since sender is excluded")
+	case <-time.After(500 * time.Millisecond):
+		// Success: it didn't finish prematurely
+		cancel() // Now cancel to cleanup
+		<-syncDone
 	}
 }

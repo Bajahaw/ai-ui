@@ -1,13 +1,14 @@
 import { getApiUrl } from "@/lib/config";
 import { Settings } from "./types";
+import { getHeaders } from "./headers";
 
 // Get all settings
 export const getSettings = async (): Promise<Settings> => {
 	const response = await fetch(getApiUrl("/api/settings/"), {
 		method: "GET",
-		headers: {
+		headers: getHeaders({
 			"Content-Type": "application/json",
-		},
+		}),
 		credentials: "include",
 	});
 
@@ -22,9 +23,9 @@ export const getSettings = async (): Promise<Settings> => {
 export const updateSettings = async (settings: Settings): Promise<void> => {
 	const response = await fetch(getApiUrl("/api/settings/update"), {
 		method: "POST",
-		headers: {
+		headers: getHeaders({
 			"Content-Type": "application/json",
-		},
+		}),
 		body: JSON.stringify(settings),
 		credentials: "include",
 	});

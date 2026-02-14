@@ -1,13 +1,14 @@
 import { getApiUrl } from "@/lib/config";
 import { MCPServerRequest, MCPServerResponse } from "./types";
+import { getHeaders } from "./headers";
 
 // Get all MCP servers
 export const getMCPServers = async (): Promise<MCPServerResponse[]> => {
 	const response = await fetch(getApiUrl("/api/tools/mcp/all"), {
 		method: "GET",
-		headers: {
+		headers: getHeaders({
 			"Content-Type": "application/json",
-		},
+		}),
 		credentials: "include",
 	});
 
@@ -25,9 +26,9 @@ export const saveMCPServer = async (
 ): Promise<MCPServerResponse> => {
 	const response = await fetch(getApiUrl("/api/tools/mcp/save"), {
 		method: "POST",
-		headers: {
+		headers: getHeaders({
 			"Content-Type": "application/json",
-		},
+		}),
 		body: JSON.stringify(serverData),
 		credentials: "include",
 	});
@@ -43,9 +44,9 @@ export const saveMCPServer = async (
 export const deleteMCPServer = async (id: string): Promise<void> => {
 	const response = await fetch(getApiUrl(`/api/tools/mcp/delete/${id}`), {
 		method: "DELETE",
-		headers: {
+		headers: getHeaders({
 			"Content-Type": "application/json",
-		},
+		}),
 		credentials: "include",
 	});
 

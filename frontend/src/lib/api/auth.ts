@@ -1,6 +1,7 @@
 import { ApiErrorHandler } from "./errorHandler.ts";
 import { getApiUrl } from "../config.ts";
 import { AuthStatus } from "./types.ts";
+import { getHeaders } from "./headers.ts";
 
 // Authentication API client
 export class AuthAPI {
@@ -11,9 +12,9 @@ export class AuthAPI {
 		return ApiErrorHandler.handleApiCall(async () => {
 			const response = await fetch(getApiUrl("/api/auth/status"), {
 				method: "GET",
-				headers: {
+				headers: getHeaders({
 					"Content-Type": "application/json",
-				},
+				}),
 				credentials: "include",
 			});
 
@@ -40,9 +41,9 @@ export class AuthAPI {
 		return ApiErrorHandler.handleApiCall(async () => {
 			const response = await fetch(getApiUrl("/api/auth/register"), {
 				method: "POST",
-				headers: {
+				headers: getHeaders({
 					"Content-Type": "application/json",
-				},
+				}),
 				body: JSON.stringify({ username, password }),
 				credentials: "include",
 			});
@@ -66,9 +67,9 @@ export class AuthAPI {
 
 			const response = await fetch(getApiUrl("/api/auth/login"), {
 				method: "POST",
-				headers: {
+				headers: getHeaders({
 					"Content-Type": "application/x-www-form-urlencoded",
-				},
+				}),
 				body: formData,
 				credentials: "include",
 			});
@@ -88,9 +89,9 @@ export class AuthAPI {
 		return ApiErrorHandler.handleApiCall(async () => {
 			const response = await fetch(getApiUrl("/api/auth/change-pass"), {
 				method: "POST",
-				headers: {
+				headers: getHeaders({
 					"Content-Type": "application/json",
-				},
+				}),
 				body: JSON.stringify({ password: password }),
 				credentials: "include",
 			});
@@ -107,9 +108,9 @@ export class AuthAPI {
 		return ApiErrorHandler.handleApiCall(async () => {
 			const response = await fetch(getApiUrl("/api/auth/logout"), {
 				method: "POST",
-				headers: {
+				headers: getHeaders({
 					"Content-Type": "application/json",
-				},
+				}),
 				credentials: "include",
 			});
 

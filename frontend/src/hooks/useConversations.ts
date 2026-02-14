@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { chatAPI, conversationsAPI, FrontendMessage, ToolCall, StreamStats, Attachment } from "@/lib/api";
+import { getSessionId } from "@/lib/api/headers";
 import { ApiErrorHandler } from "@/lib/api/errorHandler";
 import { ClientConversation, ClientConversationManager, } from "@/lib/clientConversationManager";
 import { useAuth } from "@/hooks/useAuth";
@@ -310,6 +311,51 @@ export const useConversations = () => {
         setConversations([...manager.getAllConversations()]);
     }, [manager]);
 
+    // Real-time sync polling
+    useEffect(() => {
+        if (!isAuthenticated) return;
+
+        let isMounted = true;
+        const sessionId = getSessionId();
+        const controller = new AbortController();
+
+        const poll = async () => {
+            if (!isMounted) return;
+            try {
+                const event = await conversationsAPI.syncConversations(sessionId, controller.signal);
+                if (isMounted && event) {
+                    if (event.type === "conversation_created") {
+                        manager.handleExternalCreate(event.conversation);
+                    } else if (event.type === "conversation_updated") {
+                        manager.handleExternalUpdate(event.conversation);
+                    } else if (event.type === "conversation_deleted") {
+                        manager.handleExternalDelete(event.conversationId);
+                    }
+                    syncConversations();
+                }
+            } catch (error) {
+                // Ignore AbortError which happens on unmount or network disconnect
+                if ((error as Error).name !== 'AbortError' && isMounted) {
+                    console.error("Sync polling error:", error);
+                    // Add a small delay on error to avoid tight error loops
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+            } finally {
+                if (isMounted) {
+                    // Poll again immediately or after processing
+                    poll();
+                }
+            }
+        };
+
+        poll();
+
+        return () => {
+            isMounted = false;
+            controller.abort();
+        };
+    }, [isAuthenticated, manager, syncConversations]);
+
     // Only load conversations when authenticated
     useEffect(() => {
         if (isAuthenticated) {
@@ -556,10 +602,12 @@ export const useConversations = () => {
                 syncConversations();
 
                 // Call update API
+                const sessionId = getSessionId();
                 const updateResponse = await chatAPI.updateMessage(
                     activeConversationId,
                     numericMessageId,
                     newContent,
+                    sessionId,
                 );
 
                 if (updateResponse.messages?.[numericMessageId]) {
@@ -689,6 +737,7 @@ export const useConversations = () => {
                 const attachedFileIds = attachments?.map(a => a.file.id);
 
                 // Stream the message
+                const sessionId = getSessionId();
                 await chatAPI.sendMessageStream(
                     conversationId,
                     activeMessageId,
@@ -734,6 +783,7 @@ export const useConversations = () => {
                         streamingState.cancelPendingSync();
                         streamError = error;
                     },
+                    sessionId,
                 );
                 return conversationId;
             } catch (err) {
@@ -813,6 +863,7 @@ export const useConversations = () => {
                 );
 
                 let streamError: string | undefined;
+                const sessionId = getSessionId();
 
                 await chatAPI.retryMessageStream(
                     activeConversationId,
@@ -858,6 +909,7 @@ export const useConversations = () => {
                         streamingState.cancelPendingSync();
                         streamError = err;
                     },
+                    sessionId,
                 );
             } catch (err) {
                 console.error("Failed to retry message (stream):", err);

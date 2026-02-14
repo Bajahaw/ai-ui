@@ -1,5 +1,6 @@
 import { FileUploadResponse, File as ApiFile } from "./types";
 import { getApiUrl } from "../config";
+import { getHeaders } from "./headers";
 
 export class FileUploadError extends Error {
 	constructor(
@@ -14,6 +15,7 @@ export class FileUploadError extends Error {
 export const getFiles = async (): Promise<ApiFile[]> => {
 	const response = await fetch(getApiUrl("/api/files/all"), {
 		method: "GET",
+		headers: getHeaders(),
 		credentials: "include",
 	});
 
@@ -41,6 +43,7 @@ export const uploadFile = async (file: File): Promise<FileUploadResponse> => {
 
 	try {
 		const response = await fetch(getApiUrl("/api/files/upload"), {
+			headers: getHeaders(),
 			method: "POST",
 			credentials: "include",
 			body: formData,
@@ -65,6 +68,7 @@ export const uploadFile = async (file: File): Promise<FileUploadResponse> => {
 
 export const deleteFile = async (id: string): Promise<void> => {
 	const response = await fetch(getApiUrl(`/api/files/delete/${id}`), {
+		headers: getHeaders(),
 		method: "DELETE",
 		credentials: "include",
 	});

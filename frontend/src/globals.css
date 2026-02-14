@@ -5,8 +5,8 @@
 :root {
     --background: 0 10% 98%;
     --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card: 0 0% 99%;
+    --card-foreground: 240 10% 10%;
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
     --primary: 240 9% 20%;
@@ -34,8 +34,8 @@
 .dark {
     --background: 240 2% 10%;
     --foreground: 0 0% 95%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
+    --card: 240 5% 13%;
+    --card-foreground: 0 0% 100%;
     --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
     --primary: 0 0% 90%;

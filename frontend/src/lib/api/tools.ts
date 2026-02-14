@@ -1,13 +1,14 @@
 import { getApiUrl } from "@/lib/config";
 import { Tool, ToolListResponse } from "./types";
+import { getHeaders } from "./headers";
 
 // Get all tools
 export const getAllTools = async (): Promise<ToolListResponse> => {
 	const response = await fetch(getApiUrl("/api/tools/all"), {
 		method: "GET",
-		headers: {
+		headers: getHeaders({
 			"Content-Type": "application/json",
-		},
+		}),
 		credentials: "include",
 	});
 
@@ -22,9 +23,9 @@ export const getAllTools = async (): Promise<ToolListResponse> => {
 export const saveAllTools = async (tools: Tool[]): Promise<void> => {
 	const response = await fetch(getApiUrl("/api/tools/saveAll"), {
 		method: "POST",
-		headers: {
+		headers: getHeaders({
 			"Content-Type": "application/json",
-		},
+		}),
 		credentials: "include",
 		body: JSON.stringify({ tools }),
 	});

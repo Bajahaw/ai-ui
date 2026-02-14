@@ -12,6 +12,8 @@ import {
 import { ApiErrorHandler, isChatResponse } from "./errorHandler.ts";
 import { getApiUrl } from "../config.ts";
 
+import { getHeaders } from "./headers.ts";
+
 export class ChatAPI {
     constructor() { }
 
@@ -28,6 +30,7 @@ export class ChatAPI {
         onMetadata?: (metadata: StreamMetadata) => void,
         onComplete?: (data: StreamComplete) => void,
         onError?: (error: string) => void,
+        sessionId?: string,
     ): Promise<void> {
         if (!model) {
             throw new Error("Valid model is required");
@@ -51,9 +54,10 @@ export class ChatAPI {
             const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minutes timeout
             const response = await fetch(getApiUrl("/api/chat/stream"), {
                 method: "POST",
-                headers: {
+                headers: getHeaders({
                     "Content-Type": "application/json",
-                },
+                    ...(sessionId ? { "X-Session-ID": sessionId } : {}),
+                }),
                 credentials: "include",
                 body: JSON.stringify(request),
                 signal: controller.signal,
@@ -89,6 +93,7 @@ export class ChatAPI {
         conversationId: string,
         messageId: number,
         content: string,
+        sessionId?: string,
     ): Promise<UpdateResponse> {
         if (!conversationId) {
             throw new Error("Valid conversation ID is required");
@@ -107,9 +112,10 @@ export class ChatAPI {
 
             const response = await fetch(getApiUrl("/api/chat/update"), {
                 method: "POST",
-                headers: {
+                headers: getHeaders({
                     "Content-Type": "application/json",
-                },
+                    ...(sessionId ? { "X-Session-ID": sessionId } : {}),
+                }),
                 credentials: "include",
                 body: JSON.stringify(request),
             });
@@ -139,6 +145,7 @@ export class ChatAPI {
         onMetadata?: (metadata: StreamMetadata) => void,
         onComplete?: (data: StreamComplete) => void,
         onError?: (error: string) => void,
+        sessionId?: string,
     ): Promise<void> {
         if (!conversationId) {
             throw new Error("Valid conversation ID is required");
@@ -158,9 +165,10 @@ export class ChatAPI {
             const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minutes timeout
             const response = await fetch(getApiUrl("/api/chat/retry/stream"), {
                 method: "POST",
-                headers: {
+                headers: getHeaders({
                     "Content-Type": "application/json",
-                },
+                    ...(sessionId ? { "X-Session-ID": sessionId } : {}),
+                }),
                 credentials: "include",
                 body: JSON.stringify(request),
                 signal: controller.signal,

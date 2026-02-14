@@ -8,7 +8,7 @@ export interface WelcomeProps extends ComponentProps<"div"> {}
 export const Welcome = ({ className, ...props }: WelcomeProps) => {
   return (
     <div
-      className={cn("flex-1 flex items-center justify-center p-8", className)}
+      className={cn("flex-1 flex items-center justify-center p-16", className)}
       {...props}
     >
       <div className="text-center">

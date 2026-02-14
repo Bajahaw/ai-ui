@@ -8,6 +8,7 @@
 
 import { Model, ModelsResponse } from "./types";
 import { getApiUrl } from "../config";
+import { getHeaders } from "./headers";
 
 /**
  * Fetch all models (enabled + disabled).
@@ -15,7 +16,7 @@ import { getApiUrl } from "../config";
 export async function getAllModels(): Promise<ModelsResponse> {
 	const response = await fetch(getApiUrl("/api/models/all"), {
 		method: "GET",
-		headers: { "Content-Type": "application/json" },
+		headers: getHeaders({ "Content-Type": "application/json" }),
 		credentials: "include",
 	});
 
@@ -41,7 +42,7 @@ export async function saveAllModels(models: Model[]): Promise<void> {
 
 	const response = await fetch(getApiUrl("/api/models/save-all"), {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: getHeaders({ "Content-Type": "application/json" }),
 		credentials: "include",
 		body: JSON.stringify(body),
 	});
