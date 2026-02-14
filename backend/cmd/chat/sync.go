@@ -117,14 +117,14 @@ func syncHandler(w http.ResponseWriter, r *http.Request) {
 	defer syncManager.Unsubscribe(userID, sessionID)
 
 	// Set a timeout for the long poll
-	// 3 minutes as requested
-	timeout := time.After(3 * time.Minute)
+	// Cloudflare/Proxies usually timeout at 60-100s. We use 45s to be safe.
+	timeout := time.NewTimer(45 * time.Second)
+	defer timeout.Stop()
 
 	select {
 	case event := <-sub.Events:
 		utils.RespondWithJSON(w, event, http.StatusOK)
-	case <-timeout:
-		// Return 204 No Content or a specific heartbeat message
+	case <-timeout.C:
 		// 204 is good for "no updates"
 		w.WriteHeader(http.StatusNoContent)
 	case <-r.Context().Done():
