@@ -317,10 +317,17 @@ export const useConversations = () => {
 
         let isMounted = true;
         const sessionId = getSessionId();
-        const controller = new AbortController();
+        let isPolling = false;
+        let controller: AbortController | null = null;
+
+        const isPageVisible = () => document.visibilityState === "visible";
 
         const poll = async () => {
-            if (!isMounted) return;
+            if (!isMounted || !isPageVisible() || isPolling) return;
+
+            isPolling = true;
+            controller = new AbortController();
+
             try {
                 const event = await conversationsAPI.syncConversations(sessionId, controller.signal);
                 if (isMounted && event) {
@@ -341,18 +348,35 @@ export const useConversations = () => {
                     await new Promise(resolve => setTimeout(resolve, 5000));
                 }
             } finally {
-                if (isMounted) {
+                isPolling = false;
+                controller = null;
+
+                if (isMounted && isPageVisible()) {
                     // Poll again immediately or after processing
                     poll();
                 }
             }
         };
 
+        const handleVisibilityChange = () => {
+            if (!isMounted) return;
+
+            if (!isPageVisible()) {
+                controller?.abort();
+                return;
+            }
+
+            poll();
+        };
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+
         poll();
 
         return () => {
             isMounted = false;
-            controller.abort();
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            controller?.abort();
         };
     }, [isAuthenticated, manager, syncConversations]);
 
