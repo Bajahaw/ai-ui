@@ -19,6 +19,8 @@ type Repository interface {
 	DeleteByID(id string, user string) error
 	SaveModels(models []*Model) error
 	GetAllModels(user string) []*Model
+	GetModelsByProvider(providerID string) []*Model
+	DeleteModelsNotIn(providerID string, modelIDs []string) error
 }
 
 type Repo struct {
@@ -147,4 +149,56 @@ func (repo *Repo) GetAllModels(user string) []*Model {
 	}
 
 	return models
+}
+
+func (repo *Repo) GetModelsByProvider(providerID string) []*Model {
+	var models = make([]*Model, 0)
+	query := `SELECT id, provider_id, name, is_enabled FROM Models WHERE provider_id = ?`
+	rows, err := repo.db.Query(query, providerID)
+	if err != nil {
+		log.Error("Error querying models by provider", "err", err)
+		return models
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var m Model
+		if err = rows.Scan(&m.ID, &m.ProviderID, &m.Name, &m.IsEnabled); err != nil {
+			log.Error("Error scanning model", "err", err)
+			continue
+		}
+		models = append(models, &Model{
+			ID:         m.ID,
+			Name:       m.Name,
+			ProviderID: m.ProviderID,
+			IsEnabled:  m.IsEnabled,
+		})
+	}
+	if err = rows.Err(); err != nil {
+		log.Error("Error iterating over model rows by provider", "err", err)
+	}
+	return models
+}
+
+// DeleteModelsNotIn deletes models for a provider that are NOT in the provided list of model IDs.
+func (repo *Repo) DeleteModelsNotIn(providerID string, modelIDs []string) error {
+	if len(modelIDs) == 0 {
+		_, err := repo.db.Exec("DELETE FROM Models WHERE provider_id = ?", providerID)
+		return err
+	}
+
+	var sb strings.Builder
+	sb.WriteString("DELETE FROM Models WHERE provider_id = ? AND id NOT IN (")
+	args := make([]any, 0, len(modelIDs)+1)
+	args = append(args, providerID)
+	for i, id := range modelIDs {
+		if i > 0 {
+			sb.WriteString(",")
+		}
+		sb.WriteString("?")
+		args = append(args, id)
+	}
+	sb.WriteString(")")
+
+	_, err := repo.db.Exec(sb.String(), args...)
+	return err
 }

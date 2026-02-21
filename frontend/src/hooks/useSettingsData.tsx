@@ -3,6 +3,7 @@ import {
     backendToFrontendProvider,
     deleteProvider,
     getProviders,
+    refreshProviderModels as refreshProviderModelsApi,
     saveProvider
 } from "@/lib/api/providers";
 import { deleteMCPServer as deleteMCPServerApi, getMCPServers, saveMCPServer } from "@/lib/api/mcpServers";
@@ -32,6 +33,7 @@ interface SettingsDataContext {
     addProvider: (data: ProviderRequest) => Promise<void>;
     updateProvider: (data: ProviderRequest) => Promise<void>;
     deleteProvider: (id: string) => Promise<void>;
+    refreshProviderModels: (id: string) => Promise<void>;
 
     // MCP Servers
     addMCPServer: (data: MCPServerRequest) => Promise<void>;
@@ -134,6 +136,12 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
         await refreshModels();
     }, [refreshModels]);
 
+    const refreshProviderModelsFn = useCallback(async (id: string) => {
+        await refreshProviderModelsApi(id);
+        // Sync global models context with updated DB state
+        await refreshModels();
+    }, [refreshModels]);
+
     // MCP Servers
     const refreshTools = useCallback(async () => {
         const toolsRes = await getAllTools();
@@ -210,6 +218,7 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
             addProvider,
             updateProvider,
             deleteProvider: deleteProviderFn,
+            refreshProviderModels: refreshProviderModelsFn,
             addMCPServer,
             updateMCPServer,
             deleteMCPServer,

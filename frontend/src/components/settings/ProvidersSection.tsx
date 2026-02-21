@@ -2,18 +2,19 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "../ui/card";
-import { Database, Edit, ExternalLink, Loader2, Plus, RefreshCw, Trash2, } from "lucide-react";
+import { Database, Edit, ExternalLink, Loader2, Plus, RefreshCw, RotateCcw, Trash2, } from "lucide-react";
 import { ProviderForm } from "./ProviderForm";
 import { FrontendProvider, ProviderRequest } from "@/lib/api/types";
 import { useSettingsData } from "@/hooks/useSettingsData";
 import { useModelsContext } from "@/hooks/useModelsContext";
 
 export const ProvidersSection = () => {
-	const { data, addProvider, updateProvider, deleteProvider, getModelsByProvider } = useSettingsData();
+	const { data, addProvider, updateProvider, deleteProvider, getModelsByProvider, refreshProviderModels } = useSettingsData();
 	const { refreshModels } = useModelsContext();
 	const [showAddForm, setShowAddForm] = useState(false);
 	const [editingProvider, setEditingProvider] = useState<FrontendProvider | null>(null);
 	const [loadingModels, setLoadingModels] = useState(false);
+	const [refreshingProviders, setRefreshingProviders] = useState<Set<string>>(new Set());
 
 	const handleAddProvider = async (providerData: ProviderRequest) => {
 		await addProvider(providerData);
@@ -40,6 +41,19 @@ export const ProvidersSection = () => {
 			await refreshModels();
 		} finally {
 			setLoadingModels(false);
+		}
+	};
+
+	const handleRefreshProviderModels = async (id: string) => {
+		setRefreshingProviders((prev) => new Set(prev).add(id));
+		try {
+			await refreshProviderModels(id);
+		} finally {
+			setRefreshingProviders((prev) => {
+				const next = new Set(prev);
+				next.delete(id);
+				return next;
+			});
 		}
 	};
 
@@ -95,8 +109,19 @@ export const ProvidersSection = () => {
 										<div className="flex items-center gap-1 flex-shrink-0">
 											<Button
 												variant="ghost"
-												size="sm"
-												onClick={() => setEditingProvider(provider)}
+												size="sm"											onClick={() => handleRefreshProviderModels(provider.id)}
+											disabled={refreshingProviders.has(provider.id)}
+											title="Refresh models from provider"
+										>
+											{refreshingProviders.has(provider.id) ? (
+												<Loader2 className="h-4 w-4 animate-spin" />
+											) : (
+												<RotateCcw className="h-4 w-4" />
+											)}
+										</Button>
+										<Button
+											variant="ghost"
+											size="sm"												onClick={() => setEditingProvider(provider)}
 												title="Edit provider"
 											>
 												<Edit className="h-4 w-4" />

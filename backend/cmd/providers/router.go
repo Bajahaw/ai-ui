@@ -44,6 +44,7 @@ func Handler() http.Handler {
 	mux.HandleFunc("GET /{id}", getProvider)
 	mux.HandleFunc("POST /save", saveProvider)
 	mux.HandleFunc("DELETE /delete/{id}", deleteProvider)
+	mux.HandleFunc("POST /refresh-models/{id}", refreshProviderModels)
 
 	return http.StripPrefix("/api/providers", auth.Authenticated(mux))
 }
@@ -85,7 +86,7 @@ func saveModels(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func fetchAllModels(provider *Provider) []*Model {
+func fetchAllModels(provider *Provider) ([]*Model, error) {
 	models := make([]*Model, 0)
 	client := openai.NewClient(
 		option.WithAPIKey(provider.APIKey),
@@ -95,7 +96,7 @@ func fetchAllModels(provider *Provider) []*Model {
 	list, err := client.Models.List(context.Background())
 	if err != nil {
 		log.Error("Error fetching models", "provider", provider.ID, "err", err)
-		return models
+		return nil, err
 	}
 
 	for _, model := range list.Data {
@@ -107,7 +108,7 @@ func fetchAllModels(provider *Provider) []*Model {
 		})
 	}
 
-	return models
+	return models, nil
 }
 
 func getProvidersList(w http.ResponseWriter, r *http.Request) {
@@ -166,11 +167,13 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	models := fetchAllModels(provider)
-
-	err = providers.SaveModels(models)
-	if err != nil {
-		log.Error("Error saving models for provider", "err", err)
+	models, fetchErr := fetchAllModels(provider)
+	if fetchErr != nil {
+		log.Error("Error fetching models for new provider", "err", fetchErr)
+	} else {
+		if err = providers.SaveModels(models); err != nil {
+			log.Error("Error saving models for provider", "err", err)
+		}
 	}
 
 	response := Response{
@@ -190,5 +193,57 @@ func deleteProvider(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error deleting provider", http.StatusInternalServerError)
 		return
 	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func refreshProviderModels(w http.ResponseWriter, r *http.Request) {
+	user := utils.ExtractContextUser(r)
+	id := r.PathValue("id")
+
+	provider, err := providers.GetByID(id, user)
+	if err != nil {
+		log.Error("Provider not found", "err", err)
+		http.Error(w, "Provider not found", http.StatusNotFound)
+		return
+	}
+
+	// Fetch fresh model list from provider API
+	freshModels, fetchErr := fetchAllModels(provider)
+	if fetchErr != nil {
+		log.Error("Error fetching models from provider", "err", fetchErr)
+		http.Error(w, "Failed to fetch models from provider", http.StatusBadGateway)
+		return
+	}
+
+	// Build map of existing is_enabled states to preserve them
+	existingModels := providers.GetModelsByProvider(provider.ID)
+	enabledMap := make(map[string]bool, len(existingModels))
+	for _, m := range existingModels {
+		enabledMap[m.ID] = m.IsEnabled
+	}
+
+	// Preserve is_enabled for existing models; new models default to true
+	newModelIDs := make([]string, 0, len(freshModels))
+	for _, m := range freshModels {
+		if enabled, exists := enabledMap[m.ID]; exists {
+			m.IsEnabled = enabled
+		}
+		newModelIDs = append(newModelIDs, m.ID)
+	}
+
+	// Upsert with correct is_enabled values
+	if err = providers.SaveModels(freshModels); err != nil {
+		log.Error("Error saving refreshed models", "err", err)
+		http.Error(w, "Error saving models", http.StatusInternalServerError)
+		return
+	}
+
+	// Remove stale models that no longer exist at the provider
+	if err = providers.DeleteModelsNotIn(provider.ID, newModelIDs); err != nil {
+		log.Error("Error deleting stale models", "err", err)
+		http.Error(w, "Error cleaning up stale models", http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusNoContent)
 }

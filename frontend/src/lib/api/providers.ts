@@ -40,6 +40,21 @@ export const saveProvider = async (
 	return response.json();
 };
 
+// Refresh models for a specific provider (re-fetches from provider API)
+export const refreshProviderModels = async (id: string): Promise<void> => {
+	const response = await fetch(getApiUrl(`/api/providers/refresh-models/${id}`), {
+		method: "POST",
+		headers: getHeaders({
+			"Content-Type": "application/json",
+		}),
+		credentials: "include",
+	});
+
+	if (!response.ok) {
+		throw new Error(`Failed to refresh provider models: ${response.statusText}`);
+	}
+};
+
 // Delete provider
 export const deleteProvider = async (id: string): Promise<void> => {
 	const response = await fetch(getApiUrl(`/api/providers/delete/${id}`), {
