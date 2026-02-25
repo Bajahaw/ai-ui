@@ -28,8 +28,9 @@ type StreamChunk struct {
 }
 
 type StreamMetadata struct {
-	ConversationID string `json:"conversationId"`
-	UserMessageID  int    `json:"userMessageId"`
+	ConversationID     string `json:"conversationId"`
+	UserMessageID      int    `json:"userMessageId"`
+	AssistantMessageID int    `json:"assistantMessageId"`
 }
 
 // StreamComplete sent when stream is complete

@@ -9,12 +9,35 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 )
+
+type ActiveStream struct {
+	Cancel context.CancelFunc
+	UserID string
+}
+
+var (
+	activeStreams   = make(map[int]ActiveStream)
+	activeStreamsMu sync.Mutex
+)
+
+func CancelStream(messageID int, userID string) bool {
+	activeStreamsMu.Lock()
+	stream, exists := activeStreams[messageID]
+	activeStreamsMu.Unlock()
+
+	if exists && stream.UserID == userID {
+		stream.Cancel()
+		return true
+	}
+	return false
+}
 
 type SimpleMessage struct {
 	Role     string
@@ -29,6 +52,7 @@ type RequestParams struct {
 	Model           string
 	ReasoningEffort openai.ReasoningEffort
 	User            string
+	MessageID       int
 }
 
 type ChatCompletionMessage struct {
@@ -99,7 +123,20 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
-	defer cancel()
+
+	activeStreamsMu.Lock()
+	activeStreams[params.MessageID] = ActiveStream{
+		Cancel: cancel,
+		UserID: params.User,
+	}
+	activeStreamsMu.Unlock()
+
+	defer func() {
+		activeStreamsMu.Lock()
+		delete(activeStreams, params.MessageID)
+		activeStreamsMu.Unlock()
+		cancel()
+	}()
 
 	client := openai.NewClient(
 		option.WithAPIKey(provider.APIKey),
@@ -174,40 +211,54 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 	duration := time.Since(start)
 
 	if err := stream.Err(); err != nil {
-		var apiErr *openai.Error
-		if errors.As(err, &apiErr) {
-			type Error struct {
-				Message string `json:"message"`
-				Code    string `json:"code"`
-			}
-			type ErrorMessage struct {
-				Error Error `json:"error"`
-			}
-
-			var errMsg ErrorMessage
-			err = json.Unmarshal([]byte(apiErr.Message), &errMsg)
-			if err != nil {
-				errMsg = ErrorMessage{
-					Error: Error{Message: apiErr.Message, Code: apiErr.Code},
+		if errors.Is(err, context.Canceled) {
+			log.Debug("Stream cancelled by user")
+			// Ignore context cancelled error and return partial response
+		} else {
+			var apiErr *openai.Error
+			if errors.As(err, &apiErr) {
+				type Error struct {
+					Message string `json:"message"`
+					Code    string `json:"code"`
 				}
+				type ErrorMessage struct {
+					Error Error `json:"error"`
+				}
+
+				var errMsg ErrorMessage
+				err = json.Unmarshal([]byte(apiErr.Message), &errMsg)
+				if err != nil {
+					errMsg = ErrorMessage{
+						Error: Error{Message: apiErr.Message, Code: apiErr.Code},
+					}
+				}
+
+				if errMsg.Error.Code != "" {
+					errMsg.Error.Message = "- " + errMsg.Error.Message
+				}
+
+				err = fmt.Errorf("%d %s %s",
+					apiErr.StatusCode,
+					http.StatusText(apiErr.StatusCode),
+					errMsg.Error.Message,
+				)
 			}
 
-			if errMsg.Error.Code != "" {
-				errMsg.Error.Message = "- " + errMsg.Error.Message
-			}
-
-			err = fmt.Errorf("%d %s %s",
-				apiErr.StatusCode,
-				http.StatusText(apiErr.StatusCode),
-				errMsg.Error.Message,
-			)
+			return nil, err
 		}
-
-		return nil, err
 	}
 
 	if !(len(acc.Choices) > 0) {
 		log.Debug("Stream completed with no choices")
+		// If cancelled by user, return empty content instead of error
+		if errors.Is(stream.Err(), context.Canceled) {
+			return &ChatCompletionMessage{
+				Content:   "",
+				Reasoning: "",
+				ToolCalls: []tools.ToolCall{},
+				Stats:     utils.StreamStats{},
+			}, nil
+		}
 		return nil, fmt.Errorf("no choices in completion")
 	}
 

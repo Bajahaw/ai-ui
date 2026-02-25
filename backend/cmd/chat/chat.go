@@ -126,28 +126,6 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Send metadata first (conversation ID, user message ID)
-	metadata := utils.StreamMetadata{
-		ConversationID: convID,
-		UserMessageID:  userMessage.ID,
-	}
-
-	utils.SendStreamChunk(sc, utils.StreamChunk{
-		Type:    utils.EVENT_METADATA,
-		Payload: metadata,
-	})
-
-	// Build context from user message
-	ctx := buildContext(convID, userMessage.ID, user)
-	reasoningSetting, _ := settings.Get("reasoningEffort", user)
-
-	providerParams := providers.RequestParams{
-		Messages:        ctx,
-		Model:           req.Model,
-		ReasoningEffort: providers.ReasoningEffort(reasoningSetting),
-		User:            user,
-	}
-
 	responseMessage := Message{
 		ID:        -1,
 		ConvID:    convID,
@@ -164,6 +142,30 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	responseMessage.ID, err = saveMessage(responseMessage)
 	if err != nil {
 		log.Error("Error saving response message", "err", err)
+	}
+
+	// Send metadata first (conversation ID, user message ID)
+	metadata := utils.StreamMetadata{
+		ConversationID:     convID,
+		UserMessageID:      userMessage.ID,
+		AssistantMessageID: responseMessage.ID,
+	}
+
+	utils.SendStreamChunk(sc, utils.StreamChunk{
+		Type:    utils.EVENT_METADATA,
+		Payload: metadata,
+	})
+
+	// Build context from user message
+	ctx := buildContext(convID, userMessage.ID, user)
+	reasoningSetting, _ := settings.Get("reasoningEffort", user)
+
+	providerParams := providers.RequestParams{
+		Messages:        ctx,
+		Model:           req.Model,
+		ReasoningEffort: providers.ReasoningEffort(reasoningSetting),
+		User:            user,
+		MessageID:       responseMessage.ID,
 	}
 
 	var calls []tools.ToolCall
@@ -332,27 +334,6 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Metadata: no new user message; client already knows conversation
-	metadata := utils.StreamMetadata{
-		ConversationID: req.ConversationID,
-		UserMessageID:  parent.ID,
-	}
-	utils.SendStreamChunk(sc, utils.StreamChunk{
-		Type:    utils.EVENT_METADATA,
-		Payload: metadata,
-	})
-
-	// Build context from the parent message
-	ctx := buildContext(req.ConversationID, parent.ID, user)
-	reasoningSetting, _ := settings.Get("reasoningEffort", user)
-
-	providerParams := providers.RequestParams{
-		Messages:        ctx,
-		Model:           req.Model,
-		ReasoningEffort: providers.ReasoningEffort(reasoningSetting),
-		User:            user,
-	}
-
 	responseMessage := Message{
 		ID:        -1,
 		ConvID:    req.ConversationID,
@@ -368,6 +349,29 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	responseMessage.ID, err = saveMessage(responseMessage)
 	if err != nil {
 		log.Error("Error saving retry response message", "err", err)
+	}
+
+	// Metadata: no new user message; client already knows conversation
+	metadata := utils.StreamMetadata{
+		ConversationID:     req.ConversationID,
+		UserMessageID:      parent.ID,
+		AssistantMessageID: responseMessage.ID,
+	}
+	utils.SendStreamChunk(sc, utils.StreamChunk{
+		Type:    utils.EVENT_METADATA,
+		Payload: metadata,
+	})
+
+	// Build context from the parent message
+	ctx := buildContext(req.ConversationID, parent.ID, user)
+	reasoningSetting, _ := settings.Get("reasoningEffort", user)
+
+	providerParams := providers.RequestParams{
+		Messages:        ctx,
+		Model:           req.Model,
+		ReasoningEffort: providers.ReasoningEffort(reasoningSetting),
+		User:            user,
+		MessageID:       responseMessage.ID,
 	}
 
 	var calls []tools.ToolCall
@@ -523,4 +527,31 @@ func update(w http.ResponseWriter, r *http.Request) {
 	response.Messages[msg.ID] = msg
 
 	utils.RespondWithJSON(w, &response, http.StatusOK)
+}
+
+func cancelStream(w http.ResponseWriter, r *http.Request) {
+	user := utils.ExtractContextUser(r)
+
+	messageIDStr := r.URL.Query().Get("messageId")
+	if messageIDStr == "" {
+		log.Error("Missing messageId parameter")
+		http.Error(w, "Missing messageId parameter", http.StatusBadRequest)
+		return
+	}
+
+	var messageID int
+	_, err := fmt.Sscanf(messageIDStr, "%d", &messageID)
+	if err != nil || messageID <= 0 {
+		log.Error("Invalid messageId parameter", "err", err)
+		http.Error(w, "Invalid messageId parameter", http.StatusBadRequest)
+		return
+	}
+
+	if providers.CancelStream(messageID, user) {
+		log.Debug("Cancelling stream", "messageID", messageID)
+		w.WriteHeader(http.StatusOK)
+	} else {
+		log.Debug("Stream not found for cancellation or unauthorized", "messageID", messageID)
+		w.WriteHeader(http.StatusNotFound)
+	}
 }

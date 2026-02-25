@@ -135,6 +135,26 @@ export class ChatAPI {
         }, "updateMessage");
     }
 
+    async cancelStream(messageId: number): Promise<void> {
+        if (!messageId) {
+            throw new Error("Valid message ID is required");
+        }
+
+        return ApiErrorHandler.handleApiCall(async () => {
+            const response = await fetch(getApiUrl(`/api/chat/cancel?messageId=${messageId}`), {
+                method: "GET",
+                headers: getHeaders({
+                    "Content-Type": "application/json",
+                }),
+                credentials: "include",
+            });
+
+            if (!response.ok) {
+                await ApiErrorHandler.handleFetchError(response, "Cancel stream");
+            }
+        }, "cancelStream");
+    }
+
     async retryMessageStream(
         conversationId: string,
         parentId: number,

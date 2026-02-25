@@ -299,6 +299,7 @@ export const useConversations = () => {
     >(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const activeStreamAssistantMessageIdRef = useRef<number | null>(null);
 
     const managerRef = useRef(new ClientConversationManager());
     const manager = managerRef.current;
@@ -774,6 +775,9 @@ export const useConversations = () => {
                     handlers.onToolCall,
                     // onMetadata - Update user message immediately
                     (metadata) => {
+                        if (metadata.assistantMessageId) {
+                            activeStreamAssistantMessageIdRef.current = metadata.assistantMessageId;
+                        }
                         if (tempMessageId) {
                             updateUserMessageAfterSave(
                                 manager,
@@ -786,6 +790,7 @@ export const useConversations = () => {
                     },
                     // onComplete - Update IDs (called even after errors!)
                     (data) => {
+                        activeStreamAssistantMessageIdRef.current = null;
                         if (assistantPlaceholderId) {
                             updateAssistantMessageAfterComplete(
                                 manager,
@@ -804,6 +809,7 @@ export const useConversations = () => {
                     // onError - Just capture the error, onComplete will handle it
                     (error) => {
                         console.error("Stream error:", error);
+                        activeStreamAssistantMessageIdRef.current = null;
                         streamingState.cancelPendingSync();
                         streamError = error;
                     },
@@ -897,10 +903,14 @@ export const useConversations = () => {
                     handlers.onReasoning,
                     handlers.onToolCall,
                     // onMetadata (not strictly needed here)
-                    () => {
+                    (metadata) => {
+                        if (metadata.assistantMessageId) {
+                            activeStreamAssistantMessageIdRef.current = metadata.assistantMessageId;
+                        }
                     },
                     // onComplete - Update IDs (called even after errors!)
                     (data) => {
+                        activeStreamAssistantMessageIdRef.current = null;
                         updateAssistantMessageAfterComplete(
                             manager,
                             activeConversationId,
@@ -930,6 +940,7 @@ export const useConversations = () => {
                     // onError - Just capture the error, onComplete will handle it
                     (err) => {
                         console.error("Retry stream error:", err);
+                        activeStreamAssistantMessageIdRef.current = null;
                         streamingState.cancelPendingSync();
                         streamError = err;
                     },
@@ -945,6 +956,17 @@ export const useConversations = () => {
         [manager, activeConversationId, syncConversations],
     );
 
+    const cancelStream = useCallback(async () => {
+        const messageId = activeStreamAssistantMessageIdRef.current;
+        if (messageId) {
+            try {
+                await chatAPI.cancelStream(messageId);
+            } catch (err) {
+                console.error("Failed to cancel stream:", err);
+            }
+        }
+    }, []);
+
     return {
         conversations,
         activeConversationId,
@@ -954,6 +976,7 @@ export const useConversations = () => {
         sendMessageStream,
         retryMessageStream,
         updateMessage,
+        cancelStream,
         getCurrentMessages,
         selectConversation,
         startNewChat,

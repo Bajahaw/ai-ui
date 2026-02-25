@@ -160,6 +160,7 @@ export const PromptInputButton = ({
 
 export type PromptInputSubmitProps = ComponentProps<typeof Button> & {
   status?: ChatStatus;
+  onStop?: () => void;
 };
 
 export const PromptInputSubmit = ({
@@ -168,6 +169,7 @@ export const PromptInputSubmit = ({
   size = "icon",
   status,
   children,
+  onStop,
   ...props
 }: PromptInputSubmitProps) => {
   let Icon = <SendIcon className="size-4" />;
@@ -175,9 +177,24 @@ export const PromptInputSubmit = ({
   if (status === "submitted") {
     Icon = <Loader2Icon className="size-4 animate-spin" />;
   } else if (status === "streaming") {
-    Icon = <SquareIcon className="size-4" />;
+    Icon = <SquareIcon className="size-4 fill-current" />;
   } else if (status === "error") {
     Icon = <XIcon className="size-4" />;
+  }
+
+  if (status === "streaming" && onStop) {
+    return (
+      <Button
+        className={cn("gap-1.5 rounded-lg", className)}
+        size={size}
+        type="button"
+        variant={variant}
+        onClick={onStop}
+        {...props}
+      >
+        {children ?? Icon}
+      </Button>
+    );
   }
 
   return (

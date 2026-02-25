@@ -146,6 +146,7 @@ interface ChatInterfaceProps {
 		hasMultiple: boolean;
 	};
 	onUpdateMessage: (messageId: string, newContent: string) => Promise<void>;
+	onCancelStream: () => Promise<void>;
 }
 
 export const ChatInterface = ({
@@ -158,6 +159,7 @@ export const ChatInterface = ({
 	onSwitchBranch,
 	getBranchInfo,
 	onUpdateMessage,
+	onCancelStream,
 }: ChatInterfaceProps) => {
 	const { models, isLoading: modelsLoading } = useModels();
 	const [fileManagerOpen, setFileManagerOpen] = useState(false);
@@ -791,17 +793,17 @@ export const ChatInterface = ({
 						</PromptInputTools>
 						<PromptInputSubmit
 							disabled={
-								(!input.trim() && uploadedFiles.length === 0) ||
-								!model ||
-								models.length === 0
+								(!hasPendingMessages && (!input.trim() && uploadedFiles.length === 0)) ||
+								(!hasPendingMessages && (!model || models.length === 0))
 							}
 							status={
 								hasPendingMessages
-									? "submitted"
+									? "streaming"
 									: hasRecentError
 										? "error"
 										: undefined
 							}
+							onStop={onCancelStream}
 						/>
 					</PromptInputToolbar>
 				</PromptInput>

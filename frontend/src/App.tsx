@@ -69,6 +69,7 @@ function App() {
 		switchBranch,
 		getBranchInfo,
 		updateMessage,
+		cancelStream,
 	} = useConversations();
 
 	const handleSendMessage = async (
@@ -284,6 +285,7 @@ function App() {
 					onSwitchBranch={switchBranch}
 					getBranchInfo={getBranchInfo}
 					onUpdateMessage={handleUpdateMessage}
+					onCancelStream={cancelStream}
 				/>
 			</div>
 

@@ -104,6 +104,7 @@ export interface ToolCall {
 export interface StreamMetadata {
 	conversationId: string;
 	userMessageId: number;
+	assistantMessageId?: number;
 }
 
 export interface StreamChunk {
