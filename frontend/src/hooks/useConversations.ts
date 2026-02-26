@@ -338,6 +338,8 @@ export const useConversations = () => {
                         manager.handleExternalUpdate(event.conversation);
                     } else if (event.type === "conversation_deleted") {
                         manager.handleExternalDelete(event.conversationId);
+                    } else if (event.type === "message_saved" || event.type === "message_updated") {
+                        manager.updateWithChatResponse(event.conversationId, { [event.message.id]: event.message });
                     }
                     syncConversations();
                 }

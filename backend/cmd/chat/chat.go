@@ -111,6 +111,12 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Error saving user message: %v", err), http.StatusBadRequest)
 		return
 	}
+	syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), ConversationEvent{
+		Type:           EventMessageSaved,
+		ConversationID: convID,
+		MessageID:      userMessage.ID,
+		Message:        &userMessage,
+	})
 
 	// prepare for streaming response
 	sc := utils.StreamClient{
@@ -142,6 +148,13 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	responseMessage.ID, err = saveMessage(responseMessage)
 	if err != nil {
 		log.Error("Error saving response message", "err", err)
+	} else {
+		syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), ConversationEvent{
+			Type:           EventMessageSaved,
+			ConversationID: convID,
+			MessageID:      responseMessage.ID,
+			Message:        &responseMessage,
+		})
 	}
 
 	// Send metadata first (conversation ID, user message ID)
@@ -262,9 +275,15 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		streamStats = completion.Stats
 	}
 
-	_, err = updateMessage(responseMessage.ID, responseMessage)
-	if err != nil {
-		log.Error("Error updating assistant message after tool calls", "err", err)
+	if updatedMsg, updateErr := updateMessage(responseMessage.ID, responseMessage); updateErr != nil {
+		log.Error("Error updating assistant message after tool calls", "err", updateErr)
+	} else if updatedMsg != nil {
+		syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), ConversationEvent{
+			Type:           EventMessageUpdated,
+			ConversationID: convID,
+			MessageID:      updatedMsg.ID,
+			Message:        updatedMsg,
+		})
 	}
 
 	log.Debug("Completed streaming chat response", "responseMessageID", responseMessage.ID)
@@ -349,6 +368,13 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	responseMessage.ID, err = saveMessage(responseMessage)
 	if err != nil {
 		log.Error("Error saving retry response message", "err", err)
+	} else {
+		syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), ConversationEvent{
+			Type:           EventMessageSaved,
+			ConversationID: req.ConversationID,
+			MessageID:      responseMessage.ID,
+			Message:        &responseMessage,
+		})
 	}
 
 	// Metadata: no new user message; client already knows conversation
@@ -470,9 +496,15 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		streamStats = completion.Stats
 	}
 
-	_, err = updateMessage(responseMessage.ID, responseMessage)
-	if err != nil {
-		log.Error("Error updating assistant message after tool calls", "err", err)
+	if updatedMsg, updateErr := updateMessage(responseMessage.ID, responseMessage); updateErr != nil {
+		log.Error("Error updating assistant message after tool calls", "err", updateErr)
+	} else if updatedMsg != nil {
+		syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), ConversationEvent{
+			Type:           EventMessageUpdated,
+			ConversationID: req.ConversationID,
+			MessageID:      updatedMsg.ID,
+			Message:        updatedMsg,
+		})
 	}
 
 	// Send completion event with the new assistant message id
@@ -520,6 +552,12 @@ func update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Error updating message: %v", err), http.StatusInternalServerError)
 		return
 	}
+	syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), ConversationEvent{
+		Type:           EventMessageUpdated,
+		ConversationID: req.ConversationID,
+		MessageID:      msg.ID,
+		Message:        msg,
+	})
 
 	response := &Response{
 		Messages: make(map[int]*Message),

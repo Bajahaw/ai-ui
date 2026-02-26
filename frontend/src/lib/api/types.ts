@@ -265,5 +265,7 @@ export interface Tool {
 export type ConversationEvent = 
     | { type: "conversation_created"; conversationId: string; conversation: Conversation }
     | { type: "conversation_updated"; conversationId: string; conversation: Conversation }
-    | { type: "conversation_deleted"; conversationId: string };
+    | { type: "conversation_deleted"; conversationId: string }
+    | { type: "message_saved"; conversationId: string; messageId: number; message: Message }
+    | { type: "message_updated"; conversationId: string; messageId: number; message: Message };
 

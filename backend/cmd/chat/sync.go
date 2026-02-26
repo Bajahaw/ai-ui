@@ -12,12 +12,16 @@ const (
 	EventConversationCreated = "conversation_created"
 	EventConversationUpdated = "conversation_updated"
 	EventConversationDeleted = "conversation_deleted"
+	EventMessageSaved        = "message_saved"
+	EventMessageUpdated      = "message_updated"
 )
 
 type ConversationEvent struct {
 	Type           string        `json:"type"`
 	ConversationID string        `json:"conversationId"`
 	Conversation   *Conversation `json:"conversation,omitempty"`
+	MessageID      int           `json:"messageId,omitempty"`
+	Message        *Message      `json:"message,omitempty"`
 }
 
 type Subscriber struct {
