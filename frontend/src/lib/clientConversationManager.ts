@@ -149,6 +149,11 @@ export class ClientConversationManager {
 		// Merge messages into frontend state first
 		this.updateWithBackendMessages(conversation.id, backendMessages);
 
+		// Ensure messages map is always initialized before writing into it
+		if (!conversation.backendConversation.messages) {
+			conversation.backendConversation.messages = {};
+		}
+
 		// Merge into backendConversation.messages
 		for (const [idStr, msg] of Object.entries(backendMessages)) {
 			const idNum = Number(idStr);
@@ -719,21 +724,27 @@ export class ClientConversationManager {
 			return;
 		}
 
+		// Normalize messages to {} — backend sync events omit this field
+		const normalizedConversation: Conversation = {
+			...conversation,
+			messages: conversation.messages || {},
+		};
+
 		// Create client conversation wrapper
 		const clientConv: ClientConversation = {
-			id: conversation.id,
-			title: conversation.title || "New Conversation",
+			id: normalizedConversation.id,
+			title: normalizedConversation.title || "New Conversation",
 			messages: [], // Initially empty, user will fetch messages when opening
-			backendConversation: conversation,
+			backendConversation: normalizedConversation,
 			pendingMessageIds: new Set(),
 			activeBranches: new Map(),
 		};
 		// Populate initial messages from backend if any are provided (usually unlikely for just metadata)
-		if (conversation.messages && Object.keys(conversation.messages).length > 0) {
-			clientConv.messages = this.buildMessagesFromBackend(conversation);
+		if (Object.keys(normalizedConversation.messages).length > 0) {
+			clientConv.messages = this.buildMessagesFromBackend(normalizedConversation);
 		}
 
-		this.conversations.set(conversation.id, clientConv);
+		this.conversations.set(normalizedConversation.id, clientConv);
 	}
 
 	handleExternalUpdate(conversation: Conversation): void {
