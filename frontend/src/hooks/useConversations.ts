@@ -959,15 +959,43 @@ export const useConversations = () => {
     );
 
     const cancelStream = useCallback(async () => {
-        const messageId = activeStreamAssistantMessageIdRef.current;
-        if (messageId) {
+        let messageId = activeStreamAssistantMessageIdRef.current;
+        
+        if (!messageId && activeConversationId) {
+            const currentConv = manager.getConversation(activeConversationId);
+            if (currentConv) {
+                const pendingMessage = currentConv.messages.find(
+                    (m) => m.status === "pending" && m.role === "assistant" && !m.id.startsWith("temp_")
+                );
+                if (pendingMessage) {
+                    messageId = parseInt(pendingMessage.id, 10);
+                }
+            }
+        }
+
+        if (messageId && !isNaN(messageId)) {
             try {
                 await chatAPI.cancelStream(messageId);
+                
+                if (activeConversationId) {
+                    const currentConv = manager.getConversation(activeConversationId);
+                    if (currentConv) {
+                        const mIdStr = messageId.toString();
+                        const assistantMessage = currentConv.messages.find(
+                            (m) => m.id === mIdStr && m.role === "assistant"
+                        );
+                        if (assistantMessage) {
+                            assistantMessage.status = "completed";
+                            currentConv.pendingMessageIds.delete(mIdStr);
+                            syncConversations();
+                        }
+                    }
+                }
             } catch (err) {
                 console.error("Failed to cancel stream:", err);
             }
         }
-    }, []);
+    }, [manager, activeConversationId, syncConversations]);
 
     return {
         conversations,
