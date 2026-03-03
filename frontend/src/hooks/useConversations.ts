@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { chatAPI, conversationsAPI, FrontendMessage, ToolCall, StreamStats, Attachment } from "@/lib/api";
+import { chatAPI, conversationsAPI, backendToFrontendMessage, FrontendMessage, ToolCall, StreamStats, Attachment } from "@/lib/api";
 import { getSessionId } from "@/lib/api/headers";
 import { ApiErrorHandler } from "@/lib/api/errorHandler";
 import { ClientConversation, ClientConversationManager, } from "@/lib/clientConversationManager";
@@ -975,7 +975,7 @@ export const useConversations = () => {
 
         if (messageId && !isNaN(messageId)) {
             try {
-                await chatAPI.cancelStream(messageId);
+                const backendMsg = await chatAPI.cancelStream(messageId);
                 
                 if (activeConversationId) {
                     const currentConv = manager.getConversation(activeConversationId);
@@ -985,8 +985,10 @@ export const useConversations = () => {
                             (m) => m.id === mIdStr && m.role === "assistant"
                         );
                         if (assistantMessage) {
-                            assistantMessage.status = "completed";
-                            currentConv.pendingMessageIds.delete(mIdStr);
+                            Object.assign(assistantMessage, backendToFrontendMessage(backendMsg));
+                            if (assistantMessage.status === "completed") {
+                                currentConv.pendingMessageIds.delete(mIdStr);
+                            }
                             syncConversations();
                         }
                     }

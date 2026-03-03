@@ -1,5 +1,6 @@
 import {
     ChatRequest,
+    Message,
     RetryResponse,
     StreamChunk,
     StreamComplete,
@@ -135,7 +136,7 @@ export class ChatAPI {
         }, "updateMessage");
     }
 
-    async cancelStream(messageId: number): Promise<void> {
+    async cancelStream(messageId: number): Promise<Message> {
         if (!messageId) {
             throw new Error("Valid message ID is required");
         }
@@ -152,6 +153,8 @@ export class ChatAPI {
             if (!response.ok) {
                 await ApiErrorHandler.handleFetchError(response, "Cancel stream");
             }
+
+            return response.json() as Promise<Message>;
         }, "cancelStream");
     }
 

@@ -585,11 +585,20 @@ func cancelStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if providers.CancelStream(messageID, user) {
+	cancelled := providers.CancelStream(messageID, user)
+	if cancelled {
 		log.Debug("Cancelling stream", "messageID", messageID)
-		w.WriteHeader(http.StatusOK)
 	} else {
 		log.Debug("Stream not found for cancellation or unauthorized", "messageID", messageID)
-		w.WriteHeader(http.StatusNotFound)
 	}
+
+	// Return the current message state regardless
+	msg, err := getMessage(messageID)
+	if err != nil {
+		log.Error("Failed to fetch message after cancel", "err", err)
+		http.Error(w, "Message not found", http.StatusNotFound)
+		return
+	}
+
+	utils.RespondWithJSON(w, msg, http.StatusOK)
 }
