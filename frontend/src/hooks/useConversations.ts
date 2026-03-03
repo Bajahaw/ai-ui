@@ -312,74 +312,42 @@ export const useConversations = () => {
         setConversations([...manager.getAllConversations()]);
     }, [manager]);
 
-    // Real-time sync polling
+    // Real-time sync over SSE
     useEffect(() => {
         if (!isAuthenticated) return;
 
-        let isMounted = true;
         const sessionId = getSessionId();
-        let isPolling = false;
-        let controller: AbortController | null = null;
 
-        const isPageVisible = () => document.visibilityState === "visible";
+        const es = conversationsAPI.createSyncEventSource(sessionId);
 
-        const poll = async () => {
-            if (!isMounted || !isPageVisible() || isPolling) return;
-
-            isPolling = true;
-            controller = new AbortController();
-
+        es.onmessage = (e) => {
             try {
-                const event = await conversationsAPI.syncConversations(sessionId, controller.signal);
-                if (isMounted && event) {
-                    if (event.type === "conversation_created") {
-                        manager.handleExternalCreate(event.conversation);
-                    } else if (event.type === "conversation_updated") {
-                        manager.handleExternalUpdate(event.conversation);
-                    } else if (event.type === "conversation_deleted") {
-                        manager.handleExternalDelete(event.conversationId);
-                    } else if (event.type === "message_saved" || event.type === "message_updated") {
+                const event = JSON.parse(e.data);
+                if (event.type === "conversation_created") {
+                    manager.handleExternalCreate(event.conversation);
+                } else if (event.type === "conversation_updated") {
+                    manager.handleExternalUpdate(event.conversation);
+                } else if (event.type === "conversation_deleted") {
+                    manager.handleExternalDelete(event.conversationId);
+                } else if (event.type === "message_saved" || event.type === "message_updated") {
+                    // Skip if this conversation's messages haven't been fetched yet —
+                    // opening the conversation will load a fresh copy from the server.
+                    if (manager.hasLoadedMessages(event.conversationId)) {
                         manager.updateWithChatResponse(event.conversationId, { [event.message.id]: event.message });
                     }
-                    syncConversations();
                 }
-            } catch (error) {
-                // Ignore AbortError which happens on unmount or network disconnect
-                if ((error as Error).name !== 'AbortError' && isMounted) {
-                    console.error("Sync polling error:", error);
-                    // Add a small delay on error to avoid tight error loops
-                    await new Promise(resolve => setTimeout(resolve, 5000));
-                }
-            } finally {
-                isPolling = false;
-                controller = null;
-
-                if (isMounted && isPageVisible()) {
-                    // Poll again immediately or after processing
-                    poll();
-                }
+                syncConversations();
+            } catch (err) {
+                console.error("SSE event parse error:", err);
             }
         };
 
-        const handleVisibilityChange = () => {
-            if (!isMounted) return;
-
-            if (!isPageVisible()) {
-                controller?.abort();
-                return;
-            }
-
-            poll();
+        es.onerror = () => {
+            console.warn("SSE sync connection error, browser will auto-reconnect...");
         };
-
-        document.addEventListener("visibilitychange", handleVisibilityChange);
-
-        poll();
 
         return () => {
-            isMounted = false;
-            document.removeEventListener("visibilitychange", handleVisibilityChange);
-            controller?.abort();
+            es.close();
         };
     }, [isAuthenticated, manager, syncConversations]);
 

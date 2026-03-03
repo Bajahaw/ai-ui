@@ -136,7 +136,7 @@ func startServer() {
 		Addr:         ":8080",
 		Handler:      utils.Middleware(mux),
 		ReadTimeout:  120 * time.Second,
-		WriteTimeout: 120 * time.Second,
+		WriteTimeout: 0, // 0 = no timeout; required for SSE connections
 		IdleTimeout:  120 * time.Second,
 	}
 

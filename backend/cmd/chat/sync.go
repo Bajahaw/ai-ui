@@ -2,6 +2,8 @@ package chat
 
 import (
 	"ai-client/cmd/utils"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -109,33 +111,56 @@ func syncHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Session ID is mandatory to distinguish tabs
-	sessionID := r.Header.Get("X-Session-ID")
+	// Session ID comes from query param — EventSource cannot send custom headers
+	sessionID := r.URL.Query().Get("sessionId")
 	if sessionID == "" {
 		http.Error(w, "Session ID required", http.StatusBadRequest)
 		return
 	}
 
+	// Require flusher support — same pattern used by the rest of the streaming code
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// SSE headers — must be set before the first Write
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+
 	sub := syncManager.Subscribe(userID, sessionID)
-	// We don't defer Unsubscribe here because we want to unsubscribe only on return
 	defer syncManager.Unsubscribe(userID, sessionID)
 
-	// Set a timeout for the long poll
-	// Cloudflare/Proxies usually timeout at 60-100s. We use 45s to be safe.
-	timeout := time.NewTimer(45 * time.Second)
-	defer timeout.Stop()
+	// Send a heartbeat every 30 s to keep proxies and load balancers alive
+	heartbeat := time.NewTicker(30 * time.Second)
+	defer heartbeat.Stop()
 
-	select {
-	case event := <-sub.Events:
-		utils.RespondWithJSON(w, event, http.StatusOK)
-	case <-timeout.C:
-		// 204 is good for "no updates"
-		w.WriteHeader(http.StatusNoContent)
-	case <-r.Context().Done():
-		// Client disconnected
-		return
-	case <-sub.Done:
-		// Subscription cancelled (e.g. replaced)
-		return
+	for {
+		select {
+		case event := <-sub.Events:
+			data, err := json.Marshal(event)
+			if err != nil {
+				log.Warn("Failed to marshal sync event", "err", err)
+				continue
+			}
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+
+		case <-heartbeat.C:
+			fmt.Fprintf(w, ": heartbeat\n\n")
+			flusher.Flush()
+
+		case <-r.Context().Done():
+			// Client disconnected
+			return
+
+		case <-sub.Done:
+			// Subscription replaced (same session reconnected); client will auto-reconnect
+			return
+		}
 	}
 }

@@ -163,6 +163,20 @@ export class ClientConversationManager {
 			if (msg.children && msg.children.length > 1) {
 				msg.children.sort((a, b) => a - b);
 			}
+
+			// Link this message into its parent's children so the tree walk can reach it.
+			// This matters for single-message SSE updates where the parent already exists
+			// but its children array doesn't yet include this new id.
+			if (msg.parentId) {
+				const parent = conversation.backendConversation.messages[msg.parentId];
+				if (parent) {
+					if (!Array.isArray(parent.children)) parent.children = [];
+					if (!parent.children.includes(idNum)) {
+						parent.children.push(idNum);
+						parent.children.sort((a, b) => a - b);
+					}
+				}
+			}
 		}
 
 		const messageIds = Object.keys(backendMessages).map(Number);

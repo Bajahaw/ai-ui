@@ -90,31 +90,12 @@ export class ConversationsAPI {
 		}, "createConversation");
 	}
 
-	// GET /api/conversations/sync
-	async syncConversations(sessionId: string, signal?: AbortSignal): Promise<import("./types.ts").ConversationEvent | null> {
-		if (!sessionId) return null;
-		
-		return ApiErrorHandler.handleApiCall(async () => {
-			const response = await fetch(getApiUrl("/api/conversations/sync"), {
-				method: "GET",
-				headers: getHeaders({
-					"Content-Type": "application/json",
-					"X-Session-ID": sessionId,
-				}),
-				credentials: "include",
-				signal,
-			});
-
-			if (response.status === 204) {
-				return null;
-			}
-
-			if (!response.ok) {
-				await ApiErrorHandler.handleFetchError(response, "Sync conversations");
-			}
-
-			return await response.json();
-		}, "syncConversations");
+	// GET /api/conversations/sync (SSE)
+	// Returns an EventSource that streams ConversationEvents over a persistent connection.
+	// The session ID is passed as a query param because EventSource cannot send custom headers.
+	createSyncEventSource(sessionId: string): EventSource {
+		const url = getApiUrl(`/api/conversations/sync?sessionId=${encodeURIComponent(sessionId)}`);
+		return new EventSource(url, { withCredentials: true });
 	}
 
 	// GET /api/conversations/{id}/messages
