@@ -152,7 +152,6 @@ function App() {
 	};
 
 	const handleConversationSelect = (conversationId: string) => {
-		if (isProcessing) return;
 		selectConversation(conversationId);
 	};
 
