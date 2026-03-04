@@ -589,15 +589,31 @@ func cancelStream(w http.ResponseWriter, r *http.Request) {
 	if cancelled {
 		log.Debug("Cancelling stream", "messageID", messageID)
 	} else {
-		log.Debug("Stream not found for cancellation or unauthorized", "messageID", messageID)
+		log.Warn("Stream not found for cancellation or unauthorized", "messageID", messageID)
 	}
 
-	// Return the current message state regardless
+	// Force status to completed so the frontend never gets stuck on pending
 	msg, err := getMessage(messageID)
 	if err != nil {
 		log.Error("Failed to fetch message after cancel", "err", err)
 		http.Error(w, "Message not found", http.StatusNotFound)
 		return
+	}
+
+	if msg.Status == "pending" {
+		msg.Status = "completed"
+		updated, updateErr := updateMessage(messageID, *msg)
+		if updateErr != nil {
+			log.Error("Failed to force-complete message after cancel", "err", updateErr)
+		} else if updated != nil {
+			msg = updated
+			syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), ConversationEvent{
+				Type:           EventMessageUpdated,
+				ConversationID: msg.ConvID,
+				MessageID:      msg.ID,
+				Message:        msg,
+			})
+		}
 	}
 
 	utils.RespondWithJSON(w, msg, http.StatusOK)
