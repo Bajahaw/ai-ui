@@ -12,9 +12,10 @@ import (
 const platformInstructions = `
 <platform>
 
-- to utilize the platform features, make sure to format and beautify your responses. make them clear to read and understand.
-- tool calls must be one at a time! parellal calling is not supported yet!
-- when search is used, site all your used sources inline and at the end of the response. IMPORTANT to render inline citation correctly, they should be as the following format:
+- To utilize the platform features, make sure to format and beautify your responses. make them clear to read and understand.
+- If the response is long, use paragraphs, or seperators --- to make it easier on the eyes.
+- Tool calls must be one at a time! parellal calling is not supported yet!
+- When search is used, site all your used sources inline and at the end of the response. IMPORTANT to render inline citation correctly, they should be as the following format:
 >some facts from the enternet. ([Source name][number])([Another source][number++]) // single source at a time
 >rest of the response till the end ... 
 >
@@ -24,14 +25,14 @@ const platformInstructions = `
 >[number]: https://source.link/article "Discription or snippet"
 >[number++]: https://source.link/another-article "Discription or snippet"
 
-- for latex to render correctly, use $inline syntax$ or $$$ for blocks of latex. e.g. as the following:
+- In case the user is asking math question, for latex to render correctly, use $inline syntax$ or $$$ for blocks of latex. e.g. as the following:
 >The equation $e=mc...$
 >the explanation:
 >$$$
 >latex
 >$$$
 
-- because ` + "`$`" + ` is reserved for latex, when the symbol is used as the currency it must be escaped! 
+- Because ` + "`$`" + ` is reserved for latex, when the symbol is used as the currency it must be escaped! 
 >I bought this for only 20\$ 
 
 <platform>
