@@ -204,7 +204,7 @@ export function FileManagerDialog({
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent 
-				className="w-[calc(100%-1rem)] sm:w-[calc(100%-3rem)] max-w-7xl sm:max-w-4xl h-[65vh] p-0 flex flex-col rounded-xl"
+				className="w-[calc(100%-1rem)] sm:w-[calc(100%-3rem)] max-w-7xl sm:max-w-4xl h-[65vh] p-0 flex flex-col rounded-2xl"
 				onPaste={handlePaste}
 				onOpenAutoFocus={(e) => e.preventDefault()}
 			>
@@ -274,7 +274,7 @@ export function FileManagerDialog({
 										key={file.id}
 										onClick={() => handleFileSelect(file.id)}
 										className={cn(
-											"group relative flex flex-col rounded-lg border bg-muted/50 text-card-foreground cursor-pointer transition-all overflow-hidden hover:bg-muted/80",
+											"group relative flex flex-col rounded-xl border bg-muted/50 text-card-foreground cursor-pointer transition-all overflow-hidden hover:bg-muted/80",
 											isSelected && "border-primary/50 ring-1 ring-primary/50"
 										)}
 									>
@@ -291,7 +291,7 @@ export function FileManagerDialog({
 											)}
 
 											{file.content && (
-												<div className="absolute bottom-1 right-1 bg-green-500/80 text-[8px] text-white px-1 py-0.5 rounded-sm font-bold uppercase tracking-wider transform scale-90 origin-bottom-right z-10">
+												<div className="absolute bottom-1 right-1 bg-green-500/80 text-[8px] text-white px-1 py-0.5 rounded-lg font-bold uppercase tracking-wider transform scale-90 origin-bottom-right z-10">
 													<ScanText className="inline-block h-4 w-3" />
 												</div>
 											)}
@@ -324,7 +324,7 @@ export function FileManagerDialog({
 				<div className="p-4 border-t bg-muted/10 space-y-4 flex-shrink-0">
 					<div 
 						className={cn(
-							"border-2 border-dashed rounded-lg p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-colors",
+							"border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-colors",
 							isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/25",
 							uploading && "opacity-50 pointer-events-none"
 						)}

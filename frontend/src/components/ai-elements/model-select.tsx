@@ -112,9 +112,9 @@ export const ModelSelect = ({
                                 value={modelOption.id}
                                 className="rounded-lg px-3 py-2.5 text-sm leading-5 focus:bg-muted-foreground/10"
                             >
-                                <div className="max-w-[280px] overflow-hidden text-muted-foreground text-ellipsis text-nowrap select-none translate-y-[-2px]">
+                                <div className="max-w-[280px] overflow-hidden text-ellipsis text-nowrap select-none translate-y-[-2px]">
                                     <span className="font-medium">{modelOption.name}</span> {" "}
-                                    <span className="text-xs">{modelOption.provider}</span>
+                                    <span className="text-xs text-muted-foreground">{modelOption.provider}</span>
                                 </div>
                             </SelectItem>
                         ))}

@@ -179,7 +179,7 @@ export const GlobalSettingsSection = () => {
                         placeholder="You are a helpful AI assistant. Provide clear, accurate, and helpful responses to user questions."
                         value={local.systemPrompt}
                         onChange={(e) => handleChange("systemPrompt", e.target.value)}
-                        className="min-h-[140px] text-sm resize-none !bg-secondary/50 rounded-lg border-border/80 focus-visible:border-border"
+                        className="min-h-[140px] text-sm resize-none !bg-secondary/50 rounded-xl border-border/80 focus-visible:border-border"
                         disabled={isSaving}
                     />
                 </div>
