@@ -21,7 +21,7 @@ import {
     SearchIcon,
 } from "lucide-react";
 import {cn} from "@/lib/utils";
-import {ComponentProps, useState} from "react";
+import {ComponentProps, useEffect, useState} from "react";
 import {ClientConversation} from "@/lib/clientConversationManager";
 import {useAuth} from "@/hooks/useAuth";
 import {LoginDialog} from "@/components/auth/LoginDialog";
@@ -70,6 +70,7 @@ export const ConversationSidebar = ({
                                         className,
                                         ...props
                                     }: ConversationSidebarProps) => {
+    const { isAuthenticated, isCheckingAuth } = useAuth();
     const width = 272; // Fixed width in pixels
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingTitle, setEditingTitle] = useState<string>("");
@@ -186,6 +187,8 @@ export const ConversationSidebar = ({
                     <Button
                         variant="outline"
                         onClick={onNewChat}
+                        disabled={!isAuthenticated || isCheckingAuth}
+                        title={!isAuthenticated ? "Sign in to start a chat" : "Start a new chat"}
                         className="w-full justify-start gap-2 rounded-lg text-foreground/80 font-semibold"
                     >
                         <PlusIcon className="size-4 text-foreground/80"/>
@@ -217,15 +220,21 @@ export const ConversationSidebar = ({
                     
                     <ScrollArea className="h-full" type="scroll">
                         <div className="px-3 py-4 space-y-6">
-                            {isLoading && conversations.length === 0 ? (
+                            {(isCheckingAuth || isLoading) && conversations.length === 0 ? null : conversations.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground text-sm">
-                                    Loading conversations...
-                                </div>
-                            ) : conversations.length === 0 ? (
-                                <div className="text-center py-8 text-muted-foreground text-sm">
-                                    No conversations yet.
-                                    <br/>
-                                    Start a new chat to begin.
+                                    {isAuthenticated ? (
+                                        <>
+                                            No conversations yet.
+                                            <br/>
+                                            Start a new chat to begin.
+                                        </>
+                                    ) : (
+                                        <>
+                                            Sign in to load your conversations.
+                                            <br/>
+                                            Use the button below to continue.
+                                        </>
+                                    )}
                                 </div>
                             ) : filteredConversations.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground text-sm">
@@ -333,7 +342,14 @@ export const ConversationSidebar = ({
 };
 
 const AuthButton = () => {
-    const {isAuthenticated, logout, isLoading} = useAuth();
+    const {isAuthenticated, isCheckingAuth, logout, isLoading} = useAuth();
+    const [loginOpen, setLoginOpen] = useState(false);
+
+    useEffect(() => {
+        if (!isCheckingAuth && !isAuthenticated) {
+            setLoginOpen(true);
+        }
+    }, [isAuthenticated, isCheckingAuth]);
 
     const handleLogout = async () => {
         try {
@@ -342,6 +358,8 @@ const AuthButton = () => {
             console.error("Logout failed:", err);
         }
     };
+
+    if (isCheckingAuth) return null;
 
     if (isAuthenticated) {
         return (
@@ -362,8 +380,8 @@ const AuthButton = () => {
     }
 
     return (
-        <LoginDialog>
-            <Button variant="outline" className="w-full justify-start gap-2">
+        <LoginDialog open={loginOpen} onOpenChange={setLoginOpen}>
+            <Button variant="outline" className="w-full rounded-lg justify-start gap-2">
                 <LogInIcon className="size-4"/>
                 Login
             </Button>

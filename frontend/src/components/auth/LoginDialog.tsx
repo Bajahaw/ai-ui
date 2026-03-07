@@ -2,16 +2,12 @@ import React, { useState } from 'react';
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog.tsx';
 import { Button } from '@/components/ui/button.tsx';
-import { Input } from '@/components/ui/input.tsx';
-import { Label } from '@/components/ui/label.tsx';
-import { LogInIcon, EyeIcon, EyeOffIcon } from 'lucide-react';
+import { LogInIcon } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth.tsx';
+import { cn } from '@/lib/utils.ts';
 
 interface LoginDialogProps {
     children?: React.ReactNode;
@@ -24,11 +20,14 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
     open,
     onOpenChange,
 }) => {
+    const [isLoginMode, setIsLoginMode] = useState(true);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const { login, isLoading, error, clearError } = useAuth();
+    const { login, register, isLoading, error, clearError } = useAuth();
+    const [validationError, setValidationError] = useState<string | null>(null);
 
     const isControlled = open !== undefined && onOpenChange !== undefined;
     const dialogOpen = isControlled ? open : isDialogOpen;
@@ -36,12 +35,28 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setValidationError(null);
         if (!username.trim() || !password.trim()) return;
 
+        if (!isLoginMode && password !== confirmPassword) {
+            setValidationError('Passwords do not match');
+            return;
+        }
+
+        if (!isLoginMode && password.length < 8) {
+            setValidationError('Password must be at least 8 characters');
+            return;
+        }
+
         try {
-            await login(username.trim(), password.trim());
+            if (isLoginMode) {
+                await login(username.trim(), password.trim());
+            } else {
+                await register(username.trim(), password.trim());
+            }
             setUsername('');
             setPassword('');
+            setConfirmPassword('');
             setDialogOpen(false);
         } catch (err) {
             // Error is handled by the auth context
@@ -53,24 +68,39 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
         setDialogOpen(newOpen);
         if (!newOpen) {
             // Clear form and errors when dialog closes
+            setIsLoginMode(true);
             setUsername('');
             setPassword('');
+            setConfirmPassword('');
+            setValidationError(null);
             clearError();
         }
     };
 
     const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setUsername(e.target.value);
-        if (error) {
-            clearError();
-        }
+        if (error) clearError();
+        if (validationError) setValidationError(null);
     };
 
     const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setPassword(e.target.value);
-        if (error) {
-            clearError();
-        }
+        if (error) clearError();
+        if (validationError) setValidationError(null);
+    };
+
+    const handleConfirmPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setConfirmPassword(e.target.value);
+        if (error) clearError();
+        if (validationError) setValidationError(null);
+    };
+
+    const toggleMode = () => {
+        setIsLoginMode(!isLoginMode);
+        setValidationError(null);
+        clearError();
+        setPassword('');
+        setConfirmPassword('');
     };
 
     return (
@@ -83,83 +113,123 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
                     </Button>
                 )}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                    <DialogTitle>Login</DialogTitle>
-                    <DialogDescription>
-                        Enter your credentials to access the chat interface.
-                    </DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="username">Username</Label>
-                        <Input
-                            id="username"
-                            type="text"
-                            placeholder="Username"
-                            value={username}
-                            onChange={handleUsernameChange}
-                            className={error ? 'border-destructive focus-visible:ring-destructive' : ''}
-                            disabled={isLoading}
-                            autoComplete="username"
-                        />
+            <DialogContent className="w-[min(92vw,28rem)] border-none bg-transparent p-0 shadow-none sm:rounded-2xl">
+                <div className="flex flex-col items-center justify-center bg-background gap-6 p-6 sm:p-8 rounded-2xl border shadow-2xl">
+                    <div className="text-center space-y-2 transition-all duration-300 ease-in-out">
+                        <div className="flex items-center justify-center gap-3">
+                            <svg width="36" height="36" viewBox="0 0 1191 1191" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="595.276" cy="614.849" r="499.517" className="fill-foreground" />
+                                <path d="M924.054,572.425c0,82.98 -73.269,158.521 -188.149,193.982l-341.54,105.426l-112.51,-235.507c-9.883,-20.687 -14.91,-42.231 -14.91,-63.901c0,-118.419 147.22,-214.56 328.554,-214.56c181.334,0 328.554,96.141 328.554,214.56Z" className="fill-background" />
+                            </svg>
+                            <h1 className="text-2xl font-bold">AI Chat</h1>
+                        </div>
+                        <p className="text-muted-foreground animate-in fade-in slide-in-from-top-2 duration-300" key={isLoginMode ? 'login-text' : 'register-text'}>
+                            {isLoginMode
+                                ? 'Enter your credentials to continue'
+                                : 'Create a new account'}
+                        </p>
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="password">Password</Label>
-                        <div className="relative">
-                            <Input
-                                id="password"
-                                type={showPassword ? 'text' : 'password'}
-                                placeholder="Password"
-                                value={password}
-                                onChange={handlePasswordChange}
-                                className={error ? 'border-destructive focus-visible:ring-destructive' : ''}
-                                disabled={isLoading}
-                                autoComplete="current-password"
-                            />
-                            <Button
+
+                    <form onSubmit={handleSubmit} className="w-full space-y-4">
+                        <div className="flex flex-col gap-5">
+                            <div className="space-y-2">
+                                <input
+                                    type="text"
+                                    placeholder="Username"
+                                    value={username}
+                                    onChange={handleUsernameChange}
+                                    className={cn(
+                                        'w-full px-4 py-2.5 rounded-xl border bg-background text-foreground placeholder:text-muted-foreground transition-all focus:outline-none focus:ring-[0.5px] focus:ring-offset-0',
+                                        error || validationError ? 'border-destructive focus:ring-destructive' : 'border-input focus:ring-primary/40 focus:border-primary'
+                                    )}
+                                    disabled={isLoading}
+                                    autoComplete="username"
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="relative">
+                                <input
+                                    type={showPassword ? 'text' : 'password'}
+                                    placeholder="Password"
+                                    value={password}
+                                    onChange={handlePasswordChange}
+                                    className={cn(
+                                        'w-full px-4 py-2.5 pr-10 rounded-xl border bg-background text-foreground placeholder:text-muted-foreground transition-all focus:outline-none focus:ring-[0.5px] focus:ring-offset-0',
+                                        error || validationError ? 'border-destructive focus:ring-destructive' : 'border-input focus:ring-primary/40 focus:border-primary'
+                                    )}
+                                    disabled={isLoading}
+                                    autoComplete={isLoginMode ? 'current-password' : 'new-password'}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                    tabIndex={-1}
+                                >
+                                    {showPassword ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                                    )}
+                                </button>
+                            </div>
+
+                            <div className={cn(
+                                'grid w-full transition-all !duration-200 ease-in-out',
+                                !isLoginMode ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 -mt-4'
+                            )}>
+                                <div className="overflow-hidden">
+                                    <div className="space-y-2 pt-1">
+                                        <input
+                                            type="password"
+                                            placeholder="Confirm Password"
+                                            value={confirmPassword}
+                                            onChange={handleConfirmPasswordChange}
+                                            className={cn(
+                                                'w-full px-4 py-2.5 rounded-xl border bg-background text-foreground placeholder:text-muted-foreground transition-all focus:outline-none focus:ring-[0.5px] focus:ring-offset-0',
+                                                error || validationError ? 'border-destructive focus:ring-destructive' : 'border-input focus:ring-primary/40 focus:border-primary'
+                                            )}
+                                            disabled={isLoading}
+                                            autoComplete="new-password"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className={cn(
+                                'grid w-full transition-all !duration-200 ease-in-out',
+                                error || validationError ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 -mt-4'
+                            )}>
+                                <div className="overflow-hidden">
+                                    <p className="text-sm text-destructive font-medium pt-1 px-1">
+                                        {validationError || error}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={isLoading || !username.trim() || !password.trim() || (!isLoginMode && !confirmPassword.trim())}
+                            className="w-full px-6 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isLoading
+                                ? (isLoginMode ? 'Logging in...' : 'Registering...')
+                                : (isLoginMode ? 'Login' : 'Register')}
+                        </button>
+
+                        <div className="pt-2 text-center">
+                            <button
                                 type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                                onClick={() => setShowPassword(!showPassword)}
+                                onClick={toggleMode}
+                                className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors"
                                 disabled={isLoading}
                             >
-                                {showPassword ? (
-                                    <EyeOffIcon className="size-4" />
-                                ) : (
-                                    <EyeIcon className="size-4" />
-                                )}
-                            </Button>
+                                {isLoginMode ? 'Don\'t have an account? Register' : 'Already have an account? Login'}
+                            </button>
                         </div>
-                        {error && (
-                            <p className="text-sm text-destructive">{error}</p>
-                        )}
-                    </div>
-                    <div className="flex justify-end gap-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => handleOpenChange(false)}
-                            disabled={isLoading}
-                        >
-                            Cancel
-                        </Button>
-                        <Button type="submit" disabled={!username.trim() || !password.trim() || isLoading}>
-                            {isLoading ? (
-                                <>
-                                    <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" />
-                                    Logging in...
-                                </>
-                            ) : (
-                                <>
-                                    <LogInIcon className="size-4 mr-2" />
-                                    Login
-                                </>
-                            )}
-                        </Button>
-                    </div>
-                </form>
+                    </form>
+                </div>
             </DialogContent>
         </Dialog>
     );

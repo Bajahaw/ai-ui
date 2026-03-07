@@ -4,12 +4,14 @@ import { Button } from "@/components/ui/button";
 import { ConversationSidebar } from "@/components/ai-elements/conversation-sidebar";
 import { ChatInterface } from "@/components/ChatInterface";
 import { useConversations } from "@/hooks/useConversations";
+import { useAuth } from "@/hooks/useAuth";
 import { SettingsDialog } from "@/components/settings";
 import { Attachment } from "@/lib/api/types";
 
 import { MessageSquareIcon, SettingsIcon } from "lucide-react";
 
 function App() {
+	const { isAuthenticated, isCheckingAuth } = useAuth();
 	const [webSearch, setWebSearch] = useState(false);
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(
 		window.innerWidth < 768,
@@ -238,6 +240,7 @@ function App() {
 							variant="ghost"
 							size="sm"
 							onClick={() => setShowSettings(true)}
+							disabled={!isAuthenticated || isCheckingAuth}
 							className="hover:bg-accent"
 							title="Settings"
 						>
@@ -273,6 +276,8 @@ function App() {
 					webSearch={webSearch}
 					currentConversation={currentConversation}
 					stats={stats}
+					isAuthenticated={isAuthenticated}
+					isAuthChecking={isCheckingAuth}
 					isConversationLoading={isConversationLoading}
 					onWebSearchToggle={handleWebSearchToggle}
 					onSendMessage={handleSendMessage}

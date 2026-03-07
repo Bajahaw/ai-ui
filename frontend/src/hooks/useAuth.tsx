@@ -3,6 +3,7 @@ import { authAPI } from '@/lib/api/auth.ts';
 
 interface AuthContextType {
     isAuthenticated: boolean;
+    isCheckingAuth: boolean;
     isLoading: boolean;
     login: (username: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
@@ -19,7 +20,8 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Check authentication status on mount
@@ -32,7 +34,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 console.error('Error checking auth status:', err);
                 setIsAuthenticated(false);
             } finally {
-                setIsLoading(false);
+                setIsCheckingAuth(false);
             }
         };
 
@@ -96,6 +98,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const value: AuthContextType = {
         isAuthenticated,
+        isCheckingAuth,
         isLoading,
         login,
         logout,

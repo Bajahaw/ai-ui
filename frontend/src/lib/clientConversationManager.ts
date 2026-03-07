@@ -19,6 +19,10 @@ export interface ClientConversation {
 export class ClientConversationManager {
 	private conversations: Map<string, ClientConversation> = new Map();
 
+	clear(): void {
+		this.conversations.clear();
+	}
+
 	generateTempId(): string {
 		return `temp_${Date.now()}_${Math.abs(tempIdCounter--)}`;
 	}

@@ -358,13 +358,6 @@ export const useConversations = () => {
         };
     }, [isAuthenticated, manager, syncConversations]);
 
-    // Only load conversations when authenticated
-    useEffect(() => {
-        if (isAuthenticated) {
-            loadConversations();
-        }
-    }, [isAuthenticated]);
-
     const loadConversations = useCallback(async () => {
         // Skip if not authenticated to prevent 401 errors
         if (!isAuthenticated) {
@@ -401,7 +394,33 @@ export const useConversations = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [manager, syncConversations]);
+    }, [isAuthenticated, manager, syncConversations]);
+
+    // Only load conversations when authenticated
+    useEffect(() => {
+        if (isAuthenticated) {
+            loadConversations();
+        }
+    }, [isAuthenticated, loadConversations]);
+
+    useEffect(() => {
+        if (isAuthenticated) {
+            return;
+        }
+
+        manager.clear();
+        setConversations([]);
+        setActiveConversationId(null);
+        setIsLoading(false);
+        setIsConversationLoading(false);
+        setError(null);
+        setStats({
+            totalTokens: 0,
+            totalInputTokens: 0,
+            totalConversations: 0,
+            totalMessages: 0,
+        });
+    }, [isAuthenticated, manager]);
 
     const getCurrentMessages = useCallback(
         (conversation: ClientConversation): FrontendMessage[] => {

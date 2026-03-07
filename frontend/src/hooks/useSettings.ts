@@ -6,6 +6,7 @@ import {
     updateSetting,
 } from "@/lib/api/settings";
 import { Settings } from "@/lib/api/types";
+import { useAuth } from "@/hooks/useAuth";
 
 interface UseSettingsReturn {
     settings: Record<string, string>;
@@ -21,6 +22,7 @@ interface UseSettingsReturn {
 }
 
 export const useSettings = (): UseSettingsReturn => {
+	const { isAuthenticated, isCheckingAuth } = useAuth();
     const [settings, setSettings] = useState<Record<string, string>>({});
     const [systemPrompt, setSystemPrompt] = useState<string>("");
     const [isLoading, setIsLoading] = useState(true);
@@ -119,8 +121,19 @@ export const useSettings = (): UseSettingsReturn => {
 
     // Load settings on mount
     useEffect(() => {
+        if (isCheckingAuth) {
+            return;
+        }
+
+        if (!isAuthenticated) {
+            setSettings({});
+            setSystemPrompt("");
+            setIsLoading(false);
+            return;
+        }
+
         refreshSettings();
-    }, [refreshSettings]);
+    }, [isAuthenticated, isCheckingAuth, refreshSettings]);
 
     return {
         settings,

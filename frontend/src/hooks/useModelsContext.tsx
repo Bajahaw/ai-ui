@@ -9,6 +9,7 @@ import {
 } from "react";
 import { getAllModels, saveAllModels } from "@/lib/api/models";
 import { Model } from "@/lib/api/types";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ModelsContextValue {
 	models: Model[];
@@ -31,6 +32,7 @@ interface ModelsContextValue {
 const ModelsContext = createContext<ModelsContextValue | undefined>(undefined);
 
 export const ModelsProvider = ({ children }: { children: ReactNode }) => {
+	const { isAuthenticated, isCheckingAuth } = useAuth();
 	const [models, setModels] = useState<Model[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -100,8 +102,18 @@ export const ModelsProvider = ({ children }: { children: ReactNode }) => {
 
 	// Initial load
 	useEffect(() => {
+		if (isCheckingAuth) {
+			return;
+		}
+
+		if (!isAuthenticated) {
+			setModels([]);
+			setIsLoading(false);
+			return;
+		}
+
 		refreshModels();
-	}, [refreshModels]);
+	}, [isAuthenticated, isCheckingAuth, refreshModels]);
 
 	const value = useMemo<ModelsContextValue>(
 		() => ({

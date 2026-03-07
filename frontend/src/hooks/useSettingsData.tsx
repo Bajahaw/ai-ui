@@ -11,6 +11,7 @@ import { getAllTools, saveAllTools } from "@/lib/api/tools";
 import { getSettings, updateSetting, updateSystemPrompt } from "@/lib/api/settings";
 import { FrontendProvider, MCPServerRequest, MCPServerResponse, Model, ProviderRequest, ProviderResponse, Tool } from "@/lib/api/types";
 import { useModelsContext } from "./useModelsContext";
+import { useAuth } from "./useAuth";
 
 interface SettingsData {
     providers: FrontendProvider[];
@@ -57,6 +58,7 @@ interface SettingsDataContext {
 const Context = createContext<SettingsDataContext | undefined>(undefined);
 
 export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
+	const { isAuthenticated, isCheckingAuth } = useAuth();
     // Use global models context
     const {
         models,
@@ -79,7 +81,7 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
     const pendingSettings = useRef<Record<string, string>>({});
 
     const fetchAll = useCallback(async () => {
-        if (loading) return;
+        if (isCheckingAuth || !isAuthenticated || loading) return;
         setLoading(true);
 
         try {
@@ -108,7 +110,7 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
         } finally {
             setLoading(false);
         }
-    }, [loading]);
+    }, [isAuthenticated, isCheckingAuth, loading]);
 
     // Providers
     const refreshProviders = useCallback(async () => {

@@ -132,6 +132,8 @@ interface ChatInterfaceProps {
 	webSearch: boolean;
 	currentConversation: ClientConversation | undefined;
 	stats?: WelcomeStats;
+	isAuthenticated?: boolean;
+	isAuthChecking?: boolean;
 	isConversationLoading?: boolean;
 	onWebSearchToggle: (enabled: boolean) => void;
 	onSendMessage: (
@@ -156,6 +158,8 @@ export const ChatInterface = ({
 	webSearch,
 	currentConversation,
 	stats,
+	isAuthenticated = false,
+	isAuthChecking = false,
 	isConversationLoading = false,
 	// onWebSearchToggle,
 	onSendMessage,
@@ -165,6 +169,7 @@ export const ChatInterface = ({
 	onUpdateMessage,
 	onCancelStream,
 }: ChatInterfaceProps) => {
+	const isComposerDisabled = isAuthChecking || !isAuthenticated;
 	const { models, isLoading: modelsLoading } = useModels();
 	const [fileManagerOpen, setFileManagerOpen] = useState(false);
 	const {
@@ -714,7 +719,17 @@ export const ChatInterface = ({
 			<Conversation ref={conversationRef} className="flex-1">
 				{messages.length === 0 && !isConversationLoading ? (
 					<div className="h-full flex items-center justify-center">
-						<Welcome stats={stats} />
+						<Welcome
+							stats={stats}
+							isLoading={isAuthChecking}
+							message={
+								isAuthChecking
+									? undefined
+									: isAuthenticated
+										? "Choose a conversation or start a new chat from the sidebar."
+										: "Sign in from the sidebar to load your conversations and start chatting."
+							}
+						/>
 					</div>
 				) : (
 					<ConversationContent className="chat-interface w-full max-w-3xl mx-auto !px-5 lg:!px-3">
@@ -761,7 +776,14 @@ export const ChatInterface = ({
 						autoFocus
 						onChange={(e) => setInput(e.target.value)}
 						value={input}
-						placeholder="Ask anything here ..."
+						placeholder={
+							isAuthChecking
+								? "Checking session..."
+								: !isAuthenticated
+									? "Sign in from the sidebar to start chatting..."
+									: "Ask anything here ..."
+						}
+						disabled={isComposerDisabled}
 						onFilesPasted={handleFilesPasted}
 					/>
 					<PromptInputToolbar>
@@ -769,8 +791,8 @@ export const ChatInterface = ({
 							<PromptInputButton
 								variant="ghost"
 								onClick={() => setFileManagerOpen(true)}
-								disabled={hasPendingMessages}
-								title="Attach files"
+								disabled={hasPendingMessages || isComposerDisabled}
+								title={!isAuthenticated ? "Sign in to attach files" : "Attach files"}
 							>
 								<Plus size={16} />
 							</PromptInputButton>
@@ -787,7 +809,7 @@ export const ChatInterface = ({
 								value={isModelValid ? model : undefined}
 								onChange={handleModelChange}
 								loading={modelsLoading}
-								disabled={settingsLoading}
+								disabled={settingsLoading || isComposerDisabled}
 								helperMessage="Add AI providers in settings"
 								variant="ghost"
 								size="sm"
@@ -797,6 +819,7 @@ export const ChatInterface = ({
 						</PromptInputTools>
 						<PromptInputSubmit
 							disabled={
+								isComposerDisabled ||
 								(!hasPendingMessages && (!input.trim() && uploadedFiles.length === 0)) ||
 								(!hasPendingMessages && (!model || models.length === 0))
 							}

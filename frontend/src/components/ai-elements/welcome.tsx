@@ -83,9 +83,25 @@ function StatCell({ value, label, index }: {
 
 export interface WelcomeProps extends ComponentProps<"div"> {
   stats?: WelcomeStats;
+  isLoading?: boolean;
+  message?: string;
 }
 
-export const Welcome = ({ className, stats, ...props }: WelcomeProps) => {
+export const Welcome = ({ className, stats, isLoading = false, message, ...props }: WelcomeProps) => {
+  const displayStats: WelcomeStats = isLoading
+    ? {
+        totalTokens: 0,
+        totalInputTokens: 0,
+        totalConversations: 0,
+        totalMessages: 0,
+      }
+    : stats ?? {
+        totalTokens: 0,
+        totalInputTokens: 0,
+        totalConversations: 0,
+        totalMessages: 0,
+      };
+
   return (
     <div
       className={cn(
@@ -98,6 +114,10 @@ export const Welcome = ({ className, stats, ...props }: WelcomeProps) => {
         How can I help you?
       </h1>
 
+      <p className={cn("mb-6 max-w-md text-center text-sm text-muted-foreground", !message && "invisible")}>
+        {message ?? "\u00A0"}
+      </p>
+
       <div className="w-full max-w-lg">
         <div className="border-t border-border/40" />
 
@@ -106,7 +126,7 @@ export const Welcome = ({ className, stats, ...props }: WelcomeProps) => {
           {STAT_DEFS.map(({ key, label }, i) => (
             <StatCell
               key={key}
-              value={stats?.[key] ?? 0}
+              value={displayStats[key] ?? 0}
               label={label}
               index={i}
             />
