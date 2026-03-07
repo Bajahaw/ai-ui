@@ -89,7 +89,7 @@ export const Welcome = ({ className, stats, ...props }: WelcomeProps) => {
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center w-full px-4 select-none",
+        "flex flex-col items-center justify-center w-full px-4 select-none animate-fade-in",
         className,
       )}
       {...props}
@@ -114,7 +114,7 @@ export const Welcome = ({ className, stats, ...props }: WelcomeProps) => {
         </div>
 
         <div className="border-t border-border/40" />
-        
+
       </div>
     </div>
   );

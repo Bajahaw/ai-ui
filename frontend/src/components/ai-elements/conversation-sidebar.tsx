@@ -245,7 +245,7 @@ export const ConversationSidebar = ({
                                                 <div
                                                     key={conversation.id}
                                                     className={cn(
-                                                        "group relative w-full rounded-lg transition-colors py-[0.1rem]",
+                                                        "group relative w-full rounded-lg transition-colors py-[0.1rem] animate-fade-in",
                                                         activeConversationId === conversation.id
                                                             ? "bg-secondary/80"
                                                             : "hover:bg-secondary/80",

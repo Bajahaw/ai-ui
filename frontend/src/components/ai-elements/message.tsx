@@ -18,7 +18,7 @@ export const Message = ({
 }: MessageProps) => (
   <div
     className={cn(
-      "group flex w-full items-start gap-2 py-6",
+      "group flex w-full items-start gap-2 py-6 animate-fade-in",
       from === "user" ? "is-user justify-end" : "is-assistant justify-start",
       from === "user"
         ? "[&>div]:max-w-[85%] sm:[&>div]:max-w-[75%] md:[&>div]:max-w-[65%] lg:[&>div]:max-w-[60%]"
