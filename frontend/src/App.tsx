@@ -62,6 +62,7 @@ function App() {
 		startNewChat,
 		getCurrentMessages,
 		isLoading: conversationsLoading,
+		isConversationLoading,
 		error: conversationsError,
 		clearError,
 		deleteConversation,
@@ -272,6 +273,7 @@ function App() {
 					webSearch={webSearch}
 					currentConversation={currentConversation}
 					stats={stats}
+					isConversationLoading={isConversationLoading}
 					onWebSearchToggle={handleWebSearchToggle}
 					onSendMessage={handleSendMessage}
 					onRetryMessage={handleRetryMessage}

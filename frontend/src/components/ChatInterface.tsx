@@ -132,6 +132,7 @@ interface ChatInterfaceProps {
 	webSearch: boolean;
 	currentConversation: ClientConversation | undefined;
 	stats?: WelcomeStats;
+	isConversationLoading?: boolean;
 	onWebSearchToggle: (enabled: boolean) => void;
 	onSendMessage: (
 		message: string,
@@ -155,6 +156,7 @@ export const ChatInterface = ({
 	webSearch,
 	currentConversation,
 	stats,
+	isConversationLoading = false,
 	// onWebSearchToggle,
 	onSendMessage,
 	onRetryMessage,
@@ -710,7 +712,7 @@ export const ChatInterface = ({
 	return (
 		<div className="flex-1 flex flex-col min-h-0">
 			<Conversation ref={conversationRef} className="flex-1">
-				{messages.length === 0 ? (
+				{messages.length === 0 && !isConversationLoading ? (
 					<div className="h-full flex items-center justify-center">
 						<Welcome stats={stats} />
 					</div>

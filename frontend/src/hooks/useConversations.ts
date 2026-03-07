@@ -298,6 +298,7 @@ export const useConversations = () => {
         string | null
     >(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [isConversationLoading, setIsConversationLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [stats, setStats] = useState<WelcomeStats>({
         totalTokens: 0,
@@ -417,6 +418,7 @@ export const useConversations = () => {
 
             // Only lazy-load messages if they haven't been loaded yet
             if (!manager.hasLoadedMessages(conversationId)) {
+                setIsConversationLoading(true);
                 (async () => {
                     try {
                         const msgs =
@@ -426,6 +428,8 @@ export const useConversations = () => {
                         syncConversations();
                     } catch (err) {
                         console.error("Failed to load conversation messages:", err);
+                    } finally {
+                        setIsConversationLoading(false);
                     }
                 })();
             }
@@ -986,6 +990,7 @@ export const useConversations = () => {
         activeConversationId,
         currentConversation,
         isLoading,
+        isConversationLoading,
         error,
         stats,
         sendMessageStream,
