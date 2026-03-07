@@ -216,6 +216,7 @@ function App() {
 				onRenameConversation={handleRenameConversation}
 				isCollapsed={sidebarCollapsed}
 				onToggleCollapse={handleToggleSidebar}
+				isLoading={conversationsLoading}
 			/>
 
 			{/* Main Content */}
@@ -266,16 +267,7 @@ function App() {
 					</div>
 				)}
 
-				{/* Loading State */}
-				{conversationsLoading && safeConversations.length === 0 && (
-					<div className="flex items-center justify-center h-32">
-						<div className="text-muted-foreground">
-							Loading conversations...
-						</div>
-					</div>
-				)}
-
-				<ChatInterface
+			<ChatInterface
 					messages={currentMessages}
 					webSearch={webSearch}
 					currentConversation={currentConversation}

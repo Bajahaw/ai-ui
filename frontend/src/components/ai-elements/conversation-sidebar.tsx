@@ -36,6 +36,7 @@ export interface ConversationSidebarProps extends ComponentProps<"div"> {
     isCollapsed?: boolean;
     onToggleCollapse?: () => void;
     maxWidth?: string;
+    isLoading?: boolean;
 }
 
 const getConversationGroup = (conversation: ClientConversation): string => {
@@ -65,6 +66,7 @@ export const ConversationSidebar = ({
                                         onRenameConversation,
                                         isCollapsed = false,
                                         onToggleCollapse,
+                                        isLoading = false,
                                         className,
                                         ...props
                                     }: ConversationSidebarProps) => {
@@ -215,7 +217,11 @@ export const ConversationSidebar = ({
                     
                     <ScrollArea className="h-full" type="scroll">
                         <div className="px-3 py-4 space-y-6">
-                            {conversations.length === 0 ? (
+                            {isLoading && conversations.length === 0 ? (
+                                <div className="text-center py-8 text-muted-foreground text-sm">
+                                    Loading conversations...
+                                </div>
+                            ) : conversations.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground text-sm">
                                     No conversations yet.
                                     <br/>

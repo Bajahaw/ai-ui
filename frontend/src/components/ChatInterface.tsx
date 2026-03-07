@@ -710,19 +710,19 @@ export const ChatInterface = ({
 	return (
 		<div className="flex-1 flex flex-col min-h-0">
 			<Conversation ref={conversationRef} className="flex-1">
-				<ConversationContent className="chat-interface w-full max-w-3xl mx-auto !px-5 lg:!px-3">
-					{messages.length === 0 ? (
-						<div className="h-full flex items-center justify-center">
-							<Welcome stats={stats} />
-						</div>
-					) : (
+				{messages.length === 0 ? (
+					<div className="h-full flex items-center justify-center">
+						<Welcome stats={stats} />
+					</div>
+				) : (
+					<ConversationContent className="chat-interface w-full max-w-3xl mx-auto !px-5 lg:!px-3">
 						<div className="space-y-4">
 							{messages.map((message) => renderMessage(message))}
 							{/* Add overscroll spacer only when user has interacted with conversation */}
 							{hasInteracted && <div style={{ minHeight: 'calc(-450px + 100vh)' }} />}
 						</div>
-					)}
-				</ConversationContent>
+					</ConversationContent>
+				)}
 				<ConversationScrollButton />
 			</Conversation>
 

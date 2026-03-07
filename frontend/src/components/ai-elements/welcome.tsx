@@ -86,13 +86,6 @@ export interface WelcomeProps extends ComponentProps<"div"> {
 }
 
 export const Welcome = ({ className, stats, ...props }: WelcomeProps) => {
-  const allZero = !stats || (
-    stats.totalTokens === 0 &&
-    stats.totalInputTokens === 0 &&
-    stats.totalConversations === 0 &&
-    stats.totalMessages === 0
-  );
-
   return (
     <div
       className={cn(
@@ -121,12 +114,7 @@ export const Welcome = ({ className, stats, ...props }: WelcomeProps) => {
         </div>
 
         <div className="border-t border-border/40" />
-
-        {allZero && (
-          <p className="mt-5 text-center text-[9px] tracking-[0.25em] uppercase text-muted-foreground/50">
-            Your stats will appear here
-          </p>
-        )}
+        
       </div>
     </div>
   );
