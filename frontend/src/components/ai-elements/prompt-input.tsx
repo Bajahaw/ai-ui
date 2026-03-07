@@ -2,7 +2,7 @@
 
 import {Loader2Icon, SendIcon, SquareIcon, XIcon} from "lucide-react";
 import type {ComponentProps, HTMLAttributes, KeyboardEventHandler,} from "react";
-import {Children, forwardRef, useCallback, useState} from "react";
+import {Children, forwardRef, useCallback, useEffect, useRef, useState} from "react";
 import {ModelSelect,} from "@/components/ai-elements/model-select.tsx";
 import {Button} from "@/components/ui/button.tsx";
 import {Textarea} from "@/components/ui/textarea.tsx";
@@ -16,7 +16,7 @@ export type PromptInputProps = HTMLAttributes<HTMLFormElement>;
 export const PromptInput = ({ className, ...props }: PromptInputProps) => (
   <form
     className={cn(
-      "w-full divide-y overflow-hidden rounded-xl border bg-background shadow-sm",
+      "w-full divide-y overflow-hidden rounded-3xl border bg-secondary/50 shadow-sm",
       className,
     )}
     {...props}
@@ -35,10 +35,48 @@ export const PromptInputTextarea = forwardRef<HTMLTextAreaElement, PromptInputTe
   className,
   placeholder = "What would you like to know?",
   value,
+  minHeight = 24,
+  maxHeight = 200,
   ...props
 }, ref) => {
   const [input, setInput] = useState(value as string || "");
   const { settings } = useSettings();
+  const internalRef = useRef<HTMLTextAreaElement>(null);
+
+  const adjustHeight = useCallback(() => {
+    const el = internalRef.current;
+    if (!el) return;
+
+    // Record the current rendered height so we can animate pixel → pixel.
+    const currentHeight = el.getBoundingClientRect().height;
+
+    // Temporarily disable transitions and collapse to "auto" to measure content.
+    el.style.transition = "none";
+    el.style.height = "auto";
+    const scrollH = el.scrollHeight;
+    const next = Math.min(Math.max(scrollH, minHeight), maxHeight);
+
+    // Restore the previous pixel height (no visible change yet).
+    el.style.height = `${currentHeight}px`;
+
+    // Force a reflow so the browser registers the restored height.
+    void el.offsetHeight;
+
+    // Re-enable the CSS transition, then set the target height to animate.
+    el.style.transition = "";
+    el.style.height = `${next}px`;
+    el.style.overflowY = scrollH > maxHeight ? "auto" : "hidden";
+  }, [minHeight, maxHeight]);
+
+  useEffect(() => {
+    adjustHeight();
+  }, [value, input, adjustHeight]);
+
+  const setRefs = useCallback((el: HTMLTextAreaElement | null) => {
+    (internalRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
+    if (typeof ref === "function") ref(el);
+    else if (ref) (ref as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
+  }, [ref]);
 
   const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = useCallback((e) => {
     if (e.key === "Enter") {
@@ -83,10 +121,11 @@ export const PromptInputTextarea = forwardRef<HTMLTextAreaElement, PromptInputTe
 
   return (
     <Textarea
-      ref={ref}
+      rows={1}
+      ref={setRefs}
       className={cn(
         "w-full resize-none rounded-none border-none py-3 px-5 shadow-none outline-none ring-0",
-        "bg-transparent dark:bg-transparent field-sizing-content max-h-[6lh]",
+        "bg-transparent dark:bg-transparent overflow-hidden transition-[height] duration-150 ease-in-out",
         "focus-visible:ring-0",
         getTextDirection(input),
         className,
@@ -110,7 +149,7 @@ export const PromptInputToolbar = ({
   ...props
 }: PromptInputToolbarProps) => (
   <div
-    className={cn("flex items-center justify-between py-1 px-1.5", className)}
+    className={cn("flex items-center justify-between border-none py-1.5 px-1.5", className)}
     {...props}
   />
 );
@@ -124,7 +163,6 @@ export const PromptInputTools = ({
   <div
     className={cn(
       "flex items-center gap-1",
-      "[&_button:first-child]:rounded-bl-xl",
       className,
     )}
     {...props}
@@ -145,7 +183,7 @@ export const PromptInputButton = ({
   return (
     <Button
       className={cn(
-        "shrink-0 gap-1.5 rounded-lg",
+        "shrink-0 gap-1.5 rounded-full",
         variant === "ghost" && "text-muted-foreground",
         newSize === "default" && "px-3",
         className,
@@ -185,7 +223,7 @@ export const PromptInputSubmit = ({
   if (status === "streaming" && onStop) {
     return (
       <Button
-        className={cn("gap-1.5 rounded-lg", className)}
+        className={cn("gap-1.5 rounded-full", className)}
         size={size}
         type="button"
         variant={variant}
@@ -199,7 +237,7 @@ export const PromptInputSubmit = ({
 
   return (
     <Button
-      className={cn("gap-1.5 rounded-lg", className)}
+      className={cn("gap-1.5 rounded-full", className)}
       size={size}
       type="submit"
       variant={variant}

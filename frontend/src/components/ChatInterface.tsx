@@ -47,6 +47,7 @@ import {
 	InfoIcon,
 	CheckIcon,
 	XIcon,
+	Plus,
 } from "lucide-react";
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
@@ -64,7 +65,6 @@ import {
 } from "@/components/ui/file-upload";
 import { uploadFile, FileUploadError } from "@/lib/api/files";
 import { FileManagerDialog } from "@/components/file-manager/FileManagerDialog";
-import { Paperclip } from "lucide-react";
 
 // Dynamic models are now loaded from providers via useModels hook
 
@@ -768,7 +768,7 @@ export const ChatInterface = ({
 								disabled={hasPendingMessages}
 								title="Attach files"
 							>
-								<Paperclip size={16} />
+								<Plus size={16} />
 							</PromptInputButton>
 							{/* <PromptInputButton
 								variant={webSearch ? "default" : "ghost"}

@@ -76,7 +76,7 @@ export const ModelSelect = ({
                 aria-label={triggerAriaLabel}
                 size={size}
                 className={cn(
-                    "flex w-fit items-center justify-between gap-2 rounded-lg !border-none !bg-transparent transition-colors data-[placeholder]:text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0",
+                    "flex w-fit items-center justify-between gap-2 rounded-lg !border-none !bg-transparent hover:!bg-secondary/80 transition-all !duration-100 data-[placeholder]:!text-muted-foreground focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0",
                     variantStyles[variant],
                     sizeStyles[size],
                     isDisabled && "opacity-60",
@@ -112,9 +112,9 @@ export const ModelSelect = ({
                                 value={modelOption.id}
                                 className="rounded-lg px-3 py-2.5 text-sm leading-5 focus:bg-muted-foreground/10"
                             >
-                                <div className="max-w-[280px] overflow-hidden text-ellipsis text-nowrap select-none">
+                                <div className="max-w-[280px] overflow-hidden text-muted-foreground text-ellipsis text-nowrap select-none translate-y-[-2px]">
                                     <span className="font-medium">{modelOption.name}</span> {" "}
-                                    <span className="text-xs text-muted-foreground">{modelOption.provider}</span>
+                                    <span className="text-xs">{modelOption.provider}</span>
                                 </div>
                             </SelectItem>
                         ))}

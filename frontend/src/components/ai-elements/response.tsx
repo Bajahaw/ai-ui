@@ -224,7 +224,7 @@ export type ResponseProps = HTMLAttributes<HTMLDivElement> & {
 const components: Options["components"] = {
   ol: ({ node, children, className, ...props }) => (
     <ol
-      className={cn("pl-2 ml-4 list-outside list-decimal my-3 space-y-2", className)}
+      className={cn("pl-2 ml-4 list-outside list-decimal my-4 mb-6 space-y-2", className)}
       {...props}
     >
       {children}
@@ -237,7 +237,7 @@ const components: Options["components"] = {
   ),
   ul: ({ node, children, className, ...props }) => (
     <ul
-      className={cn("pl-4 ml-4 list-outside list-disc my-3 space-y-2", className)}
+      className={cn("pl-4 ml-4 list-outside list-disc my-4 mb-6 space-y-2", className)}
       {...props}
     >
       {children}
