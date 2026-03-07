@@ -51,7 +51,7 @@ import {
 } from "lucide-react";
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
-import { FrontendMessage, ToolCall } from "@/lib/api/types";
+import { FrontendMessage, ToolCall, WelcomeStats } from "@/lib/api/types";
 import { BranchNavigation } from "@/components/BranchNavigation";
 import { ClientConversation } from "@/lib/clientConversationManager";
 import {
@@ -131,6 +131,7 @@ interface ChatInterfaceProps {
 	messages: FrontendMessage[];
 	webSearch: boolean;
 	currentConversation: ClientConversation | undefined;
+	stats?: WelcomeStats;
 	onWebSearchToggle: (enabled: boolean) => void;
 	onSendMessage: (
 		message: string,
@@ -153,6 +154,7 @@ export const ChatInterface = ({
 	messages,
 	webSearch,
 	currentConversation,
+	stats,
 	// onWebSearchToggle,
 	onSendMessage,
 	onRetryMessage,
@@ -711,7 +713,7 @@ export const ChatInterface = ({
 				<ConversationContent className="chat-interface w-full max-w-3xl mx-auto !px-5 lg:!px-3">
 					{messages.length === 0 ? (
 						<div className="h-full flex items-center justify-center">
-							<Welcome />
+							<Welcome stats={stats} />
 						</div>
 					) : (
 						<div className="space-y-4">

@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"ai-client/cmd/data"
 	"ai-client/cmd/utils"
 	"fmt"
 	"net/http"
@@ -142,4 +143,41 @@ func getConversationMessages(w http.ResponseWriter, r *http.Request) {
 	convId := r.PathValue("id")
 	messages := getAllConversationMessages(convId, user)
 	utils.RespondWithJSON(w, &messages, http.StatusOK)
+}
+
+type ConversationStats struct {
+	TotalTokens        int64 `json:"totalTokens"`
+	TotalInputTokens   int64 `json:"totalInputTokens"`
+	TotalConversations int64 `json:"totalConversations"`
+	TotalMessages      int64 `json:"totalMessages"`
+}
+
+func getStats(w http.ResponseWriter, r *http.Request) {
+	user := utils.ExtractContextUser(r)
+
+	query := `
+		SELECT
+			COUNT(DISTINCT c.id)            AS total_conversations,
+			COUNT(m.id)                     AS total_messages,
+			COALESCE(SUM(m.token_count),0)  AS total_tokens,
+			COALESCE(SUM(m.context_size),0) AS total_input_tokens
+		FROM Conversations c
+		LEFT JOIN Messages m ON m.conv_id = c.id AND m.role = 'assistant'
+		WHERE c.user = ?
+	`
+
+	var stats ConversationStats
+	err := data.DB.QueryRow(query, user).Scan(
+		&stats.TotalConversations,
+		&stats.TotalMessages,
+		&stats.TotalTokens,
+		&stats.TotalInputTokens,
+	)
+	if err != nil {
+		log.Error("Error querying stats", "err", err)
+		http.Error(w, "Error querying stats", http.StatusInternalServerError)
+		return
+	}
+
+	utils.RespondWithJSON(w, &stats, http.StatusOK)
 }

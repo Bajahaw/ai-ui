@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { chatAPI, conversationsAPI, backendToFrontendMessage, FrontendMessage, ToolCall, StreamStats, Attachment } from "@/lib/api";
+import { chatAPI, conversationsAPI, backendToFrontendMessage, FrontendMessage, ToolCall, StreamStats, Attachment, WelcomeStats } from "@/lib/api";
 import { getSessionId } from "@/lib/api/headers";
 import { ApiErrorHandler } from "@/lib/api/errorHandler";
 import { ClientConversation, ClientConversationManager, } from "@/lib/clientConversationManager";
@@ -299,6 +299,12 @@ export const useConversations = () => {
     >(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [stats, setStats] = useState<WelcomeStats>({
+        totalTokens: 0,
+        totalInputTokens: 0,
+        totalConversations: 0,
+        totalMessages: 0,
+    });
     const activeStreamAssistantMessageIdRef = useRef<number | null>(null);
 
     const managerRef = useRef(new ClientConversationManager());
@@ -378,6 +384,14 @@ export const useConversations = () => {
 
             manager.loadBackendConversations(backendConversations);
             syncConversations();
+
+            // Fetch all-time stats from the backend
+            try {
+                const fetchedStats = await conversationsAPI.fetchStats();
+                setStats(fetchedStats);
+            } catch {
+                // Stats are non-critical; swallow the error silently
+            }
         } catch (err) {
             const errorMessage = ApiErrorHandler.getUserFriendlyMessage(err);
             setError(errorMessage);
@@ -973,6 +987,7 @@ export const useConversations = () => {
         currentConversation,
         isLoading,
         error,
+        stats,
         sendMessageStream,
         retryMessageStream,
         updateMessage,

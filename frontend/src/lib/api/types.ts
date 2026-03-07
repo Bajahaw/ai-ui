@@ -127,6 +127,13 @@ export interface StreamComplete {
 	assistantMessageId: number;
 	streamStats?: StreamStats;
 }
+
+export interface WelcomeStats {
+	totalTokens: number;
+	totalInputTokens: number;
+	totalConversations: number;
+	totalMessages: number;
+}
 // Frontend types for compatibility
 export interface FrontendMessage {
 	id: string;

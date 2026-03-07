@@ -1,4 +1,4 @@
-import { Conversation, Message } from "./types.ts";
+import { Conversation, Message, WelcomeStats } from "./types.ts";
 
 import { ApiErrorHandler, isConversation, isConversationArray, isMessagesMap, } from "./errorHandler.ts";
 
@@ -162,6 +162,27 @@ export class ConversationsAPI {
 				);
 			}
 		}, `deleteConversation(${id})`);
+	}
+
+	// GET /api/conversations/stats
+	async fetchStats(): Promise<WelcomeStats> {
+		return ApiErrorHandler.handleApiCall(async () => {
+			const response = await fetch(getApiUrl("/api/conversations/stats"), {
+				method: "GET",
+				headers: getHeaders({ "Content-Type": "application/json" }),
+				credentials: "include",
+			});
+			if (!response.ok) {
+				await ApiErrorHandler.handleFetchError(response, "Fetch stats");
+			}
+			const data = await response.json();
+			return {
+				totalTokens: data.totalTokens ?? 0,
+				totalInputTokens: data.totalInputTokens ?? 0,
+				totalConversations: data.totalConversations ?? 0,
+				totalMessages: data.totalMessages ?? 0,
+			};
+		}, "fetchStats");
 	}
 
 	// POST /api/conversations/{id}/rename

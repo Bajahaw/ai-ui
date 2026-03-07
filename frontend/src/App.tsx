@@ -70,6 +70,7 @@ function App() {
 		getBranchInfo,
 		updateMessage,
 		cancelStream,
+		stats,
 	} = useConversations();
 
 	const handleSendMessage = async (
@@ -278,6 +279,7 @@ function App() {
 					messages={currentMessages}
 					webSearch={webSearch}
 					currentConversation={currentConversation}
+					stats={stats}
 					onWebSearchToggle={handleWebSearchToggle}
 					onSendMessage={handleSendMessage}
 					onRetryMessage={handleRetryMessage}
