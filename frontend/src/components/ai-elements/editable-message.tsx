@@ -23,6 +23,7 @@ interface EditableMessageProps {
 
 export interface EditableMessageRef {
   triggerSave: () => void;
+  getContentElement: () => HTMLElement | null;
 }
 
 export const EditableMessage = forwardRef<
@@ -43,6 +44,7 @@ export const EditableMessage = forwardRef<
   ) => {
     const [editContent, setEditContent] = useState(content);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const contentDivRef = useRef<HTMLDivElement>(null);
 
     // Update edit content when content prop changes
     useEffect(() => {
@@ -68,6 +70,7 @@ export const EditableMessage = forwardRef<
 
     useImperativeHandle(ref, () => ({
       triggerSave: handleSave,
+      getContentElement: () => contentDivRef.current ?? null,
     }));
 
     const handleCancel = () => {
@@ -110,12 +113,14 @@ export const EditableMessage = forwardRef<
     }
 
     return (
-      <Response
-        className={className}
-        parseIncompleteMarkdown={status === "pending"}
-      >
-        {content}
-      </Response>
+      <div ref={contentDivRef}>
+        <Response
+          className={className}
+          parseIncompleteMarkdown={status === "pending"}
+        >
+          {content}
+        </Response>
+      </div>
     );
   },
 );

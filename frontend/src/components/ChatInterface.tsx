@@ -394,11 +394,28 @@ export const ChatInterface = ({
 		[hasPendingMessages],
 	);
 
-	const copyMessage = async (content: string) => {
-		try {
-			await navigator.clipboard.writeText(content);
-		} catch (error) {
-			console.error("Failed to copy message:", error);
+	const copyMessage = (messageId: string | null, fallbackContent: string) => {
+		const element = messageId
+			? editableMessageRefs.current[messageId]?.getContentElement()
+			: null;
+
+		if (element) {
+			const range = document.createRange();
+			range.selectNodeContents(element);
+			const selection = window.getSelection();
+			selection?.removeAllRanges();
+			selection?.addRange(range);
+			// execCommand('copy') is deprecated but remains the only way to copy
+			// a live selection with full computed styles (fonts, tables, colours, etc.).
+			// The modern Clipboard API does not support selection-based copying.
+			// eslint-disable-next-line @typescript-eslint/no-deprecated
+			const success = document.execCommand("copy");
+			selection?.removeAllRanges();
+			if (!success) {
+				navigator.clipboard.writeText(fallbackContent).catch(console.error);
+			}
+		} else {
+			navigator.clipboard.writeText(fallbackContent).catch(console.error);
 		}
 	};
 
@@ -524,6 +541,7 @@ export const ChatInterface = ({
 							}
 							onClick={() =>
 								copyMessage(
+									message.error ? null : message.id,
 									message.error
 										? message.error || "Error occurred"
 										: message.content,
