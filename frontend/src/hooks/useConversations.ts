@@ -368,6 +368,11 @@ export const useConversations = () => {
             setIsLoading(true);
             setError(null);
 
+            // Always start from a clean slate so stale data from a previous
+            // session (or a different user) never bleeds into the new load.
+            manager.clear();
+            syncConversations();
+
             const backendConversations = await conversationsAPI.fetchConversations();
 
             if (!backendConversations || !Array.isArray(backendConversations)) {

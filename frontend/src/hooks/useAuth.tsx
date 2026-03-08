@@ -82,12 +82,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setError(null);
             setIsLoading(true);
             await authAPI.logout();
-            setIsAuthenticated(false);
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Logout failed';
-            setError(errorMessage);
-            throw err;
+            // A 401 means the session was already gone on the server — still log out locally.
+            console.error('Logout API error (ignored, clearing local auth state anyway):', err);
         } finally {
+            setIsAuthenticated(false);
             setIsLoading(false);
         }
     };
