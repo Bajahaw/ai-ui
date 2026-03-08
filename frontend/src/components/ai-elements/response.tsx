@@ -397,7 +397,12 @@ export const Response = memo(
     return (
       <div
         className={cn(
-          "size-full w-full max-w-full overflow-hidden [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:mb-4 [&_p]:[line-height:1.75rem] [&_p]:break-words prose-p:mb-4 prose-p:[line-height:1.75rem] prose-p:break-words [&_table]:table-auto [&_table]:border-collapse [&_table]:w-full [&_table]:my-6 [&_table_th]:border [&_table_td]:border [&_table_td]:px-3 [&_table_td]:py-2 [&_table_th]:px-3 [&_table_th]:py-2 [&_hr]:mb-8 [&_hr]:mt-6",
+          "size-full w-full max-w-full overflow-hidden",
+          "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0", 
+          "[&_p]:mb-4 [&_p]:[line-height:1.75rem] [&_p]:break-words",
+           "prose-p:mb-4 prose-p:[line-height:1.75rem] prose-p:break-words ",
+           "[&_table]:table-auto [&_table]:border-collapse [&_table]:w-full [&_table]:my-6 [&_table_th]:bg-transparent [&_table_td]:bg-transparent [&_table_th]:border-b [&_table_td]:border-t [&_table_td]:px-3 [&_table_td]:py-2.5 [&_table_th]:px-3 [&_table_th]:py-2 ",
+           "[&_hr]:mb-8 [&_hr]:mt-6",
           className,
         )}
         {...props}
