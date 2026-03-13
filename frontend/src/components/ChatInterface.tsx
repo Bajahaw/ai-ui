@@ -205,6 +205,7 @@ export const ChatInterface = ({
 	const promptInputRef = useRef<HTMLTextAreaElement>(null);
 	const [hasInteracted, setHasInteracted] = useState(false);
 	const previousConversationIdRef = useRef<string | undefined>(undefined);
+	const pendingInitialScrollConversationIdRef = useRef<string | null>(null);
 
 	// Scroll to bottom when user sends a message
 	const scrollToBottom = useCallback(() => {
@@ -220,7 +221,8 @@ export const ChatInterface = ({
 		}, 100);
 	}, []);
 
-	// Reset interaction flag when conversation changes and scroll to bottom on initial load
+	// Reset interaction flag when conversation changes.
+	// Initial scroll is handled by a dedicated effect so it also works with lazy-loaded messages.
 	useEffect(() => {
 		const currentId = currentConversation?.id;
 		const previousId = previousConversationIdRef.current;
@@ -238,22 +240,34 @@ export const ChatInterface = ({
 		// Only reset interaction and auto-scroll when truly switching conversations
 		if (isRealConversationSwitch) {
 			setHasInteracted(false);
-
-			// Only auto-scroll when switching to a conversation that already has messages
-			if (messages.length > 0) {
-				const container = conversationRef.current;
-				if (!container) return;
-
-				// Use auto behavior for instant positioning without animation
-				requestAnimationFrame(() => {
-					container.scrollTo({
-						top: container.scrollHeight,
-						behavior: "auto", // Instant, no smooth scrolling
-					});
-				});
-			}
+			pendingInitialScrollConversationIdRef.current = currentId ?? null;
 		}
-	}, [currentConversation?.id, messages.length]);
+	}, [currentConversation?.id]);
+
+	useEffect(() => {
+		const currentId = currentConversation?.id;
+		if (!currentId) return;
+		if (pendingInitialScrollConversationIdRef.current !== currentId) return;
+
+		// If initial loading completed with no messages, clear the pending initial scroll.
+		if (!isConversationLoading && messages.length === 0) {
+			pendingInitialScrollConversationIdRef.current = null;
+			return;
+		}
+
+		if (messages.length === 0) return;
+
+		const container = conversationRef.current;
+		if (!container) return;
+
+		requestAnimationFrame(() => {
+			container.scrollTo({
+				top: container.scrollHeight,
+				behavior: "auto",
+			});
+			pendingInitialScrollConversationIdRef.current = null;
+		});
+	}, [currentConversation?.id, messages.length, isConversationLoading]);
 
 	/**
 	 * Synchronize local model state with the default model setting
