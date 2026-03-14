@@ -201,79 +201,26 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isToolsUsed = len(calls) > 0
-	if !isToolsUsed {
-		responseMessage.Status = "completed"
-		responseMessage.Speed = streamStats.Speed
-		responseMessage.TokenCount = streamStats.CompletionTokens
-		responseMessage.ContextSize = streamStats.PromptTokens
-	}
 
-	for len(calls) > 0 {
-
-		toolCall := calls[0]
-		toolCall.MessageID = responseMessage.ID
-		toolCall.ConvID = convID
-
-		output := tools.ExecuteMCPTool(toolCall, user)
-		toolCall.Output = output
-
-		utils.SendStreamChunk(sc, utils.StreamChunk{
-			Type:    utils.TOOL_CALL,
-			Payload: toolCall,
-		})
-
-		err = toolCalls.Save(&toolCall)
+	if isToolsUsed {
+		completion, err = enterAgentLoop(
+			calls, providerParams,
+			&responseMessage,
+			convID,
+			user, sc,
+		)
 		if err != nil {
-			log.Error("Error saving tool call output", "err", err)
-		}
-
-		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
-			Role:     "assistant",
-			ToolCall: toolCall,
-		})
-
-		// Append tool result message to context for continued completion
-		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
-			Role: "tool",
-			ToolCall: tools.ToolCall{
-				ID:          toolCall.ID,
-				ReferenceID: toolCall.ReferenceID,
-				Name:        toolCall.Name,
-				Output:      output,
-			},
-		})
-
-		calls = calls[1:]
-		if len(calls) == 0 {
-			completion, err = provider.SendChatCompletionStreamRequest(providerParams, sc)
-			if err != nil {
-				log.Error("Error streaming chat completion after tool call", "err", err)
-				utils.SendStreamChunk(sc, utils.StreamChunk{
-					Type:    utils.EVENT_ERROR,
-					Payload: err.Error(),
-				})
-				responseMessage.Error = err.Error()
-				responseMessage.Status = "completed"
-				break
-			}
-			calls = append(calls, completion.ToolCalls...)
-		}
-
-		// Accumulate reasoning for all tool calls
-		if responseMessage.Reasoning != "" || completion.Reasoning != "" {
-			responseMessage.Reasoning += "  \n`using tool:" + toolCall.Name + "`  \n" + completion.Reasoning
+			responseMessage.Error = err.Error()
+		} else {
+			responseMessage.Content += completion.Content
+			streamStats = completion.Stats
 		}
 	}
 
-	// Update assistant message with full content after all tool calls
-	if isToolsUsed && err == nil {
-		responseMessage.Content += completion.Content
-		responseMessage.Status = "completed"
-		responseMessage.Speed = completion.Stats.Speed
-		responseMessage.TokenCount = completion.Stats.CompletionTokens
-		responseMessage.ContextSize = completion.Stats.PromptTokens
-		streamStats = completion.Stats
-	}
+	responseMessage.Status = "completed"
+	responseMessage.Speed = streamStats.Speed
+	responseMessage.TokenCount = streamStats.CompletionTokens
+	responseMessage.ContextSize = streamStats.PromptTokens
 
 	if updatedMsg, updateErr := updateMessage(responseMessage.ID, responseMessage); updateErr != nil {
 		log.Error("Error updating assistant message after tool calls", "err", updateErr)
@@ -421,80 +368,28 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isToolsUsed = len(calls) > 0
-	if !isToolsUsed {
-		responseMessage.Status = "completed"
-		responseMessage.Speed = streamStats.Speed
-		responseMessage.TokenCount = streamStats.CompletionTokens
-		responseMessage.ContextSize = streamStats.PromptTokens
-	}
+	// if !isToolsUsed {
+	// }
 
-	for len(calls) > 0 {
-
-		toolCall := calls[0]
-
-		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
-			Role:     "assistant",
-			ToolCall: toolCall,
-		})
-
-		toolCall.MessageID = responseMessage.ID
-		toolCall.ConvID = req.ConversationID
-
-		output := tools.ExecuteMCPTool(toolCall, user)
-		toolCall.Output = output
-
-		utils.SendStreamChunk(sc, utils.StreamChunk{
-			Type:    utils.TOOL_CALL,
-			Payload: toolCall,
-		})
-
-		err = toolCalls.Save(&toolCall)
+	if isToolsUsed {
+		completion, err = enterAgentLoop(
+			calls, providerParams,
+			&responseMessage,
+			req.ConversationID,
+			user, sc,
+		)
 		if err != nil {
-			log.Error("Error saving tool call output", "err", err)
-		}
-
-		// Append tool result message to context for continued completion
-		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
-			Role: "tool",
-			ToolCall: tools.ToolCall{
-				ID:          toolCall.ID,
-				ReferenceID: toolCall.ReferenceID,
-				Name:        toolCall.Name,
-				Output:      output,
-			},
-		})
-
-		calls = calls[1:]
-		if len(calls) == 0 {
-			completion, err = provider.SendChatCompletionStreamRequest(providerParams, sc)
-			if err != nil {
-				log.Error("Error streaming chat completion after tool call", "err", err)
-				utils.SendStreamChunk(sc, utils.StreamChunk{
-					Type:    utils.EVENT_ERROR,
-					Payload: err.Error(),
-				})
-				responseMessage.Error = err.Error()
-				responseMessage.Status = "completed"
-				break
-			}
-			calls = append(calls, completion.ToolCalls...)
-		}
-
-		// Accumulate reasoning for all tool calls
-		if responseMessage.Reasoning != "" || completion.Reasoning != "" {
-			responseMessage.Reasoning += "  \n`using tool:" + toolCall.Name + "`  \n" + completion.Reasoning
+			responseMessage.Error = err.Error()
+		} else {
+			responseMessage.Content += completion.Content
+			streamStats = completion.Stats
 		}
 	}
 
-	// Update assistant message with full content after all tool calls
-	if isToolsUsed && err == nil {
-		responseMessage.Content = completion.Content
-		responseMessage.Status = "completed"
-		responseMessage.Speed = completion.Stats.Speed
-		responseMessage.TokenCount = completion.Stats.CompletionTokens
-		responseMessage.ContextSize = completion.Stats.PromptTokens
-		streamStats = completion.Stats
-	}
+	responseMessage.Status = "completed"
+	responseMessage.Speed = streamStats.Speed
+	responseMessage.TokenCount = streamStats.CompletionTokens
+	responseMessage.ContextSize = streamStats.PromptTokens
 
 	if updatedMsg, updateErr := updateMessage(responseMessage.ID, responseMessage); updateErr != nil {
 		log.Error("Error updating assistant message after tool calls", "err", updateErr)
@@ -517,6 +412,75 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		Type:    utils.EVENT_COMPLETE,
 		Payload: completionData,
 	})
+}
+
+func enterAgentLoop(
+	calls []tools.ToolCall,
+	providerParams providers.RequestParams,
+	responseMessage *Message,
+	convID, user string,
+	sc utils.StreamClient,
+) (*providers.ChatCompletionMessage, error) {
+	for _, toolCall := range calls {
+
+		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
+			Role:     "assistant",
+			ToolCall: toolCall,
+		})
+
+		toolCall.MessageID = responseMessage.ID
+		toolCall.ConvID = convID
+
+		output := tools.ExecuteMCPTool(toolCall, user)
+		toolCall.Output = output
+
+		utils.SendStreamChunk(sc, utils.StreamChunk{
+			Type:    utils.TOOL_CALL,
+			Payload: toolCall,
+		})
+
+		err := toolCalls.Save(&toolCall)
+		if err != nil {
+			log.Error("Error saving tool call output", "err", err)
+		}
+
+		// Append tool result message to context for continued completion
+		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
+			Role: "tool",
+			ToolCall: tools.ToolCall{
+				ID:          toolCall.ID,
+				ReferenceID: toolCall.ReferenceID,
+				Name:        toolCall.Name,
+				Output:      output,
+			},
+		})
+
+	}
+
+	completion, err := provider.SendChatCompletionStreamRequest(providerParams, sc)
+	if err != nil {
+		log.Error("Error streaming chat completion after tool call", "err", err)
+		utils.SendStreamChunk(sc, utils.StreamChunk{
+			Type:    utils.EVENT_ERROR,
+			Payload: err.Error(),
+		})
+		return completion, err
+	}
+
+	// Accumulate reasoning for all tool calls
+	if responseMessage.Reasoning != "" || completion.Reasoning != "" {
+		for _, toolCall := range calls {
+			responseMessage.Reasoning += "  \n`using tool:" + toolCall.Name + "`  \n"
+		}
+		responseMessage.Reasoning += completion.Reasoning
+	}
+
+	calls = completion.ToolCalls
+	if len(calls) > 0 {
+		return enterAgentLoop(calls, providerParams, responseMessage, convID, user, sc)
+	}
+
+	return completion, err
 }
 
 func update(w http.ResponseWriter, r *http.Request) {
