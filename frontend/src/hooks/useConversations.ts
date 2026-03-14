@@ -276,6 +276,7 @@ function updateAssistantMessageAfterComplete(
 
     // Set as active message
     conv.backendConversation!.activeMessageId = realMessageId;
+    conv.activeBranches.set(parentMessageId, realMessageId);
 
     // Also persist metadata on the frontend message object for quick access
     if (streamStats) {
@@ -886,8 +887,12 @@ export const useConversations = () => {
                     (m) => m.id === messageId
                 );
                 if (oldMessageIndex !== -1) {
-                    // Insert the new placeholder at the same position as the old message
-                    conversation.messages.splice(oldMessageIndex, 1, assistantPlaceholder);
+                    // Switching branch from this assistant means all subsequent visible
+                    // messages belong to the previously active branch and should be hidden.
+                    conversation.messages = [
+                        ...conversation.messages.slice(0, oldMessageIndex),
+                        assistantPlaceholder,
+                    ];
                 } else {
                     conversation.messages.push(assistantPlaceholder);
                 }
@@ -935,19 +940,6 @@ export const useConversations = () => {
                             data.streamStats,
                             model,
                         );
-
-                        // After completing, refresh conversation to rebuild tree/branches accurately
-                        (async () => {
-                            try {
-                                const msgs = await conversationsAPI.fetchConversationMessages(activeConversationId);
-                                manager.updateWithChatResponse(activeConversationId, msgs);
-                                // Set the active branch to the new message and rebuild messages array
-                                manager.setActiveBranch(activeConversationId, parentId, data.assistantMessageId);
-                                syncConversations();
-                            } catch (e) {
-                                console.error("Failed to refresh conversation after retry stream:", e);
-                            }
-                        })();
                     },
                     // onError - Just capture the error, onComplete will handle it
                     (err) => {

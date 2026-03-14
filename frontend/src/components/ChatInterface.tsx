@@ -201,6 +201,9 @@ export const ChatInterface = ({
 	const editableMessageRefs = useRef<Record<string, EditableMessageRef | null>>(
 		{},
 	);
+	const messageRenderKeysRef = useRef<WeakMap<FrontendMessage, string>>(new WeakMap());
+	const messageRenderKeysByIdRef = useRef<Map<string, string>>(new Map());
+	const nextMessageRenderKeyRef = useRef(0);
 	const conversationRef = useRef<HTMLDivElement>(null);
 	const promptInputRef = useRef<HTMLTextAreaElement>(null);
 	const [hasInteracted, setHasInteracted] = useState(false);
@@ -241,6 +244,9 @@ export const ChatInterface = ({
 		if (isRealConversationSwitch) {
 			setHasInteracted(false);
 			pendingInitialScrollConversationIdRef.current = currentId ?? null;
+			messageRenderKeysRef.current = new WeakMap();
+			messageRenderKeysByIdRef.current.clear();
+			nextMessageRenderKeyRef.current = 0;
 		}
 	}, [currentConversation?.id]);
 
@@ -438,6 +444,11 @@ export const ChatInterface = ({
 		if (!isModelValid) {
 			return;
 		}
+
+		// Match send-message behavior: keep extra bottom space and move viewport
+		// so the retried streaming response stays in view.
+		setHasInteracted(true);
+		scrollToBottom();
 
 		setRetryingMessageId(messageId);
 		try {
@@ -680,9 +691,18 @@ export const ChatInterface = ({
 	const renderMessage = (message: FrontendMessage) => {
 		const hasAttachments =
 			message.attachments && message.attachments.length > 0;
+		let messageKey = messageRenderKeysRef.current.get(message);
+		if (!messageKey) {
+			messageKey = messageRenderKeysByIdRef.current.get(message.id);
+			if (!messageKey) {
+				messageKey = `msg-${nextMessageRenderKeyRef.current++}`;
+			}
+			messageRenderKeysRef.current.set(message, messageKey);
+		}
+		messageRenderKeysByIdRef.current.set(message.id, messageKey);
 
 		return (
-			<div key={message.id}>
+			<div key={messageKey}>
 				{/* Render message with optional attachments in a single component to manage margins better */}
 				<MessageComponent
 					from={message.role}
