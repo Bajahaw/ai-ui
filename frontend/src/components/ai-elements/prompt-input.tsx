@@ -39,7 +39,9 @@ export const PromptInputTextarea = forwardRef<HTMLTextAreaElement, PromptInputTe
   maxHeight = 200,
   ...props
 }, ref) => {
-  const [input, setInput] = useState(value as string || "");
+  const isControlled = value !== undefined;
+  const [internalValue, setInternalValue] = useState(value as string || "");
+  const inputValue = (isControlled ? value : internalValue) as string;
   const { settings } = useSettings();
   const internalRef = useRef<HTMLTextAreaElement>(null);
 
@@ -70,7 +72,7 @@ export const PromptInputTextarea = forwardRef<HTMLTextAreaElement, PromptInputTe
 
   useEffect(() => {
     adjustHeight();
-  }, [value, input, adjustHeight]);
+  }, [inputValue, adjustHeight]);
 
   const setRefs = useCallback((el: HTMLTextAreaElement | null) => {
     (internalRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
@@ -114,8 +116,9 @@ export const PromptInputTextarea = forwardRef<HTMLTextAreaElement, PromptInputTe
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value;
-    setInput(newValue);
+    if (!isControlled) {
+      setInternalValue(e.target.value);
+    }
     onChange?.(e);
   };
 
@@ -127,7 +130,7 @@ export const PromptInputTextarea = forwardRef<HTMLTextAreaElement, PromptInputTe
         "w-full resize-none rounded-none border-none py-3 px-5 shadow-none outline-none ring-0",
         "bg-transparent dark:bg-transparent overflow-hidden transition-[height] duration-150 ease-in-out",
         "focus-visible:ring-0",
-        getTextDirection(input),
+        getTextDirection(inputValue),
         className,
       )}
       name="message"
@@ -135,7 +138,7 @@ export const PromptInputTextarea = forwardRef<HTMLTextAreaElement, PromptInputTe
       onKeyDown={handleKeyDown}
       onPaste={handlePaste}
       placeholder={placeholder}
-      value={value ?? input}
+      value={inputValue}
       {...props}
     />
   );

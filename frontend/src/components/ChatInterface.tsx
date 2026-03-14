@@ -210,6 +210,28 @@ export const ChatInterface = ({
 	const previousConversationIdRef = useRef<string | undefined>(undefined);
 	const pendingInitialScrollConversationIdRef = useRef<string | null>(null);
 
+	// Keep prompt focus reliable after auth state changes and modal close events.
+	useEffect(() => {
+		if (isComposerDisabled || fileManagerOpen) return;
+
+		const textarea = promptInputRef.current;
+		if (!textarea) return;
+
+		const frame = requestAnimationFrame(() => {
+			const activeElement = document.activeElement;
+			const shouldRestoreFocus =
+				!activeElement ||
+				activeElement === document.body ||
+				activeElement === textarea;
+
+			if (shouldRestoreFocus && activeElement !== textarea) {
+				textarea.focus({ preventScroll: true });
+			}
+		});
+
+		return () => cancelAnimationFrame(frame);
+	}, [isComposerDisabled, fileManagerOpen, currentConversation?.id]);
+
 	// Scroll to bottom when user sends a message
 	const scrollToBottom = useCallback(() => {
 		const container = conversationRef.current;
