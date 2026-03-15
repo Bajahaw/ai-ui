@@ -32,43 +32,10 @@ function initializeMermaid(mermaid: MermaidRuntime, isDark: boolean) {
   });
 }
 
-function parseSvgDimensions(svgMarkup: string): { width: number; height: number } {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(svgMarkup, "image/svg+xml");
-  const svg = doc.documentElement;
-
-  const widthAttr = svg.getAttribute("width") ?? "";
-  const heightAttr = svg.getAttribute("height") ?? "";
-  const width = Number.parseFloat(widthAttr);
-  const height = Number.parseFloat(heightAttr);
-
-  if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
-    return { width, height };
-  }
-
-  const viewBox = svg.getAttribute("viewBox");
-  if (viewBox) {
-    const parts = viewBox
-      .trim()
-      .split(/\s+/)
-      .map((part) => Number.parseFloat(part));
-
-    if (parts.length === 4 && Number.isFinite(parts[2]) && Number.isFinite(parts[3])) {
-      return {
-        width: Math.max(1, parts[2]),
-        height: Math.max(1, parts[3]),
-      };
-    }
-  }
-
-  return { width: 1200, height: 800 };
-}
-
 export function MermaidDiagram({ code, className, ...props }: MermaidDiagramProps) {
   const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [isCopying, setIsCopying] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isDark, setIsDark] = useState(false);
 
@@ -178,67 +145,18 @@ export function MermaidDiagram({ code, className, ...props }: MermaidDiagramProp
     }
   };
 
-  const downloadPng = async () => {
-    if (!svg || isDownloading) {
+  const downloadSvg = () => {
+    if (!svg) {
       return;
     }
 
-    setIsDownloading(true);
-    try {
-      const { width, height } = parseSvgDimensions(svg);
-      const scale = 2;
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(width * scale);
-      canvas.height = Math.round(height * scale);
-
-      const context = canvas.getContext("2d");
-      if (!context) {
-        throw new Error("Canvas rendering is not available");
-      }
-
-      context.setTransform(scale, 0, 0, scale, 0, 0);
-      context.fillStyle = isDark ? "#0b0b0c" : "#ffffff";
-      context.fillRect(0, 0, width, height);
-
-      const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-      const objectUrl = URL.createObjectURL(svgBlob);
-
-      try {
-        const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = () => reject(new Error("Failed to load rendered Mermaid SVG"));
-          img.src = objectUrl;
-        });
-
-        context.drawImage(image, 0, 0, width, height);
-      } finally {
-        URL.revokeObjectURL(objectUrl);
-      }
-
-      const pngBlob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            reject(new Error("Failed to export diagram as PNG"));
-            return;
-          }
-          resolve(blob);
-        }, "image/png");
-      });
-
-      const downloadUrl = URL.createObjectURL(pngBlob);
-      const anchor = document.createElement("a");
-      anchor.href = downloadUrl;
-      anchor.download = `mermaid-diagram-${Date.now()}.png`;
-      anchor.click();
-      URL.revokeObjectURL(downloadUrl);
-    } catch (downloadError) {
-      const message =
-        downloadError instanceof Error ? downloadError.message : "Unable to save Mermaid as PNG";
-      setError(message);
-    } finally {
-      setIsDownloading(false);
-    }
+    const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    const downloadUrl = URL.createObjectURL(svgBlob);
+    const anchor = document.createElement("a");
+    anchor.href = downloadUrl;
+    anchor.download = `mermaid-diagram-${Date.now()}.svg`;
+    anchor.click();
+    URL.revokeObjectURL(downloadUrl);
   };
 
   return (
@@ -265,10 +183,10 @@ export function MermaidDiagram({ code, className, ...props }: MermaidDiagramProp
             className="h-7 w-7"
             size="icon"
             variant="ghost"
-            onClick={downloadPng}
-            disabled={!svg || isDownloading}
-            aria-label="Save Mermaid as PNG"
-            title="Save Mermaid as PNG"
+            onClick={downloadSvg}
+            disabled={!svg}
+            aria-label="Save Mermaid as SVG"
+            title="Save Mermaid as SVG"
           >
             <DownloadIcon size={14} />
           </Button>
