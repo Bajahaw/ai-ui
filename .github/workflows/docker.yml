@@ -32,22 +32,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/bajahaw/ai-ui
-          tags: |
-            type=raw,value=latest
-            type=sha
-
       - name: Build and push final image (reuse unchanged frontend/backend layers)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/bajahaw/ai-ui:buildcache
-          cache-to: type=registry,ref=ghcr.io/bajahaw/ai-ui:buildcache,mode=max
+          tags: |
+            ghcr.io/bajahaw/ai-ui:latest
+            ghcr.io/bajahaw/ai-ui:sha-${{ github.sha }}
+          provenance: false
+          sbom: false
+          cache-from: type=registry,ref=ghcr.io/bajahaw/ai-ui:latest
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
