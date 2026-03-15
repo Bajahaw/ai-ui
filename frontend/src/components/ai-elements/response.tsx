@@ -1,6 +1,7 @@
 "use client";
 
 import { CodeBlock, CodeBlockCopyButton } from "./code-block.tsx";
+import { MermaidDiagram } from "./mermaid-diagram.tsx";
 import type { ComponentProps, HTMLAttributes } from "react";
 import { memo } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
@@ -362,10 +363,22 @@ const components: Options["components"] = {
       );
     }
 
+    const rawCode = (children.props as { children?: unknown }).children;
+    const code =
+      typeof rawCode === "string"
+        ? rawCode
+        : Array.isArray(rawCode)
+          ? rawCode.filter((part): part is string => typeof part === "string").join("")
+          : "";
+
+    if (["mermaid", "mmd"].includes(language.toLowerCase())) {
+      return <MermaidDiagram code={code} className={cn("w-full", className)} />;
+    }
+
     return (
       <CodeBlock
         className={cn("my-4 h-auto w-full overflow-hidden", className)}
-        code={(children.props as { children: string }).children}
+        code={code}
         language={language}
       >
         <CodeBlockCopyButton
