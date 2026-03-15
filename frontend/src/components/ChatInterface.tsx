@@ -207,30 +207,21 @@ export const ChatInterface = ({
 	const conversationRef = useRef<HTMLDivElement>(null);
 	const promptInputRef = useRef<HTMLTextAreaElement>(null);
 	const [hasInteracted, setHasInteracted] = useState(false);
+	const hasFocusedInitialLoadRef = useRef(false);
 	const previousConversationIdRef = useRef<string | undefined>(undefined);
 	const pendingInitialScrollConversationIdRef = useRef<string | null>(null);
 
-	// Keep prompt focus reliable after auth state changes and modal close events.
+	// Focus composer once on initial app load when it becomes usable.
 	useEffect(() => {
-		if (isComposerDisabled || fileManagerOpen) return;
+		if (hasFocusedInitialLoadRef.current) return;
+		if (isComposerDisabled) return;
 
 		const textarea = promptInputRef.current;
 		if (!textarea) return;
 
-		const frame = requestAnimationFrame(() => {
-			const activeElement = document.activeElement;
-			const shouldRestoreFocus =
-				!activeElement ||
-				activeElement === document.body ||
-				activeElement === textarea;
-
-			if (shouldRestoreFocus && activeElement !== textarea) {
-				textarea.focus({ preventScroll: true });
-			}
-		});
-
-		return () => cancelAnimationFrame(frame);
-	}, [isComposerDisabled, fileManagerOpen, currentConversation?.id]);
+		textarea.focus({ preventScroll: true });
+		hasFocusedInitialLoadRef.current = true;
+	}, [isComposerDisabled]);
 
 	// Scroll to bottom when user sends a message
 	const scrollToBottom = useCallback(() => {
@@ -800,8 +791,8 @@ export const ChatInterface = ({
 								isAuthChecking
 									? undefined
 									: isAuthenticated
-										? "Here is a glimpse of your interactions so far:"
-										: "Sign in to load your conversations and start chatting."
+										? "Choose a conversation or start a new chat from the sidebar."
+										: "Sign in from the sidebar to load your conversations and start chatting."
 							}
 						/>
 					</div>
@@ -847,7 +838,6 @@ export const ChatInterface = ({
 
 					<PromptInputTextarea
 						ref={promptInputRef}
-						autoFocus
 						onChange={(e) => setInput(e.target.value)}
 						value={input}
 						placeholder={
