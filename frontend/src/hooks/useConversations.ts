@@ -308,6 +308,8 @@ export const useConversations = () => {
         totalMessages: 0,
     });
     const activeStreamAssistantMessageIdRef = useRef<number | null>(null);
+    const needsFocusRefreshRef = useRef(false);
+    const focusRefreshInFlightRef = useRef(false);
 
     const managerRef = useRef(new ClientConversationManager());
     const manager = managerRef.current;
@@ -351,6 +353,7 @@ export const useConversations = () => {
         };
 
         es.onerror = () => {
+            needsFocusRefreshRef.current = true;
             console.warn("SSE sync connection error, browser will auto-reconnect...");
         };
 
@@ -402,6 +405,44 @@ export const useConversations = () => {
         }
     }, [isAuthenticated, manager, syncConversations]);
 
+    useEffect(() => {
+        if (!isAuthenticated) {
+            return;
+        }
+
+        const refreshIfNeeded = async () => {
+            if (!needsFocusRefreshRef.current || focusRefreshInFlightRef.current) {
+                return;
+            }
+
+            focusRefreshInFlightRef.current = true;
+            try {
+                await loadConversations();
+            } finally {
+                needsFocusRefreshRef.current = false;
+                focusRefreshInFlightRef.current = false;
+            }
+        };
+
+        const onFocus = () => {
+            void refreshIfNeeded();
+        };
+
+        const onVisibilityChange = () => {
+            if (document.visibilityState === "visible") {
+                void refreshIfNeeded();
+            }
+        };
+
+        window.addEventListener("focus", onFocus);
+        document.addEventListener("visibilitychange", onVisibilityChange);
+
+        return () => {
+            window.removeEventListener("focus", onFocus);
+            document.removeEventListener("visibilitychange", onVisibilityChange);
+        };
+    }, [isAuthenticated, loadConversations]);
+
     // Only load conversations when authenticated
     useEffect(() => {
         if (isAuthenticated) {
@@ -426,6 +467,8 @@ export const useConversations = () => {
             totalConversations: 0,
             totalMessages: 0,
         });
+        needsFocusRefreshRef.current = false;
+        focusRefreshInFlightRef.current = false;
     }, [isAuthenticated, manager]);
 
     const getCurrentMessages = useCallback(
