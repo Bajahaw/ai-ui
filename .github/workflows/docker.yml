@@ -15,7 +15,34 @@ permissions:
   packages: write
 
 jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Download backend dependencies
+        run: go mod download
+
+      - name: Announce test execution
+        run: echo "Downloads finished. Starting backend tests..."
+
+      - name: Run backend tests
+        run: go test ./...
+
   build:
+    needs: backend-tests
     runs-on: ubuntu-latest
 
     steps:
