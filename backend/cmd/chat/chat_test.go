@@ -139,6 +139,16 @@ func TestChatStream_ProviderError(t *testing.T) {
 
 func contains(s, sub string) bool { return bytes.Contains([]byte(s), []byte(sub)) }
 
+func firstSSEDataLine(body []byte) ([]byte, bool) {
+	lines := bytes.Split(body, []byte("\n"))
+	for _, line := range lines {
+		if bytes.HasPrefix(line, []byte("data: ")) {
+			return bytes.TrimPrefix(line, []byte("data: ")), true
+		}
+	}
+	return nil, false
+}
+
 func TestChatStream_DBContentSaved(t *testing.T) {
 	mock := &mockProviderSuccess{}
 	teardown := setupTest(t, mock)
@@ -290,13 +300,14 @@ func TestSync_Simple(t *testing.T) {
 	defer teardown()
 
 	userID := "test-user"
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
 
-	// 1. Session A starts long polling
-	reqSync := httptest.NewRequest(http.MethodGet, "/conversations/sync", nil)
-	reqSync.Header.Set("X-Session-ID", "session-a")
-	reqSync = reqSync.WithContext(context.WithValue(reqSync.Context(), "user", userID))
+	// 1. Session A starts sync SSE stream
+	reqSync := httptest.NewRequest(http.MethodGet, "/conversations/sync?sessionId=session-a", nil)
+	reqSync = reqSync.WithContext(context.WithValue(ctx, "user", userID))
 
-	rrSync := httptest.NewRecorder()
+	rrSync := &flushRecorder{httptest.NewRecorder()}
 
 	syncDone := make(chan struct{})
 	go func() {
@@ -322,14 +333,18 @@ func TestSync_Simple(t *testing.T) {
 		t.Fatalf("failed to create conversation: %v", rrAdd.Body.String())
 	}
 
-	// 3. Session A should receive the event
+	// 3. Stream should finish when request context times out
 	select {
 	case <-syncDone:
 		if rrSync.Code != http.StatusOK {
 			t.Errorf("expected 200 OK for sync, got %d", rrSync.Code)
 		}
+		dataLine, ok := firstSSEDataLine(rrSync.Body.Bytes())
+		if !ok {
+			t.Fatalf("expected SSE data line in sync response, got: %s", rrSync.Body.String())
+		}
 		var event ConversationEvent
-		if err := json.Unmarshal(rrSync.Body.Bytes(), &event); err != nil {
+		if err := json.Unmarshal(dataLine, &event); err != nil {
 			t.Fatalf("failed to unmarshal sync event: %v", err)
 		}
 		if event.Type != EventConversationCreated {
@@ -349,15 +364,14 @@ func TestSync_ExcludeSender(t *testing.T) {
 
 	userID := "test-user"
 
-	// 1. Session A starts long polling
-	ctx, cancel := context.WithCancel(context.Background())
+	// 1. Session A starts sync SSE stream
+	ctx, cancel := context.WithTimeout(context.Background(), 700*time.Millisecond)
 	defer cancel()
 
-	reqSync := httptest.NewRequest(http.MethodGet, "/conversations/sync", nil)
-	reqSync.Header.Set("X-Session-ID", "session-a")
+	reqSync := httptest.NewRequest(http.MethodGet, "/conversations/sync?sessionId=session-a", nil)
 	reqSync = reqSync.WithContext(context.WithValue(ctx, "user", userID))
 
-	rrSync := httptest.NewRecorder()
+	rrSync := &flushRecorder{httptest.NewRecorder()}
 
 	syncDone := make(chan struct{})
 	go func() {
@@ -383,13 +397,13 @@ func TestSync_ExcludeSender(t *testing.T) {
 		t.Fatalf("failed to create conversation: %v", rrAdd.Body.String())
 	}
 
-	// 3. Session A should NOT receive the event immediately
+	// 3. Session A should not receive an event from its own session
 	select {
 	case <-syncDone:
-		t.Fatal("sync should NOT have finished since sender is excluded")
-	case <-time.After(500 * time.Millisecond):
-		// Success: it didn't finish prematurely
-		cancel() // Now cancel to cleanup
-		<-syncDone
+		if dataLine, ok := firstSSEDataLine(rrSync.Body.Bytes()); ok {
+			t.Fatalf("expected no SSE event for same-session updates, got: %s", string(dataLine))
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for sync handler to finish")
 	}
 }
