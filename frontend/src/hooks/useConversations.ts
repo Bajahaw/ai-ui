@@ -778,6 +778,18 @@ export const useConversations = () => {
                     throw new Error("Conversation not found");
                 }
 
+                // Ensure messages are loaded before sending (handles SSE reconnect case)
+                if (!manager.hasLoadedMessages(conversationId)) {
+                    try {
+                        const msgs = await conversationsAPI.fetchConversationMessages(conversationId);
+                        manager.updateWithChatResponse(conversationId, msgs);
+                        syncConversations();
+                    } catch (err) {
+                        console.error("Failed to load conversation messages before sending:", err);
+                        throw new Error("Could not load conversation messages. Please refresh and try again.");
+                    }
+                }
+
                 // Add user message optimistically
                 if (conversation.backendConversation) {
                     if (!isNewConversation) {
@@ -797,9 +809,18 @@ export const useConversations = () => {
                     syncConversations();
                 }
 
-                const activeMessageId = manager.getActiveMessageId(conversationId);
+                let activeMessageId = manager.getActiveMessageId(conversationId);
                 if (activeMessageId === undefined) {
-                    throw new Error("Cannot send message: conversation not ready");
+                    // Fallback: if no active message exists yet (empty conversation),
+                    // use 0 as parent (start a new message chain)
+                    if (conversation?.backendConversation?.messages && Object.keys(conversation.backendConversation.messages).length === 0) {
+                        // Empty conversation, use 0 as parent
+                        conversation.backendConversation.activeMessageId = 0;
+                        activeMessageId = 0;
+                    } else {
+                        // Non-empty conversation but no activeMessageId - something is wrong
+                        throw new Error("Cannot send message: conversation structure incomplete. Please refresh the page.");
+                    }
                 }
 
                 // Initialize streaming state and handlers
