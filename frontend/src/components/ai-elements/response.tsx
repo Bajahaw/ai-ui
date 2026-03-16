@@ -434,5 +434,7 @@ export const Response = memo(
       </div>
     );
   },
-  (prevProps, nextProps) => prevProps.children === nextProps.children,
+  (prevProps, nextProps) =>
+    prevProps.children === nextProps.children &&
+    prevProps.parseIncompleteMarkdown === nextProps.parseIncompleteMarkdown,
 );
