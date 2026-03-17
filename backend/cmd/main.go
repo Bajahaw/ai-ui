@@ -114,13 +114,32 @@ func setupAuth() {
 	}
 }
 
+// spaHandler serves static files and falls back to index.html for unknown
+// paths so that client-side routes work on hard refresh.
+type spaHandler struct {
+	staticDir string
+	fs        http.Handler
+}
+
+func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := "." + r.URL.Path
+	if _, err := os.Stat(h.staticDir + "/" + r.URL.Path); os.IsNotExist(err) {
+		// Not a real file – serve the SPA shell
+		http.ServeFile(w, r, h.staticDir+"/index.html")
+		return
+	}
+	_ = path
+	h.fs.ServeHTTP(w, r)
+}
+
 func startServer() {
 
-	fs := http.FileServer(http.Dir("./static"))
+	staticDir := "./static"
+	rawFs := http.FileServer(http.Dir(staticDir))
 	dataFs := http.FileServer(http.Dir("./data/resources"))
 	mux := http.NewServeMux()
 
-	mux.Handle("/", fs)
+	mux.Handle("/", spaHandler{staticDir: staticDir, fs: rawFs})
 	mux.Handle("/data/resources/", http.StripPrefix("/data/resources/", auth.Authenticated(dataFs)))
 
 	mux.Handle("/api/chat/", chat.Handler())
