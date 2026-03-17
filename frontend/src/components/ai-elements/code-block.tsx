@@ -2,8 +2,8 @@
 
 import { CheckIcon, CopyIcon } from "lucide-react";
 import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
-import { createContext, useContext, useState, lazy, Suspense, useEffect } from "react";
-// import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import PrismAsyncLight from "react-syntax-highlighter/dist/esm/prism-async-light";
 import {
   oneDark,
   oneLight,
@@ -13,9 +13,46 @@ import { cn } from "@/lib/utils";
 
 const ENABLE_HIGHLIGHTING = true; // Disable highlighting in dev for performance
 
-const SyntaxHighlighter = lazy(() =>
-  import("react-syntax-highlighter").then((mod) => ({ default: mod.PrismAsyncLight })),
-);
+type PrismAsyncLightWithSupported = typeof PrismAsyncLight & {
+  supportedLanguages?: string[];
+};
+
+const prismSupportedLanguages =
+  (PrismAsyncLight as PrismAsyncLightWithSupported).supportedLanguages ?? [];
+
+const toKebabCase = (value: string): string =>
+  value
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[_\s]+/g, "-")
+    .toLowerCase();
+
+const toCompactKey = (value: string): string =>
+  toKebabCase(value).replace(/[^a-z0-9]/g, "");
+
+const prismLanguageLookup = (() => {
+  const lookup = new Map<string, string>();
+
+  for (const language of prismSupportedLanguages) {
+    lookup.set(toKebabCase(language), language);
+    lookup.set(toCompactKey(language), language);
+  }
+
+  return lookup;
+})();
+
+const normalizeLanguage = (language: string): string => {
+  const normalized = language.trim().replace(/^language-/, "");
+  if (!normalized) {
+    return "text";
+  }
+
+  return toKebabCase(normalized);
+};
+
+const resolvePrismLanguage = (language: string): string | null => {
+  const normalized = normalizeLanguage(language);
+  return prismLanguageLookup.get(normalized) ?? prismLanguageLookup.get(toCompactKey(normalized)) ?? null;
+};
 
 type CodeBlockContextType = {
   code: string;
@@ -41,6 +78,9 @@ export const CodeBlock = ({
   ...props
 }: CodeBlockProps) => {
   const [showHighlight, setShowHighlight] = useState(false);
+  const [resolvedLanguage, setResolvedLanguage] = useState("text");
+
+  const normalizedLanguage = useMemo(() => normalizeLanguage(language), [language]);
 
   useEffect(() => {
     // Small delay to ensure raw code is rendered and visible first,
@@ -50,6 +90,13 @@ export const CodeBlock = ({
     }, 10);
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    const nextLanguage = resolvePrismLanguage(normalizedLanguage);
+    setResolvedLanguage(nextLanguage ?? "text");
+  }, [normalizedLanguage]);
+
+  const canHighlight = ENABLE_HIGHLIGHTING && showHighlight;
 
   return (
     <CodeBlockContext.Provider value={{ code }}>
@@ -67,16 +114,10 @@ export const CodeBlock = ({
           <div className="flex items-center gap-2">{children}</div>
         </div>
         <div className="relative">
-          {ENABLE_HIGHLIGHTING && showHighlight ? (
-            <Suspense
-              fallback={
-                <pre className="overflow-x-auto p-4 pt-0 font-mono text-base">
-                  {code}
-                </pre>
-              }
-            >
-              <SyntaxHighlighter
-                language={language}
+          {canHighlight ? (
+            <>
+              <PrismAsyncLight
+                language={resolvedLanguage}
                 style={oneLight}
                 customStyle={{
                   margin: 0,
@@ -100,9 +141,9 @@ export const CodeBlock = ({
                 wrapLongLines={false}
               >
                 {code}
-              </SyntaxHighlighter>
-              <SyntaxHighlighter
-                language={language}
+              </PrismAsyncLight>
+              <PrismAsyncLight
+                language={resolvedLanguage}
                 style={oneDark}
                 customStyle={{
                   margin: 0,
@@ -126,8 +167,8 @@ export const CodeBlock = ({
                 wrapLongLines={false}
               >
                 {code}
-              </SyntaxHighlighter>
-            </Suspense>
+              </PrismAsyncLight>
+            </>
           ) : (
             <pre className="overflow-x-auto p-4 pt-0 font-mono text-base">
               {code}
