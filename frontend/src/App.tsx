@@ -210,7 +210,9 @@ function App() {
 	};
 
 	const handleConversationSelect = (conversationId: string) => {
-		navigate(`/c/${conversationId}`);
+		if (conversationId !== convId) {
+			navigate(`/c/${conversationId}`);
+		}
 	};
 
 	const handleToggleSidebar = () => {

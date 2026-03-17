@@ -2,7 +2,7 @@
 
 import {Loader2Icon, SendIcon, SquareIcon, XIcon} from "lucide-react";
 import type {ComponentProps, HTMLAttributes, KeyboardEventHandler,} from "react";
-import {Children, forwardRef, useCallback, useEffect, useRef, useState} from "react";
+import {Children, forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState} from "react";
 import {ModelSelect,} from "@/components/ai-elements/model-select.tsx";
 import {Button} from "@/components/ui/button.tsx";
 import {Textarea} from "@/components/ui/textarea.tsx";
@@ -23,13 +23,19 @@ export const PromptInput = ({ className, ...props }: PromptInputProps) => (
   />
 );
 
+export type PromptInputTextareaHandle = {
+  focus(options?: FocusOptions): void;
+  clear(): void;
+  readonly value: string;
+};
+
 export type PromptInputTextareaProps = ComponentProps<typeof Textarea> & {
   minHeight?: number;
   maxHeight?: number;
   onFilesPasted?: (files: File[]) => void;
 };
 
-export const PromptInputTextarea = forwardRef<HTMLTextAreaElement, PromptInputTextareaProps>(({
+export const PromptInputTextarea = forwardRef<PromptInputTextareaHandle, PromptInputTextareaProps>(({
   onChange,
   onFilesPasted,
   className,
@@ -74,11 +80,15 @@ export const PromptInputTextarea = forwardRef<HTMLTextAreaElement, PromptInputTe
     adjustHeight();
   }, [inputValue, adjustHeight]);
 
+  useImperativeHandle(ref, () => ({
+    focus: (options?: FocusOptions) => internalRef.current?.focus(options),
+    clear: () => setInternalValue(""),
+    get value() { return internalRef.current?.value ?? ""; },
+  }), []);
+
   const setRefs = useCallback((el: HTMLTextAreaElement | null) => {
     (internalRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
-    if (typeof ref === "function") ref(el);
-    else if (ref) (ref as React.MutableRefObject<HTMLTextAreaElement | null>).current = el;
-  }, [ref]);
+  }, []);
 
   const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = useCallback((e) => {
     if (e.key === "Enter") {
