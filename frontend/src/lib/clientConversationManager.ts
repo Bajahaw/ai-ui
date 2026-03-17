@@ -14,6 +14,9 @@ export interface ClientConversation {
 	pendingMessageIds: Set<string>;
 
 	activeBranches: Map<number, number>; // messageId -> activeChildId for messages with multiple children
+
+	/** Stub created before full metadata arrives; hidden from sidebar until promoted. */
+	isPhantom?: boolean;
 }
 
 export class ClientConversationManager {
@@ -119,9 +122,26 @@ export class ClientConversationManager {
 		conversationId: string,
 		backendMessages: Record<number, Message>,
 	): void {
-		const conversation = this.conversations.get(conversationId);
+		let conversation = this.conversations.get(conversationId);
 
-		if (!conversation) return;
+		if (!conversation) {
+			conversation = {
+				id: conversationId,
+				title: "New Chat",
+				messages: [],
+				backendConversation: {
+					id: conversationId,
+					userId: "",
+					title: "New Chat",
+					messages: {},
+				} as unknown as Conversation,
+				pendingMessageIds: new Set(),
+				activeBranches: new Map(),
+				isPhantom: true,
+			};
+
+			this.conversations.set(conversationId, conversation);
+		}
 
 		// Determine real conversation ID from messages (backend provides convId)
 		const realConvId = Object.values(backendMessages)
@@ -399,7 +419,7 @@ export class ClientConversationManager {
 	}
 
 	getAllConversations(): ClientConversation[] {
-		const list = Array.from(this.conversations.values());
+		const list = Array.from(this.conversations.values()).filter((c) => !c.isPhantom);
 
 		return list.sort((a, b) => {
 			// Backend always provides updatedAt, sort by that only
@@ -411,13 +431,27 @@ export class ClientConversationManager {
 	}
 
 	loadBackendConversations(backendConversations: Conversation[]): void {
+		const backendConversationIds = new Set(backendConversations.map((c) => c.id));
+
+		for (const [conversationId] of this.conversations.entries()) {
+			if (!backendConversationIds.has(conversationId) && !this.hasPendingMessages(conversationId)) {
+				this.conversations.delete(conversationId);
+			}
+		}
+
 		for (const backendConv of backendConversations) {
 			const existingConv = this.conversations.get(backendConv.id);
+			const existingMessages = existingConv?.backendConversation?.messages;
+			const incomingMessages = backendConv.messages || {};
+			const mergedMessages =
+				Object.keys(incomingMessages).length > 0
+					? incomingMessages
+					: existingMessages || {};
 
 			// Ensure messages object is always initialized
 			const normalizedBackendConv = {
 				...backendConv,
-				messages: backendConv.messages || {},
+				messages: mergedMessages,
 			};
 
 			// Sort children arrays by ID so newest branches are always last
@@ -434,6 +468,7 @@ export class ClientConversationManager {
 					...normalizedBackendConv,
 				} as Conversation;
 				existingConv.title = normalizedBackendConv.title || existingConv.title;
+				existingConv.isPhantom = false; // promote stub once real metadata arrives
 			} else {
 				const clientConv: ClientConversation = {
 					id: normalizedBackendConv.id,

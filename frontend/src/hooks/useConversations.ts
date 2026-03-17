@@ -300,6 +300,7 @@ export const useConversations = () => {
     >(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isConversationLoading, setIsConversationLoading] = useState(false);
+    const [hasHydrated, setHasHydrated] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [stats, setStats] = useState<WelcomeStats>({
         totalTokens: 0,
@@ -372,21 +373,18 @@ export const useConversations = () => {
             setIsLoading(true);
             setError(null);
 
-            // Always start from a clean slate so stale data from a previous
-            // session (or a different user) never bleeds into the new load.
-            manager.clear();
-            syncConversations();
-
             const backendConversations = await conversationsAPI.fetchConversations();
 
             if (!backendConversations || !Array.isArray(backendConversations)) {
                 console.warn("Backend returned null or invalid conversations data");
                 syncConversations();
+                setHasHydrated(true);
                 return;
             }
 
             manager.loadBackendConversations(backendConversations);
             syncConversations();
+            setHasHydrated(true);
 
             // Fetch all-time stats from the backend
             try {
@@ -400,6 +398,7 @@ export const useConversations = () => {
             setError(errorMessage);
             console.error("Failed to load conversations:", err);
             syncConversations();
+            setHasHydrated(true);
         } finally {
             setIsLoading(false);
         }
@@ -460,6 +459,7 @@ export const useConversations = () => {
         setActiveConversationId(null);
         setIsLoading(false);
         setIsConversationLoading(false);
+        setHasHydrated(false);
         setError(null);
         setStats({
             totalTokens: 0,
@@ -1073,6 +1073,7 @@ export const useConversations = () => {
         isConversationLoading,
         error,
         stats,
+        hasHydrated,
         sendMessageStream,
         retryMessageStream,
         updateMessage,

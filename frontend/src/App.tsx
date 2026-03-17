@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { ConversationSidebar } from "@/components/ai-elements/conversation-sidebar";
@@ -7,11 +7,14 @@ import { useConversations } from "@/hooks/useConversations";
 import { useAuth } from "@/hooks/useAuth";
 import { SettingsDialog } from "@/components/settings";
 import { Attachment } from "@/lib/api/types";
+import { useNavigate, useParams } from "react-router-dom";
 
 import { MessageSquareIcon, SettingsIcon } from "lucide-react";
 
 function App() {
 	const { isAuthenticated, isCheckingAuth } = useAuth();
+	const { convId } = useParams<{ convId?: string }>();
+	const navigate = useNavigate();
 	const [webSearch, setWebSearch] = useState(false);
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(
 		window.innerWidth < 768,
@@ -65,8 +68,10 @@ function App() {
 		getCurrentMessages,
 		isLoading: conversationsLoading,
 		isConversationLoading,
+		hasHydrated,
 		error: conversationsError,
 		clearError,
+		hasPendingMessages,
 		deleteConversation,
 		renameConversation,
 		switchBranch,
@@ -75,6 +80,55 @@ function App() {
 		cancelStream,
 		stats,
 	} = useConversations();
+
+	useEffect(() => {
+		if (!isAuthenticated || isCheckingAuth) {
+			return;
+		}
+
+		if (!convId) {
+			if (activeConversationId) {
+				if (hasPendingMessages(activeConversationId)) {
+					navigate(`/c/${activeConversationId}`, { replace: true });
+				} else {
+					startNewChat();
+				}
+			}
+			return;
+		}
+
+		if (activeConversationId !== convId) {
+			selectConversation(convId);
+		}
+	}, [
+		convId,
+		activeConversationId,
+		isAuthenticated,
+		isCheckingAuth,
+		hasPendingMessages,
+		selectConversation,
+		startNewChat,
+		navigate,
+	]);
+
+	useEffect(() => {
+		if (!convId || !isAuthenticated || isCheckingAuth || !hasHydrated || conversationsLoading) {
+			return;
+		}
+
+		const exists = conversations.some((conversation) => conversation.id === convId);
+		if (!exists) {
+			navigate("/", { replace: true });
+		}
+	}, [
+		convId,
+		conversations,
+		hasHydrated,
+		conversationsLoading,
+		isAuthenticated,
+		isCheckingAuth,
+		navigate,
+	]);
 
 	const handleSendMessage = async (
 		message: string,
@@ -150,13 +204,13 @@ function App() {
 	};
 
 	const handleNewChat = () => {
-		startNewChat();
+		navigate("/");
 		setWebSearch(false);
 		clearError(); // Clear any existing errors
 	};
 
 	const handleConversationSelect = (conversationId: string) => {
-		selectConversation(conversationId);
+		navigate(`/c/${conversationId}`);
 	};
 
 	const handleToggleSidebar = () => {
@@ -170,6 +224,9 @@ function App() {
 	const handleDeleteConversation = async (conversationId: string) => {
 		try {
 			await deleteConversation(conversationId);
+			if (convId === conversationId) {
+				navigate("/", { replace: true });
+			}
 		} catch (error) {
 			console.error("Failed to delete conversation:", error);
 		}
@@ -190,6 +247,11 @@ function App() {
 	const currentMessages = currentConversation
 		? getCurrentMessages(currentConversation)
 		: [];
+
+	// Treat the conversation as still loading when the URL has a convId but the
+	// conversation or its messages haven't been resolved yet.  This suppresses the
+	// Welcome/stats placeholder during the transient window on hard reload.
+	const isConvPendingRoute = !!convId && (!currentConversation || currentMessages.length === 0);
 
 	// Use the ordering provided by the conversation manager directly.
 	// The manager tracks createdAt/updatedAt and maintains the intended order,
@@ -278,7 +340,7 @@ function App() {
 					stats={stats}
 					isAuthenticated={isAuthenticated}
 					isAuthChecking={isCheckingAuth}
-					isConversationLoading={isConversationLoading}
+					isConversationLoading={isConversationLoading || isConvPendingRoute}
 					onWebSearchToggle={handleWebSearchToggle}
 					onSendMessage={handleSendMessage}
 					onRetryMessage={handleRetryMessage}

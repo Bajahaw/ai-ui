@@ -6,6 +6,7 @@ import { ThemeProvider } from "./components/theme-provider.tsx";
 import { AuthProvider } from "./hooks/useAuth.tsx";
 import { ModelsProvider } from "./hooks/useModelsContext.tsx";
 import { SettingsDataProvider } from "./hooks/useSettingsData.tsx";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 /**
  * AuthGuard - Keeps the application shell mounted at all times.
  * Auth-aware hooks decide when to fetch data, and login is opened explicitly
@@ -23,11 +24,17 @@ const AppWrapper = isDevelopment ? (
 	<AuthProvider>
 		<ThemeProvider defaultTheme="dark" storageKey="ai-ui-theme">
 			<AuthGuard>
-				<ModelsProvider>
-					<SettingsDataProvider>
-						<App />
-					</SettingsDataProvider>
-				</ModelsProvider>
+				<BrowserRouter>
+					<ModelsProvider>
+						<SettingsDataProvider>
+							<Routes>
+								<Route path="/" element={<App />} />
+								<Route path="/c/:convId" element={<App />} />
+								<Route path="*" element={<Navigate to="/" replace />} />
+							</Routes>
+						</SettingsDataProvider>
+					</ModelsProvider>
+				</BrowserRouter>
 			</AuthGuard>
 		</ThemeProvider>
 	</AuthProvider>
@@ -36,11 +43,17 @@ const AppWrapper = isDevelopment ? (
 		<AuthProvider>
 			<ThemeProvider defaultTheme="dark" storageKey="ai-ui-theme">
 				<AuthGuard>
-					<ModelsProvider>
-						<SettingsDataProvider>
-							<App />
-						</SettingsDataProvider>
-					</ModelsProvider>
+					<BrowserRouter>
+						<ModelsProvider>
+							<SettingsDataProvider>
+								<Routes>
+									<Route path="/" element={<App />} />
+									<Route path="/c/:convId" element={<App />} />
+									<Route path="*" element={<Navigate to="/" replace />} />
+								</Routes>
+							</SettingsDataProvider>
+						</ModelsProvider>
+					</BrowserRouter>
 				</AuthGuard>
 			</ThemeProvider>
 		</AuthProvider>
