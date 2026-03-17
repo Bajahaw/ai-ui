@@ -2,6 +2,7 @@
 
 import { CodeBlock, CodeBlockCopyButton } from "./code-block.tsx";
 import { MermaidDiagram } from "./mermaid-diagram.tsx";
+import { SvgRenderer } from "./svg-renderer.tsx";
 import type { ComponentProps, HTMLAttributes } from "react";
 import { memo } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
@@ -373,6 +374,10 @@ const components: Options["components"] = {
 
     if (["mermaid", "mmd"].includes(language.toLowerCase())) {
       return <MermaidDiagram code={code} className={cn("w-full", className)} />;
+    }
+
+    if (language.toLowerCase() === "svg") {
+      return <SvgRenderer code={code} className={cn("w-full", className)} />;
     }
 
     return (

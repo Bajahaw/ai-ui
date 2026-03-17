@@ -1,9 +1,10 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CheckIcon, CopyIcon, DownloadIcon, TriangleAlertIcon } from "lucide-react";
 import { useEffect, useMemo, useState, type HTMLAttributes } from "react";
+import { Action } from "./actions";
+import { downloadTextFile, useCopyFeedback } from "./diagram-actions";
 
 type MermaidDiagramProps = HTMLAttributes<HTMLDivElement> & {
   code: unknown;
@@ -35,9 +36,8 @@ function initializeMermaid(mermaid: MermaidRuntime, isDark: boolean) {
 export function MermaidDiagram({ code, className, ...props }: MermaidDiagramProps) {
   const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const [isCopying, setIsCopying] = useState(false);
-  const [isCopied, setIsCopied] = useState(false);
   const [isDark, setIsDark] = useState(false);
+  const { isCopied, isCopying, copyText } = useCopyFeedback(1800);
 
   const normalizedCode = useMemo(() => {
     if (typeof code === "string") {
@@ -135,14 +135,7 @@ export function MermaidDiagram({ code, className, ...props }: MermaidDiagramProp
       return;
     }
 
-    setIsCopying(true);
-    try {
-      await navigator.clipboard.writeText(normalizedCode);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 1800);
-    } finally {
-      setIsCopying(false);
-    }
+    await copyText(normalizedCode);
   };
 
   const downloadSvg = () => {
@@ -150,13 +143,11 @@ export function MermaidDiagram({ code, className, ...props }: MermaidDiagramProp
       return;
     }
 
-    const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
-    const downloadUrl = URL.createObjectURL(svgBlob);
-    const anchor = document.createElement("a");
-    anchor.href = downloadUrl;
-    anchor.download = `mermaid-diagram-${Date.now()}.svg`;
-    anchor.click();
-    URL.revokeObjectURL(downloadUrl);
+    downloadTextFile(
+      svg,
+      "image/svg+xml;charset=utf-8",
+      `mermaid-diagram-${Date.now()}.svg`,
+    );
   };
 
   return (
@@ -168,28 +159,26 @@ export function MermaidDiagram({ code, className, ...props }: MermaidDiagramProp
       {...props}
     >
       <div className="absolute right-1 top-1 z-10 flex gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
-          <Button
-            className="h-7 w-7"
-            size="icon"
-            variant="ghost"
-            onClick={copyRawCode}
-            disabled={!normalizedCode || isCopying}
-            aria-label="Copy Mermaid code"
-            title="Copy Mermaid code"
-          >
-            {isCopied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
-          </Button>
-          <Button
-            className="h-7 w-7"
-            size="icon"
-            variant="ghost"
-            onClick={downloadSvg}
-            disabled={!svg}
-            aria-label="Save Mermaid as SVG"
-            title="Save Mermaid as SVG"
-          >
-            <DownloadIcon size={14} />
-          </Button>
+        <Action
+          className="h-7 w-7"
+          size="icon"
+          onClick={copyRawCode}
+          disabled={!normalizedCode || isCopying}
+          label="Copy Mermaid code"
+          tooltip="Copy Mermaid code"
+        >
+          {isCopied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+        </Action>
+        <Action
+          className="h-7 w-7"
+          size="icon"
+          onClick={downloadSvg}
+          disabled={!svg}
+          label="Save Mermaid as SVG"
+          tooltip="Save Mermaid as SVG"
+        >
+          <DownloadIcon size={14} />
+        </Action>
       </div>
 
       {error ? (

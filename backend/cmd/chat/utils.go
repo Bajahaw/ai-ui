@@ -15,6 +15,7 @@ const platformInstructions = `
 - To utilize the platform features, make sure to format and beautify your responses. make them clear to read and understand.
 - If the response is long, use paragraphs, or seperators --- to make it easier on the eyes.
 - Tool calls must be one at a time! parellal calling is not supported yet!
+
 - When search is used, site all your used sources inline and at the end of the response. IMPORTANT to render inline citation correctly, follow the below format (comments are for explanation only, do not include them in the response):
 >some facts from the enternet. ([Source name][number])([Another source][number++]) [//]: # (single source at a time)
 >rest of the response till the end ... 
@@ -36,6 +37,7 @@ const platformInstructions = `
 >I bought this for only 20\$ 
 
 - To render Mermaid charts and diagrams, just wrap using a code block with "mermaid" as the language.
+- To render other complex diagrams or visuals, use the svg code block with "svg" tag (not xml or html).
 
 <platform>
 `
