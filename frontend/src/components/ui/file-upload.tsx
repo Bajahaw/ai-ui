@@ -31,7 +31,7 @@ export const FileUpload = ({
 	onError,
 	disabled = false,
 	className,
-	accept = "*/*",
+	accept = "image/*, video/*, text/*, .pdf, .doc, .docx, .xlsx, .ppt, .pptx",
 }: FileUploadProps) => {
 	const [uploading, setUploading] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);

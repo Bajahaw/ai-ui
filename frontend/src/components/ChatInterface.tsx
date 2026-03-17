@@ -983,8 +983,8 @@ export const ChatInterface = ({
 								isAuthChecking
 									? undefined
 									: isAuthenticated
-										? "Choose a conversation or start a new chat from the sidebar."
-										: "Sign in from the sidebar to load your conversations and start chatting."
+										? "Here is a glimpse of your previous interactions"
+										: "Sign in from the sidebar to load your conversations and start chatting"
 							}
 						/>
 					</div>
