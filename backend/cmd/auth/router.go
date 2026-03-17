@@ -82,8 +82,6 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 		passHash: string(hash),
 	}
 
-	log.Debug("changed password", "new pass", user.passHash)
-
 	if err := users.Update(user); err != nil {
 		http.Error(w, "Failed to update password", http.StatusInternalServerError)
 		return

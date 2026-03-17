@@ -107,6 +107,10 @@ func startDataSource() {
 }
 
 func setupAuth() {
+	// if os.Getenv("JWT_SECRET") == "" {
+	// 	log.Fatal("JWT_SECRET environment variable is required")
+	// }
+
 	auth.Setup(log, db)
 	auth.OnRegister = []auth.PostRegisterHook{
 		settings.SetDefaults,

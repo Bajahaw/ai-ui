@@ -4,6 +4,7 @@ import (
 	"ai-client/cmd/auth"
 	"ai-client/cmd/utils"
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -68,6 +69,7 @@ func getAllModels(w http.ResponseWriter, r *http.Request) {
 }
 
 func saveModels(w http.ResponseWriter, r *http.Request) {
+	user := utils.ExtractContextUser(r)
 	var models ModelRequest
 	err := utils.ExtractJSONBody(r, &models)
 	if err != nil {
@@ -76,9 +78,13 @@ func saveModels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = providers.SaveModels(models.Models)
+	err = providers.SaveModels(models.Models, user)
 	if err != nil {
 		log.Error("Error saving models for provider", "err", err)
+		if errors.Is(err, ErrUnauthorizedProviderReference) {
+			http.Error(w, "Unauthorized provider reference", http.StatusUnauthorized)
+			return
+		}
 		http.Error(w, "Error saving models for provider", http.StatusInternalServerError)
 		return
 	}
@@ -171,7 +177,7 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 	if fetchErr != nil {
 		log.Error("Error fetching models for new provider", "err", fetchErr)
 	} else {
-		if err = providers.SaveModels(models); err != nil {
+		if err = providers.SaveModels(models, provider.User); err != nil {
 			log.Error("Error saving models for provider", "err", err)
 		}
 	}
@@ -232,8 +238,12 @@ func refreshProviderModels(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Upsert with correct is_enabled values
-	if err = providers.SaveModels(freshModels); err != nil {
+	if err = providers.SaveModels(freshModels, user); err != nil {
 		log.Error("Error saving refreshed models", "err", err)
+		if errors.Is(err, ErrUnauthorizedProviderReference) {
+			http.Error(w, "Unauthorized provider reference", http.StatusUnauthorized)
+			return
+		}
 		http.Error(w, "Error saving models", http.StatusInternalServerError)
 		return
 	}

@@ -1,9 +1,14 @@
 package providers
 
 import (
+	"ai-client/cmd/utils"
 	"database/sql"
+	"errors"
+	"fmt"
 	"strings"
 )
+
+var ErrUnauthorizedProviderReference = errors.New("unauthorized provider reference")
 
 type Provider struct {
 	ID      string `json:"id"`
@@ -17,7 +22,7 @@ type Repository interface {
 	GetByID(id string, user string) (*Provider, error)
 	Save(provider *Provider) error
 	DeleteByID(id string, user string) error
-	SaveModels(models []*Model) error
+	SaveModels(models []*Model, user string) error
 	GetAllModels(user string) []*Model
 	GetModelsByProvider(providerID string) []*Model
 	DeleteModelsNotIn(providerID string, modelIDs []string) error
@@ -92,29 +97,65 @@ func (repo *Repo) DeleteByID(id string, user string) error {
 	return err
 }
 
-func (repo *Repo) SaveModels(models []*Model) error {
+func (repo *Repo) SaveModels(models []*Model, user string) error {
 	if len(models) == 0 {
 		return nil
 	}
 
-	var sb strings.Builder
-	sb.WriteString("INSERT INTO Models (id, provider_id, name, is_enabled) VALUES ")
-
-	args := make([]any, 0, len(models)*4)
-	for i, m := range models {
-		if i > 0 {
-			sb.WriteString(",")
-		}
-		sb.WriteString("(?, ?, ?, ?)")
-		args = append(args, m.ID, m.ProviderID, m.Name, m.IsEnabled)
+	// Use one transaction so ownership validation and upsert happen atomically.
+	tx, err := repo.db.Begin()
+	if err != nil {
+		return err
 	}
 
-	// on conflict, only update the enabled status
-	sb.WriteString(" ON CONFLICT(id) DO UPDATE SET is_enabled=excluded.is_enabled")
+	defer func() {
+		_ = tx.Rollback()
+	}()
 
-	_, err := repo.db.Exec(sb.String(), args...)
+	providerIDsMap := make(map[string]struct{})
+	var upsertSQL strings.Builder
+	upsertSQL.WriteString("INSERT INTO Models (id, provider_id, name, is_enabled) VALUES ")
+	upsertArgs := make([]any, 0, len(models)*4)
 
-	return err
+	for i, m := range models {
+		if m.ProviderID == "" {
+			return fmt.Errorf("%w: missing provider id", ErrUnauthorizedProviderReference)
+		}
+		providerIDsMap[m.ProviderID] = struct{}{}
+
+		if i > 0 {
+			upsertSQL.WriteString(",")
+		}
+		upsertSQL.WriteString("(?, ?, ?, ?)")
+		upsertArgs = append(upsertArgs, m.ID, m.ProviderID, m.Name, m.IsEnabled)
+	}
+
+	// Validate all distinct provider IDs in one DB call.
+	validateQuery := "SELECT COUNT(1) FROM Providers WHERE user = ? AND id IN (" + utils.SqlPlaceholders(len(providerIDsMap)) + ")"
+	validateArgs := make([]any, 0, len(providerIDsMap)+1)
+	validateArgs = append(validateArgs, user)
+	for providerID := range providerIDsMap {
+		validateArgs = append(validateArgs, providerID)
+	}
+
+	var foundCount int
+	err = tx.QueryRow(validateQuery, validateArgs...).Scan(&foundCount)
+	if err != nil {
+		return err
+	}
+	if foundCount != len(providerIDsMap) {
+		return fmt.Errorf("%w: at least one provider does not belong to user", ErrUnauthorizedProviderReference)
+	}
+
+	// on conflict, update only when provider_id matches to prevent cross-provider overwrites.
+	upsertSQL.WriteString(" ON CONFLICT(id) DO UPDATE SET is_enabled=excluded.is_enabled WHERE Models.provider_id=excluded.provider_id")
+
+	_, err = tx.Exec(upsertSQL.String(), upsertArgs...)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (repo *Repo) GetAllModels(user string) []*Model {
