@@ -6,7 +6,7 @@ require (
 	github.com/charmbracelet/log v0.4.2
 	github.com/dslipak/pdf v0.0.2
 	github.com/evgensoft/ddgo v0.0.0-20250604183002-54c292420e4d
-	github.com/golang-jwt/jwt/v5 v5.2.2
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.2.0
 	github.com/openai/openai-go/v3 v3.15.0
