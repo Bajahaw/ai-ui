@@ -107,9 +107,18 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompl
 		})
 	}
 
+	// Compatibility across providers: some use reasoning_text or reasoning_content.
+	reasoning := completion.Choices[0].Message.Reasoning
+	if reasoning == "" && completion.Choices[0].Message.ReasoningText != "" {
+		reasoning = completion.Choices[0].Message.ReasoningText
+	}
+	if reasoning == "" && completion.Choices[0].Message.ReasoningContent != "" {
+		reasoning = completion.Choices[0].Message.ReasoningContent
+	}
+
 	return &ChatCompletionMessage{
 		Content:   completion.Choices[0].Message.Content,
-		Reasoning: completion.Choices[0].Message.Reasoning,
+		Reasoning: reasoning,
 		ToolCalls: toolCalls,
 	}, nil
 }
@@ -170,10 +179,15 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 			contentDelta := chunk.Choices[0].Delta.Content
 			reasoningDelta := chunk.Choices[0].Delta.Reasoning
 
-			// for compatibility with specific providers
+			// Compatibility across providers (e.g. GitHub Copilot, Fireworks).
 			reasoningTxtDelta := chunk.Choices[0].Delta.ReasoningText
 			if reasoningTxtDelta != "" && reasoningDelta == "" {
 				reasoningDelta = reasoningTxtDelta
+			}
+
+			reasoningContentDelta := chunk.Choices[0].Delta.ReasoningContent
+			if reasoningContentDelta != "" && reasoningDelta == "" {
+				reasoningDelta = reasoningContentDelta
 			}
 
 			if reasoningDelta != "" {
@@ -281,10 +295,13 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 		})
 	}
 
-	// for compatibility with specific providers
+	// Compatibility across providers: some use reasoning_text or reasoning_content.
 	reasoning := acc.Choices[0].Message.Reasoning
 	if reasoning == "" && acc.Choices[0].Message.ReasoningText != "" {
 		reasoning = acc.Choices[0].Message.ReasoningText
+	}
+	if reasoning == "" && acc.Choices[0].Message.ReasoningContent != "" {
+		reasoning = acc.Choices[0].Message.ReasoningContent
 	}
 
 	log.Debug("response completed", "content", acc.Choices[0].Message.Content)

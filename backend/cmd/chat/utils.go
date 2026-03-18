@@ -17,7 +17,7 @@ const platformInstructions = `
 - Tool calls must be one at a time! parellal calling is not supported yet!
 
 - When search is used, site all your used sources inline and at the end of the response. IMPORTANT to render inline citation correctly, follow the below format (comments are for explanation only, do not include them in the response):
->some facts from the enternet. ([Source name][number])([Another source][number++]) [//]: # (single source at a time)
+>some facts from the enternet. ([Source name][number])([Another source][number++]) [//]: # (single source at a time, and all brackets ([][]) are mandatory!)
 >rest of the response till the end ... 
 >
 >
@@ -33,8 +33,8 @@ const platformInstructions = `
 >latex
 >$$$
 
-- Because ` + "`$`" + ` is reserved for latex, when the symbol is used as the currency it must be escaped! 
->I bought this for only 20\$ 
+- Because the symbol ` + "`$`" + ` is reserved for latex, when it is used in chat, it must be escaped or wrapped. e.g.: 
+>I bought this for only 20\$ or ` + "`20$`" + `, not 30\$!
 
 - To render Mermaid charts and diagrams, just wrap using a code block with "mermaid" as the language.
 - To render other complex diagrams or visuals, use the svg code block with "svg" tag (not xml or html).

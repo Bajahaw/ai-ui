@@ -55,4 +55,4 @@ require (
 	golang.org/x/sys v0.40.0 // indirect
 )
 
-replace github.com/openai/openai-go/v3 => github.com/bajahaw/openai-go/v3 v3.0.0-20260211064622-f09459f92ac9
+replace github.com/openai/openai-go/v3 => github.com/bajahaw/openai-go/v3 v3.0.0-20260318102004-611d346c7421
