@@ -3,15 +3,15 @@
 import { CodeBlock, CodeBlockCopyButton } from "./code-block.tsx";
 import { MermaidDiagram } from "./mermaid-diagram.tsx";
 import { SvgRenderer } from "./svg-renderer.tsx";
-import type { ComponentProps, HTMLAttributes } from "react";
+import type { HTMLAttributes } from "react";
 import { memo } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import rehypeKatex from "rehype-katex";
+import { harden, type BlockPolicyType } from "rehype-harden";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { cn } from "@/lib/utils";
 import "katex/dist/katex.min.css";
-import hardenReactMarkdown from "harden-react-markdown";
 
 /**
  * Remark plugin to detect citations: ([Link])
@@ -205,21 +205,16 @@ function parseIncompleteMarkdown(text: string): string {
   return result;
 }
 
-// Create a hardened version of ReactMarkdown
-const HardenedMarkdown = hardenReactMarkdown(ReactMarkdown);
-
 export type ResponseProps = HTMLAttributes<HTMLDivElement> & {
   options?: Options;
   children: Options["children"];
-  allowedImagePrefixes?: ComponentProps<
-    ReturnType<typeof hardenReactMarkdown>
-  >["allowedImagePrefixes"];
-  allowedLinkPrefixes?: ComponentProps<
-    ReturnType<typeof hardenReactMarkdown>
-  >["allowedLinkPrefixes"];
-  defaultOrigin?: ComponentProps<
-    ReturnType<typeof hardenReactMarkdown>
-  >["defaultOrigin"];
+  allowedImagePrefixes?: string[];
+  allowedLinkPrefixes?: string[];
+  defaultOrigin?: string;
+  allowDataImages?: boolean;
+  allowedProtocols?: string[];
+  linkBlockPolicy?: BlockPolicyType;
+  imageBlockPolicy?: BlockPolicyType;
   parseIncompleteMarkdown?: boolean;
 };
 
@@ -403,6 +398,10 @@ export const Response = memo(
     allowedImagePrefixes,
     allowedLinkPrefixes,
     defaultOrigin,
+    allowDataImages,
+    allowedProtocols,
+    linkBlockPolicy,
+    imageBlockPolicy,
     parseIncompleteMarkdown: shouldParseIncompleteMarkdown = true,
     ...props
   }: ResponseProps) => {
@@ -425,17 +424,28 @@ export const Response = memo(
         )}
         {...props}
       >
-        <HardenedMarkdown
+        <ReactMarkdown
           components={components}
-          rehypePlugins={[rehypeKatex]}
+          rehypePlugins={[
+            rehypeKatex,
+            [
+              harden,
+              {
+                allowedImagePrefixes: allowedImagePrefixes ?? ["*"],
+                allowedLinkPrefixes: allowedLinkPrefixes ?? ["*"],
+                defaultOrigin,
+                allowDataImages,
+                allowedProtocols,
+                linkBlockPolicy,
+                imageBlockPolicy,
+              },
+            ],
+          ]}
           remarkPlugins={[remarkGfm, remarkMath, remarkLinkCitations]}
-          allowedImagePrefixes={allowedImagePrefixes ?? ["*"]}
-          allowedLinkPrefixes={allowedLinkPrefixes ?? ["*"]}
-          defaultOrigin={defaultOrigin}
           {...options}
         >
           {parsedChildren}
-        </HardenedMarkdown>
+        </ReactMarkdown>
       </div>
     );
   },

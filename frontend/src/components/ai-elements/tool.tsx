@@ -47,13 +47,13 @@ const getStatusBadge = (status: ToolUIPart['state'] | 'awaiting-approval') => {
   //   'output-error': 'Error',
   // } as const;
 
-  const icons = {
+  const icons: Partial<Record<ToolUIPart['state'] | 'awaiting-approval', ReactNode>> = {
     'input-streaming': <CircleIcon className="size-4" />,
     'input-available': <ClockIcon className="size-4 animate-pulse" />,
     'output-available': <CheckCircleIcon className="size-4 text-green-600" />,
     'output-error': <XCircleIcon className="size-4 text-red-600" />,
     'awaiting-approval': <CircleIcon className="size-4 text-orange-500" />,
-  } as const;
+  };
 
   if (status === 'awaiting-approval') {
      return (
@@ -66,7 +66,7 @@ const getStatusBadge = (status: ToolUIPart['state'] | 'awaiting-approval') => {
 
   return (
     <Badge className="rounded-full text-xs" variant="secondary">
-      {icons[status]}
+      {icons[status] ?? <CircleIcon className="size-4" />}
       {/* {labels[status]} */}
     </Badge>
   );
