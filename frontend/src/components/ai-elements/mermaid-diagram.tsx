@@ -15,6 +15,8 @@ type MermaidRuntime = {
     startOnLoad: boolean;
     securityLevel: "strict";
     theme: "default" | "dark";
+    fontFamily: string;
+    fontSize: number;
     flowchart: {
       htmlLabels: boolean;
     };
@@ -27,8 +29,11 @@ function initializeMermaid(mermaid: MermaidRuntime, isDark: boolean) {
     startOnLoad: false,
     securityLevel: "strict",
     theme: isDark ? "dark" : "default",
+    // Keep runtime measurements aligned with rendered label typography.
+    fontFamily: "'trebuchet ms', verdana, arial, sans-serif",
+    fontSize: 16,
     flowchart: {
-      htmlLabels: false,
+      htmlLabels: true,
     },
   });
 }
@@ -193,7 +198,7 @@ export function MermaidDiagram({ code, className, ...props }: MermaidDiagramProp
         </div>
       ) : (
         <div
-          className="overflow-auto pt-6 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full"
+          className="overflow-auto pt-6 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full [&_.nodeLabel]:leading-normal [&_foreignObject]:overflow-visible [&_foreignObject_div]:m-0 [&_foreignObject_div]:leading-normal"
           dangerouslySetInnerHTML={{ __html: svg }}
         />
       )}
