@@ -199,7 +199,10 @@
     }
 
     .dialog-content-animation {
-        animation: dialog-content-zoom 0.1s ease-out;
+        translate: -50% -50%;
+        transform-origin: center;
+        will-change: opacity, scale;
+        animation: dialog-content-zoom 0.16s ease-out both;
     }
 
     .dialog-content-animation[data-state="closed"] {
@@ -229,24 +232,24 @@
     @keyframes dialog-content-zoom {
         from {
             opacity: 0;
-            transform: translate(-50%, -50%) scale(0.95);
+            scale: 0.96;
         }
 
         to {
             opacity: 1;
-            transform: translate(-50%, -50%) scale(1);
+            scale: 1;
         }
     }
 
     @keyframes dialog-content-zoom-out {
         from {
             opacity: 1;
-            transform: translate(-50%, -50%) scale(1);
+            scale: 1;
         }
 
         to {
             opacity: 0;
-            transform: translate(-50%, -50%) scale(0.95);
+            scale: 0.96;
         }
     }
 
