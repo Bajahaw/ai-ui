@@ -7,12 +7,6 @@
       "type": "image/svg+xml",
       "sizes": "any",
       "purpose": "any"
-    },
-    {
-      "src": "/favicon.svg",
-      "type": "image/svg+xml",
-      "sizes": "192x192 512x512",
-      "purpose": "maskable"
     }
   ],
   "start_url": "/",
