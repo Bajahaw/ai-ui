@@ -1,0 +1,11 @@
+{
+  "name": "ai-ui-root",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "cd frontend && bun run dev",
+    "build": "cd frontend && bun run build"
+  }
+}

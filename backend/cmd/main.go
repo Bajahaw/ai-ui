@@ -45,7 +45,7 @@ func main() {
 }
 
 func setupEnv() {
-	err := godotenv.Load("../.env")
+	err := godotenv.Load("./.env")
 	if err != nil {
 		fmt.Println("No .env file found, proceeding with system environment variables")
 	}
