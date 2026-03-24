@@ -2,7 +2,12 @@
 
 import { cn } from "@/lib/utils";
 import DOMPurify from "dompurify";
-import { CheckIcon, CopyIcon, DownloadIcon, TriangleAlertIcon } from "lucide-react";
+import {
+  CheckIcon,
+  CopyIcon,
+  DownloadIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
 import { useEffect, useMemo, useState, type HTMLAttributes } from "react";
 import { Action } from "./actions";
 import { downloadTextFile, useCopyFeedback } from "./diagram-actions";
@@ -95,7 +100,9 @@ export function SvgRenderer({ code, className, ...props }: SvgRendererProps) {
         }
 
         const message =
-          sanitizeError instanceof Error ? sanitizeError.message : "Unable to render SVG";
+          sanitizeError instanceof Error
+            ? sanitizeError.message
+            : "Unable to render SVG";
         setError(message);
         setSvg("");
       }
@@ -120,7 +127,11 @@ export function SvgRenderer({ code, className, ...props }: SvgRendererProps) {
       return;
     }
 
-    downloadTextFile(svg, "image/svg+xml;charset=utf-8", `svg-diagram-${Date.now()}.svg`);
+    downloadTextFile(
+      svg,
+      "image/svg+xml;charset=utf-8",
+      `svg-diagram-${Date.now()}.svg`,
+    );
   };
 
   return (

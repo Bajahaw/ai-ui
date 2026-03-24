@@ -51,7 +51,7 @@ func saveConversation(w http.ResponseWriter, r *http.Request) {
 
 	// Broadcast the new conversation to other sessions
 	sessionID := r.Header.Get("X-Session-ID")
-	syncManager.Broadcast(conv.UserID, sessionID, ConversationEvent{
+	syncManager.Broadcast(conv.UserID, sessionID, SyncEvent{
 		Type:           EventConversationCreated,
 		ConversationID: conv.ID,
 		Conversation:   conv,
@@ -90,7 +90,7 @@ func deleteConversation(w http.ResponseWriter, r *http.Request) {
 
 	// Broadcast the deletion to other sessions
 	sessionID := r.Header.Get("X-Session-ID")
-	syncManager.Broadcast(user, sessionID, ConversationEvent{
+	syncManager.Broadcast(user, sessionID, SyncEvent{
 		Type:           EventConversationDeleted,
 		ConversationID: convId,
 	})
@@ -129,7 +129,7 @@ func renameConversation(w http.ResponseWriter, r *http.Request) {
 
 	// Broadcast the update to other sessions
 	sessionID := r.Header.Get("X-Session-ID")
-	syncManager.Broadcast(user, sessionID, ConversationEvent{
+	syncManager.Broadcast(user, sessionID, SyncEvent{
 		Type:           EventConversationUpdated,
 		ConversationID: convId,
 		Conversation:   conv,

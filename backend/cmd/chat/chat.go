@@ -60,7 +60,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 
 		// Broadcast new conversation to other sessions
 		sessionID := r.Header.Get("X-Session-ID")
-		syncManager.Broadcast(user, sessionID, ConversationEvent{
+		syncManager.Broadcast(user, sessionID, SyncEvent{
 			Type:           EventConversationCreated,
 			ConversationID: conv.ID,
 			Conversation:   conv,
@@ -69,7 +69,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		// Broadcast update to other sessions to reorder sidebar
 		if conv, err := conversations.GetByID(convID, user); err == nil {
 			sessionID := r.Header.Get("X-Session-ID")
-			syncManager.Broadcast(user, sessionID, ConversationEvent{
+			syncManager.Broadcast(user, sessionID, SyncEvent{
 				Type:           EventConversationUpdated,
 				ConversationID: conv.ID,
 				Conversation:   conv,
@@ -111,7 +111,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Error saving user message: %v", err), http.StatusBadRequest)
 		return
 	}
-	syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), ConversationEvent{
+	syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), SyncEvent{
 		Type:           EventMessageSaved,
 		ConversationID: convID,
 		MessageID:      userMessage.ID,
@@ -149,7 +149,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Error("Error saving response message", "err", err)
 	} else {
-		syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), ConversationEvent{
+		syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), SyncEvent{
 			Type:           EventMessageSaved,
 			ConversationID: convID,
 			MessageID:      responseMessage.ID,
@@ -225,7 +225,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	if updatedMsg, updateErr := updateMessage(responseMessage.ID, responseMessage); updateErr != nil {
 		log.Error("Error updating assistant message after tool calls", "err", updateErr)
 	} else if updatedMsg != nil {
-		syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), ConversationEvent{
+		syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), SyncEvent{
 			Type:           EventMessageUpdated,
 			ConversationID: convID,
 			MessageID:      updatedMsg.ID,
@@ -270,7 +270,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	// Broadcast update to other sessions to reorder sidebar
 	if conv, err := conversations.GetByID(req.ConversationID, user); err == nil {
 		sessionID := r.Header.Get("X-Session-ID")
-		syncManager.Broadcast(user, sessionID, ConversationEvent{
+		syncManager.Broadcast(user, sessionID, SyncEvent{
 			Type:           EventConversationUpdated,
 			ConversationID: conv.ID,
 			Conversation:   conv,
@@ -316,7 +316,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Error("Error saving retry response message", "err", err)
 	} else {
-		syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), ConversationEvent{
+		syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), SyncEvent{
 			Type:           EventMessageSaved,
 			ConversationID: req.ConversationID,
 			MessageID:      responseMessage.ID,
@@ -394,7 +394,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	if updatedMsg, updateErr := updateMessage(responseMessage.ID, responseMessage); updateErr != nil {
 		log.Error("Error updating assistant message after tool calls", "err", updateErr)
 	} else if updatedMsg != nil {
-		syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), ConversationEvent{
+		syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), SyncEvent{
 			Type:           EventMessageUpdated,
 			ConversationID: req.ConversationID,
 			MessageID:      updatedMsg.ID,
@@ -412,75 +412,6 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		Type:    utils.EVENT_COMPLETE,
 		Payload: completionData,
 	})
-}
-
-func enterAgentLoop(
-	calls []tools.ToolCall,
-	providerParams providers.RequestParams,
-	responseMessage *Message,
-	convID, user string,
-	sc utils.StreamClient,
-) (*providers.ChatCompletionMessage, error) {
-	for _, toolCall := range calls {
-
-		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
-			Role:     "assistant",
-			ToolCall: toolCall,
-		})
-
-		toolCall.MessageID = responseMessage.ID
-		toolCall.ConvID = convID
-
-		output := tools.ExecuteMCPTool(toolCall, user)
-		toolCall.Output = output
-
-		utils.SendStreamChunk(sc, utils.StreamChunk{
-			Type:    utils.TOOL_CALL,
-			Payload: toolCall,
-		})
-
-		err := toolCalls.Save(&toolCall)
-		if err != nil {
-			log.Error("Error saving tool call output", "err", err)
-		}
-
-		// Append tool result message to context for continued completion
-		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
-			Role: "tool",
-			ToolCall: tools.ToolCall{
-				ID:          toolCall.ID,
-				ReferenceID: toolCall.ReferenceID,
-				Name:        toolCall.Name,
-				Output:      output,
-			},
-		})
-
-	}
-
-	completion, err := provider.SendChatCompletionStreamRequest(providerParams, sc)
-	if err != nil {
-		log.Error("Error streaming chat completion after tool call", "err", err)
-		utils.SendStreamChunk(sc, utils.StreamChunk{
-			Type:    utils.EVENT_ERROR,
-			Payload: err.Error(),
-		})
-		return completion, err
-	}
-
-	// Accumulate reasoning for all tool calls
-	if responseMessage.Reasoning != "" || completion.Reasoning != "" {
-		for _, toolCall := range calls {
-			responseMessage.Reasoning += "  \n`using tool:" + toolCall.Name + "`  \n"
-		}
-		responseMessage.Reasoning += completion.Reasoning
-	}
-
-	calls = completion.ToolCalls
-	if len(calls) > 0 {
-		return enterAgentLoop(calls, providerParams, responseMessage, convID, user, sc)
-	}
-
-	return completion, err
 }
 
 func update(w http.ResponseWriter, r *http.Request) {
@@ -503,7 +434,7 @@ func update(w http.ResponseWriter, r *http.Request) {
 	// Broadcast update to other sessions to reorder sidebar
 	if conv, err := conversations.GetByID(req.ConversationID, user); err == nil {
 		sessionID := r.Header.Get("X-Session-ID")
-		syncManager.Broadcast(user, sessionID, ConversationEvent{
+		syncManager.Broadcast(user, sessionID, SyncEvent{
 			Type:           EventConversationUpdated,
 			ConversationID: conv.ID,
 			Conversation:   conv,
@@ -516,7 +447,7 @@ func update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Error updating message: %v", err), http.StatusInternalServerError)
 		return
 	}
-	syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), ConversationEvent{
+	syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), SyncEvent{
 		Type:           EventMessageUpdated,
 		ConversationID: req.ConversationID,
 		MessageID:      msg.ID,
@@ -571,7 +502,7 @@ func cancelStream(w http.ResponseWriter, r *http.Request) {
 			log.Error("Failed to force-complete message after cancel", "err", updateErr)
 		} else if updated != nil {
 			msg = updated
-			syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), ConversationEvent{
+			syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), SyncEvent{
 				Type:           EventMessageUpdated,
 				ConversationID: msg.ConvID,
 				MessageID:      msg.ID,

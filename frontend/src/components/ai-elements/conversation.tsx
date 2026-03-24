@@ -3,7 +3,15 @@
 import { Button } from "@/components/ui/button";
 import { ArrowDownIcon } from "lucide-react";
 import type { ComponentProps } from "react";
-import { useCallback, createContext, useContext, useState, useEffect, useRef, forwardRef } from "react";
+import {
+  useCallback,
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+  forwardRef,
+} from "react";
 import { cn } from "@/lib/utils";
 
 interface ConversationContextValue {
@@ -11,7 +19,9 @@ interface ConversationContextValue {
   scrollToBottom: () => void;
 }
 
-const ConversationContext = createContext<ConversationContextValue | null>(null);
+const ConversationContext = createContext<ConversationContextValue | null>(
+  null,
+);
 
 const useConversationContext = () => {
   const context = useContext(ConversationContext);
@@ -63,10 +73,7 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 
     return (
       <ConversationContext.Provider value={{ isAtBottom, scrollToBottom }}>
-        <div
-          className={cn("relative flex-1 min-h-0", className)}
-          {...props}
-        >
+        <div className={cn("relative flex-1 min-h-0", className)} {...props}>
           <div
             ref={(node) => {
               scrollContainerRef.current = node;
@@ -77,7 +84,7 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
               }
             }}
             className="h-full overflow-y-auto bg-background"
-            style={{ scrollbarGutter: 'stable' }}
+            style={{ scrollbarGutter: "stable" }}
             role="log"
           >
             {children}
@@ -85,7 +92,7 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
         </div>
       </ConversationContext.Provider>
     );
-  }
+  },
 );
 
 Conversation.displayName = "Conversation";

@@ -1,6 +1,10 @@
 import { useState } from "react";
 
-export function downloadTextFile(content: string, mimeType: string, filename: string) {
+export function downloadTextFile(
+  content: string,
+  mimeType: string,
+  filename: string,
+) {
   if (!content) {
     return;
   }
@@ -19,7 +23,12 @@ export function useCopyFeedback(timeoutMs = 1800) {
   const [isCopied, setIsCopied] = useState(false);
 
   const copyText = async (text: string) => {
-    if (!text || isCopying || typeof window === "undefined" || !navigator.clipboard?.writeText) {
+    if (
+      !text ||
+      isCopying ||
+      typeof window === "undefined" ||
+      !navigator.clipboard?.writeText
+    ) {
       return false;
     }
 

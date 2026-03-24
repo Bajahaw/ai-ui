@@ -7,9 +7,7 @@ import { WelcomeStats } from "@/lib/api/types";
 // Cubic ease-in-out — derivative is 0 at both ends so it genuinely crawls
 // in/out, and the curve never plateaus early like a sigmoid does.
 function cubicEaseInOut(t: number): number {
-  return t < 0.5
-    ? 4 * t * t * t
-    : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
 function useCountUp(target: number, duration = 3000): number {
@@ -18,7 +16,10 @@ function useCountUp(target: number, duration = 3000): number {
   const startRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (target === 0) { setValue(0); return; }
+    if (target === 0) {
+      setValue(0);
+      return;
+    }
     setValue(0);
     startRef.current = null;
 
@@ -42,19 +43,24 @@ function useCountUp(target: number, duration = 3000): number {
 }
 
 function formatStatNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 1_000_000)
+    return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
   return n.toString();
 }
 
 const STAT_DEFS: { key: keyof WelcomeStats; label: string }[] = [
-  { key: "totalTokens",        label: "Tokens Out"    },
-  { key: "totalInputTokens",   label: "Tokens In"     },
+  { key: "totalTokens", label: "Tokens Out" },
+  { key: "totalInputTokens", label: "Tokens In" },
   { key: "totalConversations", label: "Conversations" },
-  { key: "totalMessages",      label: "Messages"      },
+  { key: "totalMessages", label: "Messages" },
 ];
 
-function StatCell({ value, label, index }: {
+function StatCell({
+  value,
+  label,
+  index,
+}: {
   value: number;
   label: string;
   index: number;
@@ -63,14 +69,15 @@ function StatCell({ value, label, index }: {
   // On small screens (2-col grid): border only on right column (items 1, 3)
   // On sm+ (4-col single row): border on every item except the first (items 1, 2, 3)
   const borderClass =
-    index === 0 ? "" :
-    index % 2 !== 0 ? "border-l border-border/40" :   // items 1 & 3: always
-    "sm:border-l sm:border-border/40";                 // item 2: sm+ only
+    index === 0
+      ? ""
+      : index % 2 !== 0
+        ? "border-l border-border/40" // items 1 & 3: always
+        : "sm:border-l sm:border-border/40"; // item 2: sm+ only
   return (
-    <div className={cn(
-      "flex flex-col items-center gap-2 py-5 px-4",
-      borderClass,
-    )}>
+    <div
+      className={cn("flex flex-col items-center gap-2 py-5 px-4", borderClass)}
+    >
       <span className="text-3xl sm:text-4xl font-thin tabular-nums tracking-tight text-foreground leading-none whitespace-nowrap">
         {formatStatNumber(animated)}
       </span>
@@ -87,7 +94,13 @@ export interface WelcomeProps extends ComponentProps<"div"> {
   message?: string;
 }
 
-export const Welcome = ({ className, stats, isLoading = false, message, ...props }: WelcomeProps) => {
+export const Welcome = ({
+  className,
+  stats,
+  isLoading = false,
+  message,
+  ...props
+}: WelcomeProps) => {
   const displayStats: WelcomeStats = isLoading
     ? {
         totalTokens: 0,
@@ -95,12 +108,12 @@ export const Welcome = ({ className, stats, isLoading = false, message, ...props
         totalConversations: 0,
         totalMessages: 0,
       }
-    : stats ?? {
+    : (stats ?? {
         totalTokens: 0,
         totalInputTokens: 0,
         totalConversations: 0,
         totalMessages: 0,
-      };
+      });
 
   return (
     <div
@@ -114,7 +127,12 @@ export const Welcome = ({ className, stats, isLoading = false, message, ...props
         How can I help you?
       </h1>
 
-      <p className={cn("mb-6 max-w-md text-center text-sm text-muted-foreground", !message && "invisible")}>
+      <p
+        className={cn(
+          "mb-6 max-w-md text-center text-sm text-muted-foreground",
+          !message && "invisible",
+        )}
+      >
         {message ?? "\u00A0"}
       </p>
 
@@ -134,7 +152,6 @@ export const Welcome = ({ className, stats, isLoading = false, message, ...props
         </div>
 
         <div className="border-t border-border/40" />
-
       </div>
     </div>
   );

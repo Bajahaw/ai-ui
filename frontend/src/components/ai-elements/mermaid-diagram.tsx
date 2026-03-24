@@ -1,7 +1,12 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { CheckIcon, CopyIcon, DownloadIcon, TriangleAlertIcon } from "lucide-react";
+import {
+  CheckIcon,
+  CopyIcon,
+  DownloadIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
 import { useEffect, useMemo, useState, type HTMLAttributes } from "react";
 import { Action } from "./actions";
 import { downloadTextFile, useCopyFeedback } from "./diagram-actions";
@@ -38,7 +43,11 @@ function initializeMermaid(mermaid: MermaidRuntime, isDark: boolean) {
   });
 }
 
-export function MermaidDiagram({ code, className, ...props }: MermaidDiagramProps) {
+export function MermaidDiagram({
+  code,
+  className,
+  ...props
+}: MermaidDiagramProps) {
   const [svg, setSvg] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [isDark, setIsDark] = useState(false);
@@ -123,7 +132,9 @@ export function MermaidDiagram({ code, className, ...props }: MermaidDiagramProp
         }
 
         const message =
-          renderError instanceof Error ? renderError.message : "Unable to render Mermaid diagram";
+          renderError instanceof Error
+            ? renderError.message
+            : "Unable to render Mermaid diagram";
         setError(message);
         setSvg("");
       }
@@ -156,13 +167,7 @@ export function MermaidDiagram({ code, className, ...props }: MermaidDiagramProp
   };
 
   return (
-    <div
-      className={cn(
-        "group relative my-4 w-full",
-        className,
-      )}
-      {...props}
-    >
+    <div className={cn("group relative my-4 w-full", className)} {...props}>
       <div className="absolute right-1 top-1 z-10 flex gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
         <Action
           className="h-7 w-7"

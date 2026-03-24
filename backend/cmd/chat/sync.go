@@ -18,7 +18,7 @@ const (
 	EventMessageUpdated      = "message_updated"
 )
 
-type ConversationEvent struct {
+type SyncEvent struct {
 	Type           string        `json:"type"`
 	ConversationID string        `json:"conversationId"`
 	Conversation   *Conversation `json:"conversation,omitempty"`
@@ -29,7 +29,7 @@ type ConversationEvent struct {
 type Subscriber struct {
 	UserID    string
 	SessionID string
-	Events    chan ConversationEvent
+	Events    chan SyncEvent
 	Done      chan struct{}
 }
 
@@ -60,7 +60,7 @@ func (sm *SyncManager) Subscribe(userID, sessionID string) *Subscriber {
 	sub := &Subscriber{
 		UserID:    userID,
 		SessionID: sessionID,
-		Events:    make(chan ConversationEvent, 10), // Buffer slightly to avoid blocking
+		Events:    make(chan SyncEvent, 10), // Buffer slightly to avoid blocking
 		Done:      make(chan struct{}),
 	}
 
@@ -83,7 +83,7 @@ func (sm *SyncManager) Unsubscribe(userID, sessionID string) {
 	}
 }
 
-func (sm *SyncManager) Broadcast(userID, sourceSessionID string, event ConversationEvent) {
+func (sm *SyncManager) Broadcast(userID, sourceSessionID string, event SyncEvent) {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 

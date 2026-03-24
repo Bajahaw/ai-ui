@@ -2,6 +2,8 @@ package chat
 
 import (
 	"ai-client/cmd/providers"
+	"ai-client/cmd/tools"
+	"ai-client/cmd/utils"
 	"encoding/base64"
 	"fmt"
 	"os"
@@ -140,6 +142,75 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 		})
 	}
 	return messages
+}
+
+func enterAgentLoop(
+	calls []tools.ToolCall,
+	providerParams providers.RequestParams,
+	responseMessage *Message,
+	convID, user string,
+	sc utils.StreamClient,
+) (*providers.ChatCompletionMessage, error) {
+	for _, toolCall := range calls {
+
+		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
+			Role:     "assistant",
+			ToolCall: toolCall,
+		})
+
+		toolCall.MessageID = responseMessage.ID
+		toolCall.ConvID = convID
+
+		output := tools.ExecuteMCPTool(toolCall, user)
+		toolCall.Output = output
+
+		utils.SendStreamChunk(sc, utils.StreamChunk{
+			Type:    utils.TOOL_CALL,
+			Payload: toolCall,
+		})
+
+		err := toolCalls.Save(&toolCall)
+		if err != nil {
+			log.Error("Error saving tool call output", "err", err)
+		}
+
+		// Append tool result message to context for continued completion
+		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
+			Role: "tool",
+			ToolCall: tools.ToolCall{
+				ID:          toolCall.ID,
+				ReferenceID: toolCall.ReferenceID,
+				Name:        toolCall.Name,
+				Output:      output,
+			},
+		})
+
+	}
+
+	completion, err := provider.SendChatCompletionStreamRequest(providerParams, sc)
+	if err != nil {
+		log.Error("Error streaming chat completion after tool call", "err", err)
+		utils.SendStreamChunk(sc, utils.StreamChunk{
+			Type:    utils.EVENT_ERROR,
+			Payload: err.Error(),
+		})
+		return completion, err
+	}
+
+	// Accumulate reasoning for all tool calls
+	if responseMessage.Reasoning != "" || completion.Reasoning != "" {
+		for _, toolCall := range calls {
+			responseMessage.Reasoning += "  \n`using tool:" + toolCall.Name + "`  \n"
+		}
+		responseMessage.Reasoning += completion.Reasoning
+	}
+
+	calls = completion.ToolCalls
+	if len(calls) > 0 {
+		return enterAgentLoop(calls, providerParams, responseMessage, convID, user, sc)
+	}
+
+	return completion, err
 }
 
 func toBase64(data []byte) string {

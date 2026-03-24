@@ -41,9 +41,9 @@ type StreamComplete struct {
 }
 
 type StreamStats struct {
-	// PromptTokens or Context Size
+	// PromptTokens or Context Size or Input tokens
 	PromptTokens int
-	// CompletionTokens or Response message size
+	// CompletionTokens or Response message size or Output tokens
 	CompletionTokens int
 	// // TotalTokens = context + response
 	// TotalTokens int

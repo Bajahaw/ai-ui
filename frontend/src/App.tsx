@@ -12,351 +12,360 @@ import { useNavigate, useParams } from "react-router-dom";
 import { MessageSquareIcon, SettingsIcon } from "lucide-react";
 
 function App() {
-	const { isAuthenticated, isCheckingAuth } = useAuth();
-	const { convId } = useParams<{ convId?: string }>();
-	const navigate = useNavigate();
-	const [webSearch, setWebSearch] = useState(false);
-	const [sidebarCollapsed, setSidebarCollapsed] = useState(
-		window.innerWidth < 768,
-	);
+  const { isAuthenticated, isCheckingAuth } = useAuth();
+  const { convId } = useParams<{ convId?: string }>();
+  const navigate = useNavigate();
+  const [webSearch, setWebSearch] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    window.innerWidth < 768,
+  );
 
-	const [isProcessing, setIsProcessing] = useState(false);
-	const [lastMessageContent, setLastMessageContent] = useState<string>("");
-	const [lastMessageTime, setLastMessageTime] = useState<number>(0);
-	const [showSettings, setShowSettings] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [lastMessageContent, setLastMessageContent] = useState<string>("");
+  const [lastMessageTime, setLastMessageTime] = useState<number>(0);
+  const [showSettings, setShowSettings] = useState(false);
 
-	// Touch handling for swipe gestures
-	const touchStartRef = useRef<number | null>(null);
-	const minSwipeDistance = 50;
-	const maxEdgeStart = 50; // Only allow opening swipe from the left edge
+  // Touch handling for swipe gestures
+  const touchStartRef = useRef<number | null>(null);
+  const minSwipeDistance = 50;
+  const maxEdgeStart = 50; // Only allow opening swipe from the left edge
 
-	const onTouchStart = (e: React.TouchEvent) => {
-		touchStartRef.current = e.targetTouches[0].clientX;
-	};
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartRef.current = e.targetTouches[0].clientX;
+  };
 
-	const onTouchEnd = (e: React.TouchEvent) => {
-		if (!touchStartRef.current) return;
-		
-		const touchEnd = e.changedTouches[0].clientX;
-		const distance = touchStartRef.current - touchEnd;
-		const isLeftSwipe = distance > minSwipeDistance;
-		const isRightSwipe = distance < -minSwipeDistance;
-		const startFromLeftEdge = touchStartRef.current < maxEdgeStart;
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
 
-		// Reset touch start
-		touchStartRef.current = null;
+    const touchEnd = e.changedTouches[0].clientX;
+    const distance = touchStartRef.current - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    const startFromLeftEdge = touchStartRef.current < maxEdgeStart;
 
-		// Only handle gestures on mobile
-		if (window.innerWidth >= 768) return;
+    // Reset touch start
+    touchStartRef.current = null;
 
-		if (isRightSwipe && startFromLeftEdge && sidebarCollapsed) {
-			setSidebarCollapsed(false);
-		} else if (isLeftSwipe && !sidebarCollapsed) {
-			setSidebarCollapsed(true);
-		}
-	};
+    // Only handle gestures on mobile
+    if (window.innerWidth >= 768) return;
 
-	// Conversation management with optimistic updates
-	const {
-		conversations,
-		currentConversation,
-		activeConversationId,
-		sendMessageStream,
-		retryMessageStream,
-		selectConversation,
-		startNewChat,
-		getCurrentMessages,
-		isLoading: conversationsLoading,
-		isConversationLoading,
-		hasHydrated,
-		error: conversationsError,
-		clearError,
-		hasPendingMessages,
-		deleteConversation,
-		renameConversation,
-		switchBranch,
-		getBranchInfo,
-		updateMessage,
-		cancelStream,
-		stats,
-	} = useConversations();
+    if (isRightSwipe && startFromLeftEdge && sidebarCollapsed) {
+      setSidebarCollapsed(false);
+    } else if (isLeftSwipe && !sidebarCollapsed) {
+      setSidebarCollapsed(true);
+    }
+  };
 
-	useEffect(() => {
-		if (!isAuthenticated || isCheckingAuth) {
-			return;
-		}
+  // Conversation management with optimistic updates
+  const {
+    conversations,
+    currentConversation,
+    activeConversationId,
+    sendMessageStream,
+    retryMessageStream,
+    selectConversation,
+    startNewChat,
+    getCurrentMessages,
+    isLoading: conversationsLoading,
+    isConversationLoading,
+    hasHydrated,
+    error: conversationsError,
+    clearError,
+    hasPendingMessages,
+    deleteConversation,
+    renameConversation,
+    switchBranch,
+    getBranchInfo,
+    updateMessage,
+    cancelStream,
+    stats,
+  } = useConversations();
 
-		if (!convId) {
-			if (activeConversationId) {
-				if (hasPendingMessages(activeConversationId)) {
-					navigate(`/c/${activeConversationId}`, { replace: true });
-				} else {
-					startNewChat();
-				}
-			}
-			return;
-		}
+  useEffect(() => {
+    if (!isAuthenticated || isCheckingAuth) {
+      return;
+    }
 
-		if (activeConversationId !== convId) {
-			selectConversation(convId);
-		}
-	}, [
-		convId,
-		activeConversationId,
-		isAuthenticated,
-		isCheckingAuth,
-		hasPendingMessages,
-		selectConversation,
-		startNewChat,
-		navigate,
-	]);
+    if (!convId) {
+      if (activeConversationId) {
+        if (hasPendingMessages(activeConversationId)) {
+          navigate(`/c/${activeConversationId}`, { replace: true });
+        } else {
+          startNewChat();
+        }
+      }
+      return;
+    }
 
-	useEffect(() => {
-		if (!convId || !isAuthenticated || isCheckingAuth || !hasHydrated || conversationsLoading) {
-			return;
-		}
+    if (activeConversationId !== convId) {
+      selectConversation(convId);
+    }
+  }, [
+    convId,
+    activeConversationId,
+    isAuthenticated,
+    isCheckingAuth,
+    hasPendingMessages,
+    selectConversation,
+    startNewChat,
+    navigate,
+  ]);
 
-		const exists = conversations.some((conversation) => conversation.id === convId);
-		if (!exists) {
-			navigate("/", { replace: true });
-		}
-	}, [
-		convId,
-		conversations,
-		hasHydrated,
-		conversationsLoading,
-		isAuthenticated,
-		isCheckingAuth,
-		navigate,
-	]);
+  useEffect(() => {
+    if (
+      !convId ||
+      !isAuthenticated ||
+      isCheckingAuth ||
+      !hasHydrated ||
+      conversationsLoading
+    ) {
+      return;
+    }
 
-	const handleSendMessage = async (
-		message: string,
-		webSearchEnabled: boolean,
-		model: string,
-		attachments?: Attachment[],
-	) => {
-		// Enhanced duplicate prevention for StrictMode and race conditions
-		const currentTime = Date.now();
-		const timeSinceLastMessage = currentTime - lastMessageTime;
+    const exists = conversations.some(
+      (conversation) => conversation.id === convId,
+    );
+    if (!exists) {
+      navigate("/", { replace: true });
+    }
+  }, [
+    convId,
+    conversations,
+    hasHydrated,
+    conversationsLoading,
+    isAuthenticated,
+    isCheckingAuth,
+    navigate,
+  ]);
 
-		if (isProcessing) {
-			return;
-		}
+  const handleSendMessage = async (
+    message: string,
+    webSearchEnabled: boolean,
+    model: string,
+    attachments?: Attachment[],
+  ) => {
+    // Enhanced duplicate prevention for StrictMode and race conditions
+    const currentTime = Date.now();
+    const timeSinceLastMessage = currentTime - lastMessageTime;
 
-		// Prevent duplicate messages within 1 second with same content (StrictMode protection)
-		if (message === lastMessageContent && timeSinceLastMessage < 1000) {
-			return;
-		}
+    if (isProcessing) {
+      return;
+    }
 
-		setIsProcessing(true);
-		setLastMessageContent(message);
-		setLastMessageTime(currentTime);
+    // Prevent duplicate messages within 1 second with same content (StrictMode protection)
+    if (message === lastMessageContent && timeSinceLastMessage < 1000) {
+      return;
+    }
 
-		try {
-			// Use streaming for better UX
-			await sendMessageStream(
-				activeConversationId,
-				message,
-				model,
-				webSearchEnabled,
-				attachments,
-			);
-		} finally {
-			setIsProcessing(false);
-		}
-	};
+    setIsProcessing(true);
+    setLastMessageContent(message);
+    setLastMessageTime(currentTime);
 
-	const handleRetryMessage = async (messageId: string, model: string) => {
-		if (!activeConversationId || !currentConversation) return;
+    try {
+      // Use streaming for better UX
+      await sendMessageStream(
+        activeConversationId,
+        message,
+        model,
+        webSearchEnabled,
+        attachments,
+      );
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
-		try {
-			const failedMessage = currentConversation.messages.find(
-				(m: any) => m.id === messageId,
-			);
-			if (!failedMessage) return;
+  const handleRetryMessage = async (messageId: string, model: string) => {
+    if (!activeConversationId || !currentConversation) return;
 
-			if (failedMessage.role === "user") {
-				await sendMessageStream(
-					activeConversationId,
-					failedMessage.content,
-					model,
-					webSearch,
-					failedMessage.attachments,
-				);
-			} else if (failedMessage.role === "assistant") {
-				// Use streaming retry for assistant messages
-				await retryMessageStream(messageId, model);
-			}
-		} catch (error) {
-			console.error("Retry failed:", error);
-		}
-	};
+    try {
+      const failedMessage = currentConversation.messages.find(
+        (m: any) => m.id === messageId,
+      );
+      if (!failedMessage) return;
 
-	const handleUpdateMessage = async (messageId: string, newContent: string) => {
-		if (!activeConversationId) return;
+      if (failedMessage.role === "user") {
+        await sendMessageStream(
+          activeConversationId,
+          failedMessage.content,
+          model,
+          webSearch,
+          failedMessage.attachments,
+        );
+      } else if (failedMessage.role === "assistant") {
+        // Use streaming retry for assistant messages
+        await retryMessageStream(messageId, model);
+      }
+    } catch (error) {
+      console.error("Retry failed:", error);
+    }
+  };
 
-		try {
-			await updateMessage(messageId, newContent);
-		} catch (error) {
-			console.error("Failed to update message:", error);
-		}
-	};
+  const handleUpdateMessage = async (messageId: string, newContent: string) => {
+    if (!activeConversationId) return;
 
-	const handleNewChat = () => {
-		navigate("/");
-		setWebSearch(false);
-		clearError(); // Clear any existing errors
-	};
+    try {
+      await updateMessage(messageId, newContent);
+    } catch (error) {
+      console.error("Failed to update message:", error);
+    }
+  };
 
-	const handleConversationSelect = (conversationId: string) => {
-		if (conversationId !== convId) {
-			navigate(`/c/${conversationId}`);
-		}
-	};
+  const handleNewChat = () => {
+    navigate("/");
+    setWebSearch(false);
+    clearError(); // Clear any existing errors
+  };
 
-	const handleToggleSidebar = () => {
-		setSidebarCollapsed(!sidebarCollapsed);
-	};
+  const handleConversationSelect = (conversationId: string) => {
+    if (conversationId !== convId) {
+      navigate(`/c/${conversationId}`);
+    }
+  };
 
-	const handleWebSearchToggle = (enabled: boolean) => {
-		setWebSearch(enabled);
-	};
+  const handleToggleSidebar = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
 
-	const handleDeleteConversation = async (conversationId: string) => {
-		try {
-			await deleteConversation(conversationId);
-			if (convId === conversationId) {
-				navigate("/", { replace: true });
-			}
-		} catch (error) {
-			console.error("Failed to delete conversation:", error);
-		}
-	};
+  const handleWebSearchToggle = (enabled: boolean) => {
+    setWebSearch(enabled);
+  };
 
-	const handleRenameConversation = async (
-		conversationId: string,
-		newTitle: string,
-	) => {
-		try {
-			await renameConversation(conversationId, newTitle);
-		} catch (error) {
-			console.error("Failed to rename conversation:", error);
-		}
-	};
+  const handleDeleteConversation = async (conversationId: string) => {
+    try {
+      await deleteConversation(conversationId);
+      if (convId === conversationId) {
+        navigate("/", { replace: true });
+      }
+    } catch (error) {
+      console.error("Failed to delete conversation:", error);
+    }
+  };
 
-	// Get current messages for display
-	const currentMessages = currentConversation
-		? getCurrentMessages(currentConversation)
-		: [];
+  const handleRenameConversation = async (
+    conversationId: string,
+    newTitle: string,
+  ) => {
+    try {
+      await renameConversation(conversationId, newTitle);
+    } catch (error) {
+      console.error("Failed to rename conversation:", error);
+    }
+  };
 
-	// Treat the conversation as still loading when the URL has a convId but the
-	// conversation or its messages haven't been resolved yet.  This suppresses the
-	// Welcome/stats placeholder during the transient window on hard reload.
-	const isConvPendingRoute = !!convId && (!currentConversation || currentMessages.length === 0);
+  // Get current messages for display
+  const currentMessages = currentConversation
+    ? getCurrentMessages(currentConversation)
+    : [];
 
-	// Use the ordering provided by the conversation manager directly.
-	// The manager tracks createdAt/updatedAt and maintains the intended order,
-	// so avoid re-sorting here which can ignore client-side timestamps or temporary ids.
-	const safeConversations = useMemo(() => {
-		return Array.isArray(conversations) ? [...conversations] : [];
-	}, [conversations]);
+  // Treat the conversation as still loading when the URL has a convId but the
+  // conversation or its messages haven't been resolved yet.  This suppresses the
+  // Welcome/stats placeholder during the transient window on hard reload.
+  const isConvPendingRoute =
+    !!convId && (!currentConversation || currentMessages.length === 0);
 
-	return (
-		<div 
-			className="flex fixed inset-0 overflow-hidden overscroll-none"
-			onTouchStart={onTouchStart}
-			onTouchEnd={onTouchEnd}
-		>
-			{/* Overlay for mobile */}
-			{!sidebarCollapsed && window.innerWidth < 768 && (
-				<div className="sidebar-overlay" onClick={handleToggleSidebar} />
-			)}
+  // Use the ordering provided by the conversation manager directly.
+  // The manager tracks createdAt/updatedAt and maintains the intended order,
+  // so avoid re-sorting here which can ignore client-side timestamps or temporary ids.
+  const safeConversations = useMemo(() => {
+    return Array.isArray(conversations) ? [...conversations] : [];
+  }, [conversations]);
 
-			{/* Sidebar */}
-			<ConversationSidebar
-				conversations={safeConversations}
-				activeConversationId={activeConversationId}
-				onConversationSelect={handleConversationSelect}
-				onNewChat={handleNewChat}
-				onDeleteConversation={handleDeleteConversation}
-				onRenameConversation={handleRenameConversation}
-				isCollapsed={sidebarCollapsed}
-				onToggleCollapse={handleToggleSidebar}
-				isLoading={conversationsLoading}
-			/>
+  return (
+    <div
+      className="flex fixed inset-0 overflow-hidden overscroll-none"
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
+      {/* Overlay for mobile */}
+      {!sidebarCollapsed && window.innerWidth < 768 && (
+        <div className="sidebar-overlay" onClick={handleToggleSidebar} />
+      )}
 
-			{/* Main Content */}
-			<div className="chat-container overflow-hidden">
-				<div className="flex justify-between items-center p-4 pb-2">
-					<div className="flex items-center gap-3">
-						<Button
-							variant="ghost"
-							size="sm"
-							onClick={handleToggleSidebar}
-							className="hover:bg-accent"
-						>
-							<MessageSquareIcon className="size-4" />
-						</Button>
-					</div>
-					<div className="flex items-center gap-2">
-						<Button
-							variant="ghost"
-							size="sm"
-							onClick={() => setShowSettings(true)}
-							disabled={!isAuthenticated || isCheckingAuth}
-							className="hover:bg-accent"
-							title="Settings"
-						>
-							<SettingsIcon className="size-4" />
-						</Button>
-						<ThemeToggle />
-					</div>
-				</div>
+      {/* Sidebar */}
+      <ConversationSidebar
+        conversations={safeConversations}
+        activeConversationId={activeConversationId}
+        onConversationSelect={handleConversationSelect}
+        onNewChat={handleNewChat}
+        onDeleteConversation={handleDeleteConversation}
+        onRenameConversation={handleRenameConversation}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={handleToggleSidebar}
+        isLoading={conversationsLoading}
+      />
 
-				{/* Error Display */}
-				{conversationsError && (
-					<div className="flex justify-center px-6 mb-4">
-						<div className="w-full max-w-3xl p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-							<div className="flex justify-between items-center">
-								<p className="text-red-700 dark:text-red-300 text-sm">
-									{conversationsError}
-								</p>
-								<Button
-									variant="ghost"
-									size="sm"
-									onClick={clearError}
-									className="text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-800/30"
-								>
-									✕
-								</Button>
-							</div>
-						</div>
-					</div>
-				)}
+      {/* Main Content */}
+      <div className="chat-container overflow-hidden">
+        <div className="flex justify-between items-center p-4 pb-2">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleToggleSidebar}
+              className="hover:bg-accent"
+            >
+              <MessageSquareIcon className="size-4" />
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowSettings(true)}
+              disabled={!isAuthenticated || isCheckingAuth}
+              className="hover:bg-accent"
+              title="Settings"
+            >
+              <SettingsIcon className="size-4" />
+            </Button>
+            <ThemeToggle />
+          </div>
+        </div>
 
-			<ChatInterface
-					messages={currentMessages}
-					webSearch={webSearch}
-					currentConversation={currentConversation}
-					stats={stats}
-					isAuthenticated={isAuthenticated}
-					isAuthChecking={isCheckingAuth}
-					isConversationLoading={isConversationLoading || isConvPendingRoute}
-					onWebSearchToggle={handleWebSearchToggle}
-					onSendMessage={handleSendMessage}
-					onRetryMessage={handleRetryMessage}
-					onSwitchBranch={switchBranch}
-					getBranchInfo={getBranchInfo}
-					onUpdateMessage={handleUpdateMessage}
-					onCancelStream={cancelStream}
-				/>
-			</div>
+        {/* Error Display */}
+        {conversationsError && (
+          <div className="flex justify-center px-6 mb-4">
+            <div className="w-full max-w-3xl p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <div className="flex justify-between items-center">
+                <p className="text-red-700 dark:text-red-300 text-sm">
+                  {conversationsError}
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearError}
+                  className="text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-800/30"
+                >
+                  ✕
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
-			{/* Settings Dialog */}
-			<SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
-		</div>
-	);
+        <ChatInterface
+          messages={currentMessages}
+          webSearch={webSearch}
+          currentConversation={currentConversation}
+          stats={stats}
+          isAuthenticated={isAuthenticated}
+          isAuthChecking={isCheckingAuth}
+          isConversationLoading={isConversationLoading || isConvPendingRoute}
+          onWebSearchToggle={handleWebSearchToggle}
+          onSendMessage={handleSendMessage}
+          onRetryMessage={handleRetryMessage}
+          onSwitchBranch={switchBranch}
+          getBranchInfo={getBranchInfo}
+          onUpdateMessage={handleUpdateMessage}
+          onCancelStream={cancelStream}
+        />
+      </div>
+
+      {/* Settings Dialog */}
+      <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
+    </div>
+  );
 }
 
 export default App;

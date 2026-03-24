@@ -343,7 +343,7 @@ func TestSync_Simple(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected SSE data line in sync response, got: %s", rrSync.Body.String())
 		}
-		var event ConversationEvent
+		var event SyncEvent
 		if err := json.Unmarshal(dataLine, &event); err != nil {
 			t.Fatalf("failed to unmarshal sync event: %v", err)
 		}

@@ -51,7 +51,11 @@ const normalizeLanguage = (language: string): string => {
 
 const resolvePrismLanguage = (language: string): string | null => {
   const normalized = normalizeLanguage(language);
-  return prismLanguageLookup.get(normalized) ?? prismLanguageLookup.get(toCompactKey(normalized)) ?? null;
+  return (
+    prismLanguageLookup.get(normalized) ??
+    prismLanguageLookup.get(toCompactKey(normalized)) ??
+    null
+  );
 };
 
 type CodeBlockContextType = {
@@ -80,7 +84,10 @@ export const CodeBlock = ({
   const [showHighlight, setShowHighlight] = useState(false);
   const [resolvedLanguage, setResolvedLanguage] = useState("text");
 
-  const normalizedLanguage = useMemo(() => normalizeLanguage(language), [language]);
+  const normalizedLanguage = useMemo(
+    () => normalizeLanguage(language),
+    [language],
+  );
 
   useEffect(() => {
     // Small delay to ensure raw code is rendered and visible first,

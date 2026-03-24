@@ -5,120 +5,120 @@ import { getHeaders } from "./headers.ts";
 
 // Authentication API client
 export class AuthAPI {
-	constructor() { }
+  constructor() {}
 
-	// GET /api/auth/status - Check registration and authentication status
-	async getAuthStatus(): Promise<AuthStatus> {
-		return ApiErrorHandler.handleApiCall(async () => {
-			const response = await fetch(getApiUrl("/api/auth/status"), {
-				method: "GET",
-				headers: getHeaders({
-					"Content-Type": "application/json",
-				}),
-				credentials: "include",
-			});
+  // GET /api/auth/status - Check registration and authentication status
+  async getAuthStatus(): Promise<AuthStatus> {
+    return ApiErrorHandler.handleApiCall(async () => {
+      const response = await fetch(getApiUrl("/api/auth/status"), {
+        method: "GET",
+        headers: getHeaders({
+          "Content-Type": "application/json",
+        }),
+        credentials: "include",
+      });
 
-			// Status endpoint returns different status codes:
-			// 200: registered and authenticated
-			// 401: registered but not authenticated
-			// 403: not registered
+      // Status endpoint returns different status codes:
+      // 200: registered and authenticated
+      // 401: registered but not authenticated
+      // 403: not registered
 
-			if (!response.ok && response.status !== 401 && response.status !== 403) {
-				await ApiErrorHandler.handleFetchError(response, "Auth Status Check");
-			}
+      if (!response.ok && response.status !== 401 && response.status !== 403) {
+        await ApiErrorHandler.handleFetchError(response, "Auth Status Check");
+      }
 
-			const data: AuthStatus = await response.json();
-			return data;
-		}, "getAuthStatus");
-	}
+      const data: AuthStatus = await response.json();
+      return data;
+    }, "getAuthStatus");
+  }
 
-	// POST /api/auth/register - Register a new instance
-	async register(username: string, password: string): Promise<void> {
-		if (!username || !password) {
-			throw new Error("Username and password are required");
-		}
+  // POST /api/auth/register - Register a new instance
+  async register(username: string, password: string): Promise<void> {
+    if (!username || !password) {
+      throw new Error("Username and password are required");
+    }
 
-		return ApiErrorHandler.handleApiCall(async () => {
-			const response = await fetch(getApiUrl("/api/auth/register"), {
-				method: "POST",
-				headers: getHeaders({
-					"Content-Type": "application/json",
-				}),
-				body: JSON.stringify({ username, password }),
-				credentials: "include",
-			});
+    return ApiErrorHandler.handleApiCall(async () => {
+      const response = await fetch(getApiUrl("/api/auth/register"), {
+        method: "POST",
+        headers: getHeaders({
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify({ username, password }),
+        credentials: "include",
+      });
 
-			if (!response.ok) {
-				await ApiErrorHandler.handleFetchError(response, "Registration");
-			}
-		}, "register");
-	}
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(response, "Registration");
+      }
+    }, "register");
+  }
 
-	// POST /api/auth/login - Login with username and password
-	async login(username: string, password: string): Promise<void> {
-		if (!username || !password) {
-			throw new Error("Username and password are required");
-		}
+  // POST /api/auth/login - Login with username and password
+  async login(username: string, password: string): Promise<void> {
+    if (!username || !password) {
+      throw new Error("Username and password are required");
+    }
 
-		return ApiErrorHandler.handleApiCall(async () => {
-			const formData = new URLSearchParams();
-			formData.append('username', username);
-			formData.append('password', password);
+    return ApiErrorHandler.handleApiCall(async () => {
+      const formData = new URLSearchParams();
+      formData.append("username", username);
+      formData.append("password", password);
 
-			const response = await fetch(getApiUrl("/api/auth/login"), {
-				method: "POST",
-				headers: getHeaders({
-					"Content-Type": "application/x-www-form-urlencoded",
-				}),
-				body: formData,
-				credentials: "include",
-			});
+      const response = await fetch(getApiUrl("/api/auth/login"), {
+        method: "POST",
+        headers: getHeaders({
+          "Content-Type": "application/x-www-form-urlencoded",
+        }),
+        body: formData,
+        credentials: "include",
+      });
 
-			if (!response.ok) {
-				await ApiErrorHandler.handleFetchError(response, "Login");
-			}
-		}, "login");
-	}
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(response, "Login");
+      }
+    }, "login");
+  }
 
-	// POST /api/auth/change-pass - Change user password
-	async changePassword(password: string): Promise<void> {
-		if (!password) {
-			throw new Error("Password is required");
-		}
+  // POST /api/auth/change-pass - Change user password
+  async changePassword(password: string): Promise<void> {
+    if (!password) {
+      throw new Error("Password is required");
+    }
 
-		return ApiErrorHandler.handleApiCall(async () => {
-			const response = await fetch(getApiUrl("/api/auth/change-pass"), {
-				method: "POST",
-				headers: getHeaders({
-					"Content-Type": "application/json",
-				}),
-				body: JSON.stringify({ password: password }),
-				credentials: "include",
-			});
+    return ApiErrorHandler.handleApiCall(async () => {
+      const response = await fetch(getApiUrl("/api/auth/change-pass"), {
+        method: "POST",
+        headers: getHeaders({
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify({ password: password }),
+        credentials: "include",
+      });
 
-			if (!response.ok) {
-				const errorText = await response.text();
-				throw new Error(errorText || "Failed to change password");
-			}
-		}, "changePassword");
-	}
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to change password");
+      }
+    }, "changePassword");
+  }
 
-	// POST /api/auth/logout - Logout and clear cookie
-	async logout(): Promise<void> {
-		return ApiErrorHandler.handleApiCall(async () => {
-			const response = await fetch(getApiUrl("/api/auth/logout"), {
-				method: "POST",
-				headers: getHeaders({
-					"Content-Type": "application/json",
-				}),
-				credentials: "include",
-			});
+  // POST /api/auth/logout - Logout and clear cookie
+  async logout(): Promise<void> {
+    return ApiErrorHandler.handleApiCall(async () => {
+      const response = await fetch(getApiUrl("/api/auth/logout"), {
+        method: "POST",
+        headers: getHeaders({
+          "Content-Type": "application/json",
+        }),
+        credentials: "include",
+      });
 
-			if (!response.ok) {
-				await ApiErrorHandler.handleFetchError(response, "Logout");
-			}
-		}, "logout");
-	}
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(response, "Logout");
+      }
+    }, "logout");
+  }
 }
 
 // Default instance

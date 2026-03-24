@@ -23,7 +23,7 @@ const remarkLinkCitations = () => (tree: any) => {
     if (node.type === "link" || node.type === "linkReference") {
       const siblings = parent?.children;
       if (!siblings || typeof index !== "number") return;
-      
+
       const prev = siblings[index - 1];
       const next = siblings[index + 1];
 
@@ -221,7 +221,10 @@ export type ResponseProps = HTMLAttributes<HTMLDivElement> & {
 const components: Options["components"] = {
   ol: ({ node, children, className, ...props }) => (
     <ol
-      className={cn("pl-2 ml-4 list-outside list-decimal my-4 mb-6 space-y-2", className)}
+      className={cn(
+        "pl-2 ml-4 list-outside list-decimal my-4 mb-6 space-y-2",
+        className,
+      )}
       {...props}
     >
       {children}
@@ -234,7 +237,10 @@ const components: Options["components"] = {
   ),
   ul: ({ node, children, className, ...props }) => (
     <ul
-      className={cn("pl-4 ml-4 list-outside list-disc my-4 mb-6 space-y-2", className)}
+      className={cn(
+        "pl-4 ml-4 list-outside list-disc my-4 mb-6 space-y-2",
+        className,
+      )}
       {...props}
     >
       {children}
@@ -257,7 +263,7 @@ const components: Options["components"] = {
           isCitation
             ? "inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[0.5625rem] leading-[0.8rem] text-secondary-foreground no-underline hover:bg-secondary-foreground/90 hover:text-primary-foreground"
             : "text-primary underline underline-offset-4 hover:text-primary/80",
-          className
+          className,
         )}
         rel="noreferrer"
         target="_blank"
@@ -364,7 +370,9 @@ const components: Options["components"] = {
       typeof rawCode === "string"
         ? rawCode
         : Array.isArray(rawCode)
-          ? rawCode.filter((part): part is string => typeof part === "string").join("")
+          ? rawCode
+              .filter((part): part is string => typeof part === "string")
+              .join("")
           : "";
 
     if (["mermaid", "mmd"].includes(language.toLowerCase())) {
@@ -415,11 +423,11 @@ export const Response = memo(
       <div
         className={cn(
           "size-full w-full max-w-full overflow-hidden",
-          "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0", 
+          "[&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
           "[&_p]:mb-4 [&_p]:[line-height:1.75rem] [&_p]:break-words",
-           "prose-p:mb-4 prose-p:[line-height:1.75rem] prose-p:break-words ",
-           "[&_table]:table-auto [&_table]:border-collapse [&_table]:w-full [&_table]:my-6 [&_table_th]:bg-transparent [&_table_td]:bg-transparent [&_table_th]:border-b [&_table_td]:border-t [&_table_td]:px-3 [&_table_td]:py-2.5 [&_table_th]:px-3 [&_table_th]:py-2 ",
-           "[&_hr]:mb-8 [&_hr]:mt-6",
+          "prose-p:mb-4 prose-p:[line-height:1.75rem] prose-p:break-words ",
+          "[&_table]:table-auto [&_table]:border-collapse [&_table]:w-full [&_table]:my-6 [&_table_th]:bg-transparent [&_table_td]:bg-transparent [&_table_th]:border-b [&_table_td]:border-t [&_table_td]:px-3 [&_table_td]:py-2.5 [&_table_th]:px-3 [&_table_th]:py-2 ",
+          "[&_hr]:mb-8 [&_hr]:mt-6",
           className,
         )}
         {...props}
