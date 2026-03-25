@@ -182,6 +182,8 @@ func enterAgentLoop(
 				ReferenceID: toolCall.ReferenceID,
 				Name:        toolCall.Name,
 				Output:      output,
+				TokenCount:  toolCall.TokenCount,
+				ContextSize: toolCall.ContextSize,
 			},
 		})
 

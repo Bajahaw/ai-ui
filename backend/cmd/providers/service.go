@@ -309,15 +309,24 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 	speed := float64(acc.Usage.CompletionTokens) / duration.Seconds()
 	log.Debug("Response speed:", "tokens_per_second", speed)
 
+	stats := utils.StreamStats{
+		PromptTokens:     int(acc.Usage.PromptTokens),
+		CompletionTokens: int(acc.Usage.CompletionTokens),
+		// TotalTokens:      int(acc.Usage.TotalTokens),
+		Speed: math.Round(float64(acc.Usage.CompletionTokens)/duration.Seconds()*10) / 10,
+	}
+
+	if len(toolCalls) > 0 {
+		// append tool call stats to the first tool call because
+		// we only need stats per completion, not per tool call
+		toolCalls[0].TokenCount = stats.CompletionTokens
+		toolCalls[0].ContextSize = stats.PromptTokens
+	}
+
 	return &ChatCompletionMessage{
 		Content:   acc.Choices[0].Message.Content,
 		Reasoning: reasoning,
 		ToolCalls: toolCalls,
-		Stats: utils.StreamStats{
-			PromptTokens:     int(acc.Usage.PromptTokens),
-			CompletionTokens: int(acc.Usage.CompletionTokens),
-			// TotalTokens:      int(acc.Usage.TotalTokens),
-			Speed: math.Round(float64(acc.Usage.CompletionTokens)/duration.Seconds()*10) / 10,
-		},
+		Stats: stats,
 	}, nil
 }

@@ -29,6 +29,8 @@ type ToolCall struct {
 	Name        string `json:"name"`
 	Args        string `json:"args,omitempty"`
 	Output      string `json:"tool_output,omitempty"`
+	TokenCount  int    `json:"tokenCount,omitempty"`
+	ContextSize int    `json:"contextSize,omitempty"`
 }
 
 type PendingToolCall struct {

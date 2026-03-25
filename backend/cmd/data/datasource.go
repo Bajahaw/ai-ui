@@ -116,6 +116,8 @@ func InitDataSource(dataSourceName string) error {
 		name TEXT NOT NULL,
 		args TEXT NOT NULL,
 		output TEXT,
+		token_count INTEGER DEFAULT 0,
+		context_size INTEGER DEFAULT 0,
 		FOREIGN KEY (conv_id) REFERENCES Conversations(id) ON DELETE CASCADE,
 		FOREIGN KEY (message_id) REFERENCES Messages(id) ON DELETE CASCADE
 	);

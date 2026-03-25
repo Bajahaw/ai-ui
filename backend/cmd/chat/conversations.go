@@ -157,17 +157,22 @@ func getStats(w http.ResponseWriter, r *http.Request) {
 
 	query := `
 		SELECT
-			COUNT(DISTINCT c.id)            AS total_conversations,
-			COUNT(m.id)                     AS total_messages,
-			COALESCE(SUM(m.token_count),0)  AS total_tokens,
-			COALESCE(SUM(m.context_size),0) AS total_input_tokens
+			COUNT(DISTINCT c.id) AS total_conversations,
+			(SELECT COUNT(m.id) FROM Messages m JOIN Conversations c2 ON m.conv_id = c2.id WHERE c2.user = ? AND m.role = 'assistant') AS total_messages,
+			(
+				COALESCE((SELECT SUM(m.token_count) FROM Messages m JOIN Conversations c2 ON m.conv_id = c2.id WHERE c2.user = ? AND m.role = 'assistant'),0)
+				+ COALESCE((SELECT SUM(tc.token_count) FROM ToolCalls tc JOIN Conversations c3 ON tc.conv_id = c3.id WHERE c3.user = ?),0)
+			) AS total_tokens,
+			(
+				COALESCE((SELECT SUM(m.context_size) FROM Messages m JOIN Conversations c2 ON m.conv_id = c2.id WHERE c2.user = ? AND m.role = 'assistant'),0)
+				+ COALESCE((SELECT SUM(tc.context_size) FROM ToolCalls tc JOIN Conversations c3 ON tc.conv_id = c3.id WHERE c3.user = ?),0)
+			) AS total_input_tokens
 		FROM Conversations c
-		LEFT JOIN Messages m ON m.conv_id = c.id AND m.role = 'assistant'
 		WHERE c.user = ?
 	`
 
 	var stats ConversationStats
-	err := data.DB.QueryRow(query, user).Scan(
+	err := data.DB.QueryRow(query, user, user, user, user, user, user).Scan(
 		&stats.TotalConversations,
 		&stats.TotalMessages,
 		&stats.TotalTokens,
