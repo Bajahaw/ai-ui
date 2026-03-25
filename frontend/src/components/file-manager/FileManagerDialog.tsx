@@ -14,6 +14,8 @@ import {
   Upload,
   Search,
   Check,
+  CheckSquare,
+  Square,
   Paperclip,
   Trash2,
   ScanText,
@@ -47,7 +49,6 @@ export function FileManagerDialog({
     new Set(),
   );
   const [searchQuery, setSearchQuery] = useState("");
-  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchFiles = useCallback(async () => {
@@ -163,24 +164,6 @@ export function FileManagerDialog({
     }
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files) {
-      handleUploadFiles(e.dataTransfer.files);
-    }
-  };
-
   const handlePaste = (e: React.ClipboardEvent) => {
     if (e.clipboardData.files && e.clipboardData.files.length > 0) {
       handleUploadFiles(e.clipboardData.files);
@@ -196,9 +179,17 @@ export function FileManagerDialog({
   const handleDelete = async () => {
     if (selectedFileIds.size === 0) return;
 
+    const idsToDelete = Array.from(selectedFileIds);
+    const count = idsToDelete.length;
+    const confirmMsg =
+      count === 1
+        ? "⚠️ Warning\n\nDeleting files from the library will remove them from chats as well. Are you sure you want to delete this file?"
+        : `⚠️ Warning\n\nDeleting files from the library will remove them from chats as well. Are you sure you want to delete these ${count} files?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
     setDeleting(true);
     try {
-      const idsToDelete = Array.from(selectedFileIds);
       for (const id of idsToDelete) {
         await deleteFile(id);
       }
@@ -223,21 +214,43 @@ export function FileManagerDialog({
     f.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
+  const allVisibleSelected =
+    filteredFiles.length > 0 &&
+    filteredFiles.every((f) => selectedFileIds.has(f.id));
+
+  const handleSelectAll = () => {
+    if (allVisibleSelected) {
+      // Deselect visible files
+      setSelectedFileIds((prev) => {
+        const newSet = new Set(prev);
+        filteredFiles.forEach((f) => newSet.delete(f.id));
+        return newSet;
+      });
+    } else {
+      // Select visible files
+      setSelectedFileIds((prev) => {
+        const newSet = new Set(prev);
+        filteredFiles.forEach((f) => newSet.add(f.id));
+        return newSet;
+      });
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="w-[calc(100%-1rem)] sm:w-[calc(100%-3rem)] max-w-7xl sm:max-w-4xl h-[65vh] p-0 flex flex-col rounded-2xl"
+        className="w-[calc(100%-1rem)] sm:w-[calc(100%-3rem)] max-w-7xl sm:max-w-4xl h-[65vh] p-0 flex flex-col rounded-3xl"
         onPaste={handlePaste}
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
+        <DialogHeader className="px-6 py-4 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Paperclip className="h-5 w-5" />
             File Library
           </DialogTitle>
         </DialogHeader>
 
-        <div className="p-4 flex items-center gap-2 flex-shrink-0">
+        <div className="p-4 flex items-center gap-2 shrink-0">
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -248,6 +261,19 @@ export function FileManagerDialog({
             />
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleSelectAll}
+              disabled={filteredFiles.length === 0}
+              className="gap-1 h-9"
+            >
+              {allVisibleSelected ? (
+                <CheckSquare className="h-4 w-4" />
+              ) : (
+                <Square className="h-4 w-4" />
+              )}
+            </Button>
             <Button
               variant="outline"
               size="icon"
@@ -277,11 +303,11 @@ export function FileManagerDialog({
 
         <ScrollArea className="flex-1 px-4 min-h-0">
           {loading ? (
-            <div className="flex items-center justify-center h-full min-h-[200px]">
+            <div className="flex items-center justify-center h-full min-h-50">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : filteredFiles.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full min-h-[200px] text-muted-foreground gap-2">
+            <div className="flex flex-col items-center justify-center h-full min-h-50 text-muted-foreground gap-2">
               <FileIcon className="h-12 w-12 opacity-20" />
               <p>No files found</p>
             </div>
@@ -296,8 +322,8 @@ export function FileManagerDialog({
                     key={file.id}
                     onClick={() => handleFileSelect(file.id)}
                     className={cn(
-                      "group relative flex flex-col rounded-xl border bg-muted/50 text-card-foreground cursor-pointer transition-all overflow-hidden hover:bg-muted/80",
-                      isSelected && "border-primary/50 ring-1 ring-primary/50",
+                      "group relative flex flex-col box-border rounded-xl border bg-muted/50 text-card-foreground cursor-pointer transition-all overflow-hidden hover:bg-muted/80",
+                      isSelected && "border-[1.5px] border-primary/50",
                     )}
                   >
                     <div className="aspect-square w-full bg-background flex items-center justify-center overflow-hidden relative border-b">
@@ -345,46 +371,37 @@ export function FileManagerDialog({
           )}
         </ScrollArea>
 
-        <div className="p-4 border-t bg-muted/10 space-y-4 flex-shrink-0">
-          <div
-            className={cn(
-              "border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-colors",
-              isDragging
-                ? "border-primary bg-primary/5"
-                : "border-muted-foreground/25",
-              uploading && "opacity-50 pointer-events-none",
-            )}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              multiple
-              onChange={handleFileChange}
-            />
-            {uploading ? (
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-2" />
-            ) : (
-              <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-            )}
-            <p className="text-sm font-medium">
-              {uploading ? "Uploading..." : "Click to upload or drag and drop"}
-            </p>
-          </div>
+        <div className="p-4 border-t bg-muted/10 space-y-4 shrink-0">
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            multiple
+            onChange={handleFileChange}
+          />
 
           <div className="flex items-center justify-between w-full">
             <div className="text-sm text-muted-foreground">
               {selectedFileIds.size} file{selectedFileIds.size !== 1 ? "s" : ""}{" "}
               selected
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
+            <div className="flex gap-2 items-center">
+              <Button
+                variant="outline"
+                // size="icon"
+                onClick={() => fileInputRef.current?.click()}
+                title="Upload"
+                className="h-9"
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                Upload
               </Button>
+
               <Button
                 onClick={handleAttach}
                 disabled={selectedFileIds.size === 0 || deleting}
