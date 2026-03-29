@@ -8,6 +8,7 @@ import { memo } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import { harden, type BlockPolicyType } from "rehype-harden";
+import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { cn } from "@/lib/utils";
@@ -449,7 +450,12 @@ export const Response = memo(
               },
             ],
           ]}
-          remarkPlugins={[remarkGfm, remarkMath, remarkLinkCitations]}
+          remarkPlugins={[
+            remarkBreaks,
+            remarkGfm,
+            remarkMath,
+            remarkLinkCitations,
+          ]}
           {...options}
         >
           {parsedChildren}

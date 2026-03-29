@@ -11,7 +11,7 @@ import (
 func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessageParamUnion {
 	openaiMessages := make([]openai.ChatCompletionMessageParamUnion, len(messages))
 	for i, msg := range messages {
-		switch msg.Role {
+		switch msg.Role {  
 		case "system":
 			openaiMessages[i] = openai.SystemMessage(msg.Content)
 		case "user":
