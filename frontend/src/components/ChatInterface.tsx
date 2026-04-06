@@ -36,19 +36,6 @@ import {
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
 import {
-  Reasoning,
-  ReasoningTrigger,
-  ReasoningContent,
-} from "@/components/ai-elements/reasoning";
-import {
-  Tool,
-  ToolHeader,
-  ToolContent,
-  ToolInput,
-  ToolOutput,
-  ToolApproval,
-} from "@/components/ai-elements/tool";
-import {
   // GlobeIcon,
   AlertCircleIcon,
   RotateCcwIcon,
@@ -61,12 +48,7 @@ import {
 } from "lucide-react";
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
-import {
-  Attachment,
-  FrontendMessage,
-  ToolCall,
-  WelcomeStats,
-} from "@/lib/api/types";
+import { Attachment, FrontendMessage, WelcomeStats } from "@/lib/api/types";
 import { BranchNavigation } from "@/components/BranchNavigation";
 import { ClientConversation } from "@/lib/clientConversationManager";
 import {
@@ -78,78 +60,12 @@ import {
   AttachmentMessage,
   UploadedFile,
 } from "@/components/ui/file-upload";
+import { ThoughtsToolsGroup } from "@/components/ai-elements/thoughts-tools-group";
 import { uploadFile, FileUploadError } from "@/lib/api/files";
 import { FileManagerDialog } from "@/components/file-manager/FileManagerDialog";
 import { ModelOption } from "@/components/ai-elements/model-select";
 
 // Dynamic models are now loaded from providers via useModels hook
-
-const safeParseJSON = (jsonString: string | undefined) => {
-  if (!jsonString) return {};
-  try {
-    return JSON.parse(jsonString);
-  } catch (e) {
-    console.error("Failed to parse JSON:", e);
-    return { error: "Invalid JSON", raw: jsonString };
-  }
-};
-
-const ToolCallItem = ({
-  toolCall,
-  settingsData,
-}: {
-  toolCall: ToolCall;
-  settingsData: any;
-}) => {
-  // Find tool definition
-  const tool = settingsData.tools.find((t: any) => t.name === toolCall.name);
-
-  // Determine the state based on whether output has arrived or approval is needed
-  const initialState = toolCall.tool_output
-    ? ("output-available" as const)
-    : tool?.require_approval
-      ? ("awaiting-approval" as const)
-      : ("input-available" as const);
-
-  const [localState, setLocalState] = useState(initialState);
-
-  // Update local state if the toolCall changes (e.g. output arrives)
-  useEffect(() => {
-    setLocalState(initialState);
-  }, [initialState]);
-
-  return (
-    <Tool key={toolCall.id} defaultOpen={localState === "awaiting-approval"}>
-      <ToolHeader
-        type={`tool-${toolCall.name}` as `tool-${string}`}
-        state={localState}
-        mcpUrl={(() => {
-          if (!tool || !tool.mcp_server_id) return undefined;
-          const server = settingsData.mcpServers.find(
-            (s: any) => s.id === tool.mcp_server_id,
-          );
-          return server?.endpoint;
-        })()}
-      />
-      <ToolContent>
-        <ToolInput input={safeParseJSON(toolCall.args)} />
-        {localState === "awaiting-approval" && (
-          <ToolApproval
-            toolCallId={toolCall.id}
-            onAction={(approved) => {
-              if (approved) {
-                setLocalState("input-available");
-              }
-            }}
-          />
-        )}
-        {toolCall.tool_output && (
-          <ToolOutput output={toolCall.tool_output} errorText={undefined} />
-        )}
-      </ToolContent>
-    </Tool>
-  );
-};
 
 interface ChatInterfaceProps {
   messages: FrontendMessage[];
@@ -993,26 +909,12 @@ export const ChatInterface = ({
                 renderMessageContent(message)
               ) : (
                 <div className="space-y-4">
-                  {message.reasoning && (
-                    <Reasoning
-                      isStreaming={message.status === "pending"}
-                      duration={message.reasoningDuration}
-                      defaultOpen={false}
-                    >
-                      <ReasoningTrigger />
-                      <ReasoningContent>{message.reasoning}</ReasoningContent>
-                    </Reasoning>
-                  )}
-                  {message.toolCalls && message.toolCalls.length > 0 && (
-                    <div className="">
-                      {message.toolCalls.map((toolCall) => (
-                        <ToolCallItem
-                          key={toolCall.id}
-                          toolCall={toolCall}
-                          settingsData={settingsData}
-                        />
-                      ))}
-                    </div>
+                  {(message.reasoning ||
+                    (message.toolCalls && message.toolCalls.length > 0)) && (
+                    <ThoughtsToolsGroup
+                      message={message}
+                      settingsData={settingsData}
+                    />
                   )}
                   {renderMessageContent(message)}
                   {renderMessageActions(message)}

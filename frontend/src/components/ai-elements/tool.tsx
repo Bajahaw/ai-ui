@@ -68,8 +68,7 @@ const getStatusBadge = (status: ToolUIPart["state"] | "awaiting-approval") => {
         className="rounded-full text-xs text-muted-foreground"
         variant="outline"
       >
-        <ClockIcon className="mr-1 size-3 text-orange-500" />
-        Awaiting Approval
+        <ClockIcon className="size-3 text-orange-500" />
       </Badge>
     );
   }

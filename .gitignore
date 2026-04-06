@@ -4,6 +4,7 @@ frontend/dist
 backend/static
 backend/data
 data
+node_modules
 .pnp
 .pnp.*
 
