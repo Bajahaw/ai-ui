@@ -133,6 +133,9 @@ func ExecuteMCPTool(toolCall ToolCall, user string) string {
 		headers := map[string]string{
 			"Authorization": "Bearer " + server.APIKey,
 		}
+		for k, v := range server.Headers {
+			headers[k] = v
+		}
 
 		session, err = client.Connect(ctx, &mcp.StreamableClientTransport{
 			Endpoint:   server.Endpoint,
