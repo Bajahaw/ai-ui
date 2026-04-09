@@ -1,7 +1,7 @@
 package chat
 
 import (
-	"ai-client/cmd/auth"
+	"github.com/Bajahaw/ai-ui/cmd/auth"
 	"net/http"
 )
 

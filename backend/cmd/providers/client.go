@@ -1,7 +1,7 @@
 package providers
 
 import (
-	"ai-client/cmd/utils"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"database/sql"
 
 	logger "github.com/charmbracelet/log"

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { AlertCircle, Loader2, Eye, EyeOff } from "lucide-react";
+import { AlertCircle, Loader2, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
 import { ProviderRequest, FrontendProvider } from "@/lib/api/types";
 
 interface ProviderFormProps {
@@ -32,7 +32,26 @@ export const ProviderForm = ({
   const [formData, setFormData] = useState<ProviderRequest>({
     base_url: provider?.baseUrl || "",
     api_key: "",
+    headers: provider?.headers || {},
   });
+
+  const [headerEntries, setHeaderEntries] = useState<
+    { key: string; value: string }[]
+  >([]);
+
+  useEffect(() => {
+    if (provider?.headers) {
+      setHeaderEntries(
+        Object.entries(provider.headers).map(([key, value]) => ({
+          key,
+          value,
+        })),
+      );
+    } else {
+      setHeaderEntries([]);
+    }
+  }, [provider]);
+
   const [showApiKey, setShowApiKey] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,11 +79,21 @@ export const ProviderForm = ({
       return;
     }
 
+    // Process headers
+    const finalHeaders: Record<string, string> = {};
+    for (const entry of headerEntries) {
+      if (entry.key.trim() !== "") {
+        finalHeaders[entry.key.trim()] = entry.value;
+      }
+    }
+    const finalData = { ...formData, headers: finalHeaders };
+
     setIsSubmitting(true);
     try {
-      await onSubmit(formData);
+      await onSubmit(finalData);
       // Reset form and close dialog
-      setFormData({ base_url: "", api_key: "" });
+      setFormData({ base_url: "", api_key: "", headers: {} });
+      setHeaderEntries([]);
       onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save provider");
@@ -74,15 +103,29 @@ export const ProviderForm = ({
   };
 
   const handleCancel = () => {
-    setFormData({ base_url: provider?.baseUrl || "", api_key: "" });
+    setFormData({
+      base_url: provider?.baseUrl || "",
+      api_key: "",
+      headers: provider?.headers || {},
+    });
+    if (provider?.headers) {
+      setHeaderEntries(
+        Object.entries(provider.headers).map(([key, value]) => ({
+          key,
+          value,
+        })),
+      );
+    } else {
+      setHeaderEntries([]);
+    }
     setError(null);
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px] rounded-xl">
-        <DialogHeader className="pb-4">
+      <DialogContent className="sm:max-w-[425px] p-6 rounded-xl">
+        <DialogHeader className="pb-2">
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
@@ -94,7 +137,7 @@ export const ProviderForm = ({
             </div>
           )}
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="base_url">Base URL</Label>
             <Input
               id="base_url"
@@ -109,7 +152,7 @@ export const ProviderForm = ({
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="api_key">API Key</Label>
             <div className="relative">
               <Input
@@ -142,6 +185,70 @@ export const ProviderForm = ({
                 </span>
               </Button>
             </div>
+          </div>
+
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <Label>Custom Headers</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setHeaderEntries([...headerEntries, { key: "", value: "" }])
+                }
+                disabled={isSubmitting}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Header
+              </Button>
+            </div>
+
+            {headerEntries.length > 0 ? (
+              <div className="space-y-1.5 max-h-[150px] overflow-y-auto pr-1">
+                {headerEntries.map((header, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <Input
+                      placeholder="Key"
+                      value={header.key}
+                      onChange={(e) => {
+                        const newEntries = [...headerEntries];
+                        newEntries[index].key = e.target.value;
+                        setHeaderEntries(newEntries);
+                      }}
+                      disabled={isSubmitting}
+                    />
+                    <Input
+                      placeholder="Value"
+                      value={header.value}
+                      onChange={(e) => {
+                        const newEntries = [...headerEntries];
+                        newEntries[index].value = e.target.value;
+                        setHeaderEntries(newEntries);
+                      }}
+                      disabled={isSubmitting}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        const newEntries = [...headerEntries];
+                        newEntries.splice(index, 1);
+                        setHeaderEntries(newEntries);
+                      }}
+                      disabled={isSubmitting}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                No custom headers configured.
+              </p>
+            )}
           </div>
 
           <DialogFooter>

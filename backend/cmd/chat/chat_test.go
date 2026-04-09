@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"ai-client/cmd/data"
-	"ai-client/cmd/providers"
-	"ai-client/cmd/tools"
-	"ai-client/cmd/utils"
+	"github.com/Bajahaw/ai-ui/cmd/data"
+	"github.com/Bajahaw/ai-ui/cmd/providers"
+	"github.com/Bajahaw/ai-ui/cmd/tools"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 
 	logger "github.com/charmbracelet/log"
 )

@@ -202,11 +202,13 @@ export const backendToFrontendMessage = (
 export interface ProviderRequest {
   base_url: string;
   api_key: string;
+  headers?: Record<string, string>;
 }
 
 export interface ProviderResponse {
   id: string;
   base_url: string;
+  headers?: Record<string, string>;
 }
 
 export interface Model {
@@ -233,6 +235,7 @@ export interface FrontendProvider {
   id: string;
   name: string;
   baseUrl: string;
+  headers?: Record<string, string>;
 }
 
 // File upload types
@@ -244,6 +247,7 @@ export interface MCPServerRequest {
   name: string;
   endpoint: string;
   api_key: string;
+  headers?: Record<string, string>;
 }
 
 export interface MCPServerResponse {
@@ -251,6 +255,7 @@ export interface MCPServerResponse {
   name: string;
   endpoint: string;
   tools: Tool[];
+  headers?: Record<string, string>;
 }
 
 export interface ToolListResponse {

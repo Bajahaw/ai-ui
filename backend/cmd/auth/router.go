@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"ai-client/cmd/utils"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"context"
 	"crypto/rand"
 	"database/sql"

@@ -1,4 +1,4 @@
-module ai-client
+module github.com/Bajahaw/ai-ui
 
 go 1.25.5
 

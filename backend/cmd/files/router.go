@@ -1,8 +1,8 @@
 package files
 
 import (
-	"ai-client/cmd/auth"
-	"ai-client/cmd/utils"
+	"github.com/Bajahaw/ai-ui/cmd/auth"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"net/http"
 	"os"
 	"strconv"

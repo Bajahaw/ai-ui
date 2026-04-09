@@ -1,8 +1,8 @@
 package files
 
 import (
-	"ai-client/cmd/providers"
-	stngs "ai-client/cmd/settings"
+	"github.com/Bajahaw/ai-ui/cmd/providers"
+	stngs "github.com/Bajahaw/ai-ui/cmd/settings"
 	"database/sql"
 
 	logger "github.com/charmbracelet/log"

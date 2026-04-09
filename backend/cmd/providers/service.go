@@ -1,8 +1,8 @@
 package providers
 
 import (
-	"ai-client/cmd/tools"
-	"ai-client/cmd/utils"
+	"github.com/Bajahaw/ai-ui/cmd/tools"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"context"
 	"encoding/json"
 	"errors"
@@ -73,10 +73,14 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompl
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
 	defer cancel()
 
-	client := openai.NewClient(
+	opts := []option.RequestOption{
 		option.WithAPIKey(provider.APIKey),
 		option.WithBaseURL(provider.BaseURL),
-	)
+	}
+	for key, value := range provider.Headers {
+		opts = append(opts, option.WithHeader(key, value))
+	}
+	client := openai.NewClient(opts...)
 
 	openAIparams := openai.ChatCompletionNewParams{
 		Model:    model,
@@ -147,11 +151,15 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 		cancel()
 	}()
 
-	client := openai.NewClient(
+	opts := []option.RequestOption{
 		option.WithAPIKey(provider.APIKey),
 		option.WithBaseURL(provider.BaseURL),
 		// option.WithDebugLog(log.StandardLog()),
-	)
+	}
+	for key, value := range provider.Headers {
+		opts = append(opts, option.WithHeader(key, value))
+	}
+	client := openai.NewClient(opts...)
 
 	openAIparams := openai.ChatCompletionNewParams{
 		Model:           model,

@@ -1,9 +1,9 @@
 package chat
 
 import (
-	"ai-client/cmd/data"
-	fs "ai-client/cmd/files"
-	"ai-client/cmd/tools"
+	"github.com/Bajahaw/ai-ui/cmd/data"
+	fs "github.com/Bajahaw/ai-ui/cmd/files"
+	"github.com/Bajahaw/ai-ui/cmd/tools"
 	"time"
 )
 

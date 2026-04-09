@@ -1,8 +1,9 @@
 package providers
 
 import (
-	"ai-client/cmd/utils"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,10 +12,11 @@ import (
 var ErrUnauthorizedProviderReference = errors.New("unauthorized provider reference")
 
 type Provider struct {
-	ID      string `json:"id"`
-	BaseURL string `json:"base_url"`
-	APIKey  string `json:"api_key"`
-	User    string `json:"-"`
+	ID      string            `json:"id"`
+	BaseURL string            `json:"base_url"`
+	APIKey  string            `json:"api_key"`
+	User    string            `json:"-"`
+	Headers map[string]string `json:"headers"`
 }
 
 type Repository interface {
@@ -42,7 +44,7 @@ func newProviderRepo(db *sql.DB) Repository {
 
 func (repo *Repo) GetAll(user string) []*Provider {
 	var allProviders = make([]*Provider, 0)
-	query := `SELECT id, url, api_key FROM Providers WHERE user = ?`
+	query := `SELECT id, url, api_key, headers_json FROM Providers WHERE user = ?`
 	rows, err := repo.db.Query(query, user)
 	if err != nil {
 		log.Error("Error querying providers", "err", err)
@@ -51,15 +53,24 @@ func (repo *Repo) GetAll(user string) []*Provider {
 	defer rows.Close()
 	for rows.Next() {
 		var p Provider
-		if err = rows.Scan(&p.ID, &p.BaseURL, &p.APIKey); err != nil {
+		var headersJson string
+		if err = rows.Scan(&p.ID, &p.BaseURL, &p.APIKey, &headersJson); err != nil {
 			log.Error("Error scanning provider", "err", err)
 			continue
+		}
+		var headers map[string]string
+		if headersJson != "" {
+			_ = json.Unmarshal([]byte(headersJson), &headers)
+		}
+		if headers == nil {
+			headers = make(map[string]string)
 		}
 		allProviders = append(allProviders, &Provider{
 			ID:      p.ID,
 			BaseURL: p.BaseURL,
 			APIKey:  p.APIKey,
 			User:    user,
+			Headers: headers,
 		})
 	}
 	if err = rows.Err(); err != nil {
@@ -71,10 +82,19 @@ func (repo *Repo) GetAll(user string) []*Provider {
 
 func (repo *Repo) GetByID(id string, user string) (*Provider, error) {
 	var p Provider
-	query := `SELECT id, url, api_key FROM Providers WHERE id = ? AND user = ?`
-	err := repo.db.QueryRow(query, id, user).Scan(&p.ID, &p.BaseURL, &p.APIKey)
+	var headersJson string
+	query := `SELECT id, url, api_key, headers_json FROM Providers WHERE id = ? AND user = ?`
+	err := repo.db.QueryRow(query, id, user).Scan(&p.ID, &p.BaseURL, &p.APIKey, &headersJson)
 	if err != nil {
 		return nil, err
+	}
+
+	var headers map[string]string
+	if headersJson != "" {
+		_ = json.Unmarshal([]byte(headersJson), &headers)
+	}
+	if headers == nil {
+		headers = make(map[string]string)
 	}
 
 	return &Provider{
@@ -82,12 +102,19 @@ func (repo *Repo) GetByID(id string, user string) (*Provider, error) {
 		BaseURL: p.BaseURL,
 		APIKey:  p.APIKey,
 		User:    user,
+		Headers: headers,
 	}, nil
 }
 
 func (repo *Repo) Save(provider *Provider) error {
-	query := `INSERT INTO Providers (id, url, api_key, user) VALUES (?, ?, ?, ?)`
-	_, err := repo.db.Exec(query, provider.ID, provider.BaseURL, provider.APIKey, provider.User)
+	if provider.Headers == nil {
+		provider.Headers = make(map[string]string)
+	}
+	headersBytes, _ := json.Marshal(provider.Headers)
+	headersJson := string(headersBytes)
+
+	query := `INSERT INTO Providers (id, url, api_key, user, headers_json) VALUES (?, ?, ?, ?, ?)`
+	_, err := repo.db.Exec(query, provider.ID, provider.BaseURL, provider.APIKey, provider.User, headersJson)
 	return err
 }
 

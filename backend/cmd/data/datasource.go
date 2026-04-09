@@ -52,7 +52,18 @@ func InitDataSource(dataSourceName string) error {
 		return err
 	}
 
-	schema := `
+	return RunMigrations(DB)
+}
+
+func RunMigrations(db *sql.DB) error {
+	var userVersion int
+	err := db.QueryRow("PRAGMA user_version;").Scan(&userVersion)
+	if err != nil {
+		return err
+	}
+
+	if userVersion < 1 {
+		schemaV1 := `
 	CREATE TABLE IF NOT EXISTS Users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		username TEXT NOT NULL UNIQUE,
@@ -166,7 +177,30 @@ func InitDataSource(dataSourceName string) error {
 		FOREIGN KEY (user) REFERENCES Users(username) ON DELETE CASCADE
 	);
 	`
+		_, err = db.Exec(schemaV1)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec("PRAGMA user_version = 1;")
+		if err != nil {
+			return err
+		}
+	}
 
-	_, err = DB.Exec(schema)
-	return err
+	if userVersion < 2 {
+		schemaV2 := `
+		ALTER TABLE Providers ADD COLUMN headers_json TEXT DEFAULT '{}';
+		ALTER TABLE MCPServers ADD COLUMN headers_json TEXT DEFAULT '{}';
+		`
+		_, err = db.Exec(schemaV2)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec("PRAGMA user_version = 2;")
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

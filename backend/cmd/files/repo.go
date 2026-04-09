@@ -1,7 +1,7 @@
 package files
 
 import (
-	"ai-client/cmd/utils"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"database/sql"
 )
 

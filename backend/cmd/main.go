@@ -1,14 +1,15 @@
 package main
 
 import (
-	"ai-client/cmd/auth"
-	"ai-client/cmd/chat"
-	"ai-client/cmd/data"
-	"ai-client/cmd/files"
-	"ai-client/cmd/providers"
-	"ai-client/cmd/settings"
-	"ai-client/cmd/tools"
-	"ai-client/cmd/utils"
+	"github.com/Bajahaw/ai-ui/cmd/auth"
+	"github.com/Bajahaw/ai-ui/cmd/chat"
+	"github.com/Bajahaw/ai-ui/cmd/data"
+	"github.com/Bajahaw/ai-ui/cmd/files"
+	"github.com/Bajahaw/ai-ui/cmd/providers"
+	"github.com/Bajahaw/ai-ui/cmd/settings"
+	"github.com/Bajahaw/ai-ui/cmd/tools"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
+	"github.com/Bajahaw/ai-ui/cmd/version"
 	"context"
 	"database/sql"
 	"errors"
@@ -154,6 +155,7 @@ func startServer() {
 	mux.Handle("/api/settings/", settings.SettingsHandler())
 	mux.Handle("/api/tools/", tools.Handler())
 	mux.Handle("/api/auth/", auth.Handler())
+	mux.HandleFunc("/api/version", version.HandleGetVersion)
 
 	server := &http.Server{
 		Addr:         ":8080",

@@ -1,8 +1,8 @@
 package providers
 
 import (
-	"ai-client/cmd/auth"
-	"ai-client/cmd/utils"
+	"github.com/Bajahaw/ai-ui/cmd/auth"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"context"
 	"errors"
 	"net/http"
@@ -13,13 +13,15 @@ import (
 )
 
 type Request struct {
-	BaseURL string `json:"base_url"`
-	APIKey  string `json:"api_key"`
+	BaseURL string            `json:"base_url"`
+	APIKey  string            `json:"api_key"`
+	Headers map[string]string `json:"headers"`
 }
 
 type Response struct {
-	ID      string `json:"id"`
-	BaseURL string `json:"base_url"`
+	ID      string            `json:"id"`
+	BaseURL string            `json:"base_url"`
+	Headers map[string]string `json:"headers"`
 }
 
 type Model struct {
@@ -94,10 +96,14 @@ func saveModels(w http.ResponseWriter, r *http.Request) {
 
 func fetchAllModels(provider *Provider) ([]*Model, error) {
 	models := make([]*Model, 0)
-	client := openai.NewClient(
+	opts := []option.RequestOption{
 		option.WithAPIKey(provider.APIKey),
 		option.WithBaseURL(provider.BaseURL),
-	)
+	}
+	for key, value := range provider.Headers {
+		opts = append(opts, option.WithHeader(key, value))
+	}
+	client := openai.NewClient(opts...)
 
 	list, err := client.Models.List(context.Background())
 	if err != nil {
@@ -126,6 +132,7 @@ func getProvidersList(w http.ResponseWriter, r *http.Request) {
 		response = append(response, Response{
 			ID:      p.ID,
 			BaseURL: p.BaseURL,
+			Headers: p.Headers,
 		})
 	}
 
@@ -145,6 +152,7 @@ func getProvider(w http.ResponseWriter, r *http.Request) {
 	response := Response{
 		ID:      provider.ID,
 		BaseURL: provider.BaseURL,
+		Headers: provider.Headers,
 	}
 
 	utils.RespondWithJSON(w, &response, http.StatusOK)
@@ -164,6 +172,7 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 		BaseURL: req.BaseURL,
 		APIKey:  req.APIKey,
 		User:    utils.ExtractContextUser(r),
+		Headers: req.Headers,
 	}
 
 	err = providers.Save(provider)
@@ -185,6 +194,7 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 	response := Response{
 		ID:      provider.ID,
 		BaseURL: provider.BaseURL,
+		Headers: provider.Headers,
 	}
 
 	utils.RespondWithJSON(w, &response, http.StatusCreated)

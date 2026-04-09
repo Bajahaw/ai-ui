@@ -1,7 +1,7 @@
 package tools
 
 import (
-	"ai-client/cmd/utils"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -13,20 +13,22 @@ import (
 )
 
 type MCPServer struct {
-	ID       string  `json:"id"`
-	Name     string  `json:"name"`
-	Endpoint string  `json:"endpoint"`
-	APIKey   string  `json:"api_key"`
-	User     string  `json:"-"`
-	Tools    []*Tool `json:"tools,omitempty"`
+	ID       string            `json:"id"`
+	Name     string            `json:"name"`
+	Endpoint string            `json:"endpoint"`
+	APIKey   string            `json:"api_key"`
+	User     string            `json:"-"`
+	Tools    []*Tool           `json:"tools,omitempty"`
+	Headers  map[string]string `json:"headers"`
 }
 
 type MCPServerResponse struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Endpoint string `json:"endpoint"`
+	ID       string            `json:"id"`
+	Name     string            `json:"name"`
+	Endpoint string            `json:"endpoint"`
 	// APIKey string
-	Tools []*Tool `json:"tools"`
+	Tools   []*Tool           `json:"tools"`
+	Headers map[string]string `json:"headers"`
 }
 
 type MCPServerListResponse struct {
@@ -34,10 +36,11 @@ type MCPServerListResponse struct {
 }
 
 type MCPServerRequest struct {
-	ID       string `json:"id,omitempty"`
-	Name     string `json:"name"`
-	Endpoint string `json:"endpoint"`
-	APIKey   string `json:"api_key"`
+	ID       string            `json:"id,omitempty"`
+	Name     string            `json:"name"`
+	Endpoint string            `json:"endpoint"`
+	APIKey   string            `json:"api_key"`
+	Headers  map[string]string `json:"headers"`
 }
 
 func listMCPServers(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +53,7 @@ func listMCPServers(w http.ResponseWriter, r *http.Request) {
 			Name:     server.Name,
 			Endpoint: server.Endpoint,
 			Tools:    server.Tools,
+			Headers:  server.Headers,
 		}
 	}
 	utils.RespondWithJSON(w, response, http.StatusOK)
@@ -70,6 +74,7 @@ func getMCPServer(w http.ResponseWriter, r *http.Request) {
 		Name:     server.Name,
 		Endpoint: server.Endpoint,
 		Tools:    server.Tools,
+		Headers:  server.Headers,
 	}
 	utils.RespondWithJSON(w, response, http.StatusOK)
 }
@@ -90,6 +95,7 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 		Endpoint: req.Endpoint,
 		APIKey:   req.APIKey,
 		User:     user,
+		Headers:  req.Headers,
 	}
 
 	server.Tools, err = GetMCPTools(server)
@@ -112,6 +118,7 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 		Name:     server.Name,
 		Endpoint: server.Endpoint,
 		Tools:    server.Tools,
+		Headers:  server.Headers,
 	}
 
 	utils.RespondWithJSON(w, &response, http.StatusOK)
@@ -138,6 +145,9 @@ func GetMCPTools(server MCPServer) ([]*Tool, error) {
 
 	headers := map[string]string{
 		"Authorization": "Bearer " + server.APIKey,
+	}
+	for k, v := range server.Headers {
+		headers[k] = v
 	}
 
 	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{

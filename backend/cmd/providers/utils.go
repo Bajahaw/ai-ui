@@ -1,7 +1,7 @@
 package providers
 
 import (
-	"ai-client/cmd/tools"
+	"github.com/Bajahaw/ai-ui/cmd/tools"
 	"encoding/json"
 
 	"github.com/openai/openai-go/v3"

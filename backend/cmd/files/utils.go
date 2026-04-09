@@ -1,7 +1,7 @@
 package files
 
 import (
-	"ai-client/cmd/providers"
+	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"bytes"
 	"fmt"
 	"image"

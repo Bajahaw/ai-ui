@@ -1,10 +1,10 @@
 package chat
 
 import (
-	fs "ai-client/cmd/files"
-	"ai-client/cmd/providers"
-	stngs "ai-client/cmd/settings"
-	"ai-client/cmd/tools"
+	fs "github.com/Bajahaw/ai-ui/cmd/files"
+	"github.com/Bajahaw/ai-ui/cmd/providers"
+	stngs "github.com/Bajahaw/ai-ui/cmd/settings"
+	"github.com/Bajahaw/ai-ui/cmd/tools"
 	"database/sql"
 
 	logger "github.com/charmbracelet/log"

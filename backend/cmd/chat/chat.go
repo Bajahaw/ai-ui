@@ -1,9 +1,9 @@
 package chat
 
 import (
-	"ai-client/cmd/providers"
-	"ai-client/cmd/tools"
-	"ai-client/cmd/utils"
+	"github.com/Bajahaw/ai-ui/cmd/providers"
+	"github.com/Bajahaw/ai-ui/cmd/tools"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 
 	"fmt"
 	"net/http"

@@ -1,8 +1,8 @@
 package chat
 
 import (
-	"ai-client/cmd/data"
-	"ai-client/cmd/utils"
+	"github.com/Bajahaw/ai-ui/cmd/data"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"fmt"
 	"net/http"
 	"time"

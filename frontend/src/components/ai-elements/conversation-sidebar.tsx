@@ -182,6 +182,9 @@ export const ConversationSidebar = ({
             >
               <SidebarIcon className="size-4 mr-1 text-foreground/80" />
               <h2 className="text-xl font-bold text-foreground/80">AI Chat</h2>
+              <span className="ml-2 mt-1 text-[10px] font-medium text-muted-foreground/50 tracking-wide font-light">
+                v{__APP_VERSION__}
+              </span>
             </Button>
           </div>
           <Button
