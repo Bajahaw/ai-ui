@@ -21,10 +21,11 @@ import {
   SearchIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ComponentProps, useEffect, useState } from "react";
+import { ComponentProps, useEffect, useState, useMemo, useRef } from "react";
 import { ClientConversation } from "@/lib/clientConversationManager";
 import { useAuth } from "@/hooks/useAuth";
 import { LoginDialog } from "@/components/auth/LoginDialog";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 export interface ConversationSidebarProps extends ComponentProps<"div"> {
   conversations?: ClientConversation[];
@@ -98,22 +99,57 @@ export const ConversationSidebar = ({
     });
 
   // Group conversations
-  const groupedConversations = {
-    Today: [] as ClientConversation[],
-    Yesterday: [] as ClientConversation[],
-    "Last 7 Days": [] as ClientConversation[],
-    Older: [] as ClientConversation[],
-  };
+  const groupedConversations = useMemo(() => {
+    const groups = {
+      Today: [] as ClientConversation[],
+      Yesterday: [] as ClientConversation[],
+      "Last 7 Days": [] as ClientConversation[],
+      Older: [] as ClientConversation[],
+    };
 
-  filteredConversations.forEach((conversation) => {
-    const group = getConversationGroup(conversation);
-    if (group in groupedConversations) {
-      groupedConversations[group as keyof typeof groupedConversations].push(
-        conversation,
-      );
-    } else {
-      groupedConversations["Older"].push(conversation);
-    }
+    filteredConversations.forEach((conversation) => {
+      const group = getConversationGroup(conversation);
+      if (group in groups) {
+        groups[group as keyof typeof groups].push(conversation);
+      } else {
+        groups["Older"].push(conversation);
+      }
+    });
+
+    return groups;
+  }, [filteredConversations]);
+
+  type FlatItem =
+    | { type: "header"; id: string; label: string }
+    | { type: "item"; id: string; data: ClientConversation };
+
+  const flatItems = useMemo(() => {
+    const items: FlatItem[] = [];
+    (
+      Object.keys(groupedConversations) as Array<
+        keyof typeof groupedConversations
+      >
+    ).forEach((group) => {
+      const groupItems = groupedConversations[group];
+      if (groupItems.length > 0) {
+        items.push({ type: "header", id: `header-${group}`, label: group });
+        groupItems.forEach((conversation) => {
+          items.push({ type: "item", id: conversation.id, data: conversation });
+        });
+      }
+    });
+    return items;
+  }, [groupedConversations]);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: flatItems.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (index) => {
+      return flatItems[index].type === "header" ? 24 + 16 : 40; // Approx heights with padding
+    },
+    overscan: 10,
   });
 
   const handleRename = (conversationId: string, currentTitle: string) => {
@@ -236,10 +272,10 @@ export const ConversationSidebar = ({
               "linear-gradient(to bottom, black 90%, transparent 100%)",
           }}
         >
-          <ScrollArea className="h-full" type="scroll">
-            <div className="px-3 py-4 space-y-6">
-              {(isCheckingAuth || isLoading) &&
-              conversations.length === 0 ? null : conversations.length === 0 ? (
+          <ScrollArea className="h-full" type="scroll" viewportRef={scrollRef}>
+            {(isCheckingAuth || isLoading) &&
+            conversations.length === 0 ? null : conversations.length === 0 ? (
+              <div className="px-3 py-4">
                 <div className="text-center py-8 text-muted-foreground text-sm">
                   {isAuthenticated ? (
                     <>
@@ -255,112 +291,127 @@ export const ConversationSidebar = ({
                     </>
                   )}
                 </div>
-              ) : filteredConversations.length === 0 ? (
+              </div>
+            ) : filteredConversations.length === 0 ? (
+              <div className="px-3 py-4">
                 <div className="text-center py-8 text-muted-foreground text-sm">
                   No matching conversations found.
                 </div>
-              ) : (
-                (
-                  Object.keys(groupedConversations) as Array<
-                    keyof typeof groupedConversations
-                  >
-                ).map((group) => {
-                  const groupItems = groupedConversations[group];
-                  if (groupItems.length === 0) return null;
+              </div>
+            ) : (
+              <div className="px-3 py-4">
+                <div
+                  className="relative w-full"
+                  style={{
+                    height: `${rowVirtualizer.getTotalSize()}px`,
+                  }}
+                >
+                  {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+                    const item = flatItems[virtualItem.index];
 
-                  return (
-                    <div key={group}>
-                      <h3 className="px-1 text-xs font-semibold text-muted-foreground/70 mb-2">
-                        {group}
-                      </h3>
-                      {groupItems.map((conversation) => (
-                        <div
-                          key={conversation.id}
-                          className={cn(
-                            "group relative w-full rounded-lg transition-colors py-[0.1rem] animate-fade-in",
-                            activeConversationId === conversation.id
-                              ? "bg-secondary/80"
-                              : "hover:bg-secondary/80",
-                          )}
-                        >
-                          {editingId === conversation.id ? (
-                            <div className="flex items-center gap-2">
-                              <Input
-                                value={editingTitle}
-                                onChange={(e) =>
-                                  setEditingTitle(e.target.value)
-                                }
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    handleSaveRename(conversation.id);
-                                  } else if (e.key === "Escape") {
-                                    handleCancelRename();
+                    return (
+                      <div
+                        key={virtualItem.key}
+                        data-index={virtualItem.index}
+                        ref={rowVirtualizer.measureElement}
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          width: "100%",
+                          transform: `translateY(${virtualItem.start}px)`,
+                        }}
+                      >
+                        {item.type === "header" ? (
+                          <h3 className="px-1 text-xs font-semibold text-muted-foreground/70 pb-2 pt-4">
+                            {item.label}
+                          </h3>
+                        ) : (
+                          <div
+                            className={cn(
+                              "group relative w-full rounded-lg transition-colors py-[0.1rem] animate-fade-in",
+                              activeConversationId === item.data.id
+                                ? "bg-secondary/80"
+                                : "hover:bg-secondary/80",
+                            )}
+                          >
+                            {editingId === item.data.id ? (
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  value={editingTitle}
+                                  onChange={(e) =>
+                                    setEditingTitle(e.target.value)
                                   }
-                                }}
-                                onBlur={() => handleSaveRename(conversation.id)}
-                                className="flex-1 text-sm border-0"
-                                autoFocus
-                              />
-                            </div>
-                          ) : (
-                            <div className="flex items-center group/item">
-                              <Button
-                                variant="ghost"
-                                onClick={() =>
-                                  onConversationSelect?.(conversation.id)
-                                }
-                                className={cn(
-                                  "flex-1 justify-start h-auto p-2 text-left hover:!bg-transparent max-w-[240px] group-hover/item:max-w-[210px] transition-all !duration-100 ease-in-out",
-                                )}
-                              >
-                                <div className="flex items-center gap-2 w-full">
-                                  <span className="text-sm flex-1 truncate text-foreground/80">
-                                    {conversation.title}
-                                  </span>
-                                </div>
-                              </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="opacity-0 group-hover/item:opacity-100 pointer-events-none group-hover/item:pointer-events-auto hover:!bg-secondary h-8 w-8 p-0 shrink-0 absolute right-2 top-1/2 -translate-y-1/2"
-                                  >
-                                    <MoreHorizontalIcon className="size-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      handleRename(
-                                        conversation.id,
-                                        conversation.title,
-                                      )
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      handleSaveRename(item.data.id);
+                                    } else if (e.key === "Escape") {
+                                      handleCancelRename();
                                     }
-                                  >
-                                    <PencilIcon className="size-4 mr-2" />
-                                    Rename
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      handleDelete(conversation.id)
-                                    }
-                                    className="text-destructive focus:text-destructive"
-                                  >
-                                    <TrashIcon className="size-4 mr-2" />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })
-              )}
-            </div>
+                                  }}
+                                  onBlur={() => handleSaveRename(item.data.id)}
+                                  className="flex-1 text-sm border-0"
+                                  autoFocus
+                                />
+                              </div>
+                            ) : (
+                              <div className="flex items-center group/item">
+                                <Button
+                                  variant="ghost"
+                                  onClick={() =>
+                                    onConversationSelect?.(item.data.id)
+                                  }
+                                  className={cn(
+                                    "flex-1 justify-start h-auto p-2 text-left hover:!bg-transparent max-w-[240px] group-hover/item:max-w-[210px] transition-all !duration-100 ease-in-out",
+                                  )}
+                                >
+                                  <div className="flex items-center gap-2 w-full">
+                                    <span className="text-sm flex-1 truncate text-foreground/80">
+                                      {item.data.title}
+                                    </span>
+                                  </div>
+                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="opacity-0 group-hover/item:opacity-100 pointer-events-none group-hover/item:pointer-events-auto hover:!bg-secondary h-8 w-8 p-0 shrink-0 absolute right-2 top-1/2 -translate-y-1/2"
+                                    >
+                                      <MoreHorizontalIcon className="size-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        handleRename(
+                                          item.data.id,
+                                          item.data.title,
+                                        )
+                                      }
+                                    >
+                                      <PencilIcon className="size-4 mr-2" />
+                                      Rename
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => handleDelete(item.data.id)}
+                                      className="text-destructive focus:text-destructive"
+                                    >
+                                      <TrashIcon className="size-4 mr-2" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </ScrollArea>
         </div>
 

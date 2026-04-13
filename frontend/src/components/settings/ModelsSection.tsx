@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -48,6 +49,15 @@ export const ModelsSection: React.FC = () => {
   }, [models, search]);
 
   const enabledInFiltered = filtered.filter((m) => m.is_enabled).length;
+
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 76,
+    overscan: 5,
+  });
 
   const allVisibleSelected =
     filtered.length > 0 && filtered.every((m) => selection.has(m.id));
@@ -226,52 +236,75 @@ export const ModelsSection: React.FC = () => {
         )}
 
         {filtered.length > 0 && (
-          <div className="space-y-2 h-full overflow-y-auto pr-1">
-            {filtered.map((model) => {
-              const selected = selection.has(model.id);
+          <div ref={parentRef} className="h-full overflow-y-auto pr-1">
+            <div
+              style={{
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                width: "100%",
+                position: "relative",
+              }}
+            >
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                const model = filtered[virtualRow.index];
+                const selected = selection.has(model.id);
+                const pending = pendingIds.has(model.id);
 
-              const pending = pendingIds.has(model.id);
+                return (
+                  <div
+                    key={model.id}
+                    data-index={virtualRow.index}
+                    ref={rowVirtualizer.measureElement}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${virtualRow.start}px)`,
+                      paddingBottom: "8px",
+                    }}
+                  >
+                    <div
+                      className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                        selected
+                          ? "bg-primary/5 border-primary/40"
+                          : "border-border/50 hover:bg-muted/40"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => toggleSelect(model.id)}
+                        className="h-4 w-4 cursor-pointer rounded-md bg-transparent border border-border checked:bg-primary checked:border-primary transition-colors flex-shrink-0"
+                      />
 
-              return (
-                <div
-                  key={model.id}
-                  className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                    selected
-                      ? "bg-primary/5 border-primary/40"
-                      : "border-border/50 hover:bg-muted/40"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected}
-                    onChange={() => toggleSelect(model.id)}
-                    className="h-4 w-4 cursor-pointer rounded-md bg-transparent border border-border checked:bg-primary checked:border-primary transition-colors"
-                  />
+                      <div className="flex-1 min-h-0 overflow-hidden">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="truncate max-w-[200px] sm:max-w-[300px]"
+                            title={model.name}
+                          >
+                            {model.name}
+                          </span>
+                        </div>
 
-                  <div className="flex-1 min-h-0 overflow-hidden">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="truncate max-w-[200px] sm:max-w-[300px]"
-                        title={model.name}
-                      >
-                        {model.name}
-                      </span>
-                    </div>
+                        <div className="text-[11px] text-muted-foreground truncate max-w-[200px] sm:max-w-[300px]">
+                          {model.id}
+                        </div>
+                      </div>
 
-                    <div className="text-[11px] text-muted-foreground truncate max-w-[200px] sm:max-w-[300px]">
-                      {model.id}
+                      <Switch
+                        checked={model.is_enabled}
+                        onCheckedChange={() => handleSingleToggle(model)}
+                        disabled={pending || bulkBusy}
+                        title={
+                          model.is_enabled ? "Disable model" : "Enable model"
+                        }
+                      />
                     </div>
                   </div>
-
-                  <Switch
-                    checked={model.is_enabled}
-                    onCheckedChange={() => handleSingleToggle(model)}
-                    disabled={pending || bulkBusy}
-                    title={model.is_enabled ? "Disable model" : "Enable model"}
-                  />
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

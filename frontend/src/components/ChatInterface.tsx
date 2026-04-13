@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Attachment, FrontendMessage, WelcomeStats } from "@/lib/api/types";
 import { BranchNavigation } from "@/components/BranchNavigation";
 import { ClientConversation } from "@/lib/clientConversationManager";
@@ -357,6 +358,13 @@ export const ChatInterface = ({
   const nextMessageRenderKeyRef = useRef(0);
   const conversationRef = useRef<HTMLDivElement>(null);
   const bottomAnchorRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => conversationRef.current,
+    estimateSize: () => 100,
+    overscan: 10,
+  });
   const promptAreaRef = useRef<PromptAreaHandle>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
   const isConversationLoadingRef = useRef(isConversationLoading);
@@ -952,13 +960,46 @@ export const ChatInterface = ({
           </div>
         ) : (
           <ConversationContent className="chat-interface w-full max-w-3xl mx-auto !px-5 lg:!px-3">
-            <div className="space-y-4">
-              {messages.map((message) => renderMessage(message))}
+            <div
+              className="relative w-full"
+              style={{
+                height: `${rowVirtualizer.getTotalSize() + (hasInteracted ? 100 : 0)}px`,
+              }}
+            >
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                const message = messages[virtualRow.index];
+                return (
+                  <div
+                    key={message.id || virtualRow.key}
+                    data-index={virtualRow.index}
+                    ref={rowVirtualizer.measureElement}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${virtualRow.start}px)`,
+                      paddingBottom: "16px",
+                    }}
+                  >
+                    {renderMessage(message)}
+                  </div>
+                );
+              })}
               {/* Add overscroll spacer only when user has interacted with conversation */}
               {hasInteracted && (
                 <div style={{ minHeight: "calc(-450px + 100vh)" }} />
               )}
-              <div ref={bottomAnchorRef} aria-hidden="true" />
+              <div
+                ref={bottomAnchorRef}
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  top:
+                    rowVirtualizer.getTotalSize() + (hasInteracted ? 100 : 0),
+                  left: 0,
+                }}
+              />
             </div>
           </ConversationContent>
         )}

@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -32,6 +33,8 @@ export const ToolsSection: React.FC = () => {
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
 
+  const parentRef = useRef<HTMLDivElement>(null);
+
   const filtered = useMemo(() => {
     if (!search.trim()) return data.tools;
     const q = search.toLowerCase();
@@ -51,6 +54,13 @@ export const ToolsSection: React.FC = () => {
   const allVisibleSelected =
     filtered.length > 0 && filtered.every((t) => selection.has(t.id));
   const anySelected = selection.size > 0;
+
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 76,
+    overscan: 5,
+  });
 
   const toggleSelect = (id: string) => {
     setSelection((prev) => {
@@ -234,81 +244,109 @@ export const ToolsSection: React.FC = () => {
         )}
 
         {filtered.length > 0 && (
-          <div className="space-y-2 h-full overflow-y-auto pr-1">
-            {filtered.map((tool) => {
-              const selected = selection.has(tool.id);
-              const pending = pendingIds.has(tool.id);
+          <div ref={parentRef} className="h-full overflow-y-auto pr-1">
+            <div
+              style={{
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                width: "100%",
+                position: "relative",
+              }}
+            >
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                const tool = filtered[virtualRow.index];
+                const selected = selection.has(tool.id);
+                const pending = pendingIds.has(tool.id);
 
-              return (
-                <div
-                  key={tool.id}
-                  className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                    selected
-                      ? "bg-primary/5 border-primary/40"
-                      : "border-border/50 hover:bg-muted/40"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected}
-                    onChange={() => toggleSelect(tool.id)}
-                    className="h-4 w-4 cursor-pointer rounded-md bg-transparent border border-border checked:bg-primary checked:border-primary transition-colors"
-                  />
-
-                  <div className="flex-1 min-h-0 overflow-hidden">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="truncate max-w-[200px] sm:max-w-[300px]"
-                        title={tool.name}
-                      >
-                        {tool.name}
-                      </span>
-                      {tool.require_approval && (
-                        <ShieldAlert className="h-3 w-3 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                      )}
-                    </div>
-                    {tool.description && (
-                      <div className="text-[11px] text-muted-foreground truncate max-w-[200px] sm:max-w-[300px]">
-                        {tool.description}
-                      </div>
-                    )}
-                    {tool.mcp_server_id && (
-                      <div className="text-[10px] text-muted-foreground/70 truncate max-w-[200px] sm:max-w-[300px]">
-                        MCP: {tool.mcp_server_id}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {/* Approval Toggle */}
-                    <button
-                      onClick={() => handleSingleToggleApproval(tool)}
-                      disabled={pending || bulkBusy}
-                      className={`p-1.5 rounded transition-colors ${
-                        tool.require_approval
-                          ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
-                          : "bg-muted hover:bg-muted/70 text-muted-foreground"
-                      } ${pending ? "opacity-50 cursor-wait" : "cursor-pointer"}`}
-                      title={
-                        tool.require_approval
-                          ? "Remove approval requirement"
-                          : "Require approval"
-                      }
+                return (
+                  <div
+                    key={tool.id}
+                    data-index={virtualRow.index}
+                    ref={rowVirtualizer.measureElement}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${virtualRow.start}px)`,
+                      paddingBottom: "8px", // replaces space-y-2
+                    }}
+                  >
+                    <div
+                      className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                        selected
+                          ? "bg-primary/5 border-primary/40"
+                          : "border-border/50 hover:bg-muted/40"
+                      }`}
                     >
-                      <ShieldAlert className="h-3.5 w-3.5" />
-                    </button>
+                      <div className="flex items-center gap-3 overflow-hidden flex-1">
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleSelect(tool.id)}
+                          className="h-4 w-4 cursor-pointer rounded-md bg-transparent border border-border checked:bg-primary checked:border-primary transition-colors flex-shrink-0"
+                        />
 
-                    {/* Enable/Disable Toggle */}
-                    <Switch
-                      checked={!!tool.is_enabled}
-                      onCheckedChange={() => handleSingleToggleEnabled(tool)}
-                      disabled={pending || bulkBusy}
-                      title={tool.is_enabled ? "Disable tool" : "Enable tool"}
-                    />
+                        <div className="flex-1 min-h-0 overflow-hidden">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="truncate max-w-[200px] sm:max-w-[300px]"
+                              title={tool.name}
+                            >
+                              {tool.name}
+                            </span>
+                            {tool.require_approval && (
+                              <ShieldAlert className="h-3 w-3 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                            )}
+                          </div>
+                          {tool.description && (
+                            <div className="text-[11px] text-muted-foreground truncate max-w-[200px] sm:max-w-[300px]">
+                              {tool.description}
+                            </div>
+                          )}
+                          {tool.mcp_server_id && (
+                            <div className="text-[10px] text-muted-foreground/70 truncate max-w-[200px] sm:max-w-[300px]">
+                              MCP: {tool.mcp_server_id}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {/* Approval Toggle */}
+                        <button
+                          onClick={() => handleSingleToggleApproval(tool)}
+                          disabled={pending || bulkBusy}
+                          className={`p-1.5 rounded transition-colors ${
+                            tool.require_approval
+                              ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+                              : "bg-muted hover:bg-muted/70 text-muted-foreground"
+                          } ${pending ? "opacity-50 cursor-wait" : "cursor-pointer"}`}
+                          title={
+                            tool.require_approval
+                              ? "Remove approval requirement"
+                              : "Require approval"
+                          }
+                        >
+                          <ShieldAlert className="h-3.5 w-3.5" />
+                        </button>
+
+                        {/* Enable/Disable Toggle */}
+                        <Switch
+                          checked={!!tool.is_enabled}
+                          onCheckedChange={() =>
+                            handleSingleToggleEnabled(tool)
+                          }
+                          disabled={pending || bulkBusy}
+                          title={
+                            tool.is_enabled ? "Disable tool" : "Enable tool"
+                          }
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
