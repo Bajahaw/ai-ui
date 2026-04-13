@@ -188,7 +188,7 @@ export const ProviderForm = ({
           </div>
 
           <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between pt-2">
               <Label>Custom Headers</Label>
               <Button
                 type="button"
@@ -205,7 +205,7 @@ export const ProviderForm = ({
             </div>
 
             {headerEntries.length > 0 ? (
-              <div className="space-y-1.5 max-h-[150px] overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-[150px] overflow-y-auto">
                 {headerEntries.map((header, index) => (
                   <div key={index} className="flex items-center gap-2">
                     <Input

@@ -179,7 +179,7 @@ export const ConversationSidebar = ({
   return (
     <div
       className={cn(
-        "sidebar flex h-full bg-background/95 backdrop-blur-sm border-r relative", // Removed overflow-hidden
+        "sidebar flex h-full bg-background/95 backdrop-blur-sm border-r border-muted-foreground/20 relative", // Removed overflow-hidden
         isCollapsed && "collapsed",
         className,
       )}
@@ -218,7 +218,7 @@ export const ConversationSidebar = ({
             >
               <SidebarIcon className="size-4 mr-1 text-foreground/80" />
               <h2 className="text-xl font-bold text-foreground/80">AI Chat</h2>
-              <span className="ml-2 mt-1 text-[10px] font-medium text-muted-foreground/50 tracking-wide font-light">
+              <span className="ml-1 mt-3 text-[10px] text-muted-foreground tracking-wide font-light">
                 v{__APP_VERSION__}
               </span>
             </Button>

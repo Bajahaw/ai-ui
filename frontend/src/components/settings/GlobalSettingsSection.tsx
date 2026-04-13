@@ -102,7 +102,7 @@ export const GlobalSettingsSection = () => {
       </h3>
 
       <div className="space-y-4">
-        <div className="flex justify-between items-center pb-2">
+        <div className="flex justify-between items-center mb-0 pb-2">
           <Label htmlFor="default-model" className="text-nowrap">
             Default Model
           </Label>
@@ -169,7 +169,7 @@ export const GlobalSettingsSection = () => {
           </Select>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 pt-2">
           <Label htmlFor="system-prompt">System Prompt</Label>
           <div className="flex items-center justify-between pt-2">
             <div>
