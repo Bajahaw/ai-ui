@@ -8,7 +8,7 @@ require (
 	github.com/evgensoft/ddgo v0.0.0-20250604183002-54c292420e4d
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/modelcontextprotocol/go-sdk v1.4.1
+	github.com/modelcontextprotocol/go-sdk v1.5.0
 	github.com/openai/openai-go/v3 v3.29.0
 	modernc.org/sqlite v1.47.0
 )
