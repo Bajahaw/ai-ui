@@ -219,7 +219,15 @@ export const ThoughtsToolsGroup = ({
     return null;
   }
 
-  const visibleToolCalls = toolCalls.slice(0, MAX_VISIBLE_TOOL_ICONS);
+  const visibleToolCalls = toolCalls.slice(-MAX_VISIBLE_TOOL_ICONS);
+
+  const statusText = isStreaming
+    ? toolCalls.length > 0
+      ? `Calling ${toolCalls[toolCalls.length - 1].name}...`
+      : hasReasoning
+        ? "Thinking..."
+        : "Thoughts and tools"
+    : "Thoughts and tools";
 
   return (
     <Collapsible
@@ -251,7 +259,14 @@ export const ThoughtsToolsGroup = ({
             </div>
           )}
           <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate">Thoughts and tools</span>
+            <div className="relative flex h-5 items-center overflow-hidden">
+              <span
+                key={statusText}
+                className="truncate animate-in fade-in slide-in-from-bottom-2 duration-300"
+              >
+                {statusText}
+              </span>
+            </div>
             {hasAwaitingApproval && (
               <Badge
                 className="rounded-full text-xs text-muted-foreground"
