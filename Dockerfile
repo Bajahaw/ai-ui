@@ -10,7 +10,7 @@ COPY frontend/ .
 
 RUN bun run build
 
-FROM golang:1.26.1-alpine AS backend-builder
+FROM golang:1.26.2-alpine AS backend-builder
 
 WORKDIR /app
 
