@@ -1,6 +1,6 @@
 {
   "name": "ai-ui",
-  "version": "0.1-alpha",
+  "version": "0.1",
   "description": "Modern AI chat interface built with React, TypeScript, and shadcn/ui",
   "private": true,
   "type": "module",
