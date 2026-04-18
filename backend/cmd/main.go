@@ -17,6 +17,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -127,13 +129,35 @@ type spaHandler struct {
 }
 
 func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := "." + r.URL.Path
-	if _, err := os.Stat(h.staticDir + "/" + r.URL.Path); os.IsNotExist(err) {
-		// Not a real file – serve the SPA shell
-		http.ServeFile(w, r, h.staticDir+"/index.html")
+	staticAbs, err := filepath.Abs(h.staticDir)
+	if err != nil {
+		// If we cannot resolve the static directory, fall back to the SPA shell.
+		http.ServeFile(w, r, filepath.Join(h.staticDir, "index.html"))
 		return
 	}
-	_ = path
+
+	indexFile := filepath.Join(staticAbs, "index.html")
+
+	requestedPath := filepath.Join(staticAbs, r.URL.Path)
+	requestedAbs, err := filepath.Abs(requestedPath)
+	if err != nil {
+		// On error resolving the requested path, fall back to the SPA shell.
+		http.ServeFile(w, r, indexFile)
+		return
+	}
+
+	// Ensure the requested path is within the static directory to prevent directory traversal.
+	if !(requestedAbs == staticAbs || strings.HasPrefix(requestedAbs, staticAbs+string(os.PathSeparator))) {
+		http.ServeFile(w, r, indexFile)
+		return
+	}
+
+	if _, err := os.Stat(requestedAbs); os.IsNotExist(err) {
+		// Not a real file – serve the SPA shell
+		http.ServeFile(w, r, indexFile)
+		return
+	}
+
 	h.fs.ServeHTTP(w, r)
 }
 
