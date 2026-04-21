@@ -223,7 +223,7 @@ const components: Options["components"] = {
   ol: ({ node, children, className, ...props }) => (
     <ol
       className={cn(
-        "pl-2 ml-4 list-outside list-decimal my-4 mb-6 space-y-2",
+        "pl-4 ml-4 list-outside list-decimal my-4 mb-6 space-y-2",
         className,
       )}
       {...props}

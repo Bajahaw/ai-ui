@@ -207,6 +207,22 @@ export const ThoughtsToolsGroup = ({
   const [isOpen, setIsOpen] = useState(() => hasAwaitingApproval);
   const previousAwaitingApprovalRef = useRef(hasAwaitingApproval);
 
+  // Force tool call text to be visible for a brief moment even if it completes instantly
+  const [briefToolName, setBriefToolName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const lastCall = toolCalls[toolCalls.length - 1];
+    if (lastCall) {
+      setBriefToolName(lastCall.name);
+
+      const timer = setTimeout(() => {
+        setBriefToolName(null);
+      }, 1500); // 1.5s delay
+
+      return () => clearTimeout(timer);
+    }
+  }, [toolCalls.length]);
+
   useEffect(() => {
     if (hasAwaitingApproval && !previousAwaitingApprovalRef.current) {
       setIsOpen(true);
@@ -221,9 +237,14 @@ export const ThoughtsToolsGroup = ({
 
   const visibleToolCalls = toolCalls.slice(-MAX_VISIBLE_TOOL_ICONS);
 
+  const lastToolCall = toolCalls[toolCalls.length - 1];
+  const isCallingTool = lastToolCall && !lastToolCall.tool_output;
+  const displayToolName =
+    briefToolName || (isCallingTool ? lastToolCall.name : null);
+
   const statusText = isStreaming
-    ? toolCalls.length > 0
-      ? `Calling ${toolCalls[toolCalls.length - 1].name}...`
+    ? displayToolName
+      ? `Calling ${displayToolName}...`
       : hasReasoning
         ? "Thinking..."
         : "Thoughts and tools"
