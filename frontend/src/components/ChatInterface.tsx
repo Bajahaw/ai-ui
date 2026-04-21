@@ -875,9 +875,7 @@ export const ChatInterface = ({
     );
   };
 
-  const renderMessage = (message: FrontendMessage) => {
-    const hasAttachments =
-      message.attachments && message.attachments.length > 0;
+  const getMessageKey = (message: FrontendMessage) => {
     let messageKey = messageRenderKeysRef.current.get(message);
     if (!messageKey) {
       messageKey = messageRenderKeysByIdRef.current.get(message.id);
@@ -887,9 +885,15 @@ export const ChatInterface = ({
       messageRenderKeysRef.current.set(message, messageKey);
     }
     messageRenderKeysByIdRef.current.set(message.id, messageKey);
+    return messageKey;
+  };
+
+  const renderMessage = (message: FrontendMessage) => {
+    const hasAttachments =
+      message.attachments && message.attachments.length > 0;
 
     return (
-      <div key={messageKey}>
+      <div className="chat-message-container">
         {/* Render message with optional attachments in a single component to manage margins better */}
         <MessageComponent
           from={message.role}
@@ -968,9 +972,10 @@ export const ChatInterface = ({
             >
               {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                 const message = messages[virtualRow.index];
+                const stableKey = getMessageKey(message);
                 return (
                   <div
-                    key={message.id || virtualRow.key}
+                    key={stableKey}
                     data-index={virtualRow.index}
                     ref={rowVirtualizer.measureElement}
                     style={{

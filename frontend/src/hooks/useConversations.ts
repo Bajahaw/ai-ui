@@ -79,7 +79,7 @@ class StreamingState {
 function createStreamingHandlers(
   manager: ClientConversationManager,
   conversationId: string,
-  assistantPlaceholderId: string,
+  assistantPlaceholderRef: { current: string },
   streamingState: StreamingState,
   syncConversations: () => void,
 ) {
@@ -89,7 +89,7 @@ function createStreamingHandlers(
     // Update content immediately (no sync yet)
     manager.updateMessageContent(
       conversationId,
-      assistantPlaceholderId,
+      assistantPlaceholderRef.current,
       streamingState.content,
     );
 
@@ -103,7 +103,7 @@ function createStreamingHandlers(
     const conv = manager.getConversation(conversationId);
     if (conv) {
       const assistMsg = conv.messages.find(
-        (m) => m.id === assistantPlaceholderId,
+        (m) => m.id === assistantPlaceholderRef.current,
       );
       if (assistMsg) {
         assistMsg.reasoning = streamingState.reasoning;
@@ -114,7 +114,11 @@ function createStreamingHandlers(
   };
 
   const onToolCall = (toolCall: ToolCall) => {
-    manager.addToolCall(conversationId, assistantPlaceholderId, toolCall);
+    manager.addToolCall(
+      conversationId,
+      assistantPlaceholderRef.current,
+      toolCall,
+    );
 
     // If there's accumulated reasoning and this is the first tool call event (no output yet),
     // append tool usage information to show when the model decided to use the tool
@@ -123,7 +127,7 @@ function createStreamingHandlers(
       const conv = manager.getConversation(conversationId);
       if (conv) {
         const assistMsg = conv.messages.find(
-          (m) => m.id === assistantPlaceholderId,
+          (m) => m.id === assistantPlaceholderRef.current,
         );
         if (assistMsg) {
           assistMsg.reasoning = streamingState.reasoning;
@@ -227,6 +231,34 @@ function updateUserMessageAfterSave(
   } as any;
 
   syncConversations(); // Sync to show action buttons
+}
+
+/**
+ * Swaps optimistic assistant ID with real ID early to prevent unmount/remount
+ */
+function swapAssistantMessageId(
+  manager: ClientConversationManager,
+  conversationId: string,
+  placeholderId: string,
+  realMessageId: number,
+  syncConversations: () => void,
+): void {
+  const conv = manager.getConversation(conversationId);
+  if (!conv) return;
+
+  const assistMsg = conv.messages.find((m) => m.id === placeholderId);
+  if (!assistMsg) return;
+
+  const realIdStr = realMessageId.toString();
+
+  // If it's already swapped, do nothing
+  if (assistMsg.id === realIdStr) return;
+
+  assistMsg.id = realIdStr;
+  conv.pendingMessageIds.delete(placeholderId);
+  conv.pendingMessageIds.add(realIdStr);
+
+  syncConversations();
 }
 
 /**
@@ -857,10 +889,11 @@ export const useConversations = () => {
 
         // Initialize streaming state and handlers
         const streamingState = new StreamingState();
+        const assistantPlaceholderRef = { current: assistantPlaceholderId! };
         const handlers = createStreamingHandlers(
           manager,
           conversationId,
-          assistantPlaceholderId!,
+          assistantPlaceholderRef,
           streamingState,
           syncConversations,
         );
@@ -887,6 +920,19 @@ export const useConversations = () => {
             if (metadata.assistantMessageId) {
               activeStreamAssistantMessageIdRef.current =
                 metadata.assistantMessageId;
+
+              // Swap optimistic ID immediately so UI doesn't blink when streaming finishes
+              if (assistantPlaceholderRef.current) {
+                swapAssistantMessageId(
+                  manager,
+                  conversationId!,
+                  assistantPlaceholderRef.current,
+                  metadata.assistantMessageId,
+                  syncConversations,
+                );
+                assistantPlaceholderRef.current =
+                  metadata.assistantMessageId.toString();
+              }
             }
             if (tempMessageId) {
               updateUserMessageAfterSave(
@@ -901,11 +947,11 @@ export const useConversations = () => {
           // onComplete - Update IDs (called even after errors!)
           (data) => {
             activeStreamAssistantMessageIdRef.current = null;
-            if (assistantPlaceholderId) {
+            if (assistantPlaceholderRef.current) {
               updateAssistantMessageAfterComplete(
                 manager,
                 conversationId!,
-                assistantPlaceholderId,
+                assistantPlaceholderRef.current,
                 data.assistantMessageId,
                 streamingState,
                 data.userMessageId,
@@ -998,10 +1044,11 @@ export const useConversations = () => {
 
         // Initialize streaming state and handlers
         const streamingState = new StreamingState();
+        const assistantPlaceholderRef = { current: assistantPlaceholderId };
         const handlers = createStreamingHandlers(
           manager,
           activeConversationId,
-          assistantPlaceholderId,
+          assistantPlaceholderRef,
           streamingState,
           syncConversations,
         );
@@ -1021,6 +1068,17 @@ export const useConversations = () => {
             if (metadata.assistantMessageId) {
               activeStreamAssistantMessageIdRef.current =
                 metadata.assistantMessageId;
+
+              // Swap optimistic ID immediately so UI doesn't blink when streaming finishes
+              swapAssistantMessageId(
+                manager,
+                activeConversationId,
+                assistantPlaceholderRef.current,
+                metadata.assistantMessageId,
+                syncConversations,
+              );
+              assistantPlaceholderRef.current =
+                metadata.assistantMessageId.toString();
             }
           },
           // onComplete - Update IDs (called even after errors!)
@@ -1029,7 +1087,7 @@ export const useConversations = () => {
             updateAssistantMessageAfterComplete(
               manager,
               activeConversationId,
-              assistantPlaceholderId,
+              assistantPlaceholderRef.current,
               data.assistantMessageId,
               streamingState,
               parentId,
