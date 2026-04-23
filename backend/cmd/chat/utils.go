@@ -1,29 +1,30 @@
 package chat
 
 import (
-	"github.com/Bajahaw/ai-ui/cmd/providers"
-	"github.com/Bajahaw/ai-ui/cmd/tools"
-	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"encoding/base64"
 	"fmt"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/Bajahaw/ai-ui/cmd/providers"
+	"github.com/Bajahaw/ai-ui/cmd/tools"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 )
 
 const platformInstructions = `
-<platform>
+<platform_instructions>
 
 - To utilize the platform features, make sure to format and beautify your responses. make them clear to read and understand.
 - If the response is long, use paragraphs, or seperators --- to make it easier on the eyes.
 - Tool calls must be one at a time! parellal calling is not supported yet!
 
-- When search is used, site all your used sources inline and at the end of the response. IMPORTANT to render inline citation correctly, follow the below format (comments are for explanation only, do not include them in the response):
->some facts from the enternet. ([Source name][number])([Another source][number++]) [//]: # (single source at a time, and all brackets ([][]) are mandatory!)
+- When search is used, site all your used sources inline and at the end of the response. An inline citation badge is interactive reference for the source and written in the format of ([Source name][number]). example:
+>This is a paragraph with some facts from the internet which should include references for the sources using inline citation badges, one at a time after the end of this paragraph. ([Source name][number])([Another source][number++]) 
 >rest of the response till the end ... 
 >
 >
-> [//]: # (Finally put an empty new line before the sources list)
+>
 >
 >[number]: https://source.link/article "Discription or snippet"
 >[number++]: https://source.link/another-article "Discription or snippet"
@@ -41,7 +42,7 @@ const platformInstructions = `
 - To render Mermaid charts and diagrams, just wrap using a code block with "mermaid" as the language.
 - To render other complex diagrams or visuals, use the svg code block with "svg" tag (not xml or html).
 
-<platform>
+</platform_instructions>
 `
 
 // Helper
@@ -64,7 +65,7 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 	appendPlatformFlag, _ := settings.Get("appendPlatformInstructions", user)
 
 	// Append date and/or platform instructions based on user settings
-	finalSystemPrompt := systemPrompt
+	finalSystemPrompt := "<user_instructions>\n\n" + systemPrompt + "\n\n</user_instructions>"
 	if appendDateFlag == "true" {
 		finalSystemPrompt = "Current date: " + time.Now().Format("2006-01-02") + "\n\n" + finalSystemPrompt
 	}
