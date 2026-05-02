@@ -18,6 +18,25 @@ import {
 } from "@/components/ui/tooltip.tsx";
 import { cn } from "@/lib/utils.ts";
 
+const sanitizeUrl = (input?: string): string | undefined => {
+  if (!input) {
+    return input;
+  }
+
+  try {
+    const url = new URL(input, window.location.origin);
+    const allowedProtocols = ["http:", "https:"];
+
+    if (!allowedProtocols.includes(url.protocol)) {
+      return undefined;
+    }
+
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+};
+
 export type WebPreviewContextValue = {
   url: string;
   setUrl: (url: string) => void;
@@ -165,12 +184,13 @@ export const WebPreviewBody = ({
   ...props
 }: WebPreviewBodyProps) => {
   const { url } = useWebPreview();
+  const safeSrc = sanitizeUrl(src ?? url) ?? "about:blank";
 
   return (
     <div className="flex-1">
       <iframe
         className={cn("size-full", className)}
-        src={src ?? url}
+        src={safeSrc}
         title="Preview"
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
         {...props}
