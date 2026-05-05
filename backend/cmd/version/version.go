@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-var AppVersion = "0.1"
+var AppVersion = "0.2"
 
 type VersionResponse struct {
 	Version string `json:"version"`
