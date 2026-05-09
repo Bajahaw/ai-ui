@@ -223,7 +223,7 @@ func TestChatStream_DBContentSaved(t *testing.T) {
 	}
 
 	// Verify user message was saved
-	userMsg, err := getMessage(userMsgID)
+	userMsg, err := getMessage(userMsgID, "test-user")
 	if err != nil {
 		t.Fatalf("user message not found: %v", err)
 	}

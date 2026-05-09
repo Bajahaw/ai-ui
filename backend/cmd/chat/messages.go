@@ -1,10 +1,11 @@
 package chat
 
 import (
+	"time"
+
 	"github.com/Bajahaw/ai-ui/cmd/data"
 	fs "github.com/Bajahaw/ai-ui/cmd/files"
 	"github.com/Bajahaw/ai-ui/cmd/tools"
-	"time"
 )
 
 type Message struct {
@@ -33,13 +34,14 @@ type Attachment struct {
 	File      fs.File `json:"file"`
 }
 
-func getMessage(id int) (*Message, error) {
+func getMessage(id int, user string) (*Message, error) {
 	sql := `
-	SELECT id, conv_id, role, content, reasoning, parent_id, error, status, speed, token_count, context_size, created_at, updated_at 
-	FROM Messages 
-	WHERE id = ?
+	SELECT m.id, m.conv_id, m.role, m.content, m.reasoning, m.parent_id, m.error, m.status, m.speed, m.token_count, m.context_size, m.created_at, m.updated_at
+	FROM Messages m
+	INNER JOIN Conversations c ON m.conv_id = c.id
+	WHERE m.id = ? AND c.user = ?
 	`
-	row := data.DB.QueryRow(sql, id)
+	row := data.DB.QueryRow(sql, id, user)
 
 	var msg = Message{
 		Children: make([]int, 0),
@@ -139,13 +141,17 @@ func saveMessageAttachments(id int, attachments []Attachment) error {
 	return nil
 }
 
-func updateMessage(id int, msg Message) (*Message, error) {
+func updateMessage(id int, user string, msg Message) (*Message, error) {
 	sql := `
-	UPDATE Messages SET content = ?, reasoning = ?, error = ?, status = ?, speed = ?, token_count = ?, context_size = ?, updated_at = ?
-	WHERE id = ?
-	RETURNING id, conv_id, role, model, content, reasoning, parent_id, error, status, speed, token_count, context_size, created_at, updated_at
+	UPDATE Messages
+	SET content = ?, reasoning = ?, error = ?, status = ?, speed = ?, token_count = ?, context_size = ?, updated_at = ?
+	FROM Conversations
+	WHERE Messages.conv_id = Conversations.id 
+		AND Messages.id = ? 
+		AND Conversations.user = ?
+	RETURNING Messages.id, Messages.conv_id, Messages.role, Messages.model, Messages.content, Messages.reasoning, Messages.parent_id, Messages.error, Messages.status, Messages.speed, Messages.token_count, Messages.context_size, Messages.created_at, Messages.updated_at;
 	`
-	row := data.DB.QueryRow(sql, msg.Content, msg.Reasoning, msg.Error, msg.Status, msg.Speed, msg.TokenCount, msg.ContextSize, time.Now(), id)
+	row := data.DB.QueryRow(sql, msg.Content, msg.Reasoning, msg.Error, msg.Status, msg.Speed, msg.TokenCount, msg.ContextSize, time.Now(), id, user)
 	var updatedMsg Message
 	err := row.Scan(
 		&updatedMsg.ID,

@@ -222,7 +222,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	responseMessage.TokenCount = streamStats.CompletionTokens
 	responseMessage.ContextSize = streamStats.PromptTokens
 
-	if updatedMsg, updateErr := updateMessage(responseMessage.ID, responseMessage); updateErr != nil {
+	if updatedMsg, updateErr := updateMessage(responseMessage.ID, user, responseMessage); updateErr != nil {
 		log.Error("Error updating assistant message after tool calls", "err", updateErr)
 	} else if updatedMsg != nil {
 		syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), SyncEvent{
@@ -278,8 +278,8 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Load parent user message
-	parent, err := getMessage(req.ParentID)
-	if err != nil || parent.Role != "user" {
+	parent, err := getMessage(req.ParentID, user)
+	if err != nil || parent.Role != "user"  {
 		log.Error("Invalid parent message for retry stream", "err", err)
 		http.Error(w, "Invalid parent message", http.StatusBadRequest)
 		return
@@ -391,7 +391,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	responseMessage.TokenCount = streamStats.CompletionTokens
 	responseMessage.ContextSize = streamStats.PromptTokens
 
-	if updatedMsg, updateErr := updateMessage(responseMessage.ID, responseMessage); updateErr != nil {
+	if updatedMsg, updateErr := updateMessage(responseMessage.ID, user, responseMessage); updateErr != nil {
 		log.Error("Error updating assistant message after tool calls", "err", updateErr)
 	} else if updatedMsg != nil {
 		syncManager.Broadcast(user, r.Header.Get("X-Session-ID"), SyncEvent{
@@ -441,7 +441,7 @@ func update(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	msg, err := updateMessage(req.MessageID, Message{Content: req.Content})
+	msg, err := updateMessage(req.MessageID, user, Message{Content: req.Content})
 	if err != nil {
 		log.Error("Error updating message", "err", err)
 		http.Error(w, fmt.Sprintf("Error updating message: %v", err), http.StatusInternalServerError)
@@ -488,7 +488,7 @@ func cancelStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Force status to completed so the frontend never gets stuck on pending
-	msg, err := getMessage(messageID)
+	msg, err := getMessage(messageID, user)
 	if err != nil {
 		log.Error("Failed to fetch message after cancel", "err", err)
 		http.Error(w, "Message not found", http.StatusNotFound)
@@ -497,7 +497,7 @@ func cancelStream(w http.ResponseWriter, r *http.Request) {
 
 	if msg.Status == "pending" {
 		msg.Status = "completed"
-		updated, updateErr := updateMessage(messageID, *msg)
+		updated, updateErr := updateMessage(messageID, user, *msg)
 		if updateErr != nil {
 			log.Error("Failed to force-complete message after cancel", "err", updateErr)
 		} else if updated != nil {
