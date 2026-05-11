@@ -1,15 +1,6 @@
 package main
 
 import (
-	"github.com/Bajahaw/ai-ui/cmd/auth"
-	"github.com/Bajahaw/ai-ui/cmd/chat"
-	"github.com/Bajahaw/ai-ui/cmd/data"
-	"github.com/Bajahaw/ai-ui/cmd/files"
-	"github.com/Bajahaw/ai-ui/cmd/providers"
-	"github.com/Bajahaw/ai-ui/cmd/settings"
-	"github.com/Bajahaw/ai-ui/cmd/tools"
-	"github.com/Bajahaw/ai-ui/cmd/utils"
-	"github.com/Bajahaw/ai-ui/cmd/version"
 	"context"
 	"database/sql"
 	"errors"
@@ -21,6 +12,16 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/Bajahaw/ai-ui/cmd/auth"
+	"github.com/Bajahaw/ai-ui/cmd/chat"
+	"github.com/Bajahaw/ai-ui/cmd/data"
+	"github.com/Bajahaw/ai-ui/cmd/files"
+	"github.com/Bajahaw/ai-ui/cmd/providers"
+	"github.com/Bajahaw/ai-ui/cmd/settings"
+	"github.com/Bajahaw/ai-ui/cmd/tools"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
+	"github.com/Bajahaw/ai-ui/cmd/version"
 
 	logger "github.com/charmbracelet/log"
 	"github.com/joho/godotenv"
@@ -162,7 +163,11 @@ func startServer() {
 	mux := http.NewServeMux()
 
 	mux.Handle("/", spaHandler{staticDir: staticDir, fs: rawFs})
-	mux.Handle("/data/resources/", http.StripPrefix("/data/resources/", auth.Authenticated(dataFs)))
+	mux.Handle("/data/resources/",
+	 http.StripPrefix(
+		"/data/resources/",
+		auth.Authenticated(files.UserBasedAccess(dataFs)),
+	))
 
 	mux.Handle("/api/chat/", chat.Handler())
 	mux.Handle("/api/files/", files.FileHandler())

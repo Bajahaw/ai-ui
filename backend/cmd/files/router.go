@@ -1,13 +1,14 @@
 package files
 
 import (
-	"github.com/Bajahaw/ai-ui/cmd/auth"
-	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Bajahaw/ai-ui/cmd/auth"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 )
 
 func FileHandler() http.Handler {
@@ -19,6 +20,29 @@ func FileHandler() http.Handler {
 	mux.HandleFunc("DELETE 	/delete/{id}", deleteFile)
 
 	return http.StripPrefix("/api/files", auth.Authenticated(mux))
+}
+
+func UserBasedAccess(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := utils.ExtractContextUser(r)
+
+		filename := strings.TrimPrefix(r.URL.Path, "/")
+		if filename == "" {
+			http.NotFound(w, r)
+			return
+		}
+
+		expectedPath := "data/resources/" + filename
+
+		var count int
+		err := db.QueryRow("SELECT COUNT(*) FROM Files WHERE path = ? AND user = ?", expectedPath, user).Scan(&count)
+		if err != nil || count == 0 {
+			http.NotFound(w, r)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 func upload(w http.ResponseWriter, r *http.Request) {
