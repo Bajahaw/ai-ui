@@ -4,8 +4,8 @@ go 1.25.5
 
 require (
 	github.com/charmbracelet/log v1.0.0
-	github.com/dslipak/pdf v0.0.2
 	github.com/evgensoft/ddgo v0.0.0-20250604183002-54c292420e4d
+	github.com/gen2brain/go-fitz v1.24.15
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.6.0
@@ -19,7 +19,9 @@ require (
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
+	github.com/jupiterrider/ffi v0.5.0 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/segmentio/asm v1.2.1 // indirect

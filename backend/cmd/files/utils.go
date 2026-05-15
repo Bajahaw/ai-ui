@@ -1,7 +1,6 @@
 package files
 
 import (
-	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"bytes"
 	"fmt"
 	"image"
@@ -16,7 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dslipak/pdf"
+	"github.com/Bajahaw/ai-ui/cmd/providers"
+
 	"github.com/google/uuid"
 )
 
@@ -163,7 +163,6 @@ func extractFileContent(file File, model string) (string, error) {
 		return string(fileContent), nil
 	}
 
-	// if pdf
 	if file.Type == "application/pdf" {
 		text, err := readPDF(file.Path)
 		if err != nil {
@@ -204,27 +203,4 @@ func extractFileContent(file File, model string) (string, error) {
 	}
 
 	return "", fmt.Errorf("unsupported file type for content extraction: %s", file.Type)
-}
-
-func readPDF(path string) (string, error) {
-	r, err := pdf.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer r.Trailer().Reader().Close()
-
-	var totalText string
-	totalPage := r.NumPage()
-
-	for i := 1; i <= totalPage; i++ {
-		p := r.Page(i)
-		if p.V.IsNull() {
-			continue
-		}
-		text, _ := p.GetPlainText(nil)
-		totalText += text
-	}
-
-	log.Debug("Extracted text from PDF", "chars", len(totalText))
-	return totalText, nil
 }
