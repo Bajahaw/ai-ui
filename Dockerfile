@@ -14,12 +14,14 @@ FROM golang:1.26.1-alpine AS backend-builder
 
 WORKDIR /app
 
+RUN apk add --no-cache gcc musl-dev
+
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 
 COPY backend .
 
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o ai-ui ./cmd
+RUN CGO_ENABLED=1 go build -tags musl -ldflags="-s -w" -o ai-ui ./cmd
 
 FROM alpine AS prod
 
