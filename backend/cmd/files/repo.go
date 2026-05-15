@@ -1,8 +1,9 @@
 package files
 
 import (
-	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"database/sql"
+
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 )
 
 type File struct {
@@ -22,6 +23,7 @@ type Repository interface {
 	GetAll(user string) ([]File, error)
 	GetByIDs(fileIDs []string, user string) ([]File, error)
 	Save(file File) error
+	UpdateContent(id string, user string, content string) error
 	DeleteByID(id string, user string) error
 }
 
@@ -126,6 +128,12 @@ func (r *RepositoryImpl) Save(file File) error {
 		file.CreatedAt,
 		file.UploadedAt,
 	)
+	return err
+}
+
+func (r *RepositoryImpl) UpdateContent(id string, user string, content string) error {
+	updateSql := `UPDATE Files SET content = ? WHERE id = ? AND user = ?`
+	_, err := r.db.Exec(updateSql, content, id, user)
 	return err
 }
 

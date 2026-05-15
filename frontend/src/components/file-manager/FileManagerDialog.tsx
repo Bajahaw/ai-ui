@@ -26,6 +26,7 @@ import {
   formatFileSize,
   isImageFile,
   deleteFile,
+  extractContent,
 } from "@/lib/api/files";
 import { File as ApiFile } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,7 @@ export function FileManagerDialog({
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(
     new Set(),
   );
@@ -206,8 +208,23 @@ export function FileManagerDialog({
 
   const handleOCR = async () => {
     if (selectedFileIds.size === 0) return;
-    // Backend endpoint to be implemented later
-    console.log("Trigger OCR for:", Array.from(selectedFileIds));
+    setExtracting(true);
+    try {
+      const idsToExtract = Array.from(selectedFileIds);
+      const updatedFiles = await extractContent(idsToExtract);
+      // Merge updated files into state
+      setFiles((prev) =>
+        prev.map((f) => {
+          const updated = updatedFiles.find((uf) => uf.id === f.id);
+          return updated ? updated : f;
+        }),
+      );
+    } catch (error) {
+      console.error("OCR extraction failed:", error);
+    } finally {
+      setExtracting(false);
+      setSelectedFileIds(new Set());
+    }
   };
 
   const filteredFiles = files.filter((f) =>
@@ -278,11 +295,15 @@ export function FileManagerDialog({
               variant="outline"
               size="icon"
               onClick={handleOCR}
-              disabled={selectedFileIds.size === 0}
+              disabled={selectedFileIds.size === 0 || extracting}
               title="Trigger OCR"
               className="h-9 w-9"
             >
-              <ScanText className="h-4 w-4" />
+              {extracting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ScanText className="h-4 w-4" />
+              )}
             </Button>
             <Button
               variant="outline"

@@ -78,6 +78,24 @@ export const deleteFile = async (id: string): Promise<void> => {
   }
 };
 
+export const extractContent = async (fileIds: string[]): Promise<ApiFile[]> => {
+  const response = await fetch(getApiUrl(`/api/files/extract-content`), {
+    method: "POST",
+    headers: {
+      ...getHeaders(),
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+    body: JSON.stringify({ fileIds }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to extract content");
+  }
+
+  return response.json();
+};
+
 export const getFileExtension = (filename: string): string => {
   return filename.split(".").pop()?.toLowerCase() || "";
 };

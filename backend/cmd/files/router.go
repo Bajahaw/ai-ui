@@ -18,6 +18,7 @@ func FileHandler() http.Handler {
 	mux.HandleFunc("GET 	/{id}", getFile)
 	mux.HandleFunc("GET 	/all", getAllFiles)
 	mux.HandleFunc("DELETE 	/delete/{id}", deleteFile)
+	mux.HandleFunc("POST 	/extract-content", extractContent)
 
 	return http.StripPrefix("/api/files", auth.Authenticated(mux))
 }
@@ -172,4 +173,47 @@ func getAllFiles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, files, http.StatusOK)
+}
+
+func extractContent(w http.ResponseWriter, r *http.Request) {
+	user := utils.ExtractContextUser(r)
+	var req struct {
+		FileIDs []string `json:"fileIds"`
+	}
+	if err := utils.ExtractJSONBody(r, &req); err != nil {
+		log.Error("Error parsing request body", "err", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	files, err := repo.GetByIDs(req.FileIDs, user)
+	if err != nil {
+		log.Error("Error querying files from db", "err", err)
+		http.Error(w, "Error retrieving files", http.StatusInternalServerError)
+		return
+	}
+
+	ocrModel, _ := settings.Get("ocrModel", user)
+	var updatedFiles []File
+
+	for _, file := range files {
+		if file.Content == "" {
+			fileContent, err := extractFileContent(file, ocrModel)
+			if err != nil {
+				log.Error("Error extracting file content", "err", err, "file", file.ID)
+				continue
+			}
+			file.Content = fileContent
+			err = repo.UpdateContent(file.ID, user, fileContent)
+			if err != nil {
+				log.Error("Error saving file with extracted content", "err", err)
+			} else {
+				updatedFiles = append(updatedFiles, file)
+			}
+		} else {
+			updatedFiles = append(updatedFiles, file)
+		}
+	}
+
+	utils.RespondWithJSON(w, updatedFiles, http.StatusOK)
 }
