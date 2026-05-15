@@ -25,8 +25,6 @@ FROM alpine AS prod
 
 WORKDIR /app
 
-RUN apk add --no-cache libffi
-
 COPY --from=backend-builder /app/ai-ui /app/ai-ui
 COPY --from=frontend-builder /app/frontend/dist ./static
 
