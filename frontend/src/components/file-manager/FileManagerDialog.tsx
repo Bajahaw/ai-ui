@@ -212,10 +212,11 @@ export function FileManagerDialog({
     try {
       const idsToExtract = Array.from(selectedFileIds);
       const updatedFiles = await extractContent(idsToExtract);
+      const safeUpdatedFiles = updatedFiles || [];
       // Merge updated files into state
       setFiles((prev) =>
         prev.map((f) => {
-          const updated = updatedFiles.find((uf) => uf.id === f.id);
+          const updated = safeUpdatedFiles.find((uf) => uf.id === f.id);
           return updated ? updated : f;
         }),
       );

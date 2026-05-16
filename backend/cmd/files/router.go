@@ -194,14 +194,15 @@ func extractContent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ocrModel, _ := settings.Get("ocrModel", user)
-	var updatedFiles []File
+	updatedFiles := []File{}
 
 	for _, file := range files {
 		if file.Content == "" {
 			fileContent, err := extractFileContent(file, ocrModel)
 			if err != nil {
 				log.Error("Error extracting file content", "err", err, "file", file.ID)
-				continue
+				http.Error(w, "Error extracting content: "+err.Error(), http.StatusInternalServerError)
+				return
 			}
 			file.Content = fileContent
 			err = repo.UpdateContent(file.ID, user, fileContent)
