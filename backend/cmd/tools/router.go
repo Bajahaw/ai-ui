@@ -1,9 +1,10 @@
 package tools
 
 import (
+	"net/http"
+
 	"github.com/Bajahaw/ai-ui/cmd/auth"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
-	"net/http"
 )
 
 func Handler() http.Handler {
@@ -20,6 +21,7 @@ func Handler() http.Handler {
 	mux.HandleFunc("GET /mcp/{id}", getMCPServer)
 	mux.HandleFunc("POST /mcp/save", saveMCPServer)
 	mux.HandleFunc("DELETE /mcp/delete/{id}", deleteMCPServer)
+	mux.HandleFunc("POST /mcp/refresh-tools/{id}", refreshMCPTools)
 
 	return http.StripPrefix("/api/tools", auth.Authenticated(mux))
 }

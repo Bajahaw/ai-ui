@@ -2,17 +2,20 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "../ui/card";
-import { Edit, Plus, Server, Trash2 } from "lucide-react";
+import { Edit, Loader2, Plus, RotateCcw, Server, Trash2 } from "lucide-react";
 import { MCPServerForm } from "./MCPServerForm";
 import { MCPServerRequest, MCPServerResponse } from "@/lib/api/types";
 import { useSettingsData } from "@/hooks/useSettingsData";
 
 export const MCPServersSection = () => {
-  const { data, addMCPServer, updateMCPServer, deleteMCPServer } =
+  const { data, addMCPServer, updateMCPServer, deleteMCPServer, refreshMCPTools } =
     useSettingsData();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingServer, setEditingServer] = useState<MCPServerResponse | null>(
     null,
+  );
+  const [refreshingServers, setRefreshingServers] = useState<Set<string>>(
+    new Set(),
   );
 
   const handleAddServer = async (serverData: MCPServerRequest) => {
@@ -30,6 +33,19 @@ export const MCPServersSection = () => {
   const handleDeleteServer = async (id: string) => {
     if (confirm("Are you sure you want to delete this MCP server?")) {
       await deleteMCPServer(id);
+    }
+  };
+
+  const handleRefreshTools = async (id: string) => {
+    setRefreshingServers((prev) => new Set(prev).add(id));
+    try {
+      await refreshMCPTools(id);
+    } finally {
+      setRefreshingServers((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -80,6 +96,19 @@ export const MCPServersSection = () => {
                   </div>
 
                   <div className="flex items-center gap-1 flex-shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRefreshTools(server.id)}
+                      disabled={refreshingServers.has(server.id)}
+                      title="Refresh tools from MCP server"
+                    >
+                      {refreshingServers.has(server.id) ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-4 w-4" />
+                      )}
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"

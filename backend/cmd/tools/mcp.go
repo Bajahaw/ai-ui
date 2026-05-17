@@ -1,12 +1,14 @@
 package tools
 
 import (
-	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -23,9 +25,9 @@ type MCPServer struct {
 }
 
 type MCPServerResponse struct {
-	ID       string            `json:"id"`
-	Name     string            `json:"name"`
-	Endpoint string            `json:"endpoint"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Endpoint string `json:"endpoint"`
 	// APIKey string
 	Tools   []*Tool           `json:"tools"`
 	Headers map[string]string `json:"headers"`
@@ -135,6 +137,75 @@ func deleteMCPServer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, "MCP server deleted successfully", http.StatusOK)
+}
+
+func refreshMCPTools(w http.ResponseWriter, r *http.Request) {
+	user := utils.ExtractContextUser(r)
+	id := r.PathValue("id")
+
+	server, err := mcps.GetByID(id, user)
+	if err != nil {
+		log.Error("MCP server not found", "err", err)
+		http.Error(w, "MCP server not found", http.StatusNotFound)
+		return
+	}
+
+	// Built-in servers (id starts with "default") don't use MCP SDK
+	var freshTools []*Tool
+	if strings.HasPrefix(server.ID, "default") {
+		freshTools = GetBuiltInTools()
+		// Update MCPServerID to match the actual server ID
+		for _, t := range freshTools {
+			t.MCPServerID = server.ID
+		}
+	} else {
+		var fetchErr error
+		freshTools, fetchErr = GetMCPTools(*server)
+		if fetchErr != nil {
+			log.Error("Error fetching tools from MCP server", "err", fetchErr)
+			http.Error(w, "Failed to fetch tools from MCP server", http.StatusBadGateway)
+			return
+		}
+	}
+
+	// Build map of existing tool states to preserve them
+	existingTools := tools.GetAllByMCPServerID(server.ID)
+	stateMap := make(map[string]struct {
+		IsEnabled       bool
+		RequireApproval bool
+	}, len(existingTools))
+	for _, t := range existingTools {
+		stateMap[t.Name] = struct {
+			IsEnabled       bool
+			RequireApproval bool
+		}{t.IsEnabled, t.RequireApproval}
+	}
+
+	// Preserve is_enabled and require_approval for existing tools; new tools default to true/false
+	newToolIDs := make([]string, 0, len(freshTools))
+	for _, t := range freshTools {
+		if state, exists := stateMap[t.Name]; exists {
+			t.IsEnabled = state.IsEnabled
+			t.RequireApproval = state.RequireApproval
+		}
+		newToolIDs = append(newToolIDs, t.ID)
+	}
+
+	// Upsert with correct state values
+	if err = tools.SaveAll(freshTools); err != nil {
+		log.Error("Error saving refreshed tools", "err", err)
+		http.Error(w, "Error saving tools", http.StatusInternalServerError)
+		return
+	}
+
+	// Remove stale tools that no longer exist on the MCP server
+	if err = tools.DeleteNotIn(server.ID, newToolIDs); err != nil {
+		log.Error("Error deleting stale tools", "err", err)
+		http.Error(w, "Error cleaning up stale tools", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func GetMCPTools(server MCPServer) ([]*Tool, error) {

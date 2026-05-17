@@ -1,6 +1,9 @@
 package tools
 
-import "database/sql"
+import (
+	"database/sql"
+	"strings"
+)
 
 type ToolRepository interface {
 	GetAll(user string) []*Tool
@@ -10,6 +13,7 @@ type ToolRepository interface {
 	Save(tool *Tool) error
 	SaveAll(tools []*Tool) error
 	DeleteByID(id string) error
+	DeleteNotIn(mcpServerID string, toolIDs []string) error
 }
 
 type ToolRepositoryImpl struct {
@@ -159,4 +163,24 @@ func (repo *ToolRepositoryImpl) DeleteByID(id string) error {
 		return err
 	}
 	return nil
+}
+
+func (repo *ToolRepositoryImpl) DeleteNotIn(mcpServerID string, toolIDs []string) error {
+	if len(toolIDs) == 0 {
+		// Delete all tools for this MCP server
+		_, err := repo.db.Exec(`DELETE FROM Tools WHERE mcp_server_id = ?`, mcpServerID)
+		return err
+	}
+
+	placeholders := make([]string, len(toolIDs))
+	args := make([]any, len(toolIDs)+1)
+	args[0] = mcpServerID
+	for i, id := range toolIDs {
+		placeholders[i] = "?"
+		args[i+1] = id
+	}
+
+	query := `DELETE FROM Tools WHERE mcp_server_id = ? AND id NOT IN (` + strings.Join(placeholders, ",") + `)`
+	_, err := repo.db.Exec(query, args...)
+	return err
 }

@@ -54,3 +54,23 @@ export const deleteMCPServer = async (id: string): Promise<void> => {
     throw new Error(`Failed to delete MCP server: ${response.statusText}`);
   }
 };
+
+// Refresh tools for a specific MCP server (re-fetches from MCP server)
+export const refreshMCPTools = async (id: string): Promise<void> => {
+  const response = await fetch(
+    getApiUrl(`/api/tools/mcp/refresh-tools/${id}`),
+    {
+      method: "POST",
+      headers: getHeaders({
+        "Content-Type": "application/json",
+      }),
+      credentials: "include",
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to refresh MCP tools: ${response.statusText}`,
+    );
+  }
+};

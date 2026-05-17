@@ -16,6 +16,7 @@ import {
 import {
   deleteMCPServer as deleteMCPServerApi,
   getMCPServers,
+  refreshMCPTools as refreshMCPToolsApi,
   saveMCPServer,
 } from "@/lib/api/mcpServers";
 import { getAllTools, saveAllTools } from "@/lib/api/tools";
@@ -63,6 +64,7 @@ interface SettingsDataContext {
   addMCPServer: (data: MCPServerRequest) => Promise<void>;
   updateMCPServer: (data: MCPServerRequest) => Promise<void>;
   deleteMCPServer: (id: string) => Promise<void>;
+  refreshMCPTools: (id: string) => Promise<void>;
 
   // Tools
   updateToolsLocal: (tools: Tool[]) => void;
@@ -237,6 +239,17 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
     [refreshTools],
   );
 
+  const refreshMCPToolsFn = useCallback(
+    async (id: string) => {
+      await refreshMCPToolsApi(id);
+      // Refresh tools and MCP servers to sync with updated DB state
+      await refreshTools();
+      const mcpRes = await getMCPServers();
+      setData((d) => ({ ...d, mcpServers: mcpRes }));
+    },
+    [refreshTools],
+  );
+
   // Tools
   const updateToolsLocal = useCallback((tools: Tool[]) => {
     setData((d) => ({ ...d, tools }));
@@ -283,6 +296,7 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
         addMCPServer,
         updateMCPServer,
         deleteMCPServer,
+        refreshMCPTools: refreshMCPToolsFn,
         updateToolsLocal,
         saveTools,
         updateModelsLocal: globalUpdateModels,
