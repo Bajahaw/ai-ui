@@ -4,9 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
+	fs "github.com/Bajahaw/ai-ui/cmd/files"
+
+	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/evgensoft/ddgo"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -21,21 +25,9 @@ type Tool struct {
 	IsEnabled       bool   `json:"is_enabled"`
 }
 
-type ToolCall struct {
-	ID          string `json:"id"`
-	ReferenceID string `json:"ref_id"`
-	ConvID      string `json:"conv_id,omitempty"`
-	MessageID   int    `json:"message_id"`
-	Name        string `json:"name"`
-	Args        string `json:"args,omitempty"`
-	Output      string `json:"tool_output,omitempty"`
-	TokenCount  int    `json:"tokenCount,omitempty"`
-	ContextSize int    `json:"contextSize,omitempty"`
-}
-
 type PendingToolCall struct {
 	User     string
-	ToolCall ToolCall
+	ToolCall providers.ToolCall
 	Channel  chan bool
 }
 
@@ -70,17 +62,17 @@ var toolCallManager = ToolCallManager{
 // 	return results
 // }
 
-func ExecuteMCPTool(toolCall ToolCall, user string) string {
+func ExecuteMCPTool(toolCall providers.ToolCall, user, convID string) providers.ToolOutput {
 	tool, err := tools.GetByName(toolCall.Name, user)
 	if err != nil {
 		log.Error("Error retrieving tool", "err", err)
-		return "Error occurred while retrieving tool."
+		return providers.ToolOutput{Content: "Error occurred while retrieving tool."}
 	}
 
 	server, err := mcps.GetByID(tool.MCPServerID, user)
 	if err != nil {
 		log.Error("Error retrieving MCP server", "err", err)
-		return "Error occurred while retrieving MCP server."
+		return providers.ToolOutput{Content: "Error occurred while retrieving MCP server."}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -106,10 +98,10 @@ func ExecuteMCPTool(toolCall ToolCall, user string) string {
 
 		select {
 		case <-ctx.Done():
-			return "Tool call approval timed out."
+			return providers.ToolOutput{Content: "Tool call approval timed out."}
 		case approved := <-responseChan:
 			if !approved {
-				return "Tool call was not approved."
+				return providers.ToolOutput{Content: "Tool call was not approved."}
 			}
 		}
 	}
@@ -120,6 +112,12 @@ func ExecuteMCPTool(toolCall ToolCall, user string) string {
 			return ddgsTool(toolCall.Args)
 		case "get_weather":
 			return weatherTool()
+		case "search_document":
+			return searchDocumentTool(toolCall.Args)
+		case "read_document_page":
+			return readDocumentPageTool(toolCall.Args)
+		case "view_document_page":
+			return viewDocumentPageTool(toolCall.Args, user, convID)
 		}
 	}
 
@@ -144,7 +142,7 @@ func ExecuteMCPTool(toolCall ToolCall, user string) string {
 
 		if err != nil {
 			log.Error("Error connecting to MCP server", "err", err)
-			return "Error connecting to MCP server"
+			return providers.ToolOutput{Content: "Error connecting to MCP server"}
 		}
 
 		mcpSessionManager.add(server.ID, session)
@@ -156,7 +154,7 @@ func ExecuteMCPTool(toolCall ToolCall, user string) string {
 	var args map[string]any
 	if err := json.Unmarshal([]byte(toolCall.Args), &args); err != nil {
 		log.Error("Error unmarshaling tool arguments", "err", err)
-		return "Error parsing tool arguments."
+		return providers.ToolOutput{Content: "Error parsing tool arguments."}
 	}
 
 	params := &mcp.CallToolParams{
@@ -173,7 +171,7 @@ func ExecuteMCPTool(toolCall ToolCall, user string) string {
 
 		// session.Close() // this might throw the same error if connection is broken
 
-		return "Tool execution failed!"
+		return providers.ToolOutput{Content: "Tool execution failed!"}
 	}
 
 	output := result.Content
@@ -182,7 +180,7 @@ func ExecuteMCPTool(toolCall ToolCall, user string) string {
 	log.Debug(output)
 
 	rawJSON, _ := json.Marshal(output)
-	return string(rawJSON)
+	return providers.ToolOutput{Content: string(rawJSON)}
 }
 
 func GetAvailableTools(user string) []*Tool {
@@ -217,29 +215,53 @@ func GetBuiltInTools() []*Tool {
 			InputSchema: `{"type": "object","properties": {"location": {"type": "string","description": "The location to get weather for"}},"required": ["location"]}`,
 			IsEnabled:   true,
 		},
+		{
+			ID:          "search_document",
+			Name:        "search_document",
+			MCPServerID: "default",
+			Description: "Search a specific attached document for a keyword or phrase constraint. Returns best matching pages.",
+			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"query":{"type":"string","description":"The keyword or phrase to search for"}},"required":["file_id","query"]}`,
+			IsEnabled:   true,
+		},
+		{
+			ID:          "read_document_page",
+			Name:        "read_document_page",
+			MCPServerID: "default",
+			Description: "Read the extracted text of a specific page from an attached document.",
+			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"page_number":{"type":"integer","description":"The 0-based page number to read"}},"required":["file_id","page_number"]}`,
+			IsEnabled:   true,
+		},
+		{
+			ID:          "view_document_page",
+			Name:        "view_document_page",
+			MCPServerID: "default",
+			Description: "Get a screenshot of a specific document page. Use this when the user specifically mentions looking at an image, chart, format, or layout in the document. Pass array of files_ids via file_id property if needed.",
+			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"page_number":{"type":"integer","description":"The 0-based page number to view"}},"required":["file_id","page_number"]}`,
+			IsEnabled:   true,
+		},
 	}
 }
 
-func ddgsTool(q string) string {
+func ddgsTool(q string) providers.ToolOutput {
 	var m map[string]any
 	err := json.Unmarshal([]byte(q), &m)
 	if err != nil {
-		return "Error parsing tool arguments."
+		return providers.ToolOutput{Content: "Error parsing tool arguments."}
 	}
 
 	queryVal, ok := m["query"]
 	if !ok || queryVal == nil {
-		return "Error: 'query' parameter is required."
+		return providers.ToolOutput{Content: "Error: 'query' parameter is required."}
 	}
 
 	query, ok := queryVal.(string)
 	if !ok {
-		return "Error: 'query' parameter must be a string."
+		return providers.ToolOutput{Content: "Error: 'query' parameter must be a string."}
 	}
 
 	result, err := ddgo.Query(query, 5)
 	if err != nil {
-		return "Error occurred while searching DuckDuckGo."
+		return providers.ToolOutput{Content: "Error occurred while searching DuckDuckGo."}
 	}
 
 	// combine results into a single string
@@ -252,11 +274,87 @@ func ddgsTool(q string) string {
 		output = "Search failed! Probably bot detection triggered."
 	}
 
-	return output
+	return providers.ToolOutput{Content: output}
 }
 
-func weatherTool() string {
+func weatherTool() providers.ToolOutput {
 	// simulate delay
 	time.Sleep(2 * time.Second)
-	return "Temperature: 22°C, Condition: Sunny"
+	return providers.ToolOutput{Content: "Temperature: 22°C, Condition: Sunny"}
+}
+
+func searchDocumentTool(args string) providers.ToolOutput {
+	var params struct {
+		FileID string `json:"file_id"`
+		Query  string `json:"query"`
+	}
+	if err := json.Unmarshal([]byte(args), &params); err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("error decoding arguments: %v", err)}
+	}
+
+	pages, err := files.SearchPages(params.FileID, params.Query, 10)
+	if err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("error searching document: %v", err)}
+	}
+
+	var res strings.Builder
+	for _, page := range pages {
+		res.WriteString(page.Content)
+		res.WriteString("\n\n")
+	}
+
+	return providers.ToolOutput{Content: res.String()}
+}
+
+func readDocumentPageTool(args string) providers.ToolOutput {
+	var params struct {
+		FileID     string `json:"file_id"`
+		PageNumber int    `json:"page_number"`
+	}
+	if err := json.Unmarshal([]byte(args), &params); err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("error decoding arguments: %v", err)}
+	}
+
+	page, err := files.GetPage(params.FileID, params.PageNumber)
+	if err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("error reading document page: %v", err)}
+	}
+
+	content := page.Content
+
+	return providers.ToolOutput{Content: content}
+}
+
+func viewDocumentPageTool(args, user, convID string) providers.ToolOutput {
+	var params struct {
+		FileID     string `json:"file_id"`
+		PageNumber int    `json:"page_number"`
+	}
+	if err := json.Unmarshal([]byte(args), &params); err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("error decoding arguments: %v", err)}
+	}
+
+	docs := files.GetAllConversationAttachments(convID)
+	doc := findAttachment(docs, params.FileID)
+	if doc == nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("Unable to find document with id %s in this conversation", params.FileID)}
+	}
+
+	imgData, err := fs.RenderPDFPageAsBase64(doc.File.Path, params.PageNumber, user)
+	if err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("error rendering document page: %v", err)}
+	}
+
+	return providers.ToolOutput{File: imgData.ID}
+}
+
+func findAttachment(m map[int][]fs.Attachment, targetID string) *fs.Attachment {
+	for _, attachments := range m {
+		for _, att := range attachments {
+			if att.ID == targetID {
+				return &att
+			}
+		}
+	}
+	return nil
 }

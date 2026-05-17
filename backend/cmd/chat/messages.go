@@ -5,33 +5,27 @@ import (
 
 	"github.com/Bajahaw/ai-ui/cmd/data"
 	fs "github.com/Bajahaw/ai-ui/cmd/files"
-	"github.com/Bajahaw/ai-ui/cmd/tools"
+	"github.com/Bajahaw/ai-ui/cmd/providers"
 )
 
 type Message struct {
-	ID          int               `json:"id"`
-	ConvID      string            `json:"convId"`
-	Role        string            `json:"role"`
-	Model       string            `json:"model,omitempty"`
-	Content     string            `json:"content"`
-	Reasoning   string            `json:"reasoning,omitempty"`
-	Status      string            `json:"status"`
-	ParentID    int               `json:"parentId,omitempty"`
-	Children    []int             `json:"children"`
-	Attachments []Attachment      `json:"attachments,omitempty"`
-	Error       string            `json:"error,omitempty"`
-	Tools       []*tools.ToolCall `json:"tools,omitempty"`
-	Speed       float64           `json:"speed,omitempty"`
-	TokenCount  int               `json:"tokenCount,omitempty"`
-	ContextSize int               `json:"contextSize,omitempty"`
-	CreatedAt   time.Time         `json:"createdAt"`
-	UpdatedAt   time.Time         `json:"updatedAt"`
-}
-
-type Attachment struct {
-	ID        string  `json:"id"`
-	MessageID int     `json:"messageId"`
-	File      fs.File `json:"file"`
+	ID          int                   `json:"id"`
+	ConvID      string                `json:"convId"`
+	Role        string                `json:"role"`
+	Model       string                `json:"model,omitempty"`
+	Content     string                `json:"content"`
+	Reasoning   string                `json:"reasoning,omitempty"`
+	Status      string                `json:"status"`
+	ParentID    int                   `json:"parentId,omitempty"`
+	Children    []int                 `json:"children"`
+	Attachments []fs.Attachment       `json:"attachments,omitempty"`
+	Error       string                `json:"error,omitempty"`
+	Tools       []*providers.ToolCall `json:"tools,omitempty"`
+	Speed       float64               `json:"speed,omitempty"`
+	TokenCount  int                   `json:"tokenCount,omitempty"`
+	ContextSize int                   `json:"contextSize,omitempty"`
+	CreatedAt   time.Time             `json:"createdAt"`
+	UpdatedAt   time.Time             `json:"updatedAt"`
 }
 
 func getMessage(id int, user string) (*Message, error) {
@@ -125,7 +119,7 @@ func saveMessage(msg Message) (int, error) {
 	return intId, nil
 }
 
-func saveMessageAttachments(id int, attachments []Attachment) error {
+func saveMessageAttachments(id int, attachments []fs.Attachment) error {
 	attSql := `INSERT INTO Attachments (id, message_id, file_id) VALUES (?, ?, ?)`
 	for _, att := range attachments {
 		_, err := data.DB.Exec(attSql,
@@ -254,7 +248,7 @@ func getAllConversationMessages(convID string, user string) map[int]*Message {
 	}
 
 	// Fetch attachments for all messages in the conversation
-	attachments := getAllConversationAttachments(convID)
+	attachments := files.GetAllConversationAttachments(convID)
 	for msgID, atts := range attachments {
 		if msg, exists := messages[msgID]; exists {
 			msg.Attachments = atts
@@ -272,7 +266,7 @@ func getAllConversationMessages(convID string, user string) map[int]*Message {
 	return messages
 }
 
-func getMessageAttachments(messageID int) []Attachment {
+func getMessageAttachments(messageID int) []fs.Attachment {
 	attachmentsSql := `
 	SELECT a.id, a.message_id, f.id, f.name, f.type, f.size, f.path, f.url, f.content, f.created_at
 	FROM Attachments a
@@ -286,9 +280,9 @@ func getMessageAttachments(messageID int) []Attachment {
 	}
 	defer attRows.Close()
 
-	attachments := make([]Attachment, 0)
+	attachments := make([]fs.Attachment, 0)
 	for attRows.Next() {
-		var att Attachment
+		var att fs.Attachment
 		var file fs.File
 		if err := attRows.Scan(
 			&att.ID,
@@ -306,47 +300,6 @@ func getMessageAttachments(messageID int) []Attachment {
 		}
 		att.File = file
 		attachments = append(attachments, att)
-	}
-
-	return attachments
-}
-
-func getAllConversationAttachments(convID string) map[int][]Attachment {
-	attachments := make(map[int][]Attachment)
-	sql := `
-	SELECT a.id, a.message_id, f.id, f.name, f.type, f.size, f.path, f.url, f.content, f.created_at
-	FROM Attachments a
-	JOIN Messages m ON a.message_id = m.id
-	JOIN Files f ON a.file_id = f.id
-	WHERE m.conv_id = ?
-	`
-	rows, err := data.DB.Query(sql, convID)
-	if err != nil {
-		log.Error("Error querying conversation attachments", "err", err)
-		return attachments
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var att Attachment
-		var file fs.File
-		if err := rows.Scan(
-			&att.ID,
-			&att.MessageID,
-			&file.ID,
-			&file.Name,
-			&file.Type,
-			&file.Size,
-			&file.Path,
-			&file.URL,
-			&file.Content,
-			&file.CreatedAt,
-		); err != nil {
-			log.Error("Error scanning attachment", "err", err)
-			continue
-		}
-		att.File = file
-		attachments[att.MessageID] = append(attachments[att.MessageID], att)
 	}
 
 	return attachments

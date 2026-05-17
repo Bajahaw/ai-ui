@@ -164,10 +164,10 @@ func startServer() {
 
 	mux.Handle("/", spaHandler{staticDir: staticDir, fs: rawFs})
 	mux.Handle("/data/resources/",
-	 http.StripPrefix(
-		"/data/resources/",
-		auth.Authenticated(files.UserBasedAccess(dataFs)),
-	))
+		http.StripPrefix(
+			"/data/resources/",
+			auth.Authenticated(files.UserBasedAccess(dataFs)),
+		))
 
 	mux.Handle("/api/chat/", chat.Handler())
 	mux.Handle("/api/files/", files.FileHandler())

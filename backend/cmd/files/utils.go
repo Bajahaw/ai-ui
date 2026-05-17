@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func saveUploadedFile(file multipart.File, handler *multipart.FileHeader) (File, error) {
+func saveUploadedFile(file multipart.File, handler *multipart.FileHeader, user string) (File, error) {
 	const maxUploadSize = 10 << 20 // 10 MB
 	defer file.Close()
 
@@ -77,14 +78,60 @@ func saveUploadedFile(file multipart.File, handler *multipart.FileHeader) (File,
 
 	uploadedAt := time.Now()
 
-	return File{
+	fileData := File{
 		ID:         uuid.NewString(),
 		Name:       handler.Filename,
 		Type:       fileType,
 		Size:       int64(len(data)),
 		Path:       filePath,
 		UploadedAt: uploadedAt.Format(time.RFC3339),
-	}, nil
+	}
+
+	urlPath := strings.TrimPrefix(fileData.Path, ".")
+
+	if !strings.HasPrefix(urlPath, "/") {
+		urlPath = "/" + urlPath
+	}
+
+	if !strings.HasPrefix(urlPath, "/data/resources/") {
+		urlPath = "/data/resources/" + strings.TrimPrefix(urlPath, "/")
+	}
+
+	// fileUrl := utils.GetServerURL(r) + urlPath
+
+	createdAt := time.Now()
+	lastModifiedStr := handler.Header.Get("Last-Modified")
+	if lastModifiedStr != "" {
+		if ts, err := strconv.ParseInt(lastModifiedStr, 10, 64); err == nil {
+			createdAt = time.UnixMilli(ts)
+		}
+	}
+
+	fileData.User = user
+	// fileData.URL = fileUrl
+	fileData.CreatedAt = createdAt.Format(time.RFC3339)
+
+	log.Debug("Uploaded file data", "file", fileData)
+
+	// ocr only is for images and other docs
+	ocrOnly, _ := settings.Get("attachmentOcrOnly", user)
+	if ocrOnly == "true" {
+		ocrModel, _ := settings.Get("ocrModel", user)
+		fileContent, err := extractFileContent(fileData, ocrModel)
+		if err != nil {
+			return File{}, err
+		}
+		fileData.Content = fileContent
+		log.Debug("Extracted file content", "content", fileContent)
+	}
+
+	err = repo.Save(fileData)
+	if err != nil {
+		_ = os.Remove(filePath)
+		return File{}, err
+	}
+
+	return fileData, nil
 }
 
 func detectFileType(file multipart.File) (string, error) {
@@ -164,12 +211,20 @@ func extractFileContent(file File, model string) (string, error) {
 	}
 
 	if file.Type == "application/pdf" {
-		text, err := readPDF(file.Path)
+		pages, err := readPDFPages(file.Path, file.ID)
 		if err != nil {
-			log.Error("Error reading pdf file", "err", err)
+			log.Error("Error reading PDF pages", "err", err)
 			return "", err
 		}
-		return text, nil
+
+		// indexing all pages individually to allow retrieval of specific pages later.
+		err = repo.SavePages(pages)
+		if err != nil {
+			log.Error("Error saving PDF pages", "err", err)
+			return "", err
+		}
+
+		return "PDF content page 0: \n\n" + pages[0].Content + "... retrieve rest of content using tools", nil
 	}
 
 	if strings.HasPrefix(file.Type, "image/") {

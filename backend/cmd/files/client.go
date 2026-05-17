@@ -1,9 +1,10 @@
 package files
 
 import (
+	"database/sql"
+
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	stngs "github.com/Bajahaw/ai-ui/cmd/settings"
-	"database/sql"
 
 	logger "github.com/charmbracelet/log"
 )

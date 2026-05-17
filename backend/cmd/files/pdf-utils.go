@@ -1,7 +1,11 @@
 package files
 
 import (
+	"bytes"
+	"image/jpeg"
 	"math"
+	"mime/multipart"
+	"net/textproto"
 	"regexp"
 	"sort"
 	"strconv"
@@ -19,35 +23,107 @@ var (
 	matrixRe = regexp.MustCompile(`transform:matrix\([^,]+,[^,]+,[^,]+,[^,]+,\s*([-0-9.]+)\s*,\s*([-0-9.]+)\s*\)`)
 )
 
-func readPDF(path string) (string, error) {
+func readPDFPages(path string, fileID string) ([]FilePage, error) {
 	doc, err := fitz.New(path)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer doc.Close()
 
-	var totalText strings.Builder
+	var pages []FilePage
 	for page := 0; page < doc.NumPage(); page++ {
 		text, err := doc.HTML(page, false)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		pageText, err := htmlToText(text)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
-		if page > 0 {
-			totalText.WriteString("\n\n")
-		}
-		totalText.WriteString(pageText)
+		pages = append(pages, FilePage{
+			ID:         fileID + "-" + strconv.Itoa(page),
+			FileID:     fileID,
+			PageNumber: page,
+			Content:    pageText,
+		})
+	}
+	log.Debug("Extracted pages from PDF", "pages", len(pages))
+	return pages, nil
+}
+
+// virtualFile satisfies the multipart.File interface
+type virtualFile struct {
+	*bytes.Reader
+}
+
+func (v *virtualFile) Close() error {
+	return nil // No-op since it's an in-memory buffer
+}
+
+func RenderPDFPageAsBase64(path string, pageNumber int, user string) (File, error) {
+	doc, err := fitz.New(path)
+	if err != nil {
+		return File{}, err
+	}
+	defer doc.Close()
+
+	img, err := doc.Image(pageNumber)
+	if err != nil {
+		return File{}, err
 	}
 
-	result := totalText.String()
-	log.Debug("Extracted text from PDF", "chars", len(result))
-	return result, nil
+	var buf bytes.Buffer
+	err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90})
+	if err != nil {
+		return File{}, err
+	}
+
+	file := &virtualFile{
+		Reader: bytes.NewReader(buf.Bytes()),
+	}
+
+	// Mock the FileHeader
+	header := &multipart.FileHeader{
+		Filename: "screenshot-" + strconv.Itoa(pageNumber) + ".jpg",
+		Size:     int64(buf.Len()),
+		Header:   make(textproto.MIMEHeader),
+	}
+	header.Header.Set("Content-Type", "image/jpeg")
+
+	return saveUploadedFile(file, header, user)
 }
+
+// func readPDF(path string) (string, error) {
+// 	doc, err := fitz.New(path)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	defer doc.Close()
+
+// 	var totalText strings.Builder
+// 	for page := 0; page < doc.NumPage(); page++ {
+// 		text, err := doc.HTML(page, false)
+// 		if err != nil {
+// 			return "", err
+// 		}
+
+// 		pageText, err := htmlToText(text)
+// 		if err != nil {
+// 			return "", err
+// 		}
+
+// 		if page > 0 {
+// 			totalText.WriteString("\n\n")
+// 		}
+// 		totalText.WriteString(pageText)
+// 	}
+
+// 	result := totalText.String()
+// 	log.Debug("Extracted text from PDF", "chars", len(result))
+// 	return result, nil
+// }
 
 type layoutItem struct {
 	x     float64
@@ -56,6 +132,7 @@ type layoutItem struct {
 	text  string
 }
 
+// htmlToText renders HTML content to plain text while attempting to insert image placeholders and preserve some layout based on CSS positioning.
 func htmlToText(input string) (string, error) {
 	root, err := nethtml.Parse(strings.NewReader(input))
 	if err != nil {

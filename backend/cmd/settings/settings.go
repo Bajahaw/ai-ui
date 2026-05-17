@@ -17,9 +17,10 @@ func SetDefaults(user string) {
 		"appendDateToSystemPrompt":   "false",
 		"appendPlatformInstructions": "false",
 		// "responseType":      "stream",
-		"reasoningEffort":   "disabled",
-		"attachmentOcrOnly": "false",
-		"ocrModel":          "deepseek-ocr",
+		"reasoningEffort":          "disabled",
+		"attachmentOcrOnly":        "false",
+		"agenticDocumentRetrieval": "false",
+		"ocrModel":                 "deepseek-ocr",
 	}
 
 	if err := repo.SaveDefaults(defaults, user); err != nil {

@@ -18,22 +18,33 @@ export const DocumentsSection = () => {
   );
 
   const attachmentOcrOnly = data.settings.attachmentOcrOnly === "true";
+  const agenticDocumentRetrieval =
+    data.settings.agenticDocumentRetrieval === "true";
   const ocrModel = data.settings.ocrModel || "";
 
   const [local, setLocal] = useState({
     attachmentOcrOnly,
+    agenticDocumentRetrieval,
     ocrModel,
   });
 
   useEffect(() => {
-    setLocal({ attachmentOcrOnly, ocrModel });
+    setLocal({ attachmentOcrOnly, agenticDocumentRetrieval, ocrModel });
     setHasChanges(false);
-  }, [attachmentOcrOnly, ocrModel]);
+  }, [attachmentOcrOnly, agenticDocumentRetrieval, ocrModel]);
 
   const handleToggleChange = () => {
     setLocal((prev) => ({
       ...prev,
       attachmentOcrOnly: !prev.attachmentOcrOnly,
+    }));
+    setHasChanges(true);
+  };
+
+  const handleAgenticToggleChange = () => {
+    setLocal((prev) => ({
+      ...prev,
+      agenticDocumentRetrieval: !prev.agenticDocumentRetrieval,
     }));
     setHasChanges(true);
   };
@@ -50,6 +61,10 @@ export const DocumentsSection = () => {
         "attachmentOcrOnly",
         local.attachmentOcrOnly.toString(),
       );
+      updateSettingsLocal(
+        "agenticDocumentRetrieval",
+        local.agenticDocumentRetrieval.toString(),
+      );
       if (local.ocrModel !== data.settings.ocrModel) {
         updateSettingsLocal("ocrModel", local.ocrModel);
       }
@@ -61,7 +76,7 @@ export const DocumentsSection = () => {
   };
 
   const handleReset = () => {
-    setLocal({ attachmentOcrOnly, ocrModel });
+    setLocal({ attachmentOcrOnly, agenticDocumentRetrieval, ocrModel });
     setHasChanges(false);
   };
 
@@ -75,6 +90,25 @@ export const DocumentsSection = () => {
       </h3>
 
       <div className="space-y-4">
+        <div className="flex justify-between items-center pb-2">
+          <div className="space-y-0.5">
+            <Label>Agentic PDF Retrieval</Label>
+            <p className="text-sm text-muted-foreground mr-4">
+              Allows the AI to dynamically search, read, and view PDF pages.
+            </p>
+          </div>
+          <Switch
+            checked={local.agenticDocumentRetrieval}
+            onCheckedChange={handleAgenticToggleChange}
+            disabled={isSaving}
+            title={
+              local.agenticDocumentRetrieval
+                ? "Disable agentic retrieval"
+                : "Enable agentic retrieval"
+            }
+          />
+        </div>
+
         <div className="flex justify-between items-center pb-2">
           <div className="space-y-0.5">
             <Label>OCR Only Mode</Label>

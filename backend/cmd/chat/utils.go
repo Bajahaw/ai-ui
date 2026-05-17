@@ -2,14 +2,16 @@ package chat
 
 import (
 	"encoding/base64"
-	"fmt"
+	"encoding/json"
 	"os"
 	"strings"
 	"time"
 
+	fs "github.com/Bajahaw/ai-ui/cmd/files"
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/Bajahaw/ai-ui/cmd/tools"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
+	"github.com/openai/openai-go/v3"
 )
 
 const platformInstructions = `
@@ -74,6 +76,8 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 	}
 	attachmentOcrOnly, _ := settings.Get("attachmentOcrOnly", user)
 	ocrOnly := attachmentOcrOnly == "true"
+	agenticRetrievalStr, _ := settings.Get("agenticDocumentRetrieval", user)
+	agenticRetrieval := agenticRetrievalStr == "true"
 
 	var messages = []providers.SimpleMessage{
 		{
@@ -107,24 +111,28 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 		var imageURLs []string
 		var fileURLs []string
 		if ocrOnly {
-			// For each attachment, append attachments content to message content
-			for i, att := range msg.Attachments {
-				if att.File.Content != "" {
-					msg.Content += "\n\n" +
-						"[user attachment " + fmt.Sprintf("%d", i+1) + ": \n" +
-						"type: " + att.File.Type + "\n" +
-						"content: " + att.File.Content + "\n\n]"
-				}
+			// embed all content if ocrOnly (vision assistant) required
+			for _, att := range msg.Attachments {
+				msg.Content += embeddedAttachment(att)
 			}
 
 		} else {
-			// append only image URLs
+
+			// embed docs and encode the rest if agentic retrieval is on, otherwise just provide links to files
 			for _, att := range msg.Attachments {
+
+				if att.File.Type == "application/pdf" && agenticRetrieval {
+					// content of first page, model will figure to use tools to get rest of content if needed
+					msg.Content += embeddedAttachment(att)
+					continue
+				}
+
 				file, err := os.ReadFile(att.File.Path)
 				if err != nil {
 					log.Error("Error reading attachment file", "err", err)
 					continue
 				}
+
 				b64url := "data:" + att.File.Type + ";base64," + toBase64(file)
 
 				if strings.HasPrefix(att.File.Type, "image/") {
@@ -146,7 +154,7 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 }
 
 func enterAgentLoop(
-	calls []tools.ToolCall,
+	calls []providers.ToolCall,
 	providerParams providers.RequestParams,
 	responseMessage *Message,
 	convID, user string,
@@ -162,8 +170,9 @@ func enterAgentLoop(
 		toolCall.MessageID = responseMessage.ID
 		toolCall.ConvID = convID
 
-		output := tools.ExecuteMCPTool(toolCall, user)
-		toolCall.Output = output
+		result := tools.ExecuteMCPTool(toolCall, user, convID)
+		toolCall.Output = result.Content
+		toolCall.File = result.File
 
 		utils.SendStreamChunk(sc, utils.StreamChunk{
 			Type:    utils.TOOL_CALL,
@@ -178,11 +187,12 @@ func enterAgentLoop(
 		// Append tool result message to context for continued completion
 		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
 			Role: "tool",
-			ToolCall: tools.ToolCall{
+			ToolCall: providers.ToolCall{
 				ID:          toolCall.ID,
 				ReferenceID: toolCall.ReferenceID,
 				Name:        toolCall.Name,
-				Output:      output,
+				Output:      toolCall.Output,
+				File:        toolCall.File,
 				TokenCount:  toolCall.TokenCount,
 				ContextSize: toolCall.ContextSize,
 			},
@@ -218,4 +228,28 @@ func enterAgentLoop(
 
 func toBase64(data []byte) string {
 	return base64.StdEncoding.EncodeToString(data)
+}
+
+func embeddedAttachment(att fs.Attachment) string {
+	return "\n\n" +
+		"[user attachment: \n" +
+		"id: " + att.ID + "\n" +
+		"name: " + att.File.Name + "\n" +
+		"type: " + att.File.Type + "\n" +
+		"content: " + att.File.Content + "\n]\n"
+}
+
+func toOpenAITools(tool []*tools.Tool) []openai.ChatCompletionToolUnionParam {
+	var result []openai.ChatCompletionToolUnionParam
+	for _, t := range tool {
+		var inputSchema map[string]any
+		_ = json.Unmarshal([]byte(t.InputSchema), &inputSchema)
+		result = append(result, openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+			Name:        t.Name,
+			Description: openai.String(t.Description),
+			Parameters:  inputSchema,
+		}))
+	}
+
+	return result
 }

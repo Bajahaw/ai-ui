@@ -11,7 +11,7 @@ export interface File {
   type: string;
   size: number;
   path: string;
-  url: string;
+  // url: string;
   content: string;
   createdAt: string;
   // Optional uploaded timestamp (server may provide this). If present,

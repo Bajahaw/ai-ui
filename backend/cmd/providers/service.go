@@ -1,8 +1,6 @@
 package providers
 
 import (
-	"github.com/Bajahaw/ai-ui/cmd/tools"
-	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,6 +9,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
@@ -42,7 +42,7 @@ func CancelStream(messageID int, userID string) bool {
 type SimpleMessage struct {
 	Role     string
 	Content  string
-	ToolCall tools.ToolCall
+	ToolCall ToolCall
 	Images   []string
 	Files    []string
 }
@@ -53,13 +53,32 @@ type RequestParams struct {
 	ReasoningEffort openai.ReasoningEffort
 	User            string
 	MessageID       int
+	Tools           []openai.ChatCompletionToolUnionParam
 }
 
 type ChatCompletionMessage struct {
 	Content   string
 	Reasoning string
-	ToolCalls []tools.ToolCall
+	ToolCalls []ToolCall
 	Stats     utils.StreamStats
+}
+
+type ToolCall struct {
+	ID          string `json:"id"`
+	ReferenceID string `json:"ref_id"`
+	ConvID      string `json:"conv_id,omitempty"`
+	MessageID   int    `json:"message_id"`
+	Name        string `json:"name"`
+	Args        string `json:"args,omitempty"`
+	Output      string `json:"tool_output,omitempty"`
+	File        string `json:"files,omitempty"`
+	TokenCount  int    `json:"tokenCount,omitempty"`
+	ContextSize int    `json:"contextSize,omitempty"`
+}
+
+type ToolOutput struct {
+	Content string `json:"content"`
+	File    string `json:"file_ids,omitempty"`
 }
 
 func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompletionMessage, error) {
@@ -85,7 +104,7 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompl
 	openAIparams := openai.ChatCompletionNewParams{
 		Model:    model,
 		Messages: OpenAIMessageParams(params.Messages),
-		Tools:    toOpenAITools(tools.GetAvailableTools(params.User)),
+		Tools:    params.Tools,
 	}
 
 	log.Debug("Params ReasoningEffort:", "value", params.ReasoningEffort)
@@ -101,9 +120,9 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompl
 		return nil, err
 	}
 
-	var toolCalls []tools.ToolCall
+	var toolCalls []ToolCall
 	for _, tc := range completion.Choices[0].Message.ToolCalls {
-		toolCalls = append(toolCalls, tools.ToolCall{
+		toolCalls = append(toolCalls, ToolCall{
 			ID:          uuid.NewString(),
 			ReferenceID: tc.ID,
 			Name:        tc.Function.Name,
@@ -165,7 +184,7 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 		Model:           model,
 		Messages:        OpenAIMessageParams(params.Messages),
 		ReasoningEffort: params.ReasoningEffort,
-		Tools:           toOpenAITools(tools.GetAvailableTools(params.User)),
+		Tools:           params.Tools,
 	}
 
 	utils.AddStreamHeaders(sc.Writer)
@@ -218,7 +237,7 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 
 				utils.SendStreamChunk(sc, utils.StreamChunk{
 					Type: utils.TOOL_CALL,
-					Payload: tools.ToolCall{
+					Payload: ToolCall{
 						ID: uniqueToolIDs[toolCall.ID],
 						// ReferenceID: toolCall.ID,
 						Name: toolCall.Name,
@@ -277,7 +296,7 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 			return &ChatCompletionMessage{
 				Content:   "",
 				Reasoning: "",
-				ToolCalls: []tools.ToolCall{},
+				ToolCalls: []ToolCall{},
 				Stats:     utils.StreamStats{},
 			}, nil
 		}
@@ -289,13 +308,13 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 	// this mapping is needed because providers are not always
 	// guaranteed to generate unique IDs for tool calls,
 	// so we generate our own IDs here
-	var toolCalls []tools.ToolCall
+	var toolCalls []ToolCall
 	for _, tc := range acc.Choices[0].Message.ToolCalls {
 		id, ok := uniqueToolIDs[tc.ID]
 		if !ok {
 			id = uuid.New().String()
 		}
-		toolCalls = append(toolCalls, tools.ToolCall{
+		toolCalls = append(toolCalls, ToolCall{
 			ID:          id,
 			ReferenceID: tc.ID,
 			Name:        tc.Function.Name,
@@ -335,6 +354,6 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 		Content:   acc.Choices[0].Message.Content,
 		Reasoning: reasoning,
 		ToolCalls: toolCalls,
-		Stats: stats,
+		Stats:     stats,
 	}, nil
 }

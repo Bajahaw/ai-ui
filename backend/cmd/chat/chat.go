@@ -1,6 +1,7 @@
 package chat
 
 import (
+	fs "github.com/Bajahaw/ai-ui/cmd/files"
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/Bajahaw/ai-ui/cmd/tools"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
@@ -95,9 +96,9 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		Status:   "completed",
 	}
 
-	userMessage.Attachments = make([]Attachment, 0)
+	userMessage.Attachments = make([]fs.Attachment, 0)
 	for _, file := range attachedFiles {
-		attachment := Attachment{
+		attachment := fs.Attachment{
 			ID:        uuid.NewString(),
 			MessageID: -1, // will be updated with correct message ID when saving
 			File:      file,
@@ -179,9 +180,10 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		ReasoningEffort: providers.ReasoningEffort(reasoningSetting),
 		User:            user,
 		MessageID:       responseMessage.ID,
+		Tools:           toOpenAITools(tools.GetAvailableTools(user)),
 	}
 
-	var calls []tools.ToolCall
+	var calls []providers.ToolCall
 	var isToolsUsed bool
 	var streamStats utils.StreamStats
 
@@ -279,7 +281,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 
 	// Load parent user message
 	parent, err := getMessage(req.ParentID, user)
-	if err != nil || parent.Role != "user"  {
+	if err != nil || parent.Role != "user" {
 		log.Error("Invalid parent message for retry stream", "err", err)
 		http.Error(w, "Invalid parent message", http.StatusBadRequest)
 		return
@@ -345,9 +347,10 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		ReasoningEffort: providers.ReasoningEffort(reasoningSetting),
 		User:            user,
 		MessageID:       responseMessage.ID,
+		Tools:           toOpenAITools(tools.GetAvailableTools(user)),
 	}
 
-	var calls []tools.ToolCall
+	var calls []providers.ToolCall
 	var isToolsUsed bool
 	var streamStats utils.StreamStats
 

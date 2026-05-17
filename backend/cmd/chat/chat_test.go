@@ -40,7 +40,7 @@ func (m *mockProviderSuccess) SendChatCompletionStreamRequest(params providers.R
 	return &providers.ChatCompletionMessage{
 		Content:   "final content",
 		Reasoning: "final reasoning",
-		ToolCalls: []tools.ToolCall{},
+		ToolCalls: []providers.ToolCall{},
 		Stats: utils.StreamStats{
 			PromptTokens:     1,
 			CompletionTokens: 2,
@@ -83,11 +83,13 @@ func setupTest(t *testing.T, mock providers.Client) func() {
 	}
 
 	SetupChat(l, data.DB, mock)
+	tools.SetUpTools(l, data.DB)
 	return teardown
 }
 
 func TestChatStream_Success(t *testing.T) {
 	mock := &mockProviderSuccess{}
+
 	teardown := setupTest(t, mock)
 	defer teardown()
 

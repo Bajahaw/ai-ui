@@ -202,5 +202,59 @@ func RunMigrations(db *sql.DB) error {
 		}
 	}
 
+	if userVersion < 3 {
+		schemaV3 := `
+		CREATE TABLE IF NOT EXISTS FilePages (
+			id TEXT PRIMARY KEY,
+			file_id TEXT NOT NULL,
+			page_number INTEGER NOT NULL,
+			content TEXT NOT NULL,
+			FOREIGN KEY (file_id) REFERENCES Files(id) ON DELETE CASCADE
+		);
+
+		CREATE VIRTUAL TABLE IF NOT EXISTS FilePagesFTS USING fts5(
+			content,
+			content='FilePages',
+			content_rowid='rowid'
+		);
+		
+		CREATE TRIGGER IF NOT EXISTS FilePages_ai AFTER INSERT ON FilePages BEGIN
+			INSERT INTO FilePagesFTS (rowid, content) VALUES (new.rowid, new.content);
+		END;
+
+		CREATE TRIGGER IF NOT EXISTS FilePages_ad AFTER DELETE ON FilePages BEGIN
+			INSERT INTO FilePagesFTS (FilePagesFTS, rowid, content) VALUES ('delete', old.rowid, old.content);
+		END;
+
+		CREATE TRIGGER IF NOT EXISTS FilePages_au AFTER UPDATE ON FilePages BEGIN
+			INSERT INTO FilePagesFTS (FilePagesFTS, rowid, content) VALUES ('delete', old.rowid, old.content);
+			INSERT INTO FilePagesFTS (rowid, content) VALUES (new.rowid, new.content);
+		END;
+		`
+		_, err = db.Exec(schemaV3)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec("PRAGMA user_version = 3;")
+		if err != nil {
+			return err
+		}
+	}
+
+	if userVersion < 4 {
+		// add tool file column and link to files table
+		schemaV4 := `
+		ALTER TABLE ToolCalls ADD COLUMN file_id TEXT REFERENCES Files(id) ON DELETE SET NULL;
+		`
+		_, err = db.Exec(schemaV4)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec("PRAGMA user_version = 4;")
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

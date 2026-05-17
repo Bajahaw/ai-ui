@@ -30,6 +30,7 @@ import {
 } from "@/lib/api/files";
 import { File as ApiFile } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import { getApiUrl } from "@/lib/config";
 
 interface FileManagerDialogProps {
   open: boolean;
@@ -351,7 +352,7 @@ export function FileManagerDialog({
                     <div className="aspect-square w-full bg-background flex items-center justify-center overflow-hidden relative border-b">
                       {isImage ? (
                         <img
-                          src={file.url}
+                          src={getApiUrl(file.path)}
                           alt={file.name}
                           className="w-full h-full object-cover transition-transform group-hover:scale-105"
                           loading="lazy"

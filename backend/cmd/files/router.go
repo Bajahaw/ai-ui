@@ -3,9 +3,7 @@ package files
 import (
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Bajahaw/ai-ui/cmd/auth"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
@@ -62,58 +60,17 @@ func upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lastModifiedStr := r.FormValue("lastModified")
+	if lastModifiedStr != "" {
+		handler.Header.Set("Last-Modified", lastModifiedStr)
+	}
+
 	defer file.Close()
 
-	fileData, err := saveUploadedFile(file, handler)
+	fileData, err := saveUploadedFile(file, handler, user)
 	if err != nil {
 		log.Error("Error saving uploaded file", "err", err)
 		http.Error(w, "Error saving file", http.StatusInternalServerError)
-		return
-	}
-
-	urlPath := strings.TrimPrefix(fileData.Path, ".")
-
-	if !strings.HasPrefix(urlPath, "/") {
-		urlPath = "/" + urlPath
-	}
-
-	if !strings.HasPrefix(urlPath, "/data/resources/") {
-		urlPath = "/data/resources/" + strings.TrimPrefix(urlPath, "/")
-	}
-
-	fileUrl := utils.GetServerURL(r) + urlPath
-
-	createdAt := time.Now()
-	lastModifiedStr := r.FormValue("lastModified")
-	if lastModifiedStr != "" {
-		if ts, err := strconv.ParseInt(lastModifiedStr, 10, 64); err == nil {
-			createdAt = time.UnixMilli(ts)
-		}
-	}
-
-	fileData.User = user
-	fileData.URL = fileUrl
-	fileData.CreatedAt = createdAt.Format(time.RFC3339)
-
-	log.Debug("Uploaded file data", "file", fileData)
-
-	ocrOnly, _ := settings.Get("attachmentOcrOnly", user)
-	if ocrOnly == "true" {
-		ocrModel, _ := settings.Get("ocrModel", user)
-		fileContent, err := extractFileContent(fileData, ocrModel)
-		if err != nil {
-			log.Error("Error extracting file content", "err", err)
-			http.Error(w, "Error extracting file content: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		fileData.Content = fileContent
-		log.Debug("Extracted file content", "content", fileContent)
-	}
-
-	err = repo.Save(fileData)
-	if err != nil {
-		log.Error("Error saving file data", "err", err)
-		http.Error(w, "Error saving file data", http.StatusInternalServerError)
 		return
 	}
 

@@ -1,9 +1,6 @@
 package providers
 
 import (
-	"github.com/Bajahaw/ai-ui/cmd/tools"
-	"encoding/json"
-
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/packages/param"
 )
@@ -11,7 +8,7 @@ import (
 func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessageParamUnion {
 	openaiMessages := make([]openai.ChatCompletionMessageParamUnion, len(messages))
 	for i, msg := range messages {
-		switch msg.Role {  
+		switch msg.Role {
 		case "system":
 			openaiMessages[i] = openai.SystemMessage(msg.Content)
 		case "user":
@@ -110,19 +107,4 @@ func ReasoningEffort(level string) openai.ReasoningEffort {
 	default:
 		return openai.ReasoningEffortMedium
 	}
-}
-
-func toOpenAITools(tool []*tools.Tool) []openai.ChatCompletionToolUnionParam {
-	var result []openai.ChatCompletionToolUnionParam
-	for _, t := range tool {
-		var inputSchema map[string]any
-		_ = json.Unmarshal([]byte(t.InputSchema), &inputSchema)
-		result = append(result, openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
-			Name:        t.Name,
-			Description: openai.String(t.Description),
-			Parameters:  inputSchema,
-		}))
-	}
-
-	return result
 }

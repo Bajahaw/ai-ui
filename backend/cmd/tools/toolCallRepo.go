@@ -2,12 +2,14 @@ package tools
 
 import (
 	"database/sql"
+
+	"github.com/Bajahaw/ai-ui/cmd/providers"
 )
 
 type ToolCallsRepository interface {
-	Save(toolCall *ToolCall) error
-	GetAllByMessageID(messageID int) []*ToolCall
-	GetAllByConvID(convID string) []*ToolCall
+	Save(toolCall *providers.ToolCall) error
+	GetAllByMessageID(messageID int) []*providers.ToolCall
+	GetAllByConvID(convID string) []*providers.ToolCall
 }
 
 type ToolCallsRepositoryImpl struct {
@@ -18,15 +20,15 @@ func NewToolCallsRepository(db *sql.DB) ToolCallsRepository {
 	return &ToolCallsRepositoryImpl{db: db}
 }
 
-func (repo *ToolCallsRepositoryImpl) Save(toolCall *ToolCall) error {
-	query := `INSERT INTO ToolCalls (id, reference_id, conv_id, message_id, name, args, output, token_count, context_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err := repo.db.Exec(query, toolCall.ID, toolCall.ReferenceID, toolCall.ConvID, toolCall.MessageID, toolCall.Name, toolCall.Args, toolCall.Output, toolCall.TokenCount, toolCall.ContextSize)
+func (repo *ToolCallsRepositoryImpl) Save(toolCall *providers.ToolCall) error {
+	query := `INSERT INTO ToolCalls (id, reference_id, conv_id, message_id, name, args, output, file_id, token_count, context_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err := repo.db.Exec(query, toolCall.ID, toolCall.ReferenceID, toolCall.ConvID, toolCall.MessageID, toolCall.Name, toolCall.Args, toolCall.Output, toolCall.File, toolCall.TokenCount, toolCall.ContextSize)
 	return err
 }
 
-func (repo *ToolCallsRepositoryImpl) GetAllByMessageID(messageID int) []*ToolCall {
-	query := `SELECT id, reference_id, name, args, output, token_count, context_size FROM ToolCalls WHERE message_id = ?`
-	var toolCalls = make([]*ToolCall, 0)
+func (repo *ToolCallsRepositoryImpl) GetAllByMessageID(messageID int) []*providers.ToolCall {
+	query := `SELECT id, reference_id, name, args, output, file_id, token_count, context_size FROM ToolCalls WHERE message_id = ?`
+	var toolCalls = make([]*providers.ToolCall, 0)
 
 	rows, err := repo.db.Query(query, messageID)
 	if err != nil {
@@ -36,13 +38,14 @@ func (repo *ToolCallsRepositoryImpl) GetAllByMessageID(messageID int) []*ToolCal
 
 	defer rows.Close()
 	for rows.Next() {
-		var toolCall ToolCall
+		var toolCall providers.ToolCall
 		if err := rows.Scan(
 			&toolCall.ID,
 			&toolCall.ReferenceID,
 			&toolCall.Name,
 			&toolCall.Args,
 			&toolCall.Output,
+			&toolCall.File,
 			&toolCall.TokenCount,
 			&toolCall.ContextSize,
 		); err != nil {
@@ -55,9 +58,9 @@ func (repo *ToolCallsRepositoryImpl) GetAllByMessageID(messageID int) []*ToolCal
 	return toolCalls
 }
 
-func (repo *ToolCallsRepositoryImpl) GetAllByConvID(convID string) []*ToolCall {
-	query := `SELECT id, reference_id, message_id, name, args, output, token_count, context_size FROM ToolCalls WHERE conv_id = ?`
-	var toolCalls = make([]*ToolCall, 0)
+func (repo *ToolCallsRepositoryImpl) GetAllByConvID(convID string) []*providers.ToolCall {
+	query := `SELECT id, reference_id, message_id, name, args, output, file_id, token_count, context_size FROM ToolCalls WHERE conv_id = ?`
+	var toolCalls = make([]*providers.ToolCall, 0)
 
 	rows, err := repo.db.Query(query, convID)
 	if err != nil {
@@ -67,7 +70,7 @@ func (repo *ToolCallsRepositoryImpl) GetAllByConvID(convID string) []*ToolCall {
 
 	defer rows.Close()
 	for rows.Next() {
-		var toolCall ToolCall
+		var toolCall providers.ToolCall
 		if err := rows.Scan(
 			&toolCall.ID,
 			&toolCall.ReferenceID,
@@ -75,6 +78,7 @@ func (repo *ToolCallsRepositoryImpl) GetAllByConvID(convID string) []*ToolCall {
 			&toolCall.Name,
 			&toolCall.Args,
 			&toolCall.Output,
+			&toolCall.File,
 			&toolCall.TokenCount,
 			&toolCall.ContextSize,
 		); err != nil {
