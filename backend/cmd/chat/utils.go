@@ -233,7 +233,7 @@ func toBase64(data []byte) string {
 func embeddedAttachment(att fs.Attachment) string {
 	return "\n\n" +
 		"[user attachment: \n" +
-		"id: " + att.ID + "\n" +
+		"id: " + att.File.ID + "\n" +
 		"name: " + att.File.Name + "\n" +
 		"type: " + att.File.Type + "\n" +
 		"content: " + att.File.Content + "\n]\n"
