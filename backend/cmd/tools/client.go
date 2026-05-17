@@ -40,7 +40,7 @@ func SetUpTools(l *logger.Logger, database *sql.DB) {
 
 func SaveDefaultMCPServer(user string) {
 	defaultServer := MCPServer{
-		ID:    "default",
+		ID:    "default-" + user,
 		Name:  "Default Server",
 		Tools: GetBuiltInTools(),
 		User:  user,

@@ -256,5 +256,24 @@ func RunMigrations(db *sql.DB) error {
 		}
 	}
 
+	if userVersion < 5 {
+
+		schemaV5 := `
+		INSERT INTO MCPServers (id, name, endpoint, api_key, user)
+		SELECT 'default_' || username, 'Default Server', '', '', username
+		FROM Users
+		WHERE username NOT IN (SELECT user FROM MCPServers);
+		`
+
+		_, err = db.Exec(schemaV5)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec("PRAGMA user_version = 5;")
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
