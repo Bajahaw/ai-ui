@@ -21,8 +21,15 @@ func NewToolCallsRepository(db *sql.DB) ToolCallsRepository {
 }
 
 func (repo *ToolCallsRepositoryImpl) Save(toolCall *providers.ToolCall) error {
+	var fileID any
+	if toolCall.File != "" {
+		fileID = toolCall.File
+	} else {
+		fileID = nil
+	}
+
 	query := `INSERT INTO ToolCalls (id, reference_id, conv_id, message_id, name, args, output, file_id, token_count, context_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err := repo.db.Exec(query, toolCall.ID, toolCall.ReferenceID, toolCall.ConvID, toolCall.MessageID, toolCall.Name, toolCall.Args, toolCall.Output, toolCall.File, toolCall.TokenCount, toolCall.ContextSize)
+	_, err := repo.db.Exec(query, toolCall.ID, toolCall.ReferenceID, toolCall.ConvID, toolCall.MessageID, toolCall.Name, toolCall.Args, toolCall.Output, fileID, toolCall.TokenCount, toolCall.ContextSize)
 	return err
 }
 
@@ -39,18 +46,22 @@ func (repo *ToolCallsRepositoryImpl) GetAllByMessageID(messageID int) []*provide
 	defer rows.Close()
 	for rows.Next() {
 		var toolCall providers.ToolCall
+		var fileID sql.NullString
 		if err := rows.Scan(
 			&toolCall.ID,
 			&toolCall.ReferenceID,
 			&toolCall.Name,
 			&toolCall.Args,
 			&toolCall.Output,
-			&toolCall.File,
+			&fileID,
 			&toolCall.TokenCount,
 			&toolCall.ContextSize,
 		); err != nil {
 			log.Error("Error scanning tool call", "err", err)
 			return toolCalls
+		}
+		if fileID.Valid {
+			toolCall.File = fileID.String
 		}
 
 		toolCalls = append(toolCalls, &toolCall)
@@ -71,6 +82,7 @@ func (repo *ToolCallsRepositoryImpl) GetAllByConvID(convID string) []*providers.
 	defer rows.Close()
 	for rows.Next() {
 		var toolCall providers.ToolCall
+		var fileID sql.NullString
 		if err := rows.Scan(
 			&toolCall.ID,
 			&toolCall.ReferenceID,
@@ -78,12 +90,15 @@ func (repo *ToolCallsRepositoryImpl) GetAllByConvID(convID string) []*providers.
 			&toolCall.Name,
 			&toolCall.Args,
 			&toolCall.Output,
-			&toolCall.File,
+			&fileID,
 			&toolCall.TokenCount,
 			&toolCall.ContextSize,
 		); err != nil {
 			log.Error("Error scanning tool call", "err", err)
 			return toolCalls
+		}
+		if fileID.Valid {
+			toolCall.File = fileID.String
 		}
 
 		toolCalls = append(toolCalls, &toolCall)

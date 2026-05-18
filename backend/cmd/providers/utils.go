@@ -70,19 +70,43 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 			}
 
 		case "tool":
-			openaiMessages[i] = openai.ChatCompletionMessageParamUnion{
-				OfTool: &openai.ChatCompletionToolMessageParam{
-					// ToolCallID: msg.ToolCall.ID, // changed to ReferenceID (the one from provider)
-					ToolCallID: msg.ToolCall.ReferenceID,
-					Content: openai.ChatCompletionToolMessageParamContentUnion{
-						OfString: param.Opt[string]{Value: msg.ToolCall.Output},
+			if msg.ToolCall.File == "" {
+				openaiMessages[i] = openai.ChatCompletionMessageParamUnion{
+					OfTool: &openai.ChatCompletionToolMessageParam{
+						// ToolCallID: msg.ToolCall.ID, // changed to ReferenceID (the one from provider)
+						ToolCallID: msg.ToolCall.ReferenceID,
+						Content: openai.ChatCompletionToolMessageParamContentUnion{
+							OfString: param.Opt[string]{Value: msg.ToolCall.Output},
+						},
 					},
-				},
+				}
+				// for compatibility with gemini tool messages
+				openaiMessages[i].OfTool.SetExtraFields(
+					map[string]any{"name": msg.ToolCall.Name},
+				)
+
+			} else {
+				openaiMessages[i] = openai.ChatCompletionMessageParamUnion{
+					OfUser: &openai.ChatCompletionUserMessageParam{
+						Content: openai.ChatCompletionUserMessageParamContentUnion{
+							OfArrayOfContentParts: []openai.ChatCompletionContentPartUnionParam{
+								{
+									OfImageURL: &openai.ChatCompletionContentPartImageParam{
+										ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
+											URL: msg.ToolCall.File,
+										},
+									},
+								},
+								{
+									OfText: &openai.ChatCompletionContentPartTextParam{
+										Text: msg.ToolCall.Output,
+									},
+								},
+							},
+						},
+					},
+				}
 			}
-			// for compatibility with gemini tool messages
-			openaiMessages[i].OfTool.SetExtraFields(
-				map[string]any{"name": msg.ToolCall.Name},
-			)
 
 		default:
 			log.Warn("Unknown role %s in message, skipping", msg.Role)

@@ -303,6 +303,10 @@ func searchDocumentTool(args string) providers.ToolOutput {
 		res.WriteString("\n\n")
 	}
 
+	if res.Len() == 0 {
+		return providers.ToolOutput{Content: "No matching content found in document."}
+	}
+
 	return providers.ToolOutput{Content: res.String()}
 }
 
@@ -345,7 +349,7 @@ func viewDocumentPageTool(args, user, convID string) providers.ToolOutput {
 		return providers.ToolOutput{Content: fmt.Sprintf("error rendering document page: %v", err)}
 	}
 
-	return providers.ToolOutput{File: imgData.ID}
+	return providers.ToolOutput{File: imgData.ID, Content: fmt.Sprintf("Rendered page %d of document %s as image", params.PageNumber, doc.File.Name)}
 }
 
 func findAttachment(m map[int][]fs.Attachment, targetID string) *fs.Attachment {

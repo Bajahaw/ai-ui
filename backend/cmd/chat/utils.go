@@ -101,6 +101,10 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 					ToolCall: *tool,
 				})
 
+				// TODO: remove this temp hack
+				// swap to base64 instead of file id
+				tool.File = convertToolCallFileIDToBase64(tool.File, user)
+
 				messages = append(messages, providers.SimpleMessage{
 					Role:     "tool",
 					ToolCall: *tool,
@@ -153,6 +157,27 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 	return messages
 }
 
+func convertToolCallFileIDToBase64(f, user string) string {
+	if f != "" {
+		file, err := files.GetByIDs([]string{f}, user)
+		if err != nil {
+			log.Error("Error fetching tool call file", "err", err)
+		}
+
+		if len(file) > 0 {
+			data, err := os.ReadFile(file[0].Path)
+			if err != nil {
+				log.Error("Error reading tool call file", "err", err)
+			} else {
+				f = "data:" + file[0].Type + ";base64," + toBase64(data)
+			}
+		}
+	}
+
+	return f
+
+}
+
 func enterAgentLoop(
 	calls []providers.ToolCall,
 	providerParams providers.RequestParams,
@@ -192,7 +217,7 @@ func enterAgentLoop(
 				ReferenceID: toolCall.ReferenceID,
 				Name:        toolCall.Name,
 				Output:      toolCall.Output,
-				File:        toolCall.File,
+				File:        convertToolCallFileIDToBase64(toolCall.File, user),
 				TokenCount:  toolCall.TokenCount,
 				ContextSize: toolCall.ContextSize,
 			},
