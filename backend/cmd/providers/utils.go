@@ -104,8 +104,15 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 								},
 							},
 						},
+						Role: "tool",
 					},
 				}
+				// for compatibility with gemini tool messages
+				openaiMessages[i].OfUser.SetExtraFields(
+					map[string]any{
+						"name": msg.ToolCall.Name,
+					},
+				)
 			}
 
 		default:
