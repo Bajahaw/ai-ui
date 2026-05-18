@@ -340,7 +340,7 @@ func viewDocumentPageTool(args, user, convID string) providers.ToolOutput {
 		return providers.ToolOutput{Content: fmt.Sprintf("Unable to find document with id %s in this conversation", params.FileID)}
 	}
 
-	imgData, err := fs.RenderPDFPageAsBase64(doc.File.Path, params.PageNumber, user)
+	imgData, err := fs.RenderPDFPageAsImage(doc.File.Path, params.PageNumber, user)
 	if err != nil {
 		return providers.ToolOutput{Content: fmt.Sprintf("error rendering document page: %v", err)}
 	}
@@ -351,7 +351,7 @@ func viewDocumentPageTool(args, user, convID string) providers.ToolOutput {
 func findAttachment(m map[int][]fs.Attachment, targetID string) *fs.Attachment {
 	for _, attachments := range m {
 		for _, att := range attachments {
-			if att.ID == targetID {
+			if att.File.ID == targetID {
 				return &att
 			}
 		}
