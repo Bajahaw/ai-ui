@@ -110,7 +110,8 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 				// for compatibility with gemini tool messages
 				openaiMessages[i].OfUser.SetExtraFields(
 					map[string]any{
-						"name": msg.ToolCall.Name,
+						"name":         msg.ToolCall.Name,
+						"tool_call_id": msg.ToolCall.ReferenceID,
 					},
 				)
 			}
