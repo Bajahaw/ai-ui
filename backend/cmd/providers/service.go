@@ -333,14 +333,18 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 
 	log.Debug("response completed", "content", acc.Choices[0].Message.Content)
 	log.Debug("Usage stats:", "tokens", acc.Usage.TotalTokens, "prompt", acc.Usage.PromptTokens, "completion", acc.Usage.CompletionTokens)
-	speed := float64(acc.Usage.CompletionTokens) / duration.Seconds()
+	seconds := duration.Seconds()
+	if seconds == 0 {
+		seconds = 1
+	}
+	speed := float64(acc.Usage.CompletionTokens) / seconds
 	log.Debug("Response speed:", "tokens_per_second", speed)
 
 	stats := utils.StreamStats{
 		PromptTokens:     int(acc.Usage.PromptTokens),
 		CompletionTokens: int(acc.Usage.CompletionTokens),
 		// TotalTokens:      int(acc.Usage.TotalTokens),
-		Speed: math.Round(float64(acc.Usage.CompletionTokens)/duration.Seconds()*10) / 10,
+		Speed: math.Round(float64(acc.Usage.CompletionTokens)/seconds*10) / 10,
 	}
 
 	if len(toolCalls) > 0 {
