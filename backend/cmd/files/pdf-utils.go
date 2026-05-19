@@ -31,7 +31,8 @@ func readPDFPages(path string, fileID string) ([]FilePage, error) {
 	defer doc.Close()
 
 	var pages []FilePage
-	for page := 0; page < doc.NumPage(); page++ {
+	numPage := doc.NumPage()
+	for page := 0; page < numPage; page++ {
 		text, err := doc.HTML(page, false)
 		if err != nil {
 			return nil, err
@@ -41,6 +42,8 @@ func readPDFPages(path string, fileID string) ([]FilePage, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		pageText += "\n\n--- PAGE " + strconv.Itoa(page+1) + " OF " + strconv.Itoa(numPage) + " ---\n\n"
 
 		pages = append(pages, FilePage{
 			ID:         fileID + "-" + strconv.Itoa(page),
