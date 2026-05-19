@@ -970,27 +970,29 @@ export const ChatInterface = ({
                 height: `${rowVirtualizer.getTotalSize() + (hasInteracted ? 100 : 0)}px`,
               }}
             >
-              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                const message = messages[virtualRow.index];
-                const stableKey = getMessageKey(message);
-                return (
-                  <div
-                    key={stableKey}
-                    data-index={virtualRow.index}
-                    ref={rowVirtualizer.measureElement}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      transform: `translateY(${virtualRow.start}px)`,
-                      paddingBottom: "16px",
-                    }}
-                  >
-                    {renderMessage(message)}
-                  </div>
-                );
-              })}
+              <div
+                style={{
+                  width: "100%",
+                  paddingTop: `${rowVirtualizer.getVirtualItems()[0]?.start ?? 0}px`,
+                }}
+              >
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const message = messages[virtualRow.index];
+                  const stableKey = getMessageKey(message);
+                  return (
+                    <div
+                      key={stableKey}
+                      data-index={virtualRow.index}
+                      ref={rowVirtualizer.measureElement}
+                      style={{
+                        paddingBottom: "16px",
+                      }}
+                    >
+                      {renderMessage(message)}
+                    </div>
+                  );
+                })}
+              </div>
               {/* Add overscroll spacer only when user has interacted with conversation */}
               {hasInteracted && (
                 <div style={{ minHeight: "calc(-450px + 100vh)" }} />
