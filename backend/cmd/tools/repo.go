@@ -137,7 +137,8 @@ func (repo *ToolRepositoryImpl) SaveAll(tools []*Tool) error {
 	sql := `
 	INSERT INTO Tools (id, mcp_server_id, name, description, input_schema, require_approval, is_enabled)
 	VALUES (?, ?, ?, ?, ?, ?, ?) 
-	ON CONFLICT(id) DO UPDATE SET require_approval=excluded.require_approval, is_enabled=excluded.is_enabled`
+	ON CONFLICT(id) DO UPDATE SET require_approval=excluded.require_approval, is_enabled=excluded.is_enabled
+	WHERE Tools.mcp_server_id = excluded.mcp_server_id`
 
 	// TODO: use one query
 	for _, tool := range tools {

@@ -54,11 +54,9 @@ func saveListOfTools(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, tool := range req.Tools {
-		if serverUser, exists := mcpToUserID[tool.MCPServerID]; exists {
-			if user != serverUser {
-				http.Error(w, "Unauthorized MCP server reference", http.StatusUnauthorized)
-				return
-			}
+		if _, exists := mcpToUserID[tool.MCPServerID]; !exists {
+			http.Error(w, "Unauthorized MCP server reference or server not found", http.StatusUnauthorized)
+			return
 		}
 	}
 
