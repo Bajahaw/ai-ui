@@ -39,6 +39,7 @@ type Repository interface {
 	Save(file File) error
 	SavePages(pages []FilePage) error
 	GetPage(fileID string, pageNumber int) (FilePage, error)
+	GetPagesRange(fileID string, startPage int, endPage int) ([]FilePage, error)
 	SearchPages(fileID string, query string, limit int) ([]FilePage, error)
 	UpdateContent(id string, user string, content string) error
 	DeleteByID(id string, user string) error
@@ -185,6 +186,26 @@ func (r *RepositoryImpl) GetPage(fileID string, pageNumber int) (FilePage, error
 		return page, err
 	}
 	return page, nil
+}
+
+func (r *RepositoryImpl) GetPagesRange(fileID string, startPage int, endPage int) ([]FilePage, error) {
+	var pages []FilePage
+	query := `SELECT id, file_id, page_number, content FROM FilePages WHERE file_id = ? AND page_number >= ? AND page_number <= ? ORDER BY page_number ASC`
+	rows, err := r.db.Query(query, fileID, startPage, endPage)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var page FilePage
+		err := rows.Scan(&page.ID, &page.FileID, &page.PageNumber, &page.Content)
+		if err != nil {
+			return nil, err
+		}
+		pages = append(pages, page)
+	}
+	return pages, nil
 }
 
 func (r *RepositoryImpl) SearchPages(fileID string, query string, limit int) ([]FilePage, error) {

@@ -227,8 +227,8 @@ func GetBuiltInTools() []*Tool {
 			ID:          "read_document_page",
 			Name:        "read_document_page",
 			MCPServerID: "default",
-			Description: "Read the extracted text of a specific page from an attached document.",
-			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"page_number":{"type":"integer","description":"The 0-based page number to read"}},"required":["file_id","page_number"]}`,
+			Description: "Read the extracted text of specific pages from an attached document.",
+			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"start_page":{"type":"integer","description":"The 0-based page number to start reading from"},"end_page":{"type":"integer","description":"The 0-based page number to end reading at (inclusive)"}},"required":["file_id","start_page","end_page"]}`,
 			IsEnabled:   true,
 		},
 		{
@@ -312,21 +312,34 @@ func searchDocumentTool(args string) providers.ToolOutput {
 
 func readDocumentPageTool(args string) providers.ToolOutput {
 	var params struct {
-		FileID     string `json:"file_id"`
-		PageNumber int    `json:"page_number"`
+		FileID    string `json:"file_id"`
+		StartPage int    `json:"start_page"`
+		EndPage   int    `json:"end_page"`
 	}
 	if err := json.Unmarshal([]byte(args), &params); err != nil {
 		return providers.ToolOutput{Content: fmt.Sprintf("error decoding arguments: %v", err)}
 	}
 
-	page, err := files.GetPage(params.FileID, params.PageNumber)
-	if err != nil {
-		return providers.ToolOutput{Content: fmt.Sprintf("error reading document page: %v", err)}
+	if params.StartPage > params.EndPage {
+		return providers.ToolOutput{Content: "error: start_page must be less than or equal to end_page"}
 	}
 
-	content := page.Content
+	pages, err := files.GetPagesRange(params.FileID, params.StartPage, params.EndPage)
+	if err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("error reading document pages: %v", err)}
+	}
 
-	return providers.ToolOutput{Content: content}
+	if len(pages) == 0 {
+		return providers.ToolOutput{Content: "No pages found in the specified range."}
+	}
+
+	var contentBuilder strings.Builder
+	for _, page := range pages {
+		contentBuilder.WriteString(page.Content)
+		contentBuilder.WriteString("\n\n")
+	}
+
+	return providers.ToolOutput{Content: contentBuilder.String()}
 }
 
 func viewDocumentPageTool(args, user, convID string) providers.ToolOutput {
