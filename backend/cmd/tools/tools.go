@@ -299,8 +299,7 @@ func searchDocumentTool(args string) providers.ToolOutput {
 
 	var res strings.Builder
 	for _, page := range pages {
-		res.WriteString(page.Content)
-		res.WriteString("\n\n")
+		res.WriteString(fmt.Sprintf("@Page %d: %s\n\n", page.PageNumber, page.Content))
 	}
 
 	if res.Len() == 0 {
