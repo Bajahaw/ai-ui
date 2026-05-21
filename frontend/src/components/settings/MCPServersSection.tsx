@@ -8,7 +8,7 @@ import { MCPServerRequest, MCPServerResponse } from "@/lib/api/types";
 import { useSettingsData } from "@/hooks/useSettingsData";
 
 export const MCPServersSection = () => {
-  const { data, addMCPServer, updateMCPServer, deleteMCPServer, refreshMCPTools } =
+  const { data, addMCPServer, updateMCPServer, deleteMCPServer, refreshMCPTools, restoreDefaultMCPServer } =
     useSettingsData();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingServer, setEditingServer] = useState<MCPServerResponse | null>(
@@ -17,6 +17,7 @@ export const MCPServersSection = () => {
   const [refreshingServers, setRefreshingServers] = useState<Set<string>>(
     new Set(),
   );
+  const [restoringDefault, setRestoringDefault] = useState(false);
 
   const handleAddServer = async (serverData: MCPServerRequest) => {
     await addMCPServer(serverData);
@@ -49,6 +50,17 @@ export const MCPServersSection = () => {
     }
   };
 
+  const handleRestoreDefaultServer = async () => {
+    setRestoringDefault(true);
+    try {
+      await restoreDefaultMCPServer();
+    } finally {
+      setRestoringDefault(false);
+    }
+  };
+
+  const hasDefaultServer = data.mcpServers.some(s => s.id.startsWith("default"));
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -56,28 +68,61 @@ export const MCPServersSection = () => {
           <Server className="h-5 w-5" />
           MCP Servers
         </h3>
-        <Button
-          onClick={() => setShowAddForm(true)}
-          variant="outline"
-          size="sm"
-        >
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Add Server</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          {!hasDefaultServer && (
+            <Button
+              onClick={handleRestoreDefaultServer}
+              variant="outline"
+              size="sm"
+              disabled={restoringDefault}
+              title="Restore built-in default server"
+            >
+              {restoringDefault ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">Restore Default</span>
+            </Button>
+          )}
+          <Button
+            onClick={() => setShowAddForm(true)}
+            variant="outline"
+            size="sm"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Add Server</span>
+          </Button>
+        </div>
       </div>
 
       {data.mcpServers.length === 0 ? (
         <Card className="p-6 text-center bg-transparent border-dashed">
           <div className="space-y-2">
             <p className="text-muted-foreground">No MCP servers configured</p>
-            <Button
-              onClick={() => setShowAddForm(true)}
-              variant="outline"
-              size="sm"
-            >
-              <Plus className="h-4 w-4" />
-              Add Your First MCP Server
-            </Button>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+              <Button
+                onClick={() => setShowAddForm(true)}
+                variant="outline"
+                size="sm"
+              >
+                <Plus className="h-4 w-4" />
+                Add Your First MCP Server
+              </Button>
+              <Button
+                onClick={handleRestoreDefaultServer}
+                variant="secondary"
+                size="sm"
+                disabled={restoringDefault}
+              >
+                {restoringDefault ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="h-4 w-4" />
+                )}
+                Restore Default Server
+              </Button>
+            </div>
           </div>
         </Card>
       ) : (

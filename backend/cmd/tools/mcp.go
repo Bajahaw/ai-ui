@@ -81,6 +81,12 @@ func getMCPServer(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, response, http.StatusOK)
 }
 
+func restoreDefaultMCPServer(w http.ResponseWriter, r *http.Request) {
+	user := utils.ExtractContextUser(r)
+	SaveDefaultMCPServer(user)
+	utils.RespondWithJSON(w, map[string]string{"status": "success"}, http.StatusOK)
+}
+
 func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 	user := utils.ExtractContextUser(r)
 	var req MCPServerRequest
@@ -91,8 +97,13 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	id := req.ID
+	if id == "" {
+		id = uuid.NewString()
+	}
+
 	server := MCPServer{
-		ID:       uuid.NewString(),
+		ID:       id,
 		Name:     req.Name,
 		Endpoint: req.Endpoint,
 		APIKey:   req.APIKey,

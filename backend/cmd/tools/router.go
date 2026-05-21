@@ -20,6 +20,7 @@ func Handler() http.Handler {
 	mux.HandleFunc("GET /mcp/all", listMCPServers)
 	mux.HandleFunc("GET /mcp/{id}", getMCPServer)
 	mux.HandleFunc("POST /mcp/save", saveMCPServer)
+	mux.HandleFunc("POST /mcp/restore-default", restoreDefaultMCPServer)
 	mux.HandleFunc("DELETE /mcp/delete/{id}", deleteMCPServer)
 	mux.HandleFunc("POST /mcp/refresh-tools/{id}", refreshMCPTools)
 

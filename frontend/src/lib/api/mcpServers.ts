@@ -40,6 +40,21 @@ export const saveMCPServer = async (
   return response.json();
 };
 
+// Restore default MCP server
+export const restoreDefaultMCPServer = async (): Promise<void> => {
+  const response = await fetch(getApiUrl("/api/tools/mcp/restore-default"), {
+    method: "POST",
+    headers: getHeaders({
+      "Content-Type": "application/json",
+    }),
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to restore default MCP server: ${response.statusText}`);
+  }
+};
+
 // Delete MCP server
 export const deleteMCPServer = async (id: string): Promise<void> => {
   const response = await fetch(getApiUrl(`/api/tools/mcp/delete/${id}`), {
