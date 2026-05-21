@@ -136,7 +136,7 @@ export function SvgRenderer({ code, className, ...props }: SvgRendererProps) {
 
   return (
     <div className={cn("group relative my-4 w-full", className)} {...props}>
-      <div className="absolute right-1 top-1 z-10 flex gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className="absolute right-0 top-[-32px] z-10 flex gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
         <Action
           className="h-7 w-7"
           size="icon"
@@ -160,7 +160,7 @@ export function SvgRenderer({ code, className, ...props }: SvgRendererProps) {
       </div>
 
       {error ? (
-        <div className="space-y-2">
+        <div className="space-y-2 pt-6 ">
           <div className="inline-flex items-center gap-2 text-xs text-destructive">
             <TriangleAlertIcon size={14} />
             <span>{error}</span>
@@ -171,7 +171,7 @@ export function SvgRenderer({ code, className, ...props }: SvgRendererProps) {
         </div>
       ) : (
         <div
-          className="overflow-auto pt-6 [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full"
+          className="overflow-auto mt-10 rounded-xl [&_svg]:mx-auto [&_svg]:h-auto [&_svg]:max-w-full"
           dangerouslySetInnerHTML={{ __html: svg }}
         />
       )}
