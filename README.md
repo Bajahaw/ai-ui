@@ -3,21 +3,24 @@
 Lightweight AI chat interface built with React and Golang.
 
 > [!WARNING]
-> This is not intended for production use, please use locally or in your own secure environment!
+> This may not be the most secure app in the world!, please use locally or in your own secure environment!
 
+>[!INFO]
+> If you find any security issues please report. See [SECURITY.md](SECURITY.md).
 <img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/7638386f-8d70-48ae-aef3-b56e4869ed01" />
 
 
 ## Features
 
-- Conversation management with history, edits, and branching
+- Conversations, history, edits, and branching
 - Multi-provider AI support (OpenAI compatible ones)
+- Multi-user support.
 - Tools/MCP integration
-- Built-in Backups (planned) 
-- Single user authentication
+- Agentic document retrieval.
+- Advanced chat features.
 - Dark/light themes
-- Responsive design with Shadcn UI
-- Minimal resource usage (~30MB docker image)
+- Blazing fast UI.
+- Minimal resource usage (~30MB)
 
 Unlike OpenWebUI and similar heavy solutions, this is designed to be simple and fast.
 
