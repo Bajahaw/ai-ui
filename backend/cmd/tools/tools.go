@@ -9,6 +9,7 @@ import (
 	"time"
 
 	fs "github.com/Bajahaw/ai-ui/cmd/files"
+	"github.com/google/uuid"
 
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/evgensoft/ddgo"
@@ -200,7 +201,7 @@ func GetAvailableTools(user string) []*Tool {
 func GetBuiltInTools() []*Tool {
 	return []*Tool{
 		{
-			ID:          "search_ddgs",
+			ID:          uuid.New().String(),
 			Name:        "search_ddgs",
 			MCPServerID: "default",
 			Description: "Search the web using DuckDuckGo",
@@ -208,7 +209,7 @@ func GetBuiltInTools() []*Tool {
 			IsEnabled:   true,
 		},
 		{
-			ID:          "get_weather",
+			ID:          uuid.New().String(),
 			Name:        "get_weather",
 			MCPServerID: "default",
 			Description: "Get the current weather",
@@ -216,7 +217,7 @@ func GetBuiltInTools() []*Tool {
 			IsEnabled:   true,
 		},
 		{
-			ID:          "search_document",
+			ID:          uuid.New().String(),
 			Name:        "search_document",
 			MCPServerID: "default",
 			Description: "Search a specific attached document for a keyword or phrase constraint. Returns best matching pages.",
@@ -224,7 +225,7 @@ func GetBuiltInTools() []*Tool {
 			IsEnabled:   true,
 		},
 		{
-			ID:          "read_document_page",
+			ID:          uuid.New().String(),
 			Name:        "read_document_page",
 			MCPServerID: "default",
 			Description: "Read the extracted text of specific pages from an attached document.",
@@ -232,7 +233,7 @@ func GetBuiltInTools() []*Tool {
 			IsEnabled:   true,
 		},
 		{
-			ID:          "view_document_page",
+			ID:          uuid.New().String(),
 			Name:        "view_document_page",
 			MCPServerID: "default",
 			Description: "Get a screenshot of a specific document page. Use this when the user specifically mentions looking at an image, chart, format, or layout in the document. Pass array of files_ids via file_id property if needed.",
