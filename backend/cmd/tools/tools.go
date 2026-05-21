@@ -106,7 +106,7 @@ func ExecuteMCPTool(toolCall providers.ToolCall, user, convID string) providers.
 		}
 	}
 
-	if server.ID == "default" {
+	if strings.HasPrefix(server.ID, "default") {
 		switch tool.Name {
 		case "search_ddgs":
 			return ddgsTool(toolCall.Args)
