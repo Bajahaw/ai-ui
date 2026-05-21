@@ -5,9 +5,11 @@ Lightweight AI chat interface built with React and Golang.
 > [!WARNING]
 > This may not be the most secure app in the world!, please use locally or in your own secure environment!
 
->[!INFO]
+>[!NOTE]
 > If you find any security issues please report. See [SECURITY.md](SECURITY.md).
-<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/7638386f-8d70-48ae-aef3-b56e4869ed01" />
+
+
+<img width="2879" height="1482" alt="image (1)" src="https://github.com/user-attachments/assets/c1b0fa60-8144-43ea-a7be-5b2c358ae9da" />
 
 
 ## Features
