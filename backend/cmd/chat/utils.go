@@ -137,8 +137,10 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 					continue
 				}
 
-				b64url := "data:" + att.File.Type + ";base64," + toBase64(file)
-
+				// Strip any parameters from the mime type (e.g., ;charset=utf-8)
+				mimeType := strings.Split(att.File.Type, ";")[0]
+				b64url := "data:" + strings.ReplaceAll(mimeType, " ", "") + ";base64," + toBase64(file)
+				log.Debug("Converted attachment to base64", "b64url", b64url[:50]+"...")
 				if strings.HasPrefix(att.File.Type, "image/") {
 					imageURLs = append(imageURLs, b64url)
 				} else {
@@ -169,7 +171,8 @@ func convertToolCallFileIDToBase64(f, user string) string {
 			if err != nil {
 				log.Error("Error reading tool call file", "err", err)
 			} else {
-				f = "data:" + file[0].Type + ";base64," + toBase64(data)
+				mimeType := strings.Split(file[0].Type, ";")[0]
+				f = "data:" + strings.ReplaceAll(mimeType, " ", "") + ";base64," + toBase64(data)
 			}
 		}
 	}
