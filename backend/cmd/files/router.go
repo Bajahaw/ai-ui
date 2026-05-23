@@ -33,12 +33,17 @@ func UserBasedAccess(next http.Handler) http.Handler {
 
 		expectedPath := "data/resources/" + filename
 
-		var count int
-		err := db.QueryRow("SELECT COUNT(*) FROM Files WHERE path = ? AND user = ?", expectedPath, user).Scan(&count)
-		if err != nil || count == 0 {
+		var originalName string
+		err := db.QueryRow("SELECT name FROM Files WHERE path = ? AND user = ?", expectedPath, user).Scan(&originalName)
+		if err != nil || originalName == "" {
 			http.NotFound(w, r)
 			return
 		}
+
+		// Set Content-Disposition to preserve original filename.
+		// Using 'inline' allows browsers to display PDFs/images, while 'attachment' would force download.
+		// If the frontend uses '?download=1', you could conditionally change this to "attachment".
+		w.Header().Set("Content-Disposition", `inline; filename="`+originalName+`"`)
 
 		next.ServeHTTP(w, r)
 	})
