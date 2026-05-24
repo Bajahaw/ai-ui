@@ -223,12 +223,12 @@ func writeDocumentPartTool(args, user string) providers.ToolOutput {
 		}
 	}
 
-	if err := validateOfficeZip(buf.Bytes()); err != nil {
-		return providers.ToolOutput{Content: fmt.Sprintf("Validation failed. Changes were NOT saved.\nError: %v", err)}
-	}
-
 	if err := w.Close(); err != nil {
 		return providers.ToolOutput{Content: fmt.Sprintf("error finalizing archive: %v", err)}
+	}
+
+	if err := validateOfficeZip(buf.Bytes()); err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("Validation failed. Changes were NOT saved.\nError: %v", err)}
 	}
 
 	// Determine filename from original
@@ -301,12 +301,12 @@ func deleteDocumentPartTool(args, user string) providers.ToolOutput {
 		return providers.ToolOutput{Content: fmt.Sprintf("part '%s' not found in document", params.PartPath)}
 	}
 
-	if err := validateOfficeZip(buf.Bytes()); err != nil {
-		return providers.ToolOutput{Content: fmt.Sprintf("Validation failed. Deletion was NOT saved because it corrupts the document.\nError: %v", err)}
-	}
-
 	if err := w.Close(); err != nil {
 		return providers.ToolOutput{Content: fmt.Sprintf("error finalizing archive: %v", err)}
+	}
+
+	if err := validateOfficeZip(buf.Bytes()); err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("Validation failed. Deletion was NOT saved because it corrupts the document.\nError: %v", err)}
 	}
 
 	originalName := resolveFileName(params.FileID, user)

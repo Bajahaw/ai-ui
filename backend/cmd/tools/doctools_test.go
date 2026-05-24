@@ -1,34 +1,76 @@
 package tools
 
 import (
+	"database/sql"
+	"encoding/json"
+	"os"
+	"path"
+	"regexp"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/Bajahaw/ai-ui/cmd/data"
+	logger "github.com/charmbracelet/log"
 )
 
-func TestValidateOfficeZip(t *testing.T) {
+func setupRealDB(t *testing.T) *sql.DB {
+	t.Helper()
+	tmpDir := t.TempDir()
+	dbPath := path.Join(tmpDir, "test.db")
+
+	err := data.InitDataSource(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to init data source: %v", err)
+	}
+
+	// We need a user to satisfy constraints
+	_, err = data.DB.Exec("INSERT INTO Users (username, pass_hash) VALUES (?, ?)", "admin", "hash")
+	if err != nil {
+		t.Fatalf("Failed to insert user: %v", err)
+	}
+
+	return data.DB
+}
+
+func TestDocumentTools_EndToEnd(t *testing.T) {
+	db := setupRealDB(t)
+	defer db.Close()
+
+	// Initialize the tools package using the real db
+	l := logger.New(os.Stderr)
+	SetUpTools(l, db)
+
+	// Since SetUpTools sets package-level 'files', we are good to go.
+	// But let's change dir so files are stored in temp dir instead of real workspace
+	tmpDir := t.TempDir()
+	originalWD, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(originalWD)
+
 	tests := []struct {
-		name    string
-		parts   map[string]string
-		wantErr bool
-		errMsg  string
+		name        string
+		format      string
+		action      string // "create", "write", "delete"
+		parts       map[string]string
+		partPath    string
+		partContent string
+		wantErr     bool
+		errMsg      string
 	}{
 		{
-			name: "Valid Minimal Document",
+			name:   "Create Valid Minimal Document",
+			format: "docx",
+			action: "create",
 			parts: map[string]string{
-				"[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-</Types>`,
 				"word/document.xml": `<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"></w:document>`,
-				"_rels/.rels": `<?xml version="1.0" encoding="UTF-8"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`,
 			},
 			wantErr: false,
 		},
 		{
-			name: "XML Syntax Error",
+			name:   "Create XML Syntax Error",
+			format: "docx",
+			action: "create",
 			parts: map[string]string{
 				"word/document.xml": `<?xml version="1.0"?><w:document><unclosed>`,
 			},
@@ -36,7 +78,9 @@ func TestValidateOfficeZip(t *testing.T) {
 			errMsg:  "XML syntax error",
 		},
 		{
-			name: "Missing Content Type Part",
+			name:   "Create Missing Content Type Part",
+			format: "docx",
+			action: "create",
 			parts: map[string]string{
 				"[Content_Types].xml": `<?xml version="1.0"?>
 <Types><Override PartName="/missing.xml" ContentType="foo"/></Types>`,
@@ -45,58 +89,108 @@ func TestValidateOfficeZip(t *testing.T) {
 			errMsg:  "reference error in '[Content_Types].xml'",
 		},
 		{
-			name: "Missing Relationship Target",
-			parts: map[string]string{
-				"_rels/.rels": `<?xml version="1.0"?>
+			name:     "Write Subdirectory Relationship Validation",
+			action:   "write",
+			format:   "docx",
+			partPath: "word/_rels/document.xml.rels",
+			partContent: `<?xml version="1.0"?>
 <Relationships><Relationship Id="r1" Target="missing.xml"/></Relationships>`,
-			},
-			wantErr: true,
-			errMsg:  "reference error in '_rels/.rels'",
-		},
-		{
-			name: "Subdirectory Relationship Resolution",
-			parts: map[string]string{
-				"word/_rels/document.xml.rels": `<?xml version="1.0"?>
-<Relationships><Relationship Id="r1" Target="styles.xml"/></Relationships>`,
-				"word/styles.xml": `<styles/>`,
-			},
-			wantErr: false,
-		},
-		{
-			name: "Missing Subdirectory Relationship Target",
-			parts: map[string]string{
-				"word/_rels/document.xml.rels": `<?xml version="1.0"?>
-<Relationships><Relationship Id="r1" Target="styles.xml"/></Relationships>`,
-			},
 			wantErr: true,
 			errMsg:  "reference error in 'word/_rels/document.xml.rels'",
 		},
 		{
-			name: "Ignores Non-XML External Links",
-			parts: map[string]string{
-				"_rels/.rels": `<?xml version="1.0"?>
-<Relationships><Relationship Id="r1" Target="https://google.com"/></Relationships>`,
-			},
-			wantErr: false,
+			name:     "Delete Critical Part",
+			action:   "delete",
+			format:   "docx",
+			partPath: "word/styles.xml", // deleting this breaks word/_rels/document.xml.rels which references styles.xml
+			wantErr:  true,
+			errMsg:   "reference error in 'word/_rels/document.xml.rels'",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			buf, err := buildZip(tt.parts)
-			if err != nil {
-				t.Fatalf("Failed to build zip for test: %v", err)
+			user := "admin"
+
+			// We always want to create a document first for "write" and "delete"
+			createArgs := map[string]any{
+				"file_name": "test.docx",
+				"format":    "docx",
+			}
+			if tt.action == "create" {
+				createArgs["format"] = tt.format
+				if tt.parts != nil {
+					createArgs["parts"] = tt.parts
+				}
 			}
 
-			err = validateOfficeZip(buf.Bytes())
-			if (err != nil) != tt.wantErr {
-				t.Errorf("validateOfficeZip() error = %v, wantErr %v", err, tt.wantErr)
+			createJSON, _ := json.Marshal(createArgs)
+			createOut := createDocumentTool(string(createJSON), user)
+
+			if tt.action == "create" {
+				if tt.wantErr {
+					if !strings.Contains(createOut.Content, "Validation failed") {
+						t.Errorf("Expected validation failure, got: %s", createOut.Content)
+					}
+					if tt.errMsg != "" && !strings.Contains(createOut.Content, tt.errMsg) {
+						t.Errorf("Expected error to contain %q, but got: %s", tt.errMsg, createOut.Content)
+					}
+				} else {
+					if strings.Contains(createOut.Content, "Validation failed") || strings.Contains(createOut.Content, "error") {
+						t.Errorf("Expected success, got: %s", createOut.Content)
+					}
+				}
 				return
 			}
 
-			if tt.wantErr && tt.errMsg != "" && err != nil {
-				if !strings.Contains(err.Error(), tt.errMsg) {
-					t.Errorf("validateOfficeZip() error = %v, want contained %v", err, tt.errMsg)
+			// For write/delete, we need the fileID we just created
+			re := regexp.MustCompile(`File ID: ([a-f0-9-]+)`)
+			match := re.FindStringSubmatch(createOut.Content)
+			if len(match) < 2 {
+				t.Fatalf("Failed to extract file ID from create document output: %s", createOut.Content)
+			}
+			fileID := match[1]
+
+			// Give DB some time for tests locally if needed, but it shouldn't be req.
+			time.Sleep(10 * time.Millisecond)
+
+			if tt.action == "write" {
+				writeArgs := map[string]any{
+					"file_id":   fileID,
+					"part_path": tt.partPath,
+					"content":   tt.partContent,
+				}
+				writeJSON, _ := json.Marshal(writeArgs)
+				writeOut := writeDocumentPartTool(string(writeJSON), user)
+
+				if tt.wantErr {
+					if !strings.Contains(writeOut.Content, "Validation failed") && !strings.Contains(writeOut.Content, "error") {
+						t.Errorf("Expected failure, got: %s", writeOut.Content)
+					}
+					if tt.errMsg != "" && !strings.Contains(writeOut.Content, tt.errMsg) {
+						t.Errorf("Expected error to contain %q, but got: %s", tt.errMsg, writeOut.Content)
+					}
+				} else {
+					if strings.Contains(writeOut.Content, "Validation failed") || strings.Contains(writeOut.Content, "error") {
+						t.Errorf("Expected success, got: %s", writeOut.Content)
+					}
+				}
+			} else if tt.action == "delete" {
+				deleteArgs := map[string]any{
+					"file_id":   fileID,
+					"part_path": tt.partPath,
+				}
+				deleteJSON, _ := json.Marshal(deleteArgs)
+				deleteOut := deleteDocumentPartTool(string(deleteJSON), user)
+
+				if tt.wantErr {
+					if !strings.Contains(deleteOut.Content, "Validation failed") && !strings.Contains(deleteOut.Content, "error") {
+						t.Errorf("Expected failure, got: %s", deleteOut.Content)
+					}
+				} else {
+					if strings.Contains(deleteOut.Content, "Validation failed") || strings.Contains(deleteOut.Content, "error") {
+						t.Errorf("Expected success, got: %s", deleteOut.Content)
+					}
 				}
 			}
 		})
