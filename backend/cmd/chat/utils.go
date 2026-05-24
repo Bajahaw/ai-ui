@@ -43,6 +43,7 @@ const platformInstructions = `
 
 - To render Mermaid charts and diagrams, just wrap using a code block with "mermaid" as the language.
 - To render other complex diagrams or visuals, use the svg code block with "svg" tag (not xml or html).
+- To send the user a file, use marked down links [file name](file url). Internal files can be referenced like [name](/data/resources/{file_id.ext}). Images will be rendered, otherwise it will be a downloadable link.
 
 </platform_instructions>
 `

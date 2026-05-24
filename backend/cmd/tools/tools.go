@@ -119,6 +119,16 @@ func ExecuteMCPTool(toolCall providers.ToolCall, user, convID string) providers.
 			return readDocumentPageTool(toolCall.Args)
 		case "view_document_page":
 			return viewDocumentPageTool(toolCall.Args, user, convID)
+		case "list_document_parts":
+			return listDocumentPartsTool(toolCall.Args, user)
+		case "read_document_part":
+			return readDocumentPartTool(toolCall.Args, user)
+		case "create_document":
+			return createDocumentTool(toolCall.Args, user)
+		case "write_document_part":
+			return writeDocumentPartTool(toolCall.Args, user)
+		case "delete_document_part":
+			return deleteDocumentPartTool(toolCall.Args, user)
 		}
 	}
 
@@ -238,6 +248,46 @@ func GetBuiltInTools() []*Tool {
 			MCPServerID: "default",
 			Description: "Get a screenshot of a specific document page. Use this when the user specifically mentions looking at an image, chart, format, or layout in the document. Pass array of files_ids via file_id property if needed.",
 			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"page_number":{"type":"integer","description":"The 0-based page number to view"}},"required":["file_id","page_number"]}`,
+			IsEnabled:   true,
+		},
+		{
+			ID:          uuid.New().String(),
+			Name:        "list_document_parts",
+			MCPServerID: "default",
+			Description: "List all internal parts (files) inside a ZIP-based document such as .docx, .pptx, or .xlsx. Returns each part's path, size, and whether it is XML or binary. Use this to explore the structure of a document before reading or editing parts.",
+			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the document file to inspect"}},"required":["file_id"]}`,
+			IsEnabled:   true,
+		},
+		{
+			ID:          uuid.New().String(),
+			Name:        "read_document_part",
+			MCPServerID: "default",
+			Description: "Read the raw XML or text content of a specific part inside a ZIP-based document (.docx, .pptx, .xlsx). Use list_document_parts first to discover available part paths.",
+			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the document file"},"part_path":{"type":"string","description":"The path of the part inside the archive, e.g. 'word/document.xml' or 'xl/worksheets/sheet1.xml'"}},"required":["file_id","part_path"]}`,
+			IsEnabled:   true,
+		},
+		{
+			ID:          uuid.New().String(),
+			Name:        "create_document",
+			MCPServerID: "default",
+			Description: "Create a new OpenXML document (.docx, .pptx, or .xlsx). If 'parts' is omitted, a minimal valid document with the standard structure is created. You can supply custom XML parts to override any of the defaults. Returns the file ID of the created document.",
+			InputSchema: `{"type":"object","properties":{"file_name":{"type":"string","description":"File name for the new document including extension, e.g. 'report.docx'"},"format":{"type":"string","enum":["docx","pptx","xlsx"],"description":"The document format to create"},"parts":{"type":"object","description":"Optional map of part paths to their XML content. Keys are paths like 'word/document.xml'. Values are the raw XML strings. Any default template parts not specified here will be included automatically."}},"required":["file_name","format"]}`,
+			IsEnabled:   true,
+		},
+		{
+			ID:          uuid.New().String(),
+			Name:        "write_document_part",
+			MCPServerID: "default",
+			Description: "Write or replace the content of a specific part inside a ZIP-based document. If the part does not exist, it is added. Returns a new file ID (the original is not modified). Use this to edit XML content like word/document.xml, add new slides, modify styles, etc.",
+			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the document file to modify"},"part_path":{"type":"string","description":"The path of the part to write, e.g. 'word/document.xml'"},"content":{"type":"string","description":"The new raw XML or text content for this part"}},"required":["file_id","part_path","content"]}`,
+			IsEnabled:   true,
+		},
+		{
+			ID:          uuid.New().String(),
+			Name:        "delete_document_part",
+			MCPServerID: "default",
+			Description: "Delete a specific part from a ZIP-based document. Returns a new file ID (the original is not modified). Use with caution: removing required parts may make the document invalid.",
+			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the document file to modify"},"part_path":{"type":"string","description":"The path of the part to remove, e.g. 'word/styles.xml'"}},"required":["file_id","part_path"]}`,
 			IsEnabled:   true,
 		},
 	}
