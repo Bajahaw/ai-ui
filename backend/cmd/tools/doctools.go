@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"io"
 	"os"
@@ -144,6 +145,10 @@ func createDocumentTool(args, user string) providers.ToolOutput {
 		return providers.ToolOutput{Content: fmt.Sprintf("error creating document: %v", err)}
 	}
 
+	if err := validateOfficeZip(buf.Bytes()); err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("Validation failed. File was NOT saved.\nError: %v", err)}
+	}
+
 	fileData, err := saveGeneratedFile(buf.Bytes(), params.FileName, user)
 	if err != nil {
 		return providers.ToolOutput{Content: fmt.Sprintf("error saving document: %v", err)}
@@ -216,6 +221,10 @@ func writeDocumentPartTool(args, user string) providers.ToolOutput {
 		if _, err := fw.Write([]byte(params.Content)); err != nil {
 			return providers.ToolOutput{Content: fmt.Sprintf("error writing new part: %v", err)}
 		}
+	}
+
+	if err := validateOfficeZip(buf.Bytes()); err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("Validation failed. Changes were NOT saved.\nError: %v", err)}
 	}
 
 	if err := w.Close(); err != nil {
@@ -292,6 +301,10 @@ func deleteDocumentPartTool(args, user string) providers.ToolOutput {
 		return providers.ToolOutput{Content: fmt.Sprintf("part '%s' not found in document", params.PartPath)}
 	}
 
+	if err := validateOfficeZip(buf.Bytes()); err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("Validation failed. Deletion was NOT saved because it corrupts the document.\nError: %v", err)}
+	}
+
 	if err := w.Close(); err != nil {
 		return providers.ToolOutput{Content: fmt.Sprintf("error finalizing archive: %v", err)}
 	}
@@ -309,6 +322,103 @@ func deleteDocumentPartTool(args, user string) providers.ToolOutput {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
+
+func validateOfficeZip(data []byte) error {
+	r, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return fmt.Errorf("invalid zip archive: %v", err)
+	}
+
+	files := make(map[string]*zip.File)
+	for _, f := range r.File {
+		files[f.Name] = f
+	}
+
+	for _, f := range r.File {
+		name := f.Name
+		lower := strings.ToLower(name)
+		if !strings.HasSuffix(lower, ".xml") && !strings.HasSuffix(lower, ".rels") {
+			continue
+		}
+
+		rc, err := f.Open()
+		if err != nil {
+			continue
+		}
+		content, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			continue
+		}
+
+		// 1. Verify XML syntax (detects unclosed tags, malformed XML)
+		d := xml.NewDecoder(bytes.NewReader(content))
+		for {
+			_, err := d.Token()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return fmt.Errorf("XML syntax error in '%s': %v", name, err)
+			}
+		}
+
+		// 2. Validate Content Types References
+		if name == "[Content_Types].xml" {
+			var types struct {
+				Overrides []struct {
+					PartName string `xml:"PartName,attr"`
+				} `xml:"Override"`
+			}
+			if err := xml.Unmarshal(content, &types); err == nil {
+				for _, o := range types.Overrides {
+					target := strings.TrimPrefix(o.PartName, "/")
+					if _, ok := files[target]; !ok {
+						return fmt.Errorf("reference error in '%s': PartName '%s' not found inside the document", name, o.PartName)
+					}
+				}
+			}
+		}
+
+		// 3. Validate Definitions & Relationships
+		if strings.HasSuffix(lower, ".rels") {
+			var rels struct {
+				Rels []struct {
+					Target string `xml:"Target,attr"`
+				} `xml:"Relationship"`
+			}
+			if err := xml.Unmarshal(content, &rels); err == nil {
+				dir := path.Dir(name)
+				baseDir := path.Dir(dir)
+				if baseDir == "." {
+					baseDir = ""
+				} else {
+					baseDir += "/"
+				}
+
+				for _, r := range rels.Rels {
+					if strings.HasPrefix(r.Target, "http://") || strings.HasPrefix(r.Target, "https://") {
+						continue
+					}
+					targetPath := r.Target
+					if strings.HasPrefix(targetPath, "/") {
+						targetPath = strings.TrimPrefix(targetPath, "/")
+					} else {
+						targetPath = baseDir + targetPath
+					}
+
+					if _, ok := files[targetPath]; !ok {
+						clean := strings.ReplaceAll(path.Clean(targetPath), "\\", "/")
+						if _, ok2 := files[clean]; !ok2 {
+							return fmt.Errorf("reference error in '%s': Target '%s' not found (expected at path '%s')", name, r.Target, targetPath)
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
 
 func resolveFilePath(fileID, user string) (string, error) {
 	found, err := files.GetByIDs([]string{fileID}, user)
