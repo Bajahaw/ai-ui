@@ -271,7 +271,7 @@ func GetBuiltInTools() []*Tool {
 			Name:        "create_document",
 			MCPServerID: "default",
 			Description: "Create a new OpenXML document (.docx, .pptx, or .xlsx). If 'parts' is omitted, a minimal valid document with the standard structure is created. You can supply custom XML parts to override any of the defaults. Returns the file ID of the created document.",
-			InputSchema: `{"type":"object","properties":{"file_name":{"type":"string","description":"File name for the new document including extension, e.g. 'report.docx'"},"format":{"type":"string","enum":["docx","pptx","xlsx"],"description":"The document format to create"},"parts":{"type":"object","description":"Optional map of part paths to their XML content. Keys are paths like 'word/document.xml'. Values are the raw XML strings. Any default template parts not specified here will be included automatically."}},"required":["file_name","format"]}`,
+			InputSchema: `{"type":"object","properties":{"file_name":{"type":"string","description":"File name for the new document including extension, e.g. 'report.docx'"},"format":{"type":"string","enum":["docx","pptx","xlsx"],"description":"The document format to create"},"parts":{"type":"object","description":"Optional map of part paths to their XML content. Keys MUST be exact valid file paths inside the archive (e.g., 'word/document.xml', NEVER just 'word'). Values MUST contain ONLY the raw XML string, with NO file names or prefixes like 'document.xml:'. Any default template parts not specified here will be included automatically."}},"required":["file_name","format"]}`,
 			IsEnabled:   true,
 		},
 		{
@@ -279,7 +279,7 @@ func GetBuiltInTools() []*Tool {
 			Name:        "write_document_part",
 			MCPServerID: "default",
 			Description: "Write or replace the content of a specific part inside a ZIP-based document. If the part does not exist, it is added. Returns a new file ID (the original is not modified). Use this to edit XML content like word/document.xml, add new slides, modify styles, etc.",
-			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the document file to modify"},"part_path":{"type":"string","description":"The path of the part to write, e.g. 'word/document.xml'"},"content":{"type":"string","description":"The new raw XML or text content for this part"}},"required":["file_id","part_path","content"]}`,
+			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the document file to modify"},"part_path":{"type":"string","description":"The exact path of the part to write, e.g. 'word/document.xml' (NEVER just 'word')"},"content":{"type":"string","description":"The new raw XML or text content for this part (MUST be ONLY the raw content, with NO prefixes like 'document.xml:')"}},"required":["file_id","part_path","content"]}`,
 			IsEnabled:   true,
 		},
 		{
