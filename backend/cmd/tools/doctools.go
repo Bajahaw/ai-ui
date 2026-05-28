@@ -366,15 +366,39 @@ func validateOfficeZip(data []byte) error {
 		// 2. Validate Content Types References
 		if name == "[Content_Types].xml" {
 			var types struct {
+				Defaults []struct {
+					Extension string `xml:"Extension,attr"`
+				} `xml:"Default"`
 				Overrides []struct {
 					PartName string `xml:"PartName,attr"`
 				} `xml:"Override"`
 			}
 			if err := xml.Unmarshal(content, &types); err == nil {
+				overridePaths := make(map[string]bool)
 				for _, o := range types.Overrides {
 					target := strings.TrimPrefix(o.PartName, "/")
+					overridePaths[target] = true
 					if _, ok := files[target]; !ok {
 						return fmt.Errorf("reference error in '%s': PartName '%s' not found inside the document", name, o.PartName)
+					}
+				}
+
+				defaultExts := make(map[string]bool)
+				for _, d := range types.Defaults {
+					defaultExts[strings.ToLower(d.Extension)] = true
+				}
+
+				for fName, fObj := range files {
+					if fName == "[Content_Types].xml" || fObj.FileInfo().IsDir() {
+						continue
+					}
+					// check if this file is either in overrides or has a default extension
+					if !overridePaths[fName] {
+						ext := strings.ToLower(path.Ext(fName))
+						ext = strings.TrimPrefix(ext, ".")
+						if !defaultExts[ext] {
+							return fmt.Errorf("invalid part name: '%s' is not defined in [Content_Types].xml and has no matching Default extension", fName)
+						}
 					}
 				}
 			}
