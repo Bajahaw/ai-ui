@@ -1,11 +1,12 @@
 package providers
 
 import (
-	"github.com/Bajahaw/ai-ui/cmd/auth"
-	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"context"
 	"errors"
 	"net/http"
+
+	"github.com/Bajahaw/ai-ui/cmd/auth"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
@@ -99,13 +100,14 @@ func fetchAllModels(provider *Provider) ([]*Model, error) {
 	opts := []option.RequestOption{
 		option.WithAPIKey(provider.APIKey),
 		option.WithBaseURL(provider.BaseURL),
+		option.WithQuery("output_modalities", "all"),
 	}
 	for key, value := range provider.Headers {
 		opts = append(opts, option.WithHeader(key, value))
 	}
 	client := openai.NewClient(opts...)
 
-	list, err := client.Models.List(context.Background())
+	list, err := client.Models.List(context.Background(), opts...)
 	if err != nil {
 		log.Error("Error fetching models", "provider", provider.ID, "err", err)
 		return nil, err

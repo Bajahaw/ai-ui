@@ -1,12 +1,13 @@
 package providers
 
 import (
-	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 )
 
 var ErrUnauthorizedProviderReference = errors.New("unauthorized provider reference")
@@ -35,7 +36,7 @@ type Repo struct {
 	//cache map[string]*Provider
 }
 
-func newProviderRepo(db *sql.DB) Repository {
+func NewRepository(db *sql.DB) Repository {
 	return &Repo{
 		db: db,
 		//cache: make(map[string]*Provider),

@@ -29,12 +29,14 @@ export const GlobalSettingsSection = () => {
   const appendDate = data.settings.appendDateToSystemPrompt || "false";
   const appendPlatform = data.settings.appendPlatformInstructions || "false";
   const defaultModel = data.settings.defaultModel || "";
+  const imageModel = data.settings.imageModel || "dall-e-3";
   const reasoningEffort = data.settings.reasoningEffort || "medium";
   const enterBehavior = data.settings.enterBehavior || "send";
 
   const [local, setLocal] = useState({
     systemPrompt,
     defaultModel,
+    imageModel,
     reasoningEffort,
     enterBehavior,
     appendDateToSystemPrompt: appendDate,
@@ -45,6 +47,7 @@ export const GlobalSettingsSection = () => {
     setLocal({
       systemPrompt,
       defaultModel,
+      imageModel,
       reasoningEffort,
       enterBehavior,
       appendDateToSystemPrompt: appendDate,
@@ -54,6 +57,7 @@ export const GlobalSettingsSection = () => {
   }, [
     systemPrompt,
     defaultModel,
+    imageModel,
     reasoningEffort,
     enterBehavior,
     appendDate,
@@ -84,6 +88,7 @@ export const GlobalSettingsSection = () => {
     setLocal({
       systemPrompt,
       defaultModel,
+      imageModel,
       reasoningEffort,
       enterBehavior,
       appendDateToSystemPrompt: appendDate,
@@ -116,6 +121,26 @@ export const GlobalSettingsSection = () => {
             size="sm"
             triggerId="default-model"
             triggerAriaLabel="Default model"
+            triggerClassName="max-sm:max-w-[180px] max-sm:mr-4"
+            contentClassName="max-h-60"
+            showCount={enabledModels.length > 0}
+          />
+        </div>
+
+        <div className="flex justify-between items-center mb-0 pb-2">
+          <Label htmlFor="image-model" className="text-nowrap">
+            Image Model
+          </Label>
+          <ModelSelect
+            models={enabledModels}
+            value={enabledModels.some((m) => m.id === local.imageModel) ? local.imageModel : undefined}
+            onChange={(value) => handleChange("imageModel", value)}
+            loading={false}
+            disabled={isSaving}
+            helperMessage="Add AI providers in the Providers tab"
+            size="sm"
+            triggerId="image-model"
+            triggerAriaLabel="Image model"
             triggerClassName="max-sm:max-w-[180px] max-sm:mr-4"
             contentClassName="max-h-60"
             showCount={enabledModels.length > 0}

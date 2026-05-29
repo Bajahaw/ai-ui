@@ -1,8 +1,9 @@
 package providers
 
 import (
-	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"database/sql"
+
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 
 	logger "github.com/charmbracelet/log"
 )
@@ -23,5 +24,5 @@ func NewClient() Client {
 
 func SetupProviderClient(l *logger.Logger, db *sql.DB) {
 	log = l
-	providers = newProviderRepo(db)
+	providers = NewRepository(db)
 }

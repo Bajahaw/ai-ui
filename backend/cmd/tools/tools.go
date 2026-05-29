@@ -129,6 +129,8 @@ func ExecuteMCPTool(toolCall providers.ToolCall, user, convID string) providers.
 			return writeDocumentPartTool(toolCall.Args, user)
 		case "delete_document_part":
 			return deleteDocumentPartTool(toolCall.Args, user)
+		case "generate_image":
+			return generateImageTool(toolCall.Args, user, convID)
 		}
 	}
 
@@ -288,6 +290,14 @@ func GetBuiltInTools() []*Tool {
 			MCPServerID: "default",
 			Description: "Delete a specific part from a ZIP-based document. Returns a new file ID (the original is not modified). Use with caution: removing required parts may make the document invalid.",
 			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the document file to modify"},"part_path":{"type":"string","description":"The path of the part to remove, e.g. 'word/styles.xml'"}},"required":["file_id","part_path"]}`,
+			IsEnabled:   true,
+		},
+		{
+			ID:          uuid.New().String(),
+			Name:        "generate_image",
+			MCPServerID: "default",
+			Description: "Generate an image via AI model currently selected by user. Provide a very detailed prompt describing the image you want to generate. Based on system instructions, you can embed the resulting image file in the chat.",
+			InputSchema: `{"type":"object","properties":{"prompt":{"type":"string","description":"A detailed prompt for the image generation model"}},"required":["prompt"]}`,
 			IsEnabled:   true,
 		},
 	}

@@ -6,21 +6,16 @@ type Settings struct {
 
 func SetDefaults(user string) {
 	defaults := map[string]string{
-		"model": "gpt-4o",
-		// "temperature":       "0.7",
-		// "max_tokens":        "2048",
-		// "top_p":             "1",
-		// "frequency_penalty": "0",
-		// "presence_penalty":  "0",
+		"model":        "gpt-4o",
 		"systemPrompt": "You are a helpful assistant. Provide clear accurate and helpful responses to the user questions.",
 		// New toggles to control extra content appended to the system prompt
 		"appendDateToSystemPrompt":   "false",
-		"appendPlatformInstructions": "false",
-		// "responseType":      "stream",
-		"reasoningEffort":          "disabled",
-		"attachmentOcrOnly":        "false",
-		"agenticDocumentRetrieval": "false",
-		"ocrModel":                 "deepseek-ocr",
+		"appendPlatformInstructions": "true",
+		"reasoningEffort":            "disabled",
+		"attachmentOcrOnly":          "false",
+		"agenticDocumentRetrieval":   "false",
+		"ocrModel":                   "deepseek-ocr",
+		"imageModel":                 "dall-e-3",
 	}
 
 	if err := repo.SaveDefaults(defaults, user); err != nil {

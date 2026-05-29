@@ -507,6 +507,12 @@ func saveGeneratedFile(data []byte, fileName, user string) (fs.File, error) {
 		mimeType = "application/vnd.oasis.opendocument.presentation"
 	case ".ods":
 		mimeType = "application/vnd.oasis.opendocument.spreadsheet"
+	case ".png":
+		mimeType = "image/png"
+	case ".jpg", ".jpeg":
+		mimeType = "image/jpeg"
+	case ".webp":
+		mimeType = "image/webp"
 	}
 
 	now := time.Now().Format(time.RFC3339)

@@ -253,6 +253,14 @@ const components: Options["components"] = {
     </span>
   ),
 
+  img: ({ node, className, alt, ...props }) => (
+    <img
+      alt={alt ?? ""}
+      className={cn("my-4 block max-w-full rounded-xl", className)}
+      {...props}
+    />
+  ),
+
   a: ({ node, children, className, ...props }) => {
     // Check if the link was marked as a citation by the remark plugin
     const isCitation = (props as any)["data-citation"] === "true";

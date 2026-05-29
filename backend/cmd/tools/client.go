@@ -5,6 +5,8 @@ import (
 	"sync"
 
 	fs "github.com/Bajahaw/ai-ui/cmd/files"
+	providers "github.com/Bajahaw/ai-ui/cmd/providers"
+	stngs "github.com/Bajahaw/ai-ui/cmd/settings"
 	logger "github.com/charmbracelet/log"
 )
 
@@ -16,6 +18,8 @@ var (
 	toolCalls         ToolCallsRepository
 	mcpSessionManager MCPSessionManager
 	files             fs.Repository
+	settings          stngs.Repository
+	providerRepo      providers.Repository
 )
 
 func SetUpTools(l *logger.Logger, database *sql.DB) {
@@ -28,6 +32,8 @@ func SetUpTools(l *logger.Logger, database *sql.DB) {
 	}
 	log = l
 	files = fs.NewRepository(db)
+	settings = stngs.NewRepository(db)
+	providerRepo = providers.NewRepository(db)
 
 	// // might get unique constraint error but that's fine
 	// _ = mcpRepo.SaveMCPServer(MCPServer{
