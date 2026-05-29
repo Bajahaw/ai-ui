@@ -91,20 +91,20 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 						Content: openai.ChatCompletionUserMessageParamContentUnion{
 							OfArrayOfContentParts: []openai.ChatCompletionContentPartUnionParam{
 								{
+									OfText: &openai.ChatCompletionContentPartTextParam{
+										Text: msg.ToolCall.Output,
+									},
+								},
+								{
 									OfImageURL: &openai.ChatCompletionContentPartImageParam{
 										ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
 											URL: msg.ToolCall.File,
 										},
 									},
 								},
-								{
-									OfText: &openai.ChatCompletionContentPartTextParam{
-										Text: msg.ToolCall.Output,
-									},
-								},
 							},
 						},
-						Role: "tool",
+						// Role: "tool",
 					},
 				}
 				// for compatibility with gemini tool messages
