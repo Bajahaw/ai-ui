@@ -252,6 +252,7 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 	duration := time.Since(start)
 
 	if err := stream.Err(); err != nil {
+		log.Debug("Stream error", "err", err)
 		if errors.Is(err, context.Canceled) {
 			log.Debug("Stream cancelled by user")
 			// Ignore context cancelled error and return partial response

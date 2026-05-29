@@ -155,7 +155,7 @@ func createDocumentTool(args, user string) providers.ToolOutput {
 	}
 
 	return providers.ToolOutput{
-		Content: fmt.Sprintf("Created '%s' (%s, %d bytes). File ID: %s Path: %s", params.FileName, format, fileData.Size, fileData.ID, fileData.Path),
+		Content: fmt.Sprintf("Created '%s' (%s, %d bytes). File ID: %s Path: /%s", params.FileName, format, fileData.Size, fileData.ID, fileData.Path),
 	}
 }
 
@@ -245,7 +245,7 @@ func writeDocumentPartTool(args, user string) providers.ToolOutput {
 
 	return providers.ToolOutput{
 		// File:    fileData.ID,
-		Content: fmt.Sprintf("%s part '%s'. New file ID: %s (%d bytes) Path: %s", action, params.PartPath, fileData.ID, fileData.Size, fileData.Path),
+		Content: fmt.Sprintf("%s part '%s'. New file ID: %s (%d bytes) Path: /%s", action, params.PartPath, fileData.ID, fileData.Size, fileData.Path),
 	}
 }
 
@@ -317,7 +317,7 @@ func deleteDocumentPartTool(args, user string) providers.ToolOutput {
 
 	return providers.ToolOutput{
 		// File:    fileData.ID,
-		Content: fmt.Sprintf("Deleted part '%s'. New file ID: %s (%d bytes)", params.PartPath, fileData.ID, fileData.Size),
+		Content: fmt.Sprintf("Deleted part '%s'. New file ID: %s (%d bytes) Path: /%s", params.PartPath, fileData.ID, fileData.Size, fileData.Path),
 	}
 }
 
