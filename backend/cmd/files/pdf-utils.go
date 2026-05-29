@@ -65,7 +65,7 @@ func (v *virtualFile) Close() error {
 	return nil // No-op since it's an in-memory buffer
 }
 
-func RenderPDFPageAsImage(path string, pageNumber int, user string) (File, error) {
+func RenderDocPageAsImage(path string, pageNumber int, user string) (File, error) {
 	doc, err := fitz.New(path)
 	if err != nil {
 		return File{}, err

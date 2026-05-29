@@ -411,27 +411,35 @@ func viewDocumentPageTool(args, user, convID string) providers.ToolOutput {
 		return providers.ToolOutput{Content: fmt.Sprintf("error decoding arguments: %v", err)}
 	}
 
-	docs := files.GetAllConversationAttachments(convID)
-	doc := findAttachment(docs, params.FileID)
-	if doc == nil {
-		return providers.ToolOutput{Content: fmt.Sprintf("Unable to find document with id %s in this conversation", params.FileID)}
+	// docs := files.GetAllConversationAttachments(convID)
+	// doc := findAttachment(docs, params.FileID)
+	// if doc == nil {
+	// 	return providers.ToolOutput{Content: fmt.Sprintf("Unable to find document with id %s in this conversation", params.FileID)}
+	// }
+
+	docs, err := files.GetByIDs([]string{params.FileID}, user)
+	if err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("error finding document: %v", err)}
+	}
+	if len(docs) == 0 {
+		return providers.ToolOutput{Content: fmt.Sprintf("Unable to find document with id %s", params.FileID)}
 	}
 
-	imgData, err := fs.RenderPDFPageAsImage(doc.File.Path, params.PageNumber, user)
+	imgData, err := fs.RenderDocPageAsImage(docs[0].Path, params.PageNumber, user)
 	if err != nil {
 		return providers.ToolOutput{Content: fmt.Sprintf("error rendering document page: %v", err)}
 	}
 
-	return providers.ToolOutput{File: imgData.ID, Content: fmt.Sprintf("Rendered page %d of document %s as image", params.PageNumber, doc.File.Name)}
+	return providers.ToolOutput{File: imgData.ID, Content: fmt.Sprintf("Rendered page %d of document %s as image", params.PageNumber, docs[0].Name)}
 }
 
-func findAttachment(m map[int][]fs.Attachment, targetID string) *fs.Attachment {
-	for _, attachments := range m {
-		for _, att := range attachments {
-			if att.File.ID == targetID {
-				return &att
-			}
-		}
-	}
-	return nil
-}
+// func findAttachment(m map[int][]fs.Attachment, targetID string) *fs.Attachment {
+// 	for _, attachments := range m {
+// 		for _, att := range attachments {
+// 			if att.File.ID == targetID {
+// 				return &att
+// 			}
+// 		}
+// 	}
+// 	return nil
+// }
