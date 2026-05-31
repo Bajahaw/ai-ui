@@ -6,13 +6,13 @@ import (
 )
 
 func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessageParamUnion {
-	openaiMessages := make([]openai.ChatCompletionMessageParamUnion, len(messages))
-	for i, msg := range messages {
+	openaiMessages := make([]openai.ChatCompletionMessageParamUnion, 0, len(messages))
+	for _, msg := range messages {
 		switch msg.Role {
 		case "system":
-			openaiMessages[i] = openai.SystemMessage(msg.Content)
+			openaiMessages = append(openaiMessages, openai.SystemMessage(msg.Content))
 		case "user":
-			openaiMessages[i] = openai.ChatCompletionMessageParamUnion{
+			userMsg := openai.ChatCompletionMessageParamUnion{
 				OfUser: &openai.ChatCompletionUserMessageParam{
 					Content: openai.ChatCompletionUserMessageParamContentUnion{
 						OfArrayOfContentParts: []openai.ChatCompletionContentPartUnionParam{
@@ -25,37 +25,34 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 					},
 				},
 			}
-			if len(msg.Images) > 0 {
-				for _, imageURL := range msg.Images {
-					file := openai.ChatCompletionContentPartUnionParam{
-						OfImageURL: &openai.ChatCompletionContentPartImageParam{
-							ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
-								URL: imageURL,
+			for _, imageURL := range msg.Images {
+				userMsg.OfUser.Content.OfArrayOfContentParts =
+					append(userMsg.OfUser.Content.OfArrayOfContentParts,
+						openai.ChatCompletionContentPartUnionParam{
+							OfImageURL: &openai.ChatCompletionContentPartImageParam{
+								ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
+									URL: imageURL,
+								},
 							},
-						},
-					}
-					openaiMessages[i].OfUser.Content.OfArrayOfContentParts =
-						append(openaiMessages[i].OfUser.Content.OfArrayOfContentParts, file)
-				}
+						})
 			}
+			for _, fileData := range msg.Files {
+				userMsg.OfUser.Content.OfArrayOfContentParts =
+					append(userMsg.OfUser.Content.OfArrayOfContentParts,
+						openai.ChatCompletionContentPartUnionParam{
+							OfFile: &openai.ChatCompletionContentPartFileParam{
+								File: openai.ChatCompletionContentPartFileFileParam{
+									FileData: param.Opt[string]{Value: fileData},
+								},
+							},
+						})
+			}
+			openaiMessages = append(openaiMessages, userMsg)
 
-			if len(msg.Files) > 0 {
-				for _, fileData := range msg.Files {
-					file := openai.ChatCompletionContentPartUnionParam{
-						OfFile: &openai.ChatCompletionContentPartFileParam{
-							File: openai.ChatCompletionContentPartFileFileParam{
-								FileData: param.Opt[string]{Value: fileData},
-							},
-						},
-					}
-					openaiMessages[i].OfUser.Content.OfArrayOfContentParts =
-						append(openaiMessages[i].OfUser.Content.OfArrayOfContentParts, file)
-				}
-			}
 		case "assistant":
-			openaiMessages[i] = openai.AssistantMessage(msg.Content)
+			assistantMsg := openai.AssistantMessage(msg.Content)
 			if msg.ToolCall.ID != "" {
-				openaiMessages[i].OfAssistant.ToolCalls = append(openaiMessages[i].OfAssistant.ToolCalls,
+				assistantMsg.OfAssistant.ToolCalls = append(assistantMsg.OfAssistant.ToolCalls,
 					openai.ChatCompletionMessageToolCallUnionParam{
 						OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
 							// ID: msg.ToolCall.ID, // changed to ReferenceID (the one from provider)
@@ -68,31 +65,36 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 					},
 				)
 			}
+			openaiMessages = append(openaiMessages, assistantMsg)
 
 		case "tool":
-			if msg.ToolCall.File == "" {
-				openaiMessages[i] = openai.ChatCompletionMessageParamUnion{
-					OfTool: &openai.ChatCompletionToolMessageParam{
-						// ToolCallID: msg.ToolCall.ID, // changed to ReferenceID (the one from provider)
-						ToolCallID: msg.ToolCall.ReferenceID,
-						Content: openai.ChatCompletionToolMessageParamContentUnion{
-							OfString: param.Opt[string]{Value: msg.ToolCall.Output},
-						},
+			// Always emit tool result as role:"tool" — all providers expect this after a tool_call
+			toolMsg := openai.ChatCompletionMessageParamUnion{
+				OfTool: &openai.ChatCompletionToolMessageParam{
+					// ToolCallID: msg.ToolCall.ID, // changed to ReferenceID (the one from provider)
+					ToolCallID: msg.ToolCall.ReferenceID,
+					Content: openai.ChatCompletionToolMessageParamContentUnion{
+						OfString: param.Opt[string]{Value: msg.ToolCall.Output},
 					},
-				}
-				// for compatibility with gemini tool messages
-				openaiMessages[i].OfTool.SetExtraFields(
-					map[string]any{"name": msg.ToolCall.Name},
-				)
+				},
+			}
+			// for compatibility with gemini tool messages
+			toolMsg.OfTool.SetExtraFields(
+				map[string]any{"name": msg.ToolCall.Name},
+			)
+			openaiMessages = append(openaiMessages, toolMsg)
 
-			} else {
-				openaiMessages[i] = openai.ChatCompletionMessageParamUnion{
+			// If the tool produced an attachment, append a follow-up user message
+			// with the file/image content. This keeps role:"tool" intact while
+			// still letting the model see the attachment.
+			if msg.ToolCall.File != "" {
+				attachmentMsg := openai.ChatCompletionMessageParamUnion{
 					OfUser: &openai.ChatCompletionUserMessageParam{
 						Content: openai.ChatCompletionUserMessageParamContentUnion{
 							OfArrayOfContentParts: []openai.ChatCompletionContentPartUnionParam{
 								{
 									OfText: &openai.ChatCompletionContentPartTextParam{
-										Text: msg.ToolCall.Output,
+										Text: "Here is the result from tool '" + msg.ToolCall.Name + "':",
 									},
 								},
 								{
@@ -104,16 +106,9 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 								},
 							},
 						},
-						// Role: "tool",
 					},
 				}
-				// for compatibility with gemini tool messages
-				openaiMessages[i].OfUser.SetExtraFields(
-					map[string]any{
-						"name":         msg.ToolCall.Name,
-						"tool_call_id": msg.ToolCall.ReferenceID,
-					},
-				)
+				openaiMessages = append(openaiMessages, attachmentMsg)
 			}
 
 		default:
