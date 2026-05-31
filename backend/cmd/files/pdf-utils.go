@@ -43,12 +43,13 @@ func readPDFPages(path string, fileID string) ([]FilePage, error) {
 			return nil, err
 		}
 
-		pageText += "\n\n--- PAGE " + strconv.Itoa(page+1) + " OF " + strconv.Itoa(numPage) + " ---\n\n"
+		oneBasedPage := page + 1
+		pageText += "\n\n--- PAGE " + strconv.Itoa(oneBasedPage) + " OF " + strconv.Itoa(numPage) + " ---\n\n"
 
 		pages = append(pages, FilePage{
-			ID:         fileID + "-" + strconv.Itoa(page),
+			ID:         fileID + "-" + strconv.Itoa(oneBasedPage),
 			FileID:     fileID,
-			PageNumber: page,
+			PageNumber: oneBasedPage,
 			Content:    pageText,
 		})
 	}
@@ -72,7 +73,8 @@ func RenderDocPageAsImage(path string, pageNumber int, user string) (File, error
 	}
 	defer doc.Close()
 
-	img, err := doc.Image(pageNumber)
+	// Convert from 1-based (agent-facing) to 0-based (fitz library)
+	img, err := doc.Image(pageNumber - 1)
 	if err != nil {
 		return File{}, err
 	}

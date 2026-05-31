@@ -224,7 +224,7 @@ func extractFileContent(file File, model string) (string, error) {
 			return "", err
 		}
 
-		return "PDF content page 0: \n\n" + pages[0].Content + "... retrieve rest of content using tools", nil
+		return "PDF content page 1: \n\n" + pages[0].Content + "... retrieve rest of content using tools", nil
 	}
 
 	if strings.HasPrefix(file.Type, "image/") {

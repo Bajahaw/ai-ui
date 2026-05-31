@@ -241,7 +241,7 @@ func GetBuiltInTools() []*Tool {
 			Name:        "read_document_page",
 			MCPServerID: "default",
 			Description: "Read the extracted text of specific pages from an attached document.",
-			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"start_page":{"type":"integer","description":"The 0-based page number to start reading from"},"end_page":{"type":"integer","description":"The 0-based page number to end reading at (inclusive)"}},"required":["file_id","start_page","end_page"]}`,
+			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"start_page":{"type":"integer","description":"The 1-based page number to start reading from"},"end_page":{"type":"integer","description":"The 1-based page number to end reading at (inclusive)"}},"required":["file_id","start_page","end_page"]}`,
 			IsEnabled:   true,
 		},
 		{
@@ -249,7 +249,7 @@ func GetBuiltInTools() []*Tool {
 			Name:        "view_document_page",
 			MCPServerID: "default",
 			Description: "Get a screenshot of a specific document page. Use this when the user specifically mentions looking at an image, chart, format, or layout in the document. Pass array of files_ids via file_id property if needed.",
-			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"page_number":{"type":"integer","description":"The 0-based page number to view"}},"required":["file_id","page_number"]}`,
+			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"page_number":{"type":"integer","description":"The 1-based page number to view"}},"required":["file_id","page_number"]}`,
 			IsEnabled:   true,
 		},
 		{
