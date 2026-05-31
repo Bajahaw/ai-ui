@@ -8,6 +8,8 @@ on:
       - "backend/**"
       - "frontend/**"
       - ".github/workflows/docker.yml"
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -43,6 +45,7 @@ jobs:
 
   build:
     needs: backend-tests
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
