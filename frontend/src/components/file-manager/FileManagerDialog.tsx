@@ -225,7 +225,6 @@ export function FileManagerDialog({
       console.error("OCR extraction failed:", error);
     } finally {
       setExtracting(false);
-      setSelectedFileIds(new Set());
     }
   };
 

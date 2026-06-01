@@ -35,6 +35,14 @@ export const ToolsSection: React.FC = () => {
 
   const parentRef = useRef<HTMLDivElement>(null);
 
+  const mcpNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    data.mcpServers.forEach((s) => {
+      map[s.id] = s.name;
+    });
+    return map;
+  }, [data.mcpServers]);
+
   const filtered = useMemo(() => {
     if (!search.trim()) return data.tools;
     const q = search.toLowerCase();
@@ -42,9 +50,13 @@ export const ToolsSection: React.FC = () => {
       (t) =>
         t.name.toLowerCase().includes(q) ||
         (t.description && t.description.toLowerCase().includes(q)) ||
-        (t.mcp_server_id && t.mcp_server_id.toLowerCase().includes(q)),
+        (t.mcp_server_id && t.mcp_server_id.toLowerCase().includes(q)) ||
+        (t.mcp_server_id &&
+          (mcpNameById[t.mcp_server_id] || "")
+            .toLowerCase()
+            .includes(q)),
     );
-  }, [data.tools, search]);
+  }, [data.tools, search, mcpNameById]);
 
   const enabledInFiltered = filtered.filter((t) => t.is_enabled).length;
   const approvalRequiredInFiltered = filtered.filter(
@@ -305,7 +317,7 @@ export const ToolsSection: React.FC = () => {
                           )}
                           {tool.mcp_server_id && (
                             <div className="text-[10px] text-muted-foreground/70 truncate max-w-[200px] sm:max-w-[300px]">
-                              MCP: {tool.mcp_server_id}
+                              {mcpNameById[tool.mcp_server_id] || tool.mcp_server_id}
                             </div>
                           )}
                         </div>

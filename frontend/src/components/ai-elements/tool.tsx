@@ -5,11 +5,11 @@ import {
   ChevronDownIcon,
   CircleIcon,
   ClockIcon,
-  WrenchIcon,
   XCircleIcon,
   CheckIcon,
   XIcon,
 } from "lucide-react";
+import { getToolIcon } from "@/lib/toolIcons";
 import {
   type ComponentProps,
   type ReactNode,
@@ -94,6 +94,10 @@ export const ToolHeader = ({
     setImageError(false);
   }, [mcpUrl]);
 
+  // Extract tool name from "tool-<name>" format for built-in icon lookup
+  const toolName = type.startsWith("tool-") ? type.slice(5) : type;
+  const ToolIcon = getToolIcon(toolName);
+
   let faviconUrl: string | null = null;
   if (mcpUrl && !imageError) {
     try {
@@ -128,7 +132,7 @@ export const ToolHeader = ({
             alt="icon"
           />
         ) : (
-          <WrenchIcon className="size-4 text-muted-foreground" />
+          <ToolIcon className="size-4 text-muted-foreground" />
         )}
         <span className="font-sm text-muted-foreground text-sm">{type}</span>
         {getStatusBadge(state)}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BrainIcon, WrenchIcon, ClockIcon } from "lucide-react";
+import { BrainIcon, ClockIcon } from "lucide-react";
+import { getToolIcon } from "@/lib/toolIcons";
 import {
   Reasoning,
   ReasoningContent,
@@ -163,10 +164,12 @@ const ToolSummaryIcon = ({
     setImageError(false);
   }, [mcpUrl]);
 
+  const ToolIcon = getToolIcon(toolCall.name);
+
   if (!faviconUrl) {
     return (
       <span className={ICON_CHIP_CLASS} aria-hidden="true">
-        <WrenchIcon className="size-3 text-muted-foreground" />
+        <ToolIcon className="size-3 text-muted-foreground" />
       </span>
     );
   }
