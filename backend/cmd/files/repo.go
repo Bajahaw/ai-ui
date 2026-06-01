@@ -2,10 +2,20 @@ package files
 
 import (
 	"database/sql"
+	"strings"
 
 	"github.com/Bajahaw/ai-ui/cmd/data"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
 )
+
+// fts5Quote wraps the query in double-quotes so FTS5 treats the entire string
+// as a phrase query. FTS5 uses the same tokenizer for the MATCH argument as
+// it does for indexed content
+func fts5Quote(query string) string {
+	q := strings.TrimSpace(query)
+	q = strings.ReplaceAll(q, `"`, `""`)
+	return `"` + q + `"`
+}
 
 type File struct {
 	ID         string `json:"id"`
@@ -212,6 +222,8 @@ func (r *RepositoryImpl) SearchPages(fileID string, query string, limit int) ([]
 	// Use fts5 for fast matching on content
 	// We extract ID from the FTS search using content_rowid logic or simply join.
 	// Since we defined FTS table syncing with triggers (rowid), we can join.
+	// Wrap the query in quotes as a phrase query so that special characters
+	// (hyphens, colons, etc.) are tokenized literally instead of parsed as operators.
 	searchSql := `
 	SELECT p.id, p.file_id, p.page_number, snippet(FilePagesFTS, 0, '[', ']', '...', 256) as content
 	FROM FilePagesFTS fts
@@ -220,7 +232,7 @@ func (r *RepositoryImpl) SearchPages(fileID string, query string, limit int) ([]
 	ORDER BY rank
 	LIMIT ?
 	`
-	rows, err := r.db.Query(searchSql, fileID, query, limit)
+	rows, err := r.db.Query(searchSql, fileID, fts5Quote(query), limit)
 	if err != nil {
 		return nil, err
 	}
