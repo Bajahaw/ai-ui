@@ -3,6 +3,7 @@
 import { CodeBlock, CodeBlockCopyButton } from "./code-block.tsx";
 import { MermaidDiagram } from "./mermaid-diagram.tsx";
 import { SvgRenderer } from "./svg-renderer.tsx";
+import { FileCard } from "./file-card.tsx";
 import type { HTMLAttributes } from "react";
 import { memo } from "react";
 import ReactMarkdown, { type Options } from "react-markdown";
@@ -264,6 +265,33 @@ const components: Options["components"] = {
   a: ({ node, children, className, ...props }) => {
     // Check if the link was marked as a citation by the remark plugin
     const isCitation = (props as any)["data-citation"] === "true";
+    const href = props.href || "";
+
+    // Check if it's a file link
+    let isFile = false;
+    let isExternal = false;
+    
+    if (href && !isCitation) {
+      try {
+        const url = new URL(href, typeof window !== "undefined" ? window.location.origin : "http://localhost");
+        const pathname = url.pathname.toLowerCase();
+        
+        const fileExtensions = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".txt", ".zip", ".tar", ".gz", ".go", ".json"];
+        isFile = pathname.startsWith("/data/resources/") || fileExtensions.some(ext => pathname.endsWith(ext));
+        
+        // If it's a valid absolute URL, check if domain differs
+        if (href.startsWith("http")) {
+          const absoluteUrl = new URL(href);
+          isExternal = typeof window !== "undefined" && absoluteUrl.origin !== window.location.origin;
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+
+    if (isFile) {
+      return <FileCard href={href} filename={children} isExternal={isExternal} />;
+    }
 
     return (
       <a
