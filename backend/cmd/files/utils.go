@@ -9,7 +9,6 @@ import (
 	"image/png"
 	"io"
 	"mime/multipart"
-	"net/http"
 	"os"
 	"path"
 	"strconv"
@@ -17,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Bajahaw/ai-ui/cmd/providers"
+	"github.com/gabriel-vasile/mimetype"
 
 	"github.com/google/uuid"
 )
@@ -135,27 +135,24 @@ func saveUploadedFile(file multipart.File, handler *multipart.FileHeader, user s
 }
 
 func detectFileType(file multipart.File) (string, error) {
-	buf := make([]byte, 512)
-	n, err := file.Read(buf)
-	if err != nil && err != io.EOF {
+	mtype, err := mimetype.DetectReader(file)
+	if err != nil {
 		return "", err
 	}
-	if n == 0 {
+	if mtype.String() == "" {
 		return "", fmt.Errorf("empty file")
 	}
 
-	fileType := http.DetectContentType(buf[:n])
-	log.Debug("Uploaded file type", "type", fileType)
+	log.Debug("Uploaded file type", "type", mtype.String())
 
-	// Reset file read pointer: prefer Seek if available
+	// Reset file read pointer
 	if seeker, ok := file.(io.Seeker); ok {
-		_, err = seeker.Seek(0, io.SeekStart)
-		if err != nil {
+		if _, err := seeker.Seek(0, io.SeekStart); err != nil {
 			return "", err
 		}
 	}
 
-	return fileType, nil
+	return mtype.String(), nil
 }
 
 // compressImage reads an image from r and re-encodes it with conservative
@@ -210,21 +207,21 @@ func extractFileContent(file File, model string) (string, error) {
 		return string(fileContent), nil
 	}
 
-	if file.Type == "application/pdf" {
-		pages, err := readPDFPages(file.Path, file.ID)
+	if IsRetrievableDoc(file.Type) {
+		pages, err := readDocPages(file.Path, file.ID)
 		if err != nil {
-			log.Error("Error reading PDF pages", "err", err)
+			log.Error("Error reading document pages", "err", err, "type", file.Type)
 			return "", err
 		}
 
 		// indexing all pages individually to allow retrieval of specific pages later.
 		err = repo.SavePages(pages)
 		if err != nil {
-			log.Error("Error saving PDF pages", "err", err)
+			log.Error("Error saving document pages", "err", err)
 			return "", err
 		}
 
-		return "PDF content page 1: \n\n" + pages[0].Content + "... retrieve rest of content using tools", nil
+		return "Document content page 1: \n\n" + pages[0].Content + "... retrieve rest of content using tools", nil
 	}
 
 	if strings.HasPrefix(file.Type, "image/") {
@@ -258,4 +255,21 @@ func extractFileContent(file File, model string) (string, error) {
 	}
 
 	return "", fmt.Errorf("unsupported file type for content extraction: %s", file.Type)
+}
+
+// IsRetrievableDoc returns true for document types supported by go-fitz
+// that can be page-extracted and searched via agentic retrieval tools.
+func IsRetrievableDoc(mimeType string) bool {
+	switch mimeType {
+	case "application/pdf",
+		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		"application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		"application/vnd.oasis.opendocument.text",
+		"application/vnd.oasis.opendocument.presentation",
+		"application/vnd.oasis.opendocument.spreadsheet",
+		"application/epub+zip":
+		return true
+	}
+	return false
 }

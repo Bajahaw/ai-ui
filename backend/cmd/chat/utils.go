@@ -127,7 +127,7 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 			// embed docs and encode the rest if agentic retrieval is on, otherwise just provide links to files
 			for _, att := range msg.Attachments {
 
-				if att.File.Type == "application/pdf" && agenticRetrieval {
+				if fs.IsRetrievableDoc(att.File.Type) && agenticRetrieval {
 					// content of first page, model will figure to use tools to get rest of content if needed
 					msg.Content += embeddedAttachment(att)
 					continue

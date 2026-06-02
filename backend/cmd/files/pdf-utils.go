@@ -23,7 +23,7 @@ var (
 	matrixRe = regexp.MustCompile(`transform:matrix\([^,]+,[^,]+,[^,]+,[^,]+,\s*([-0-9.]+)\s*,\s*([-0-9.]+)\s*\)`)
 )
 
-func readPDFPages(path string, fileID string) ([]FilePage, error) {
+func readDocPages(path string, fileID string) ([]FilePage, error) {
 	doc, err := fitz.New(path)
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func readPDFPages(path string, fileID string) ([]FilePage, error) {
 			Content:    pageText,
 		})
 	}
-	log.Debug("Extracted pages from PDF", "pages", len(pages))
+	log.Debug("Extracted pages from document", "pages", len(pages))
 	return pages, nil
 }
 

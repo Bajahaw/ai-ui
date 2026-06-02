@@ -5,6 +5,7 @@ go 1.25.5
 require (
 	github.com/charmbracelet/log v1.0.0
 	github.com/evgensoft/ddgo v0.0.0-20250604183002-54c292420e4d
+	github.com/gabriel-vasile/mimetype v1.4.13
 	github.com/gen2brain/go-fitz v1.24.15
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
