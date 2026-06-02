@@ -11,7 +11,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.6.0
 	github.com/openai/openai-go/v3 v3.35.0
-	golang.org/x/net v0.54.0
+	golang.org/x/net v0.55.0
 	modernc.org/sqlite v1.50.1
 )
 
@@ -56,7 +56,7 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/crypto v0.51.0
 	golang.org/x/exp v0.0.0-20260508232706-74f9aab9d74a // indirect
-	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 )
 
 replace github.com/openai/openai-go/v3 => github.com/bajahaw/openai-go/v3 v3.0.0-20260318102004-611d346c7421
