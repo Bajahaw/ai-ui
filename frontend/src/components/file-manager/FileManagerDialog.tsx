@@ -19,6 +19,7 @@ import {
   Paperclip,
   Trash2,
   ScanText,
+  Download,
 } from "lucide-react";
 import {
   getFiles,
@@ -179,6 +180,18 @@ export function FileManagerDialog({
     onOpenChange(false);
   };
 
+  const handleDownload = () => {
+    const selectedFiles = files.filter((f) => selectedFileIds.has(f.id));
+    selectedFiles.forEach((file) => {
+      const link = document.createElement("a");
+      link.href = getApiUrl(file.path);
+      link.download = file.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+  };
+
   const handleDelete = async () => {
     if (selectedFileIds.size === 0) return;
 
@@ -305,6 +318,16 @@ export function FileManagerDialog({
               ) : (
                 <ScanText className="h-4 w-4" />
               )}
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleDownload}
+              disabled={selectedFileIds.size === 0}
+              title="Download files"
+              className="h-9 w-9"
+            >
+              <Download className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"
