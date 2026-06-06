@@ -52,7 +52,7 @@ export class ChatAPI {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minutes timeout
+      const timeoutId = setTimeout(() => controller.abort(), 30 * 60 * 1000); // 30 minutes timeout
       const response = await fetch(getApiUrl("/api/chat/stream"), {
         method: "POST",
         headers: getHeaders({
@@ -198,7 +198,7 @@ export class ChatAPI {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minutes timeout
+      const timeoutId = setTimeout(() => controller.abort(), 30 * 60 * 1000); // 30 minutes timeout
       const response = await fetch(getApiUrl("/api/chat/retry/stream"), {
         method: "POST",
         headers: getHeaders({

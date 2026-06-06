@@ -49,7 +49,7 @@ func generateImageTool(args string, user string, convID string) providers.ToolOu
 
 	client := openai.NewClient(opts...)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
 	res, err := client.Responses.New(ctx, responses.ResponseNewParams{

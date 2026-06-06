@@ -89,7 +89,7 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompl
 		return nil, errors.New("Model or provider not found")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
 	opts := []option.RequestOption{
@@ -154,7 +154,7 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 		return nil, errors.New("Provider not found")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 
 	activeStreamsMu.Lock()
 	activeStreams[params.MessageID] = ActiveStream{

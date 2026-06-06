@@ -182,9 +182,9 @@ func startServer() {
 	server := &http.Server{
 		Addr:         ":8080",
 		Handler:      utils.Middleware(mux),
-		ReadTimeout:  120 * time.Second,
+		ReadTimeout:  30 * time.Minute,
 		WriteTimeout: 0, // 0 = no timeout; required for SSE connections
-		IdleTimeout:  120 * time.Second,
+		IdleTimeout:  30 * time.Minute,
 	}
 
 	stop := make(chan os.Signal, 1)

@@ -76,7 +76,7 @@ func ExecuteMCPTool(toolCall providers.ToolCall, user, convID string) providers.
 		return providers.ToolOutput{Content: "Error occurred while retrieving MCP server."}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
 	if tool.RequireApproval {
