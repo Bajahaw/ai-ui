@@ -783,6 +783,7 @@ export const useConversations = () => {
       model: string,
       webSearch: boolean = false,
       attachments?: Attachment[],
+      onConversationCreated?: (conversationId: string) => void,
     ): Promise<string> => {
       let tempMessageId: string | undefined;
       let assistantPlaceholderId: string | undefined;
@@ -821,6 +822,7 @@ export const useConversations = () => {
 
           setActiveConversationId(createdConv.id);
           syncConversations();
+          onConversationCreated?.(createdConv.id);
 
           conversationId = createdConv.id;
         }

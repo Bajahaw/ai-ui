@@ -71,7 +71,6 @@ function App() {
     hasHydrated,
     error: conversationsError,
     clearError,
-    hasPendingMessages,
     deleteConversation,
     renameConversation,
     switchBranch,
@@ -88,11 +87,7 @@ function App() {
 
     if (!convId) {
       if (activeConversationId) {
-        if (hasPendingMessages(activeConversationId)) {
-          navigate(`/c/${activeConversationId}`, { replace: true });
-        } else {
-          startNewChat();
-        }
+        startNewChat();
       }
       return;
     }
@@ -105,7 +100,6 @@ function App() {
     activeConversationId,
     isAuthenticated,
     isCheckingAuth,
-    hasPendingMessages,
     selectConversation,
     startNewChat,
     navigate,
@@ -169,6 +163,7 @@ function App() {
         model,
         webSearchEnabled,
         attachments,
+        (newConvId) => navigate(`/c/${newConvId}`, { replace: true }),
       );
     } finally {
       setIsProcessing(false);
@@ -214,7 +209,7 @@ function App() {
   const handleNewChat = () => {
     navigate("/");
     setWebSearch(false);
-    clearError(); // Clear any existing errors
+    clearError();
   };
 
   const handleConversationSelect = (conversationId: string) => {
@@ -253,16 +248,21 @@ function App() {
     }
   };
 
+  // Use convId (URL) as the source of truth for what to display.
+  // This prevents the old conversation from briefly flashing during navigation
+  // when activeConversationId hasn't been cleared yet by React's state flush.
+  const displayedConversation = convId ? currentConversation : undefined;
+
   // Get current messages for display
-  const currentMessages = currentConversation
-    ? getCurrentMessages(currentConversation)
+  const currentMessages = displayedConversation
+    ? getCurrentMessages(displayedConversation)
     : [];
 
   // Treat the conversation as still loading when the URL has a convId but the
   // conversation or its messages haven't been resolved yet.  This suppresses the
   // Welcome/stats placeholder during the transient window on hard reload.
   const isConvPendingRoute =
-    !!convId && (!currentConversation || currentMessages.length === 0);
+    !!convId && (!displayedConversation || currentMessages.length === 0);
 
   // Use the ordering provided by the conversation manager directly.
   // The manager tracks createdAt/updatedAt and maintains the intended order,
@@ -347,7 +347,7 @@ function App() {
         <ChatInterface
           messages={currentMessages}
           webSearch={webSearch}
-          currentConversation={currentConversation}
+          currentConversation={displayedConversation}
           stats={stats}
           isAuthenticated={isAuthenticated}
           isAuthChecking={isCheckingAuth}
