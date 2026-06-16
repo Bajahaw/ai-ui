@@ -52,6 +52,7 @@ type Repository interface {
 	GetPagesRange(fileID string, startPage int, endPage int) ([]FilePage, error)
 	SearchPages(fileID string, query string, limit int) ([]FilePage, error)
 	UpdateContent(id string, user string, content string) error
+	UpdateSize(id string, user string, size int64) error
 	DeleteByID(id string, user string) error
 	GetAllConversationAttachments(convID string) map[int][]Attachment
 }
@@ -252,6 +253,12 @@ func (r *RepositoryImpl) SearchPages(fileID string, query string, limit int) ([]
 func (r *RepositoryImpl) UpdateContent(id string, user string, content string) error {
 	updateSql := `UPDATE Files SET content = ? WHERE id = ? AND user = ?`
 	_, err := r.db.Exec(updateSql, content, id, user)
+	return err
+}
+
+func (r *RepositoryImpl) UpdateSize(id string, user string, size int64) error {
+	updateSql := `UPDATE Files SET size = ? WHERE id = ? AND user = ?`
+	_, err := r.db.Exec(updateSql, size, id, user)
 	return err
 }
 

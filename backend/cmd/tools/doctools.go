@@ -231,10 +231,7 @@ func writeDocumentPartTool(args, user string) providers.ToolOutput {
 		return providers.ToolOutput{Content: fmt.Sprintf("Validation failed. Changes were NOT saved.\nError: %v", err)}
 	}
 
-	// Determine filename from original
-	originalName := resolveFileName(params.FileID, user)
-	fileData, err := saveGeneratedFile(buf.Bytes(), originalName, user)
-	if err != nil {
+	if err := updateGeneratedFile(buf.Bytes(), params.FileID, user); err != nil {
 		return providers.ToolOutput{Content: fmt.Sprintf("error saving modified document: %v", err)}
 	}
 
@@ -244,8 +241,7 @@ func writeDocumentPartTool(args, user string) providers.ToolOutput {
 	}
 
 	return providers.ToolOutput{
-		// File:    fileData.ID,
-		Content: fmt.Sprintf("%s part '%s'. New file ID: %s (%d bytes) Path: /%s", action, params.PartPath, fileData.ID, fileData.Size, fileData.Path),
+		Content: fmt.Sprintf("%s part '%s' in file %s (%d bytes).", action, params.PartPath, params.FileID, buf.Len()),
 	}
 }
 
@@ -309,15 +305,12 @@ func deleteDocumentPartTool(args, user string) providers.ToolOutput {
 		return providers.ToolOutput{Content: fmt.Sprintf("Validation failed. Deletion was NOT saved because it corrupts the document.\nError: %v", err)}
 	}
 
-	originalName := resolveFileName(params.FileID, user)
-	fileData, err := saveGeneratedFile(buf.Bytes(), originalName, user)
-	if err != nil {
+	if err := updateGeneratedFile(buf.Bytes(), params.FileID, user); err != nil {
 		return providers.ToolOutput{Content: fmt.Sprintf("error saving modified document: %v", err)}
 	}
 
 	return providers.ToolOutput{
-		// File:    fileData.ID,
-		Content: fmt.Sprintf("Deleted part '%s'. New file ID: %s (%d bytes) Path: /%s", params.PartPath, fileData.ID, fileData.Size, fileData.Path),
+		Content: fmt.Sprintf("Deleted part '%s' from file %s (%d bytes).", params.PartPath, params.FileID, buf.Len()),
 	}
 }
 
@@ -452,14 +445,6 @@ func resolveFilePath(fileID, user string) (string, error) {
 	return found[0].Path, nil
 }
 
-func resolveFileName(fileID, user string) string {
-	found, err := files.GetByIDs([]string{fileID}, user)
-	if err != nil || len(found) == 0 {
-		return "document"
-	}
-	return found[0].Name
-}
-
 func buildZip(parts map[string]string) (*bytes.Buffer, error) {
 	var buf bytes.Buffer
 	w := zip.NewWriter(&buf)
@@ -533,6 +518,23 @@ func saveGeneratedFile(data []byte, fileName, user string) (fs.File, error) {
 	}
 
 	return fileData, nil
+}
+
+func updateGeneratedFile(data []byte, fileID, user string) error {
+	found, err := files.GetByIDs([]string{fileID}, user)
+	if err != nil || len(found) == 0 {
+		return fmt.Errorf("file not found: %s", fileID)
+	}
+
+	if err := os.WriteFile(found[0].Path, data, 0o644); err != nil {
+		return fmt.Errorf("error overwriting file: %v", err)
+	}
+
+	if err := files.UpdateSize(fileID, user, int64(len(data))); err != nil {
+		return fmt.Errorf("error updating file record: %v", err)
+	}
+
+	return nil
 }
 
 // ── Minimal OpenXML Templates ───────────────────────────────────────────
