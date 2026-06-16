@@ -45,6 +45,7 @@ import {
   CheckIcon,
   XIcon,
   Plus,
+  UploadIcon,
 } from "lucide-react";
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
@@ -57,7 +58,7 @@ import {
   EditableMessageRef,
 } from "@/components/ai-elements/editable-message";
 import {
-  FilesList,
+  FilePreview,
   AttachmentMessage,
   UploadedFile,
 } from "@/components/ui/file-upload";
@@ -96,6 +97,7 @@ interface ChatInterfaceProps {
 
 type PromptAreaHandle = {
   focus(options?: FocusOptions): void;
+  addFiles(files: File[]): void;
 };
 
 type PromptAreaProps = {
@@ -135,18 +137,10 @@ const PromptArea = memo(
   ) {
     const [isInputEmpty, setIsInputEmpty] = useState(true);
     const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+    const [pendingFileNames, setPendingFileNames] = useState<string[]>([]);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [fileManagerOpen, setFileManagerOpen] = useState(false);
     const promptInputRef = useRef<PromptInputTextareaHandle>(null);
-
-    useImperativeHandle(
-      ref,
-      () => ({
-        focus: (options?: FocusOptions) =>
-          promptInputRef.current?.focus(options),
-      }),
-      [],
-    );
 
     const handleInputChange = useCallback(
       (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -175,22 +169,42 @@ const PromptArea = memo(
     const handleFilesPasted = useCallback(
       async (files: File[]) => {
         if (hasPendingMessages || files.length === 0) return;
+        // Add all file names as pending immediately
+        const names = files.map((f) => f.name);
+        setPendingFileNames((prev) => [...prev, ...names]);
+        setUploadError(null);
+
         for (const file of files) {
           try {
-            setUploadError(null);
             const fileData = await uploadFile(file);
             setUploadedFiles((prev) => [...prev, { file, fileData }]);
           } catch (error) {
             const errorMessage =
               error instanceof FileUploadError
                 ? error.message
-                : "Failed to upload pasted file";
+                : "Failed to upload file";
             setUploadError(errorMessage);
-            break;
           }
+          // Remove this file from pending regardless of success/failure
+          setPendingFileNames((prev) => {
+            const idx = prev.indexOf(file.name);
+            return idx === -1 ? prev : prev.filter((_, i) => i !== idx);
+          });
         }
       },
       [hasPendingMessages],
+    );
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        focus: (options?: FocusOptions) =>
+          promptInputRef.current?.focus(options),
+        addFiles: (files: File[]) => {
+          handleFilesPasted(files);
+        },
+      }),
+      [handleFilesPasted],
     );
 
     const handleSubmit = useCallback(
@@ -211,6 +225,7 @@ const PromptArea = memo(
         promptInputRef.current?.clear();
         setIsInputEmpty(true);
         setUploadedFiles([]);
+        setPendingFileNames([]);
         setUploadError(null);
         onSend(message, attachments);
       },
@@ -223,9 +238,31 @@ const PromptArea = memo(
           onSubmit={handleSubmit}
           className="chat-interface w-full max-w-3xl mx-auto"
         >
-          {uploadedFiles.length > 0 && (
+          {(uploadedFiles.length > 0 || pendingFileNames.length > 0) && (
             <div className="px-3 py-2 border-b">
-              <FilesList files={uploadedFiles} onRemove={handleRemoveFile} />
+              <div className="flex flex-wrap gap-2">
+                {uploadedFiles.map((file, index) => (
+                  <FilePreview
+                    key={file.fileData.id}
+                    file={file}
+                    onRemove={() => handleRemoveFile(index)}
+                  />
+                ))}
+                {pendingFileNames.map((name, index) => (
+                  <div
+                    key={`pending-${index}-${name}`}
+                    className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg border max-w-xs animate-pulse"
+                  >
+                    <div className="flex-shrink-0 size-10 rounded border bg-background flex items-center justify-center">
+                      <Loader size={16} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{name}</div>
+                      <div className="text-xs text-muted-foreground">Uploading...</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           {uploadError && (
@@ -320,6 +357,8 @@ export const ChatInterface = ({
   onCancelStream,
 }: ChatInterfaceProps) => {
   const isComposerDisabled = isAuthChecking || !isAuthenticated;
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
   const { models, isLoading: modelsLoading } = useModels();
   const {
     updateSingleSetting,
@@ -602,6 +641,46 @@ export const ChatInterface = ({
       onSendMessage(message, webSearch, model, attachments);
     },
     [messages.length, webSearch, model, scrollToBottom, onSendMessage],
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer?.types.includes("Files")) {
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current = 0;
+      setIsDragOver(false);
+
+      if (isComposerDisabled || hasPendingMessages) return;
+
+      const files = Array.from(e.dataTransfer?.files ?? []);
+      if (files.length > 0) {
+        promptAreaRef.current?.addFiles(files);
+      }
+    },
+    [isComposerDisabled, hasPendingMessages],
   );
 
   const copyMessage = (messageId: string | null, fallbackContent: string) => {
@@ -946,7 +1025,32 @@ export const ChatInterface = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div
+      className="flex-1 flex flex-col min-h-0 relative"
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Drop overlay */}
+      <div
+        className={cn(
+          "absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm transition-all duration-200 ease-out pointer-events-none",
+          isDragOver ? "opacity-100 visible" : "opacity-0 invisible",
+        )}
+      >
+        <div
+          className={cn(
+            "flex flex-col items-center gap-3 text-muted-foreground transition-transform duration-200 ease-out",
+            isDragOver ? "scale-100" : "scale-95",
+          )}
+        >
+          <div className="rounded-full bg-secondary p-4">
+            <UploadIcon className="size-6" />
+          </div>
+          <span className="text-sm font-medium">Drop files to attach</span>
+        </div>
+      </div>
       <Conversation ref={conversationRef} className="flex-1">
         {messages.length === 0 && !isConversationLoading ? (
           <div className="h-full flex items-center justify-center">
