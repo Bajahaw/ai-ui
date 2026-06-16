@@ -53,11 +53,12 @@ export function FileCard({ href, filename, isExternal = false }: FileCardProps) 
     typeLabel = "Unknown File";
   }
 
+  const isSameOrigin = !isExternal && !href.startsWith("http");
+
   return (
     <a 
       href={href} 
-      target="_blank" 
-      rel="noopener noreferrer"
+      {...(isSameOrigin ? { download: true } : { target: "_blank", rel: "noopener noreferrer" })}
       className="group block no-underline my-4 px-0 max-w-full"
     >
       <Card className="flex items-center justify-between p-4 rounded-xl transition-colors !duration-100 hover:bg-secondary/20">
