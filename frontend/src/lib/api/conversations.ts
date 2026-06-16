@@ -7,7 +7,6 @@ import {
   isMessagesMap,
 } from "./errorHandler.ts";
 
-import { getApiUrl } from "../config.ts";
 
 import { getHeaders } from "./headers.ts";
 
@@ -18,7 +17,7 @@ export class ConversationsAPI {
   // GET /api/conversations
   async fetchConversations(): Promise<Conversation[]> {
     return ApiErrorHandler.handleApiCall(async () => {
-      const response = await fetch(getApiUrl("/api/conversations"), {
+      const response = await fetch("/api/conversations", {
         method: "GET",
         headers: getHeaders({
           "Content-Type": "application/json",
@@ -62,7 +61,7 @@ export class ConversationsAPI {
         updatedAt: now,
       };
 
-      const response = await fetch(getApiUrl("/api/conversations/add"), {
+      const response = await fetch("/api/conversations/add", {
         method: "POST",
 
         headers: getHeaders({
@@ -99,9 +98,7 @@ export class ConversationsAPI {
   // Returns an EventSource that streams ConversationEvents over a persistent connection.
   // The session ID is passed as a query param because EventSource cannot send custom headers.
   createSyncEventSource(sessionId: string): EventSource {
-    const url = getApiUrl(
-      `/api/conversations/sync?sessionId=${encodeURIComponent(sessionId)}`,
-    );
+    const url = `/api/conversations/sync?sessionId=${encodeURIComponent(sessionId)}`;
     return new EventSource(url, { withCredentials: true });
   }
 
@@ -115,7 +112,7 @@ export class ConversationsAPI {
 
     return ApiErrorHandler.handleApiCall(async () => {
       const response = await fetch(
-        getApiUrl(`/api/conversations/${encodeURIComponent(id)}/messages`),
+        `/api/conversations/${encodeURIComponent(id)}/messages`,
         {
           method: "GET",
           headers: getHeaders({
@@ -152,7 +149,7 @@ export class ConversationsAPI {
 
     return ApiErrorHandler.handleApiCall(async () => {
       const response = await fetch(
-        getApiUrl(`/api/conversations/${encodeURIComponent(id)}`),
+        `/api/conversations/${encodeURIComponent(id)}`,
         {
           method: "DELETE",
           headers: getHeaders({
@@ -174,7 +171,7 @@ export class ConversationsAPI {
   // GET /api/conversations/stats
   async fetchStats(): Promise<WelcomeStats> {
     return ApiErrorHandler.handleApiCall(async () => {
-      const response = await fetch(getApiUrl("/api/conversations/stats"), {
+      const response = await fetch("/api/conversations/stats", {
         method: "GET",
         headers: getHeaders({ "Content-Type": "application/json" }),
         credentials: "include",
@@ -204,7 +201,7 @@ export class ConversationsAPI {
 
     return ApiErrorHandler.handleApiCall(async () => {
       const response = await fetch(
-        getApiUrl(`/api/conversations/${encodeURIComponent(id)}/rename`),
+        `/api/conversations/${encodeURIComponent(id)}/rename`,
         {
           method: "POST",
           headers: getHeaders({

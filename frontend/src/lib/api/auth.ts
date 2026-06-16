@@ -1,5 +1,5 @@
 import { ApiErrorHandler } from "./errorHandler.ts";
-import { getApiUrl } from "../config.ts";
+
 import { AuthStatus } from "./types.ts";
 import { getHeaders } from "./headers.ts";
 
@@ -10,7 +10,7 @@ export class AuthAPI {
   // GET /api/auth/status - Check registration and authentication status
   async getAuthStatus(): Promise<AuthStatus> {
     return ApiErrorHandler.handleApiCall(async () => {
-      const response = await fetch(getApiUrl("/api/auth/status"), {
+      const response = await fetch("/api/auth/status", {
         method: "GET",
         headers: getHeaders({
           "Content-Type": "application/json",
@@ -39,7 +39,7 @@ export class AuthAPI {
     }
 
     return ApiErrorHandler.handleApiCall(async () => {
-      const response = await fetch(getApiUrl("/api/auth/register"), {
+      const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: getHeaders({
           "Content-Type": "application/json",
@@ -65,7 +65,7 @@ export class AuthAPI {
       formData.append("username", username);
       formData.append("password", password);
 
-      const response = await fetch(getApiUrl("/api/auth/login"), {
+      const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: getHeaders({
           "Content-Type": "application/x-www-form-urlencoded",
@@ -87,7 +87,7 @@ export class AuthAPI {
     }
 
     return ApiErrorHandler.handleApiCall(async () => {
-      const response = await fetch(getApiUrl("/api/auth/change-pass"), {
+      const response = await fetch("/api/auth/change-pass", {
         method: "POST",
         headers: getHeaders({
           "Content-Type": "application/json",
@@ -106,7 +106,7 @@ export class AuthAPI {
   // POST /api/auth/logout - Logout and clear cookie
   async logout(): Promise<void> {
     return ApiErrorHandler.handleApiCall(async () => {
-      const response = await fetch(getApiUrl("/api/auth/logout"), {
+      const response = await fetch("/api/auth/logout", {
         method: "POST",
         headers: getHeaders({
           "Content-Type": "application/json",

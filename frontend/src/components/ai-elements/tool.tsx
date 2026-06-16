@@ -26,7 +26,7 @@ import {
 import { cn } from "@/lib/utils.ts";
 import type { ToolUIPart } from "ai";
 import { CodeBlock } from "./code-block.tsx";
-import { getApiUrl } from "@/lib/config.ts";
+
 
 export type ToolProps = ComponentProps<typeof Collapsible>;
 
@@ -155,9 +155,7 @@ export const ToolApproval = ({ toolCallId, onAction }: ToolApprovalProps) => {
     setIsUpdating(true);
     try {
       await fetch(
-        getApiUrl(
-          `/api/tools/approve?call_id=${toolCallId}&approved=${approved}`,
-        ),
+        `/api/tools/approve?call_id=${toolCallId}&approved=${approved}`,
         {
           method: "GET",
           credentials: "include",

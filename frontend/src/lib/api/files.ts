@@ -1,5 +1,5 @@
 import { FileUploadResponse, File as ApiFile } from "./types";
-import { getApiUrl } from "../config";
+
 import { getHeaders } from "./headers";
 
 export class FileUploadError extends Error {
@@ -13,7 +13,7 @@ export class FileUploadError extends Error {
 }
 
 export const getFiles = async (): Promise<ApiFile[]> => {
-  const response = await fetch(getApiUrl("/api/files/all"), {
+  const response = await fetch("/api/files/all", {
     method: "GET",
     headers: getHeaders(),
     credentials: "include",
@@ -42,7 +42,7 @@ export const uploadFile = async (file: File): Promise<FileUploadResponse> => {
   formData.append("lastModified", file.lastModified.toString());
 
   try {
-    const response = await fetch(getApiUrl("/api/files/upload"), {
+    const response = await fetch("/api/files/upload", {
       headers: getHeaders(),
       method: "POST",
       credentials: "include",
@@ -67,7 +67,7 @@ export const uploadFile = async (file: File): Promise<FileUploadResponse> => {
 };
 
 export const deleteFile = async (id: string): Promise<void> => {
-  const response = await fetch(getApiUrl(`/api/files/delete/${id}`), {
+  const response = await fetch(`/api/files/delete/${id}`, {
     headers: getHeaders(),
     method: "DELETE",
     credentials: "include",
@@ -79,7 +79,7 @@ export const deleteFile = async (id: string): Promise<void> => {
 };
 
 export const extractContent = async (fileIds: string[]): Promise<ApiFile[]> => {
-  const response = await fetch(getApiUrl(`/api/files/extract-content`), {
+  const response = await fetch(`/api/files/extract-content`, {
     method: "POST",
     headers: {
       ...getHeaders(),

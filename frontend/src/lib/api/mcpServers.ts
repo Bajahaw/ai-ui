@@ -1,10 +1,10 @@
-import { getApiUrl } from "@/lib/config";
+
 import { MCPServerRequest, MCPServerResponse } from "./types";
 import { getHeaders } from "./headers";
 
 // Get all MCP servers
 export const getMCPServers = async (): Promise<MCPServerResponse[]> => {
-  const response = await fetch(getApiUrl("/api/tools/mcp/all"), {
+  const response = await fetch("/api/tools/mcp/all", {
     method: "GET",
     headers: getHeaders({
       "Content-Type": "application/json",
@@ -24,7 +24,7 @@ export const getMCPServers = async (): Promise<MCPServerResponse[]> => {
 export const saveMCPServer = async (
   serverData: MCPServerRequest,
 ): Promise<MCPServerResponse> => {
-  const response = await fetch(getApiUrl("/api/tools/mcp/save"), {
+  const response = await fetch("/api/tools/mcp/save", {
     method: "POST",
     headers: getHeaders({
       "Content-Type": "application/json",
@@ -42,7 +42,7 @@ export const saveMCPServer = async (
 
 // Restore default MCP server
 export const restoreDefaultMCPServer = async (): Promise<void> => {
-  const response = await fetch(getApiUrl("/api/tools/mcp/restore-default"), {
+  const response = await fetch("/api/tools/mcp/restore-default", {
     method: "POST",
     headers: getHeaders({
       "Content-Type": "application/json",
@@ -57,7 +57,7 @@ export const restoreDefaultMCPServer = async (): Promise<void> => {
 
 // Delete MCP server
 export const deleteMCPServer = async (id: string): Promise<void> => {
-  const response = await fetch(getApiUrl(`/api/tools/mcp/delete/${id}`), {
+  const response = await fetch(`/api/tools/mcp/delete/${id}`, {
     method: "DELETE",
     headers: getHeaders({
       "Content-Type": "application/json",
@@ -73,7 +73,7 @@ export const deleteMCPServer = async (id: string): Promise<void> => {
 // Refresh tools for a specific MCP server (re-fetches from MCP server)
 export const refreshMCPTools = async (id: string): Promise<void> => {
   const response = await fetch(
-    getApiUrl(`/api/tools/mcp/refresh-tools/${id}`),
+    `/api/tools/mcp/refresh-tools/${id}`,
     {
       method: "POST",
       headers: getHeaders({

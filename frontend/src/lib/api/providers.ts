@@ -1,10 +1,10 @@
-import { getApiUrl } from "@/lib/config";
+
 import { FrontendProvider, ProviderRequest, ProviderResponse } from "./types";
 import { getHeaders } from "./headers";
 
 // Get all providers
 export const getProviders = async (): Promise<ProviderResponse[]> => {
-  const response = await fetch(getApiUrl("/api/providers/"), {
+  const response = await fetch("/api/providers/", {
     method: "GET",
     headers: getHeaders({
       "Content-Type": "application/json",
@@ -24,7 +24,7 @@ export const getProviders = async (): Promise<ProviderResponse[]> => {
 export const saveProvider = async (
   providerData: ProviderRequest,
 ): Promise<ProviderResponse> => {
-  const response = await fetch(getApiUrl("/api/providers/save"), {
+  const response = await fetch("/api/providers/save", {
     method: "POST",
     headers: getHeaders({
       "Content-Type": "application/json",
@@ -43,7 +43,7 @@ export const saveProvider = async (
 // Refresh models for a specific provider (re-fetches from provider API)
 export const refreshProviderModels = async (id: string): Promise<void> => {
   const response = await fetch(
-    getApiUrl(`/api/providers/refresh-models/${id}`),
+    `/api/providers/refresh-models/${id}`,
     {
       method: "POST",
       headers: getHeaders({
@@ -62,7 +62,7 @@ export const refreshProviderModels = async (id: string): Promise<void> => {
 
 // Delete provider
 export const deleteProvider = async (id: string): Promise<void> => {
-  const response = await fetch(getApiUrl(`/api/providers/delete/${id}`), {
+  const response = await fetch(`/api/providers/delete/${id}`, {
     method: "DELETE",
     headers: getHeaders({
       "Content-Type": "application/json",

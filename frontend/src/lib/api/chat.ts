@@ -11,7 +11,7 @@ import {
 } from "./types.ts";
 
 import { ApiErrorHandler, isChatResponse } from "./errorHandler.ts";
-import { getApiUrl } from "../config.ts";
+
 
 import { getHeaders } from "./headers.ts";
 
@@ -53,7 +53,7 @@ export class ChatAPI {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30 * 60 * 1000); // 30 minutes timeout
-      const response = await fetch(getApiUrl("/api/chat/stream"), {
+      const response = await fetch("/api/chat/stream", {
         method: "POST",
         headers: getHeaders({
           "Content-Type": "application/json",
@@ -121,7 +121,7 @@ export class ChatAPI {
         content,
       };
 
-      const response = await fetch(getApiUrl("/api/chat/update"), {
+      const response = await fetch("/api/chat/update", {
         method: "POST",
         headers: getHeaders({
           "Content-Type": "application/json",
@@ -153,7 +153,7 @@ export class ChatAPI {
 
     return ApiErrorHandler.handleApiCall(async () => {
       const response = await fetch(
-        getApiUrl(`/api/chat/cancel?messageId=${messageId}`),
+        `/api/chat/cancel?messageId=${messageId}`,
         {
           method: "GET",
           headers: getHeaders({
@@ -199,7 +199,7 @@ export class ChatAPI {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30 * 60 * 1000); // 30 minutes timeout
-      const response = await fetch(getApiUrl("/api/chat/retry/stream"), {
+      const response = await fetch("/api/chat/retry/stream", {
         method: "POST",
         headers: getHeaders({
           "Content-Type": "application/json",

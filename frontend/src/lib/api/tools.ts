@@ -1,10 +1,10 @@
-import { getApiUrl } from "@/lib/config";
+
 import { Tool, ToolListResponse } from "./types";
 import { getHeaders } from "./headers";
 
 // Get all tools
 export const getAllTools = async (): Promise<ToolListResponse> => {
-  const response = await fetch(getApiUrl("/api/tools/all"), {
+  const response = await fetch("/api/tools/all", {
     method: "GET",
     headers: getHeaders({
       "Content-Type": "application/json",
@@ -21,7 +21,7 @@ export const getAllTools = async (): Promise<ToolListResponse> => {
 
 // Save all tools with updated enable/disable states
 export const saveAllTools = async (tools: Tool[]): Promise<void> => {
-  const response = await fetch(getApiUrl("/api/tools/saveAll"), {
+  const response = await fetch("/api/tools/saveAll", {
     method: "POST",
     headers: getHeaders({
       "Content-Type": "application/json",
