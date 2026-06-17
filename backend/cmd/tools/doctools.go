@@ -126,6 +126,12 @@ func createDocumentTool(args, user string) providers.ToolOutput {
 
 	format := strings.ToLower(params.Format)
 
+	// Validate that file extension matches the declared format
+	ext := strings.TrimPrefix(strings.ToLower(path.Ext(params.FileName)), ".")
+	if ext != format {
+		return providers.ToolOutput{Content: fmt.Sprintf("error: file_name extension '.%s' does not match format '%s'", ext, format)}
+	}
+
 	// Start with minimal template for the format, then overlay user parts
 	template, ok := minimalTemplates[format]
 	if !ok {
