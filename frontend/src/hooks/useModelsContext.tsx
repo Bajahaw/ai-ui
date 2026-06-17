@@ -62,7 +62,12 @@ export const ModelsProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     try {
       await saveAllModels(modelsToSave);
-      setModels(modelsToSave);
+      // Merge saved models into existing state rather than replacing the full list,
+      // since callers may send only changed models (not the complete set).
+      const savedMap = new Map(modelsToSave.map((m) => [m.id, m]));
+      setModels((prev) =>
+        prev.map((m) => (savedMap.has(m.id) ? { ...m, ...savedMap.get(m.id)! } : m)),
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to save models";
       setError(msg);
