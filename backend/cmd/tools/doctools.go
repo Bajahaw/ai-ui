@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -316,6 +317,11 @@ func deleteDocumentPartTool(args, user string) providers.ToolOutput {
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
+// ValidateOfficeZip validates the internal structure of an Office Open XML document.
+func ValidateOfficeZip(data []byte) error {
+	return validateOfficeZip(data)
+}
+
 func validateOfficeZip(data []byte) error {
 	r, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
@@ -326,6 +332,8 @@ func validateOfficeZip(data []byte) error {
 	for _, f := range r.File {
 		files[f.Name] = f
 	}
+
+	xlParts := make(map[string][]byte)
 
 	for _, f := range r.File {
 		name := f.Name
@@ -397,7 +405,14 @@ func validateOfficeZip(data []byte) error {
 			}
 		}
 
-		// 3. Validate Definitions & Relationships
+		// 3. Validate XLSX shared string and style index bounds
+		if name == "xl/sharedStrings.xml" || name == "xl/styles.xml" ||
+			strings.HasPrefix(name, "xl/worksheets/") {
+			// collect into a map for cross-validation after all parts are read
+			xlParts[name] = content
+		}
+
+		// 4. Validate Definitions & Relationships
 		if strings.HasSuffix(lower, ".rels") {
 			var rels struct {
 				Rels []struct {
@@ -434,6 +449,115 @@ func validateOfficeZip(data []byte) error {
 			}
 		}
 	}
+
+	// 5. Cross-validate XLSX cell references against shared strings and styles
+	if len(xlParts) > 0 {
+		if err := validateXLSXSemantics(xlParts); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateXLSXSemantics(parts map[string][]byte) error {
+	// Count shared strings
+	sharedStringCount := 0
+	if sst, ok := parts["xl/sharedStrings.xml"]; ok {
+		var shared struct {
+			Count string `xml:"uniqueCount,attr"`
+			Items []struct {
+			} `xml:"si"`
+		}
+		if err := xml.Unmarshal(sst, &shared); err == nil {
+			sharedStringCount = len(shared.Items)
+			// Also check declared count vs actual
+			if shared.Count != "" {
+				declared, err := strconv.Atoi(shared.Count)
+				if err == nil && declared != sharedStringCount {
+					return fmt.Errorf("sharedStrings.xml declares uniqueCount=%d but contains %d entries", declared, sharedStringCount)
+				}
+			}
+		}
+	}
+
+	// Count cell style entries (cellXfs)
+	cellXfCount := 0
+	if styles, ok := parts["xl/styles.xml"]; ok {
+		var styleSheet struct {
+			CellXfs struct {
+				Count string `xml:"count,attr"`
+				Xfs   []struct {
+				} `xml:"xf"`
+			} `xml:"cellXfs"`
+		}
+		if err := xml.Unmarshal(styles, &styleSheet); err == nil {
+			cellXfCount = len(styleSheet.CellXfs.Xfs)
+			if styleSheet.CellXfs.Count != "" {
+				declared, err := strconv.Atoi(styleSheet.CellXfs.Count)
+				if err == nil && declared != cellXfCount {
+					return fmt.Errorf("styles.xml declares cellXfs count=%d but contains %d entries", declared, cellXfCount)
+				}
+			}
+		}
+	}
+
+	// Validate each worksheet
+	for name, content := range parts {
+		if !strings.HasPrefix(name, "xl/worksheets/") {
+			continue
+		}
+
+		var sheet struct {
+			Data struct {
+				Rows []struct {
+					R     string `xml:"r,attr"`
+					Cells []struct {
+						R string `xml:"r,attr"`
+						T string `xml:"t,attr"`
+						S string `xml:"s,attr"`
+						V string `xml:"v"`
+					} `xml:"c"`
+				} `xml:"row"`
+			} `xml:"sheetData"`
+		}
+		if err := xml.Unmarshal(content, &sheet); err != nil {
+			continue
+		}
+
+		lastRow := 0
+		for _, row := range sheet.Data.Rows {
+			// Check row ordering
+			if row.R != "" {
+				rowNum, err := strconv.Atoi(row.R)
+				if err == nil {
+					if rowNum <= lastRow {
+						return fmt.Errorf("row ordering error in '%s': row %d appears after row %d", name, rowNum, lastRow)
+					}
+					lastRow = rowNum
+				}
+			}
+
+			for _, cell := range row.Cells {
+				// Check shared string index bounds
+				if cell.T == "s" && cell.V != "" {
+					idx, err := strconv.Atoi(cell.V)
+					if err == nil && idx >= sharedStringCount {
+						return fmt.Errorf("shared string error in '%s' cell %s: references index %d but sharedStrings.xml only has %d entries", name, cell.R, idx, sharedStringCount)
+					}
+				}
+
+				// Check style index bounds
+				if cell.S != "" {
+					idx, err := strconv.Atoi(cell.S)
+					if err == nil && cellXfCount > 0 && idx >= cellXfCount {
+						return fmt.Errorf("style error in '%s' cell %s: references style index %d but styles.xml only has %d cellXf entries", name, cell.R, idx, cellXfCount)
+					}
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
