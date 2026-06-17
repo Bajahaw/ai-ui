@@ -184,7 +184,7 @@ export function FileManagerDialog({
     const selectedFiles = files.filter((f) => selectedFileIds.has(f.id));
     selectedFiles.forEach((file) => {
       const link = document.createElement("a");
-      link.href = file.path;
+      link.href = file.path.startsWith("/") ? file.path : `/${file.path}`;
       link.download = file.name;
       document.body.appendChild(link);
       link.click();
@@ -374,7 +374,7 @@ export function FileManagerDialog({
                     <div className="aspect-square w-full bg-background flex items-center justify-center overflow-hidden relative border-b">
                       {isImage ? (
                         <img
-                          src={file.path}
+                          src={file.path.startsWith("/") ? file.path : `/${file.path}`}
                           alt={file.name}
                           className="w-full h-full object-cover transition-transform group-hover:scale-105"
                           loading="lazy"

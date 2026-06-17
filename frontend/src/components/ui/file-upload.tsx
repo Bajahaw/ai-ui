@@ -127,7 +127,7 @@ export const FilePreview = ({
         {isImage ? (
           <div className="size-10 rounded overflow-hidden border bg-background">
             <img
-              src={file.fileData.path}
+              src={file.fileData.path.startsWith("/") ? file.fileData.path : `/${file.fileData.path}`}
               alt={file.file.name}
               className="size-full object-cover"
             />
@@ -250,7 +250,7 @@ export const AttachmentMessage = ({
         return (
           <a
             key={att.id || index}
-            href={att.file.path}
+            href={att.file.path.startsWith("/") ? att.file.path : `/${att.file.path}`}
             target="_blank"
             rel="noopener noreferrer"
             className="relative flex flex-col overflow-hidden rounded-xl border bg-card w-40 sm:w-48 aspect-video shrink-0 shadow-sm"
@@ -260,7 +260,7 @@ export const AttachmentMessage = ({
             <div className="size-full overflow-hidden flex items-center justify-center bg-muted/10">
               {isImage ? (
                 <img
-                  src={att.file.path}
+                  src={att.file.path.startsWith("/") ? att.file.path : `/${att.file.path}`}
                   alt={att.file.name}
                   className="size-full object-cover"
                 />
