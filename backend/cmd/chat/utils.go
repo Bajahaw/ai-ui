@@ -94,14 +94,20 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 			break
 		}
 
-		// If the assistant message has tool call, include it before the assistant content
+		// If the assistant message has tool calls, include the text content on the
+		// first tool-call message so the model sees what it said before using tools.
+		// Then append each tool result. Skip the normal content append below.
 		if msg.Role == "assistant" && len(msg.Tools) > 0 {
-			for _, tool := range msg.Tools {
-
-				messages = append(messages, providers.SimpleMessage{
+			for j, tool := range msg.Tools {
+				assistantMsg := providers.SimpleMessage{
 					Role:     "assistant",
 					ToolCall: *tool,
-				})
+				}
+				// Attach the assistant's text to the first tool-call message
+				if j == 0 {
+					assistantMsg.Content = msg.Content
+				}
+				messages = append(messages, assistantMsg)
 
 				// TODO: remove this temp hack
 				// swap to base64 instead of file id
@@ -112,6 +118,7 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 					ToolCall: *tool,
 				})
 			}
+			continue
 		}
 
 		var imageURLs []string
@@ -192,12 +199,18 @@ func enterAgentLoop(
 	convID, user string,
 	sc utils.StreamClient,
 ) (*providers.ChatCompletionMessage, error) {
-	for _, toolCall := range calls {
+	for i, toolCall := range calls {
 
-		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
+		assistantMsg := providers.SimpleMessage{
 			Role:     "assistant",
 			ToolCall: toolCall,
-		})
+		}
+		// Include the model's accumulated text in the first tool-call message
+		// so the model sees what it already said before invoking tools.
+		if i == 0 {
+			assistantMsg.Content = responseMessage.Content
+		}
+		providerParams.Messages = append(providerParams.Messages, assistantMsg)
 
 		toolCall.MessageID = responseMessage.ID
 		toolCall.ConvID = convID
@@ -240,6 +253,15 @@ func enterAgentLoop(
 			Payload: err.Error(),
 		})
 		return completion, err
+	}
+
+	// Accumulate content from the post-tool completion into the response.
+	// Add a newline separator to prevent sentences from running together.
+	if completion.Content != "" {
+		if responseMessage.Content != "" {
+			responseMessage.Content += "\n"
+		}
+		responseMessage.Content += completion.Content
 	}
 
 	// Accumulate reasoning for all tool calls

@@ -214,7 +214,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			responseMessage.Error = err.Error()
 		} else {
-			responseMessage.Content += completion.Content
+			// Content is already accumulated in responseMessage by enterAgentLoop.
 			streamStats = completion.Stats
 		}
 	}
@@ -384,7 +384,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			responseMessage.Error = err.Error()
 		} else {
-			responseMessage.Content += completion.Content
+			// Content is already accumulated in responseMessage by enterAgentLoop.
 			streamStats = completion.Stats
 		}
 	}
