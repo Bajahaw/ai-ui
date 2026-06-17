@@ -115,9 +115,9 @@ export const ToolsSection: React.FC = () => {
     });
 
     try {
-      const updatedTools = data.tools.map((t) => {
-        if (!ids.includes(t.id)) return t;
-        return {
+      const changedTools = data.tools
+        .filter((t) => ids.includes(t.id))
+        .map((t) => ({
           ...t,
           ...(flags.is_enabled !== undefined && {
             is_enabled: flags.is_enabled,
@@ -125,9 +125,8 @@ export const ToolsSection: React.FC = () => {
           ...(flags.require_approval !== undefined && {
             require_approval: flags.require_approval,
           }),
-        };
-      });
-      await saveTools(updatedTools);
+        }));
+      await saveTools(changedTools);
     } finally {
       setPendingIds((prev) => {
         const next = new Set(prev);

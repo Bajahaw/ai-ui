@@ -103,10 +103,10 @@ export const ModelsSection: React.FC = () => {
     });
 
     try {
-      const updatedModels = models.map((m) =>
-        ids.includes(m.id) ? { ...m, is_enabled: enabled } : m,
-      );
-      await saveModels(updatedModels);
+      const changedModels = models
+        .filter((m) => ids.includes(m.id))
+        .map((m) => ({ ...m, is_enabled: enabled }));
+      await saveModels(changedModels);
     } finally {
       setPendingIds((prev) => {
         const next = new Set(prev);
