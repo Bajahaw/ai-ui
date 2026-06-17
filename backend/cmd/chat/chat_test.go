@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -407,5 +408,131 @@ func TestSync_ExcludeSender(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for sync handler to finish")
+	}
+}
+
+// mockProviderWithToolCalls simulates a model that produces content, then a
+// tool call, then more content.  The second streaming call must be preceded by
+// a "\n" content chunk so the two pieces of text don't run together.
+type mockProviderWithToolCalls struct {
+	callCount int
+}
+
+func (m *mockProviderWithToolCalls) SendChatCompletionRequest(params providers.RequestParams) (*providers.ChatCompletionMessage, error) {
+	return nil, nil
+}
+
+func (m *mockProviderWithToolCalls) SendChatCompletionStreamRequest(params providers.RequestParams, sc utils.StreamClient) (*providers.ChatCompletionMessage, error) {
+	m.callCount++
+
+	if m.callCount == 1 {
+		// First call: stream some content, then return a tool call.
+		_ = utils.SendStreamChunk(sc, utils.StreamChunk{Type: utils.CONTENT, Payload: "Before tool"})
+		return &providers.ChatCompletionMessage{
+			Content: "Before tool",
+			ToolCalls: []providers.ToolCall{
+				{
+					ID:          "tc-1",
+					ReferenceID: "ref-1",
+					Name:        "fake_tool",
+					Args:        `{}`,
+				},
+			},
+		}, nil
+	}
+
+	// Second call (after tool execution): stream post-tool content.
+	_ = utils.SendStreamChunk(sc, utils.StreamChunk{Type: utils.CONTENT, Payload: "After tool"})
+	return &providers.ChatCompletionMessage{
+		Content: "After tool",
+		Stats:   utils.StreamStats{PromptTokens: 1, CompletionTokens: 2, Speed: 1},
+	}, nil
+}
+
+// TestChatStream_NewlineSeparatorStreamedBetweenToolCalls verifies that when
+// the model produces content, uses a tool, then produces more content, a "\n"
+// content chunk is streamed to the client between the two content segments.
+// This is a regression test for the bug where the newline was only added to the
+// saved DB message but never sent over the SSE stream.
+func TestChatStream_NewlineSeparatorStreamedBetweenToolCalls(t *testing.T) {
+	mock := &mockProviderWithToolCalls{}
+	teardown := setupTest(t, mock)
+	defer teardown()
+
+	reqBody := map[string]any{
+		"conversationId": "conv-tool-nl",
+		"parentId":       0,
+		"model":          "provider-x/model",
+		"content":        "hello",
+	}
+	b, _ := json.Marshal(reqBody)
+	req := httptest.NewRequest(http.MethodPost, "/chat/stream", bytes.NewReader(b))
+	req = req.WithContext(context.WithValue(req.Context(), "user", "test-user"))
+
+	rr := &flushRecorder{httptest.NewRecorder()}
+	chatStream(rr, req)
+
+	body := rr.Body.String()
+
+	// Collect all SSE data lines that carry content chunks, in order.
+	var contentChunks []string
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data: ")
+		var m map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(data), &m); err != nil {
+			continue
+		}
+		raw, ok := m["content"]
+		if !ok {
+			continue
+		}
+		var text string
+		if err := json.Unmarshal(raw, &text); err != nil {
+			continue
+		}
+		contentChunks = append(contentChunks, text)
+	}
+
+	// We expect at least: "Before tool", "\n", "After tool"
+	if len(contentChunks) < 3 {
+		t.Fatalf("expected at least 3 content chunks, got %d: %v", len(contentChunks), contentChunks)
+	}
+
+	// Find the index of the newline separator.
+	nlIdx := -1
+	for i, c := range contentChunks {
+		if c == "\n" {
+			nlIdx = i
+			break
+		}
+	}
+
+	if nlIdx == -1 {
+		t.Fatalf("expected a '\\n' content chunk between tool calls in stream, got chunks: %v", contentChunks)
+	}
+
+	// The "\n" must appear after "Before tool" and before "After tool".
+	beforeFound := false
+	for i := 0; i < nlIdx; i++ {
+		if contentChunks[i] == "Before tool" {
+			beforeFound = true
+		}
+	}
+	afterFound := false
+	for i := nlIdx + 1; i < len(contentChunks); i++ {
+		if contentChunks[i] == "After tool" {
+			afterFound = true
+		}
+	}
+
+	if !beforeFound {
+		t.Errorf("expected 'Before tool' content chunk before the '\\n' separator, got chunks: %v", contentChunks)
+	}
+	if !afterFound {
+		t.Errorf("expected 'After tool' content chunk after the '\\n' separator, got chunks: %v", contentChunks)
 	}
 }

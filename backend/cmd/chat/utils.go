@@ -245,6 +245,16 @@ func enterAgentLoop(
 
 	}
 
+	// Stream a newline separator before the post-tool completion so
+	// sentences from before and after the tool call don't run together.
+	// This mirrors the "\n" that is added to responseMessage.Content below.
+	if responseMessage.Content != "" {
+		utils.SendStreamChunk(sc, utils.StreamChunk{
+			Type:    utils.CONTENT,
+			Payload: "\n",
+		})
+	}
+
 	completion, err := provider.SendChatCompletionStreamRequest(providerParams, sc)
 	if err != nil {
 		log.Error("Error streaming chat completion after tool call", "err", err)
