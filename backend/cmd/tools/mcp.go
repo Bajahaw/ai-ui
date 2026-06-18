@@ -179,31 +179,26 @@ func refreshMCPTools(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Build map of existing tool states to preserve them
+	// Build map of existing tools keyed by name to preserve IDs and user-set flags
 	existingTools := tools.GetAllByMCPServerID(server.ID)
-	stateMap := make(map[string]struct {
-		IsEnabled       bool
-		RequireApproval bool
-	}, len(existingTools))
+	existingMap := make(map[string]*Tool, len(existingTools))
 	for _, t := range existingTools {
-		stateMap[t.Name] = struct {
-			IsEnabled       bool
-			RequireApproval bool
-		}{t.IsEnabled, t.RequireApproval}
+		existingMap[t.Name] = t
 	}
 
-	// Preserve is_enabled and require_approval for existing tools; new tools default to true/false
+	// Preserve IDs, is_enabled, and require_approval for existing tools; new tools keep generated IDs and defaults
 	newToolIDs := make([]string, 0, len(freshTools))
 	for _, t := range freshTools {
-		if state, exists := stateMap[t.Name]; exists {
-			t.IsEnabled = state.IsEnabled
-			t.RequireApproval = state.RequireApproval
+		if existing, exists := existingMap[t.Name]; exists {
+			t.ID = existing.ID
+			t.IsEnabled = existing.IsEnabled
+			t.RequireApproval = existing.RequireApproval
 		}
 		newToolIDs = append(newToolIDs, t.ID)
 	}
 
-	// Upsert with correct state values
-	if err = tools.SaveAll(freshTools); err != nil {
+	// Upsert all fields (including schema/description changes) with correct state values
+	if err = tools.UpsertAll(freshTools); err != nil {
 		log.Error("Error saving refreshed tools", "err", err)
 		http.Error(w, "Error saving tools", http.StatusInternalServerError)
 		return

@@ -12,6 +12,7 @@ type ToolRepository interface {
 	GetByID(id string) (*Tool, error)
 	Save(tool *Tool) error
 	SaveAll(tools []*Tool) error
+	UpsertAll(tools []*Tool) error
 	DeleteByID(id string) error
 	DeleteNotIn(mcpServerID string, toolIDs []string) error
 }
@@ -141,6 +142,37 @@ func (repo *ToolRepositoryImpl) SaveAll(tools []*Tool) error {
 	WHERE Tools.mcp_server_id = excluded.mcp_server_id`
 
 	// TODO: use one query
+	for _, tool := range tools {
+		if _, err := repo.db.Exec(sql,
+			tool.ID,
+			tool.MCPServerID,
+			tool.Name,
+			tool.Description,
+			tool.InputSchema,
+			tool.RequireApproval,
+			tool.IsEnabled,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// UpsertAll inserts tools or updates ALL columns (including name, description, input_schema)
+// on conflict. Used by MCP refresh to sync schema/description changes from the remote server
+// while preserving the tool ID and user-set flags (is_enabled, require_approval).
+func (repo *ToolRepositoryImpl) UpsertAll(tools []*Tool) error {
+	sql := `
+	INSERT INTO Tools (id, mcp_server_id, name, description, input_schema, require_approval, is_enabled)
+	VALUES (?, ?, ?, ?, ?, ?, ?) 
+	ON CONFLICT(id) DO UPDATE SET
+		name=excluded.name,
+		description=excluded.description,
+		input_schema=excluded.input_schema,
+		require_approval=excluded.require_approval,
+		is_enabled=excluded.is_enabled
+	WHERE Tools.mcp_server_id = excluded.mcp_server_id`
+
 	for _, tool := range tools {
 		if _, err := repo.db.Exec(sql,
 			tool.ID,
