@@ -1,14 +1,14 @@
-FROM oven/bun:alpine AS frontend-builder
+FROM node:22-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
-COPY frontend/package.json frontend/bun.lockb* ./
+COPY frontend/package.json frontend/package-lock.json* ./
 
-RUN bun install --frozen-lockfile
+RUN npm ci
 
 COPY frontend/ .
 
-RUN bun run build
+RUN npm run build
 
 FROM golang:1.26.1-alpine AS backend-builder
 
