@@ -49,7 +49,6 @@ import {
 } from "lucide-react";
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { Attachment, FrontendMessage, WelcomeStats } from "@/lib/api/types";
 import { BranchNavigation } from "@/components/BranchNavigation";
 import { ClientConversation } from "@/lib/clientConversationManager";
@@ -396,14 +395,6 @@ export const ChatInterface = ({
   const messageRenderKeysByIdRef = useRef<Map<string, string>>(new Map());
   const nextMessageRenderKeyRef = useRef(0);
   const conversationRef = useRef<HTMLDivElement>(null);
-  const bottomAnchorRef = useRef<HTMLDivElement>(null);
-
-  const rowVirtualizer = useVirtualizer({
-    count: messages.length,
-    getScrollElement: () => conversationRef.current,
-    estimateSize: () => 100,
-    overscan: 10,
-  });
   const promptAreaRef = useRef<PromptAreaHandle>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
   const isConversationLoadingRef = useRef(isConversationLoading);
@@ -484,14 +475,11 @@ export const ChatInterface = ({
     if (messages.length === 0) return;
 
     const container = conversationRef.current;
-    const bottomAnchor = bottomAnchorRef.current;
     if (!container) return;
-    if (!bottomAnchor) return;
     const observedContent = container.firstElementChild;
     let settleTimeoutId: number | null = null;
 
     const scrollToConversationBottom = () => {
-      bottomAnchor.scrollIntoView({ block: "end", behavior: "auto" });
       container.scrollTop = container.scrollHeight;
     };
 
@@ -637,6 +625,8 @@ export const ChatInterface = ({
   const handleSend = useCallback(
     (message: string, attachments?: Attachment[]) => {
       setHasInteracted(true);
+      initialScrollUserInteractedRef.current = true;
+      pendingInitialScrollConversationIdRef.current = null;
       if (messages.length > 0) scrollToBottom();
       onSendMessage(message, webSearch, model, attachments);
     },
@@ -717,6 +707,8 @@ export const ChatInterface = ({
     // Match send-message behavior: keep extra bottom space and move viewport
     // so the retried streaming response stays in view.
     setHasInteracted(true);
+    initialScrollUserInteractedRef.current = true;
+    pendingInitialScrollConversationIdRef.current = null;
     scrollToBottom();
 
     setRetryingMessageId(messageId);
@@ -1068,50 +1060,22 @@ export const ChatInterface = ({
           </div>
         ) : (
           <ConversationContent className="chat-interface w-full max-w-3xl mx-auto !px-5 lg:!px-3">
-            <div
-              className="relative w-full"
-              style={{
-                height: `${rowVirtualizer.getTotalSize() + (hasInteracted ? 100 : 0)}px`,
-              }}
-            >
-              <div
-                style={{
-                  width: "100%",
-                  paddingTop: `${rowVirtualizer.getVirtualItems()[0]?.start ?? 0}px`,
-                }}
-              >
-                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                  const message = messages[virtualRow.index];
-                  const stableKey = getMessageKey(message);
-                  return (
-                    <div
-                      key={stableKey}
-                      data-index={virtualRow.index}
-                      ref={rowVirtualizer.measureElement}
-                      style={{
-                        paddingBottom: "16px",
-                      }}
-                    >
-                      {renderMessage(message)}
-                    </div>
-                  );
-                })}
-              </div>
-              {/* Add overscroll spacer only when user has interacted with conversation */}
-              {hasInteracted && (
-                <div style={{ minHeight: "calc(-450px + 100vh)" }} />
-              )}
-              <div
-                ref={bottomAnchorRef}
-                aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  top:
-                    rowVirtualizer.getTotalSize() + (hasInteracted ? 100 : 0),
-                  left: 0,
-                }}
-              />
-            </div>
+            {/* eslint-disable-next-line react-hooks/refs */}
+            {messages.map((message, index) => {
+              const stableKey = getMessageKey(message);
+              return (
+                <div
+                  key={stableKey}
+                  data-index={index}
+                  style={{ paddingBottom: "16px" }}
+                >
+                  {renderMessage(message)}
+                </div>
+              );
+            })}
+            {hasInteracted && (
+              <div style={{ minHeight: "calc(-450px + 100vh)" }} />
+            )}
           </ConversationContent>
         )}
         <ConversationScrollButton />
