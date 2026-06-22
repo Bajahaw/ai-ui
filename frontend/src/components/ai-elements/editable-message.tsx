@@ -54,7 +54,7 @@ export const EditableMessage = forwardRef<
     // Focus and select all text when entering edit mode
     useEffect(() => {
       if (isEditing && textareaRef.current) {
-        textareaRef.current.focus();
+        textareaRef.current.focus({ preventScroll: true });
         textareaRef.current.select();
       }
     }, [isEditing]);
