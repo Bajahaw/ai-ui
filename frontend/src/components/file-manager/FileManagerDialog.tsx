@@ -384,8 +384,8 @@ export function FileManagerDialog({
                       )}
 
                       {file.content && (
-                        <div className="absolute bottom-1 right-1 bg-green-500/80 text-[8px] text-white px-1 py-0.5 rounded-lg font-bold uppercase tracking-wider transform scale-90 origin-bottom-right z-10">
-                          <ScanText className="inline-block h-4 w-3" />
+                        <div className="absolute bottom-1 right-1 bg-green-500/80 text-[7px] text-white px-1 py-0.5 rounded-md font-bold uppercase tracking-wider z-10">
+                          <ScanText className="inline-block h-3 w-2.5" />
                         </div>
                       )}
 

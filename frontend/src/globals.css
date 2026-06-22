@@ -200,7 +200,6 @@
   .dialog-content-animation {
     translate: -50% -50%;
     transform-origin: center;
-    will-change: opacity, scale;
     animation: dialog-content-zoom 0.16s ease-out both;
   }
 

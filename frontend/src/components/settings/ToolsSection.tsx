@@ -278,7 +278,7 @@ export const ToolsSection: React.FC = () => {
                       top: 0,
                       left: 0,
                       width: "100%",
-                      transform: `translateY(${virtualRow.start}px)`,
+                      transform: `translateY(${Math.round(virtualRow.start)}px)`,
                       paddingBottom: "8px", // replaces space-y-2
                     }}
                   >
