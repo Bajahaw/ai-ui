@@ -29,12 +29,36 @@ const toKebabCase = (value: string): string =>
 const toCompactKey = (value: string): string =>
   toKebabCase(value).replace(/[^a-z0-9]/g, "");
 
+const PRISM_ALIASES: Record<string, string> = {
+  xml: "markup",
+  html: "markup",
+  svg: "markup",
+  mathml: "markup",
+  js: "javascript",
+  ts: "typescript",
+  py: "python",
+  rb: "ruby",
+  sh: "bash",
+  yml: "yaml",
+  md: "markdown",
+  rs: "rust",
+  kt: "kotlin",
+  swift: "swift",
+  go: "go",
+  cs: "csharp",
+  cpp: "cpp",
+};
+
 const prismLanguageLookup = (() => {
   const lookup = new Map<string, string>();
 
   for (const language of prismSupportedLanguages) {
     lookup.set(toKebabCase(language), language);
     lookup.set(toCompactKey(language), language);
+  }
+
+  for (const [alias, canonical] of Object.entries(PRISM_ALIASES)) {
+    lookup.set(alias, canonical);
   }
 
   return lookup;
