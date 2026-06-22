@@ -1,11 +1,11 @@
-FROM node:26-alpine AS frontend-builder
+FROM node:26-slim AS frontend-builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY package.json ./
 COPY frontend/package.json ./frontend/package.json
 
-RUN npm ci --include=optional --no-audit --no-fund
+RUN npm install --no-audit --no-fund --prefer-offline
 
 COPY frontend/ ./frontend
 

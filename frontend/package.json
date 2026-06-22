@@ -74,6 +74,6 @@
     "vite": "^8.0.0"
   },
   "optionalDependencies": {
-    "@rolldown/binding-linux-x64-musl": "latest"
+    "@rolldown/binding-linux-x64-gnu": "latest"
   }
 }
