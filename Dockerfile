@@ -1,4 +1,4 @@
-FROM node:22-alpine AS frontend-builder
+FROM node:26-alpine AS frontend-builder
 
 WORKDIR /app
 
@@ -11,7 +11,7 @@ COPY frontend/ ./frontend
 
 RUN cd frontend && npx tsc -b && npx vite build
 
-FROM golang:1.26.1-alpine AS backend-builder
+FROM golang:1.26.4-alpine AS backend-builder
 
 WORKDIR /app
 
