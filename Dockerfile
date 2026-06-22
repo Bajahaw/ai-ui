@@ -9,7 +9,7 @@ RUN npm ci
 
 COPY frontend/ ./frontend
 
-RUN cd frontend && npm run build
+RUN cd frontend && npx tsc -b && npx vite build
 
 FROM golang:1.26.1-alpine AS backend-builder
 
