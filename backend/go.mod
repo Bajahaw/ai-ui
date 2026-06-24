@@ -9,7 +9,7 @@ require (
 	github.com/gen2brain/go-fitz v1.24.15
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/modelcontextprotocol/go-sdk v1.6.0
+	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/openai/openai-go/v3 v3.35.0
 	golang.org/x/net v0.54.0
 	modernc.org/sqlite v1.50.1
