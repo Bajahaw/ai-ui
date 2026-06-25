@@ -124,6 +124,12 @@
     box-sizing: border-box;
   }
 
+  ::selection {
+    background: rgba(70, 170, 220, 0.2);
+    color: inherit;
+    border-radius: 4px;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings:

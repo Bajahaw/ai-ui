@@ -38,6 +38,7 @@ export const PromptInput = ({ className, ...props }: PromptInputProps) => (
 export type PromptInputTextareaHandle = {
   focus(options?: FocusOptions): void;
   clear(): void;
+  insertText(text: string): void;
   readonly value: string;
 };
 
@@ -104,6 +105,21 @@ export const PromptInputTextarea = forwardRef<
       () => ({
         focus: (options?: FocusOptions) => internalRef.current?.focus(options),
         clear: () => setInternalValue(""),
+        insertText: (text: string) => {
+          setInternalValue((prev) => prev + text);
+          // Trigger onChange so parent stays in sync, then scroll to end
+          setTimeout(() => {
+            const el = internalRef.current;
+            if (el) {
+              const event = new Event("input", { bubbles: true });
+              el.dispatchEvent(event);
+              // Move cursor to end and scroll into view
+              el.selectionStart = el.value.length;
+              el.selectionEnd = el.value.length;
+              el.scrollTop = el.scrollHeight;
+            }
+          }, 0);
+        },
         get value() {
           return internalRef.current?.value ?? "";
         },

@@ -46,6 +46,7 @@ import {
   XIcon,
   Plus,
   UploadIcon,
+  ReplyIcon,
 } from "lucide-react";
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
@@ -97,6 +98,7 @@ interface ChatInterfaceProps {
 type PromptAreaHandle = {
   focus(options?: FocusOptions): void;
   addFiles(files: File[]): void;
+  insertText(text: string): void;
 };
 
 type PromptAreaProps = {
@@ -201,6 +203,10 @@ const PromptArea = memo(
           promptInputRef.current?.focus(options),
         addFiles: (files: File[]) => {
           handleFilesPasted(files);
+        },
+        insertText: (text: string) => {
+          promptInputRef.current?.insertText(text);
+          setIsInputEmpty(false);
         },
       }),
       [handleFilesPasted],
@@ -357,6 +363,12 @@ export const ChatInterface = ({
 }: ChatInterfaceProps) => {
   const isComposerDisabled = isAuthChecking || !isAuthenticated;
   const [isDragOver, setIsDragOver] = useState(false);
+  const [replySelection, setReplySelection] = useState<{
+    text: string;
+    x: number;
+    y: number;
+    placement: "above" | "below";
+  } | null>(null);
   const dragCounterRef = useRef(0);
   const { models, isLoading: modelsLoading } = useModels();
   const {
@@ -672,6 +684,107 @@ export const ChatInterface = ({
     },
     [isComposerDisabled, hasPendingMessages],
   );
+
+  // Text selection → Reply button (show after mouseup or touchend)
+  const showReplyForSelection = useCallback((placement: "above" | "below") => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+      return;
+    }
+
+    const container = conversationRef.current;
+    if (!container) return;
+    const anchorNode = selection.anchorNode;
+    if (!anchorNode || !container.contains(anchorNode)) return;
+
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+
+    replyPlacementRef.current = placement;
+    setReplySelection({
+      text: selection.toString().trim(),
+      x: rect.left + rect.width / 2 - containerRect.left,
+      y: placement === "above"
+        ? rect.top - containerRect.top
+        : rect.bottom - containerRect.top,
+      placement,
+    });
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    setTimeout(() => showReplyForSelection("above"), 10);
+  }, [showReplyForSelection]);
+
+  const handleTouchEnd = useCallback(() => {
+    // Longer delay on touch to let native selection handles settle
+    setTimeout(() => showReplyForSelection("below"), 300);
+  }, [showReplyForSelection]);
+
+  // Clear reply button when selection is cleared (click/tap elsewhere)
+  const handleMouseDown = useCallback((e: MouseEvent) => {
+    if ((e.target as HTMLElement).closest("[data-reply-btn]")) return;
+    setReplySelection(null);
+  }, []);
+
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    if ((e.target as HTMLElement).closest("[data-reply-btn]")) return;
+    setReplySelection(null);
+  }, []);
+
+  // Track last known placement so we can restore after scroll
+  const replyPlacementRef = useRef<"above" | "below">("above");
+
+  // Hide on scroll, reposition when scroll stops
+  const scrollTimeoutRef = useRef<number | null>(null);
+  const [replyHidden, setReplyHidden] = useState(false);
+
+  const handleConversationScroll = useCallback(() => {
+    if (!replySelection) return;
+    setReplyHidden(true);
+    if (scrollTimeoutRef.current) window.clearTimeout(scrollTimeoutRef.current);
+    scrollTimeoutRef.current = window.setTimeout(() => {
+      // Recalculate position after scroll settles
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+        setReplySelection(null);
+        setReplyHidden(false);
+        return;
+      }
+      showReplyForSelection(replyPlacementRef.current);
+      setReplyHidden(false);
+    }, 150);
+  }, [replySelection, showReplyForSelection]);
+
+  useEffect(() => {
+    const container = conversationRef.current;
+    if (!container) return;
+    container.addEventListener("mouseup", handleMouseUp);
+    container.addEventListener("touchend", handleTouchEnd);
+    container.addEventListener("scroll", handleConversationScroll);
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("touchstart", handleTouchStart);
+    return () => {
+      container.removeEventListener("mouseup", handleMouseUp);
+      container.removeEventListener("touchend", handleTouchEnd);
+      container.removeEventListener("scroll", handleConversationScroll);
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("touchstart", handleTouchStart);
+      if (scrollTimeoutRef.current) window.clearTimeout(scrollTimeoutRef.current);
+    };
+  }, [handleMouseUp, handleTouchEnd, handleMouseDown, handleTouchStart, handleConversationScroll]);
+
+  const handleReply = useCallback(() => {
+    if (!replySelection) return;
+    const quoted = replySelection.text
+      .split("\n")
+      .map((line) => `> ${line}`)
+      .join("\n");
+    promptAreaRef.current?.insertText(`${quoted}\n\n`);
+    promptAreaRef.current?.focus();
+    setReplySelection(null);
+    window.getSelection()?.removeAllRanges();
+  }, [replySelection]);
 
   const copyMessage = (messageId: string | null, fallbackContent: string) => {
     const element = messageId
@@ -1043,7 +1156,7 @@ export const ChatInterface = ({
           <span className="text-sm font-medium">Drop files to attach</span>
         </div>
       </div>
-      <Conversation ref={conversationRef} className="flex-1">
+      <Conversation ref={conversationRef} className="flex-1 relative">
         {messages.length === 0 && !isConversationLoading ? (
           <div className="h-full flex items-center justify-center">
             <Welcome
@@ -1077,6 +1190,29 @@ export const ChatInterface = ({
               <div style={{ minHeight: "calc(-450px + 100vh)" }} />
             )}
           </ConversationContent>
+        )}
+        {replySelection && !replyHidden && (
+          <button
+            type="button"
+            data-reply-btn
+            onMouseDown={(e) => {
+              e.preventDefault();
+              handleReply();
+            }}
+            className="absolute z-50 flex items-center gap-1.5 rounded-md border bg-input/60 px-2.5 py-1.5 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input hover:bg-input backdrop-blur-sm animate-fade-in transition-colors !duration-100"
+            style={{
+              left: `${replySelection.x}px`,
+              top: replySelection.placement === "above"
+                ? `${replySelection.y - 8}px`
+                : `${replySelection.y + 8}px`,
+              transform: replySelection.placement === "above"
+                ? "translate(-50%, -100%)"
+                : "translate(-50%, 0)",
+            }}
+          >
+            <ReplyIcon className="size-3.5" />
+            Reply
+          </button>
         )}
         <ConversationScrollButton />
       </Conversation>

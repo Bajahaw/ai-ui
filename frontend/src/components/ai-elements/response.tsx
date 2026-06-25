@@ -311,6 +311,17 @@ const components: Options["components"] = {
     );
   },
 
+  blockquote: ({ node, children, className, ...props }) => (
+    <blockquote
+      className={cn(
+        "my-4 border-l-4 border-muted-foreground/30 pl-4 text-muted-foreground",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </blockquote>
+  ),
   h1: ({ node, children, className, ...props }) => (
     <h1
       className={cn(
