@@ -56,7 +56,6 @@ const THEME_VARS = [
   "border",
   "input",
   "ring",
-  "radius",
   "chart-1",
   "chart-2",
   "chart-3",
@@ -84,7 +83,7 @@ function buildSrcdoc(code: string, isDark: boolean): string {
   const vars = readThemeVars();
 
   const cssVarBlock = Object.entries(vars)
-    .map(([k, v]) => `  --${k}: ${v};`)
+    .map(([k, v]) => `  --${k}: hsl(${v});`)
     .join("\n");
 
   const themeJs = Object.entries(vars)
@@ -104,8 +103,8 @@ ${cssVarBlock}
 body {
   margin: 0;
   padding: 16px;
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
+  background: var(--background);
+  color: var(--foreground);
   font-family: ui-sans-serif, -apple-system, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif;
   font-size: 14px;
   font-weight: 400;
@@ -249,11 +248,20 @@ export function WidgetRenderer({
     return () => window.removeEventListener("message", handler);
   }, []);
 
-  const srcdoc = useMemo(() => {
-    if (!normalizedCode) return "";
-    setError(null);
-    setIframeHeight(lastHeight.current);
-    return buildSrcdoc(normalizedCode, isDark);
+  const [srcdoc, setSrcdoc] = useState("");
+
+  useEffect(() => {
+    if (!normalizedCode) {
+      setSrcdoc("");
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setError(null);
+      setSrcdoc(buildSrcdoc(normalizedCode, isDark));
+    }, 300);
+
+    return () => clearTimeout(timer);
   }, [normalizedCode, isDark]);
 
   const copyRawCode = useCallback(async () => {
@@ -322,18 +330,25 @@ export function WidgetRenderer({
         </div>
       )}
 
-      <iframe
-        ref={iframeRef}
-        srcDoc={srcdoc}
-        sandbox="allow-scripts"
-        className="w-full rounded-xl border border-border"
-        style={{
-          height: `${iframeHeight}px`,
-          overflow: "hidden",
-          border: "none",
-        }}
-        title="Widget"
-      />
+      {srcdoc ? (
+        <iframe
+          ref={iframeRef}
+          srcDoc={srcdoc}
+          sandbox="allow-scripts"
+          className="w-full rounded-xl border border-border"
+          style={{
+            height: `${iframeHeight}px`,
+            overflow: "hidden",
+            border: "none",
+          }}
+          title="Widget"
+        />
+      ) : (
+        <div
+          className="w-full rounded-xl border border-border bg-background"
+          style={{ height: `${iframeHeight}px` }}
+        />
+      )}
     </div>
   );
 }
