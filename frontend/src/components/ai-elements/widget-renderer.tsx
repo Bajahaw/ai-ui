@@ -2,8 +2,8 @@ import { cn } from "@/lib/utils";
 import {
   CheckIcon,
   CopyIcon,
-  DownloadIcon,
   ExternalLinkIcon,
+  FileDownIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import {
@@ -15,7 +15,7 @@ import {
   type HTMLAttributes,
 } from "react";
 import { Action } from "./actions";
-import { downloadTextFile, useCopyFeedback } from "./diagram-actions";
+import { useCopyFeedback } from "./diagram-actions";
 
 type WidgetRendererProps = HTMLAttributes<HTMLDivElement> & {
   code: unknown;
@@ -114,6 +114,10 @@ body {
   -ms-overflow-style: none;
 }
 ::-webkit-scrollbar { display: none; }
+@media print {
+  @page { margin: 0; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
 </style>
 </head>
 <body>
@@ -162,6 +166,13 @@ ${code}
       message: Array.from(arguments).join(' ')
     }, '*');
   };
+
+  // Listen for print command from parent
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === '__widget_print') {
+      window.print();
+    }
+  });
 
   // Catch unhandled errors
   window.addEventListener('error', function(e) {
@@ -269,14 +280,11 @@ export function WidgetRenderer({
     await copyText(normalizedCode);
   }, [normalizedCode, isCopying, copyText]);
 
-  const downloadHtml = useCallback(() => {
-    if (!srcdoc) return;
-    downloadTextFile(
-      srcdoc,
-      "text/html;charset=utf-8",
-      `widget-${Date.now()}.html`,
-    );
-  }, [srcdoc]);
+  const saveAsPdf = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+    iframe.contentWindow.postMessage({ type: '__widget_print' }, '*');
+  }, []);
 
   const openInNewTab = useCallback(() => {
     if (!srcdoc) return;
@@ -304,12 +312,12 @@ export function WidgetRenderer({
         <Action
           className="h-7 w-7"
           size="icon"
-          onClick={downloadHtml}
+          onClick={saveAsPdf}
           disabled={!srcdoc}
-          label="Download as HTML"
-          tooltip="Download HTML"
+          label="Save as PDF"
+          tooltip="Save as PDF"
         >
-          <DownloadIcon size={14} />
+          <FileDownIcon size={14} />
         </Action>
         <Action
           className="h-7 w-7"
@@ -334,7 +342,7 @@ export function WidgetRenderer({
         <iframe
           ref={iframeRef}
           srcDoc={srcdoc}
-          sandbox="allow-scripts allow-forms"
+          sandbox="allow-scripts allow-forms allow-modals"
           allow="clipboard-write *"
           className="w-full rounded-xl border border-border"
           style={{
