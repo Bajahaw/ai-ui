@@ -3,6 +3,7 @@
 import { CodeBlock, CodeBlockCopyButton } from "./code-block.tsx";
 import { MermaidDiagram } from "./mermaid-diagram.tsx";
 import { SvgRenderer } from "./svg-renderer.tsx";
+import { WidgetRenderer } from "./widget-renderer.tsx";
 import { FileCard } from "./file-card.tsx";
 import type { HTMLAttributes } from "react";
 import { memo } from "react";
@@ -429,6 +430,12 @@ const components: Options["components"] = {
 
     if (language.toLowerCase() === "svg") {
       return <SvgRenderer code={code} className={cn("w-full", className)} />;
+    }
+
+    if (language.toLowerCase() === "widget") {
+      return (
+        <WidgetRenderer code={code} className={cn("w-full", className)} />
+      );
     }
 
     return (

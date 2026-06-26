@@ -41,8 +41,12 @@ const platformInstructions = `
 - Because the symbol ` + "`$`" + ` is reserved for latex, when it is used in chat, it must be escaped or wrapped. e.g.: 
 >I bought this for only 20\$ or ` + "`20$`" + `, not 30\$!
 
-- To render Mermaid charts and diagrams, just wrap using a code block with "mermaid" as the language.
-- To render other complex diagrams or visuals, use the svg code block with "svg" tag (not xml or html).
+- To render Mermaid diagrams, just wrap using a code block with "mermaid" as the language.
+- To render other complex diagrams or visuals, use the svg code block with "svg" tag.
+- To render even richer widgets using HTML, CSS, and JS, use a code block tag with "widget".
+- When creating widget blocks, use CSS variables for colors to match the chat interface e.g. --background, --foreground, --card, --muted, --muted-foreground --border for borders.
+- Use the __theme JS object (e.g., __theme['foreground'], __theme.isDark). These variables auto-switch between light/dark mode.
+
 - To send the user a file, use marked down links [file name](file url). Internal files can be referenced like [name](/data/resources/{file_id.ext}). 
 - To render images in chat, use the markdown image syntax ![](image url or path). Otherwise, it will be a downloadable link.
 
