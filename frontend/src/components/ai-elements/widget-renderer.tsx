@@ -334,7 +334,8 @@ export function WidgetRenderer({
         <iframe
           ref={iframeRef}
           srcDoc={srcdoc}
-          sandbox="allow-scripts"
+          sandbox="allow-scripts allow-forms"
+          allow="clipboard-write *"
           className="w-full rounded-xl border border-border"
           style={{
             height: `${iframeHeight}px`,
