@@ -342,7 +342,7 @@ export function WidgetRenderer({
         <iframe
           ref={iframeRef}
           srcDoc={srcdoc}
-          sandbox="allow-scripts allow-forms allow-modals"
+          sandbox="allow-scripts allow-forms allow-modals allow-downloads"
           allow="clipboard-write *"
           className="w-full my-8 rounded-xl border border-border"
           style={{
