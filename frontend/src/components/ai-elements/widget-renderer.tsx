@@ -102,7 +102,7 @@ ${cssVarBlock}
 *, *::before, *::after { box-sizing: border-box; }
 body {
   margin: 0;
-  padding: 16px;
+  padding: 0;
   background: var(--background);
   color: var(--foreground);
   font-family: ui-sans-serif, -apple-system, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif;
@@ -298,7 +298,7 @@ export function WidgetRenderer({
 
   return (
     <div className={cn("group relative my-4 w-full", className)} {...props}>
-      <div className="absolute right-1 top-1 z-10 flex gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className="absolute right-1 -top-8 z-10 flex gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
         <Action
           className="h-7 w-7"
           size="icon"
@@ -344,7 +344,7 @@ export function WidgetRenderer({
           srcDoc={srcdoc}
           sandbox="allow-scripts allow-forms allow-modals"
           allow="clipboard-write *"
-          className="w-full rounded-xl border border-border"
+          className="w-full my-8 rounded-xl border border-border"
           style={{
             height: `${iframeHeight}px`,
             overflow: "hidden",
