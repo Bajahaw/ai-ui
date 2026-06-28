@@ -339,6 +339,10 @@ func validateOfficeZip(data []byte) error {
 		files[f.Name] = f
 	}
 
+	overrideTypes := make(map[string]string)        // partPath -> ContentType from [Content_Types].xml
+	allRelsIDs := make(map[string]map[string]bool)  // relsPath -> set of Relationship Ids
+	partRelRefs := make(map[string]map[string]bool) // partPath -> set of r:id values referenced
+
 	xlParts := make(map[string][]byte)
 
 	for _, f := range r.File {
@@ -359,14 +363,30 @@ func validateOfficeZip(data []byte) error {
 		}
 
 		// 1. Verify XML syntax (detects unclosed tags, malformed XML)
+		//    Also collect relationship references (r:id, r:embed, r:link) for forward validation.
+		isRelsFile := strings.HasSuffix(lower, ".rels")
 		d := xml.NewDecoder(bytes.NewReader(content))
 		for {
-			_, err := d.Token()
+			tok, err := d.Token()
 			if err == io.EOF {
 				break
 			}
 			if err != nil {
 				return fmt.Errorf("XML syntax error in '%s': %v", name, err)
+			}
+			if !isRelsFile {
+				if start, ok := tok.(xml.StartElement); ok {
+					for _, attr := range start.Attr {
+						if attr.Name.Space == relNamespace &&
+							(attr.Name.Local == "id" || attr.Name.Local == "embed" || attr.Name.Local == "link") &&
+							attr.Value != "" {
+							if partRelRefs[name] == nil {
+								partRelRefs[name] = make(map[string]bool)
+							}
+							partRelRefs[name][attr.Value] = true
+						}
+					}
+				}
 			}
 		}
 
@@ -377,7 +397,8 @@ func validateOfficeZip(data []byte) error {
 					Extension string `xml:"Extension,attr"`
 				} `xml:"Default"`
 				Overrides []struct {
-					PartName string `xml:"PartName,attr"`
+					PartName    string `xml:"PartName,attr"`
+					ContentType string `xml:"ContentType,attr"`
 				} `xml:"Override"`
 			}
 			if err := xml.Unmarshal(content, &types); err == nil {
@@ -385,6 +406,7 @@ func validateOfficeZip(data []byte) error {
 				for _, o := range types.Overrides {
 					target := strings.TrimPrefix(o.PartName, "/")
 					overridePaths[target] = true
+					overrideTypes[target] = o.ContentType
 					if _, ok := files[target]; !ok {
 						return fmt.Errorf("reference error in '%s': PartName '%s' not found inside the document", name, o.PartName)
 					}
@@ -422,10 +444,12 @@ func validateOfficeZip(data []byte) error {
 		if strings.HasSuffix(lower, ".rels") {
 			var rels struct {
 				Rels []struct {
+					Id     string `xml:"Id,attr"`
 					Target string `xml:"Target,attr"`
 				} `xml:"Relationship"`
 			}
 			if err := xml.Unmarshal(content, &rels); err == nil {
+				ids := make(map[string]bool)
 				dir := path.Dir(name)
 				baseDir := path.Dir(dir)
 				if baseDir == "." {
@@ -435,6 +459,7 @@ func validateOfficeZip(data []byte) error {
 				}
 
 				for _, r := range rels.Rels {
+					ids[r.Id] = true
 					if strings.HasPrefix(r.Target, "http://") || strings.HasPrefix(r.Target, "https://") {
 						continue
 					}
@@ -452,6 +477,7 @@ func validateOfficeZip(data []byte) error {
 						}
 					}
 				}
+				allRelsIDs[name] = ids
 			}
 		}
 	}
@@ -460,6 +486,40 @@ func validateOfficeZip(data []byte) error {
 	if len(xlParts) > 0 {
 		if err := validateXLSXSemantics(xlParts); err != nil {
 			return err
+		}
+	}
+
+	// 6. Verify known OOXML parts have the correct content type registered.
+	//    The generic <Default Extension="xml"> is not acceptable for parts that
+	//    require a specific content type (charts, drawings, worksheets, etc.).
+	for fName := range files {
+		expected := expectedContentType(fName)
+		if expected == "" {
+			continue
+		}
+		actual, ok := overrideTypes[fName]
+		if !ok {
+			return fmt.Errorf("content type error: part '%s' has no <Override> in [Content_Types].xml — required ContentType '%s'. Fix: add <Override PartName=\"/%s\" ContentType=\"%s\"/> to [Content_Types].xml. Common types: charts='application/vnd.openxmlformats-officedocument.drawingml.chart+xml', drawings='application/vnd.openxmlformats-officedocument.drawing+xml'", fName, expected, fName, expected)
+		}
+		if actual != expected {
+			return fmt.Errorf("content type error: part '%s' is registered with ContentType '%s' but must be '%s'. Fix: change <Override PartName=\"/%s\" ContentType=\"%s\"/> in [Content_Types].xml", fName, actual, expected, fName, expected)
+		}
+	}
+
+	// 7. Verify forward relationship references (r:id, r:embed, r:link) resolve.
+	//    Every r:id in a part must match a <Relationship Id="..."> in the part's
+	//    _rels/<name>.rels file. A missing rels file or unmatched id means Excel
+	//    will silently discard the referenced object (chart, drawing, image, etc.).
+	for partPath, refs := range partRelRefs {
+		relsPath := path.Join(path.Dir(partPath), "_rels", path.Base(partPath)+".rels")
+		ids, hasRels := allRelsIDs[relsPath]
+		if !hasRels {
+			return fmt.Errorf("relationship reference error in '%s': part uses r:id but relationship file '%s' does not exist. Fix: create '%s' with a <Relationship> entry for each referenced id. Example: <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing\" Target=\"../drawings/drawing1.xml\"/>", partPath, relsPath, relsPath)
+		}
+		for ref := range refs {
+			if !ids[ref] {
+				return fmt.Errorf("relationship reference error in '%s': references r:id='%s' which is not defined in '%s'. Fix: add <Relationship Id=\"%s\" Type=\"...\" Target=\"...\"/> to '%s'", partPath, ref, relsPath, ref, relsPath)
+			}
 		}
 	}
 
@@ -565,6 +625,44 @@ func validateXLSXSemantics(parts map[string][]byte) error {
 	}
 
 	return nil
+}
+
+// relNamespace is the XML namespace for relationship references in OOXML parts.
+var relNamespace = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+
+// expectedContentType returns the required content type for known OOXML part paths.
+// Returns "" if the path has no specific requirement (may use the Default extension mapping).
+func expectedContentType(partPath string) string {
+	exact := map[string]string{
+		"xl/workbook.xml":      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
+		"xl/styles.xml":        "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml",
+		"xl/sharedStrings.xml": "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml",
+		"word/document.xml":    "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+		"word/styles.xml":      "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml",
+		"ppt/presentation.xml": "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
+	}
+	if ct, ok := exact[partPath]; ok {
+		return ct
+	}
+	lower := strings.ToLower(partPath)
+	prefixes := []struct {
+		prefix string
+		ct     string
+	}{
+		{"xl/worksheets/", "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"},
+		{"xl/drawings/", "application/vnd.openxmlformats-officedocument.drawing+xml"},
+		{"xl/charts/", "application/vnd.openxmlformats-officedocument.drawingml.chart+xml"},
+		{"ppt/slides/", "application/vnd.openxmlformats-officedocument.presentationml.slide+xml"},
+		{"ppt/slidelayouts/", "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"},
+		{"ppt/slidemasters/", "application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"},
+		{"ppt/theme/", "application/vnd.openxmlformats-officedocument.theme+xml"},
+	}
+	for _, p := range prefixes {
+		if strings.HasPrefix(lower, p.prefix) && strings.HasSuffix(lower, ".xml") {
+			return p.ct
+		}
+	}
+	return ""
 }
 
 func resolveFilePath(fileID, user string) (string, error) {
