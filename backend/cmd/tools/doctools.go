@@ -170,12 +170,15 @@ func createDocumentTool(args, user string) providers.ToolOutput {
 
 func writeDocumentPartTool(args, user string) providers.ToolOutput {
 	var params struct {
-		FileID   string `json:"file_id"`
-		PartPath string `json:"part_path"`
-		Content  string `json:"content"`
+		FileID string            `json:"file_id"`
+		Parts  map[string]string `json:"parts"`
 	}
 	if err := json.Unmarshal([]byte(args), &params); err != nil {
 		return providers.ToolOutput{Content: fmt.Sprintf("error decoding arguments: %v", err)}
+	}
+
+	if len(params.Parts) == 0 {
+		return providers.ToolOutput{Content: "error: 'parts' is required and must contain at least one entry"}
 	}
 
 	filePath, err := resolveFilePath(params.FileID, user)
@@ -192,21 +195,19 @@ func writeDocumentPartTool(args, user string) providers.ToolOutput {
 	var buf bytes.Buffer
 	w := zip.NewWriter(&buf)
 
-	replaced := false
+	replaced := make(map[string]bool)
 	for _, f := range r.File {
 		fw, err := w.Create(f.Name)
 		if err != nil {
 			return providers.ToolOutput{Content: fmt.Sprintf("error writing archive: %v", err)}
 		}
 
-		if f.Name == params.PartPath {
-			// Replace with new content
-			if _, err := fw.Write([]byte(params.Content)); err != nil {
+		if newContent, ok := params.Parts[f.Name]; ok {
+			if _, err := fw.Write([]byte(newContent)); err != nil {
 				return providers.ToolOutput{Content: fmt.Sprintf("error writing part: %v", err)}
 			}
-			replaced = true
+			replaced[f.Name] = true
 		} else {
-			// Copy original
 			rc, err := f.Open()
 			if err != nil {
 				return providers.ToolOutput{Content: fmt.Sprintf("error reading original part: %v", err)}
@@ -219,13 +220,15 @@ func writeDocumentPartTool(args, user string) providers.ToolOutput {
 		}
 	}
 
-	// If part didn't exist, add it as a new entry
-	if !replaced {
-		fw, err := w.Create(params.PartPath)
+	for name, content := range params.Parts {
+		if replaced[name] {
+			continue
+		}
+		fw, err := w.Create(name)
 		if err != nil {
 			return providers.ToolOutput{Content: fmt.Sprintf("error adding new part: %v", err)}
 		}
-		if _, err := fw.Write([]byte(params.Content)); err != nil {
+		if _, err := fw.Write([]byte(content)); err != nil {
 			return providers.ToolOutput{Content: fmt.Sprintf("error writing new part: %v", err)}
 		}
 	}
@@ -242,13 +245,25 @@ func writeDocumentPartTool(args, user string) providers.ToolOutput {
 		return providers.ToolOutput{Content: fmt.Sprintf("error saving modified document: %v", err)}
 	}
 
-	action := "Updated"
-	if !replaced {
-		action = "Added"
+	var updated, added []string
+	for name := range params.Parts {
+		if replaced[name] {
+			updated = append(updated, name)
+		} else {
+			added = append(added, name)
+		}
+	}
+
+	var summary []string
+	if len(updated) > 0 {
+		summary = append(summary, fmt.Sprintf("Updated: %v", updated))
+	}
+	if len(added) > 0 {
+		summary = append(summary, fmt.Sprintf("Added: %v", added))
 	}
 
 	return providers.ToolOutput{
-		Content: fmt.Sprintf("%s part '%s' in file %s (%d bytes).", action, params.PartPath, params.FileID, buf.Len()),
+		Content: fmt.Sprintf("Wrote %d part(s) to file %s (%d bytes). %s", len(params.Parts), params.FileID, buf.Len(), strings.Join(summary, ". ")),
 	}
 }
 

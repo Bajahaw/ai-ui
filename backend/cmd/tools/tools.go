@@ -280,8 +280,8 @@ func GetBuiltInTools() []*Tool {
 			ID:          uuid.New().String(),
 			Name:        "write_document_part",
 			MCPServerID: "default",
-			Description: "Write or replace the content of a specific part inside a ZIP-based document. If the part does not exist, it is added. Returns a new file ID (the original is not modified). Use this to edit XML content like word/document.xml, add new slides, modify styles, etc.",
-			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the document file to modify"},"part_path":{"type":"string","description":"The path of the part to write, e.g. 'word/document.xml'"},"content":{"type":"string","description":"The new raw XML or text content for this part"}},"required":["file_id","part_path","content"]}`,
+			Description: "Write or replace one or more parts inside a ZIP-based document (.docx, .pptx, .xlsx). Provide a 'parts' map of part paths to their XML content. All parts are written together and the document is validated once after — either all changes are saved or none are. Use this to edit XML content, add new slides, modify styles, etc.",
+			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the document file to modify"},"parts":{"type":"object","description":"Map of part paths to their XML content. Keys are paths like 'xl/sharedStrings.xml', values are raw XML strings. Can contain one or many entries."}},"required":["file_id","parts"]}`,
 			IsEnabled:   true,
 		},
 		{
