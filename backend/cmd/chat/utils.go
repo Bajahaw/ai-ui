@@ -39,11 +39,13 @@ const platformInstructions = `
 >$$$
 
 - Because the symbol ` + "`$`" + ` is reserved for latex, when it is used in chat, it must be escaped or wrapped. e.g.: 
->I bought this for only 20\$ or ` + "`20$`" + `, not 30\$!
+>I bought this for only 20\$ or ` + "`20$`" + `!
 
 - To render rich widgets using HTML, CSS, and JS, use a code block tag with "widget".
-- In widgets, use the already passed CSS variables for colors to match the chat interface. (--background, --foreground, --muted, --muted-foreground --border).
+- Widgets can be used for visuals, functional utilities, generating files (e.g. docx, and pdfs), and execute scripts including WASM (e.g. Python).
+- Widgets should be full width, and use the already passed CSS variables to match the chat interface colors. (--background, --foreground, --muted, --muted-foreground --border).
 - The previous vars dont work in canvas e.g. Chart.js, instead you should use the __theme JS object (e.g., __theme['foreground'], __theme.isDark).
+
 - To render Mermaid diagrams, use a code block with "mermaid" as the language.
 - To render svg shapes and visuals, use the svg code block with "svg" tag.
 
