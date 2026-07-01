@@ -107,6 +107,25 @@ func (r *statusRecorder) Flush() {
 	}
 }
 
+
+func cacheControlMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/api/"):
+			// API responses are user-specific and dynamic; never cache them.
+			w.Header().Set("Cache-Control", "private, no-store, no-cache, must-revalidate")
+			w.Header().Set("Pragma", "no-cache")
+			w.Header().Set("Expires", "0")
+		case strings.HasPrefix(r.URL.Path, "/data/resources/"):
+			// User files can be cached by the browser
+			w.Header().Set("Cache-Control", "private, no-cache, must-revalidate")
+			w.Header().Set("Pragma", "no-cache")
+			w.Header().Set("Expires", "0")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func logMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -143,6 +162,7 @@ func Middleware(next http.Handler) http.Handler {
 		middlewares = append(middlewares, corsMiddleware)
 	}
 
+	middlewares = append(middlewares, cacheControlMiddleware)
 	middlewares = append(middlewares, logMiddleware)
 
 	for _, m := range middlewares {
