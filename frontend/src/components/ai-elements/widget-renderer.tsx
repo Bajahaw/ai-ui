@@ -193,8 +193,8 @@ export function WidgetRenderer({
   ...props
 }: WidgetRendererProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const lastHeight = useRef(200);
-  const [iframeHeight, setIframeHeight] = useState(200);
+  const lastHeight = useRef(60);
+  const [iframeHeight, setIframeHeight] = useState(60);
   const [error, setError] = useState<string | null>(null);
   const [isDark, setIsDark] = useState(false);
   const { isCopied, isCopying, copyText } = useCopyFeedback(1800);
