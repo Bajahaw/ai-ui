@@ -1,9 +1,16 @@
 .git
+node_modules
 frontend/node_modules
 frontend/dist
+frontend/tsconfig.tsbuildinfo
 backend/static
 backend/data
+*.exe
+data
+static
 vendor
 bin
+.idea
+.vscode
 *.log
 *.tmp

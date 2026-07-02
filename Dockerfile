@@ -2,14 +2,14 @@ FROM node:26-slim AS frontend-builder
 
 WORKDIR /app
 
-COPY package.json ./
+COPY package.json package-lock.json ./
 COPY frontend/package.json ./frontend/package.json
 
-RUN npm install --no-audit --no-fund --prefer-offline
+RUN npm ci --include=optional --no-audit --no-fund
 
 COPY frontend/ ./frontend
 
-RUN cd frontend && npx tsc -b && npx vite build
+RUN cd frontend && npm run build
 
 FROM golang:1.26.4-alpine AS backend-builder
 
