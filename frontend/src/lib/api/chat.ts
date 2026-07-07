@@ -37,8 +37,8 @@ export class ChatAPI {
       throw new Error("Valid model is required");
     }
 
-    if (!content) {
-      throw new Error("Valid message content is required");
+    if (!content && (!attachedFileIds || attachedFileIds.length === 0)) {
+      throw new Error("Valid message content or attachment is required");
     }
 
     const request: ChatRequest = {

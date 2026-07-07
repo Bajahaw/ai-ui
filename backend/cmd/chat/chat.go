@@ -41,7 +41,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	user := utils.ExtractContextUser(r)
 	var req Request
 	err := utils.ExtractJSONBody(r, &req)
-	if err != nil || req.ConversationID == "" || req.Content == "" {
+	if err != nil || req.ConversationID == "" || (req.Content == "" && len(req.AttachedFileIDs) == 0) {
 		log.Error("Error unmarshalling request body", "err", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return

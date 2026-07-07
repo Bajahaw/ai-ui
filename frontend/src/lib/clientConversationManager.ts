@@ -69,10 +69,13 @@ export class ClientConversationManager {
       timestamp: Date.now(),
     };
 
-    const title =
-      firstMessage.length > 60
+    const title = firstMessage
+      ? firstMessage.length > 60
         ? firstMessage.substring(0, 60) + "..."
-        : firstMessage;
+        : firstMessage
+      : attachments && attachments.length > 0
+        ? attachments[0].file.name
+        : "New conversation";
 
     const conversation: ClientConversation = {
       id: conversationId,

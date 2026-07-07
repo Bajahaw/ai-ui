@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -129,38 +130,35 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 
 		var imageURLs []string
 		var fileURLs []string
-		if ocrOnly {
-			// embed all content if ocrOnly (vision assistant) required
-			for _, att := range msg.Attachments {
-				msg.Content += embeddedAttachment(att)
+		for _, att := range msg.Attachments {
+			msg.Content += embeddedMetadata(att)
+
+			if ocrOnly {
+				msg.Content += embeddedContent(att.File.Content)
+				continue
 			}
 
-		} else {
+			if fs.IsRetrievableDoc(att.File.Type) && agenticRetrieval {
+				msg.Content += embeddedContent(att.File.Content)
+				continue
+			}
 
-			// embed docs and encode the rest if agentic retrieval is on, otherwise just provide links to files
-			for _, att := range msg.Attachments {
+			msg.Content += "]\n"
 
-				if fs.IsRetrievableDoc(att.File.Type) && agenticRetrieval {
-					// content of first page, model will figure to use tools to get rest of content if needed
-					msg.Content += embeddedAttachment(att)
-					continue
-				}
+			file, err := os.ReadFile(att.File.Path)
+			if err != nil {
+				log.Error("Error reading attachment file", "err", err)
+				continue
+			}
 
-				file, err := os.ReadFile(att.File.Path)
-				if err != nil {
-					log.Error("Error reading attachment file", "err", err)
-					continue
-				}
-
-				// Strip any parameters from the mime type (e.g., ;charset=utf-8)
-				mimeType := strings.Split(att.File.Type, ";")[0]
-				b64url := "data:" + strings.ReplaceAll(mimeType, " ", "") + ";base64," + toBase64(file)
-				log.Debug("Converted attachment to base64", "b64url", b64url[:50]+"...")
-				if strings.HasPrefix(att.File.Type, "image/") {
-					imageURLs = append(imageURLs, b64url)
-				} else {
-					fileURLs = append(fileURLs, b64url)
-				}
+			// Strip any parameters from the mime type (e.g., ;charset=utf-8)
+			mimeType := strings.Split(att.File.Type, ";")[0]
+			b64url := "data:" + strings.ReplaceAll(mimeType, " ", "") + ";base64," + toBase64(file)
+			log.Debug("Converted attachment to base64", "b64url", b64url[:50]+"...")
+			if strings.HasPrefix(att.File.Type, "image/") {
+				imageURLs = append(imageURLs, b64url)
+			} else {
+				fileURLs = append(fileURLs, b64url)
 			}
 		}
 
@@ -300,13 +298,17 @@ func toBase64(data []byte) string {
 	return base64.StdEncoding.EncodeToString(data)
 }
 
-func embeddedAttachment(att fs.Attachment) string {
+func embeddedMetadata(att fs.Attachment) string {
 	return "\n\n" +
 		"[user attachment: \n" +
 		"id: " + att.File.ID + "\n" +
 		"name: " + att.File.Name + "\n" +
 		"type: " + att.File.Type + "\n" +
-		"content: " + att.File.Content + "\n]\n"
+		"size: " + strconv.FormatInt(att.File.Size, 10) + "\n"
+}
+
+func embeddedContent(content string) string {
+	return "content: " + content + "\n]\n"
 }
 
 func toOpenAITools(tool []*tools.Tool) []openai.ChatCompletionToolUnionParam {

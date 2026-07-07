@@ -21,7 +21,7 @@ function App() {
   );
 
   const [isProcessing, setIsProcessing] = useState(false);
-  const [lastMessageContent, setLastMessageContent] = useState<string>("");
+  const [lastMessageSignature, setLastMessageSignature] = useState<string>("");
   const [lastMessageTime, setLastMessageTime] = useState<number>(0);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -147,12 +147,14 @@ function App() {
     }
 
     // Prevent duplicate messages within 1 second with same content (StrictMode protection)
-    if (message === lastMessageContent && timeSinceLastMessage < 1000) {
+    const attachmentKey = attachments?.map((a) => a.file.id).join(",") ?? "";
+    const messageSignature = `${message}|${attachmentKey}`;
+    if (messageSignature === lastMessageSignature && timeSinceLastMessage < 1000) {
       return;
     }
 
     setIsProcessing(true);
-    setLastMessageContent(message);
+    setLastMessageSignature(messageSignature);
     setLastMessageTime(currentTime);
 
     try {
