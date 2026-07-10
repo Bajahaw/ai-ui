@@ -11,7 +11,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { AlertCircle, Loader2, Upload } from "lucide-react";
-import { SkillRequest } from "@/lib/api/types";
+import { SkillRequest, SkillResponse } from "@/lib/api/types";
+import { getSkill } from "@/lib/api/skills";
 
 interface SkillFormProps {
   open: boolean;
@@ -19,6 +20,7 @@ interface SkillFormProps {
   onSubmit: (data: SkillRequest) => Promise<void>;
   title: string;
   submitLabel: string;
+  skill?: SkillResponse | null;
 }
 
 export const SkillForm = ({
@@ -27,24 +29,57 @@ export const SkillForm = ({
   onSubmit,
   title,
   submitLabel,
+  skill,
 }: SkillFormProps) => {
   const [formData, setFormData] = useState<SkillRequest>({
+    id: "",
     name: "",
     description: "",
     content: "",
   });
   const [fileName, setFileName] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingContent, setIsLoadingContent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // When opening for edit, fetch the full skill content; when opening for
+  // create, reset the form.
   useEffect(() => {
     if (!open) {
-      setFormData({ name: "", description: "", content: "" });
+      setFormData({ id: "", name: "", description: "", content: "" });
+      setFileName(null);
+      setError(null);
+      return;
+    }
+    if (skill) {
+      setIsLoadingContent(true);
+      setError(null);
+      getSkill(skill.id)
+        .then((detail) => {
+          setFormData({
+            id: detail.id,
+            name: detail.name,
+            description: detail.description,
+            content: detail.content,
+          });
+        })
+        .catch(() => {
+          setError("Failed to load skill content");
+          setFormData({
+            id: skill.id,
+            name: skill.name,
+            description: skill.description,
+            content: "",
+          });
+        })
+        .finally(() => setIsLoadingContent(false));
+    } else {
+      setFormData({ id: "", name: "", description: "", content: "" });
       setFileName(null);
       setError(null);
     }
-  }, [open]);
+  }, [open, skill]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -78,7 +113,7 @@ export const SkillForm = ({
     }
 
     if (!formData.content.trim()) {
-      setError("Please upload a markdown file");
+      setError("Content cannot be empty");
       return;
     }
 
@@ -93,99 +128,106 @@ export const SkillForm = ({
     }
   };
 
-  const handleCancel = () => {
-    setFormData({ name: "", description: "", content: "" });
-    setFileName(null);
-    setError(null);
-    onOpenChange(false);
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] p-6 rounded-xl">
-        <DialogHeader className="pb-2">
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-[600px] p-0 flex flex-col rounded-xl">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <DialogHeader className="px-6 pt-6 pb-2 flex-shrink-0">
+            <DialogTitle>{title}</DialogTitle>
+          </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+            <div className="mx-6 mb-2 flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md flex-shrink-0">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="skill-file">Markdown File</Label>
-            <input
-              ref={fileInputRef}
-              id="skill-file"
-              type="file"
-              accept=".md,text/markdown"
-              onChange={handleFileChange}
-              disabled={isSubmitting}
-              className="hidden"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isSubmitting}
-              className="w-full gap-2"
-            >
-              <Upload className="h-4 w-4" />
-              {fileName ? fileName : "Choose .md file"}
-            </Button>
-            {fileName && (
-              <p className="text-xs text-muted-foreground">
-                {formData.content.length.toLocaleString()} characters loaded
-              </p>
+          <div className="px-6 space-y-4 flex-shrink-0">
+            <div className="space-y-1.5">
+              <Label htmlFor="skill-name">Name</Label>
+              <Input
+                id="skill-name"
+                type="text"
+                placeholder="react-doctor"
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, name: e.target.value }))
+                }
+                disabled={isSubmitting || isLoadingContent}
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="skill-description">Description</Label>
+              <Textarea
+                id="skill-description"
+                placeholder="Short description of what this skill teaches..."
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
+                className="min-h-[60px] text-sm resize-none !bg-secondary/50 rounded-xl border-border/80 focus-visible:border-border"
+                disabled={isSubmitting || isLoadingContent}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="skill-content">Content</Label>
+            </div>
+          </div>
+
+          <div className="px-6 pb-4">
+            {isLoadingContent ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Loading content...</span>
+              </div>
+            ) : (
+              <Textarea
+                id="skill-content"
+                placeholder="Paste or write the skill markdown here..."
+                value={formData.content}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    content: e.target.value,
+                  }))
+                }
+                className="h-40 text-sm font-mono resize-y overflow-y-auto !bg-secondary/50 rounded-xl border-border/80 focus-visible:border-border"
+                disabled={isSubmitting}
+              />
             )}
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="skill-name">Name</Label>
-            <Input
-              id="skill-name"
-              type="text"
-              placeholder="react-doctor"
-              value={formData.name}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, name: e.target.value }))
-              }
-              disabled={isSubmitting}
-              required
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="skill-description">Description</Label>
-            <Textarea
-              id="skill-description"
-              placeholder="Short description of what this skill teaches..."
-              value={formData.description}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  description: e.target.value,
-                }))
-              }
-              className="min-h-[60px] text-sm resize-none"
-              disabled={isSubmitting}
-            />
-          </div>
-
-          <DialogFooter>
+          <DialogFooter className="px-6 pb-6 pt-2 flex-shrink-0 gap-2">
+            <div className="flex-1" />
             <Button
               type="button"
               variant="outline"
-              onClick={handleCancel}
-              disabled={isSubmitting}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isSubmitting || isLoadingContent}
+              className="gap-2"
             >
-              Cancel
+              <Upload className="h-4 w-4" />
+              {fileName ? "Replace" : "Upload"}
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".md,text/markdown"
+              onChange={handleFileChange}
+              disabled={isSubmitting || isLoadingContent}
+              className="hidden"
+            />
+            <Button
+              type="submit"
+              disabled={isSubmitting || isLoadingContent}
+            >
               {isSubmitting && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}

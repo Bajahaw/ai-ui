@@ -18,7 +18,15 @@ type SkillListResponse struct {
 	Skills []SkillResponse `json:"skills"`
 }
 
+type SkillDetailResponse struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Content     string `json:"content"`
+}
+
 type SkillRequest struct {
+	ID          string `json:"id,omitempty"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Content     string `json:"content"`

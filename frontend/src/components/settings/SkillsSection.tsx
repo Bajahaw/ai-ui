@@ -1,18 +1,24 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "../ui/card";
-import { BookOpen, Plus, Trash2 } from "lucide-react";
+import { BookOpen, Edit, Plus, Trash2 } from "lucide-react";
 import { SkillForm } from "./SkillForm";
-import { SkillRequest } from "@/lib/api/types";
+import { SkillRequest, SkillResponse } from "@/lib/api/types";
 import { useSettingsData } from "@/hooks/useSettingsData";
 
 export const SkillsSection = () => {
-  const { data, addSkill, deleteSkill } = useSettingsData();
+  const { data, addSkill, updateSkill, deleteSkill } = useSettingsData();
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingSkill, setEditingSkill] = useState<SkillResponse | null>(null);
 
   const handleAddSkill = async (skillData: SkillRequest) => {
     await addSkill(skillData);
     setShowAddForm(false);
+  };
+
+  const handleEditSkill = async (skillData: SkillRequest) => {
+    await updateSkill(skillData);
+    setEditingSkill(null);
   };
 
   const handleDeleteSkill = async (id: string, name: string) => {
@@ -75,6 +81,14 @@ export const SkillsSection = () => {
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => setEditingSkill(skill)}
+                      title="Edit skill"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleDeleteSkill(skill.id, skill.name)}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
                       title="Delete skill"
@@ -94,12 +108,23 @@ export const SkillsSection = () => {
         </div>
       )}
 
+      {/* Add Skill Form */}
       <SkillForm
         open={showAddForm}
         onOpenChange={setShowAddForm}
         onSubmit={handleAddSkill}
         title="Add Skill"
         submitLabel="Add Skill"
+      />
+
+      {/* Edit Skill Form */}
+      <SkillForm
+        open={!!editingSkill}
+        onOpenChange={(open) => !open && setEditingSkill(null)}
+        onSubmit={handleEditSkill}
+        skill={editingSkill}
+        title="Edit Skill"
+        submitLabel="Save Changes"
       />
     </div>
   );

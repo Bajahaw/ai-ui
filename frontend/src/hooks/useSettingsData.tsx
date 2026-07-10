@@ -25,8 +25,7 @@ import {
   deleteSkill as deleteSkillApi,
   getSkills,
   saveSkill as saveSkillApi,
-} from "@/lib/api/skills";
-import {
+} from "@/lib/api/skills";import {
   getSettings,
   updateSetting,
   updateSystemPrompt,
@@ -82,6 +81,7 @@ interface SettingsDataContext {
 
   // Skills
   addSkill: (data: SkillRequest) => Promise<void>;
+  updateSkill: (data: SkillRequest) => Promise<void>;
   deleteSkill: (id: string) => Promise<void>;
 
   // Models - delegates to global context
@@ -298,6 +298,14 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
     [refreshSkills],
   );
 
+  const updateSkill = useCallback(
+    async (skillData: SkillRequest) => {
+      await saveSkillApi(skillData);
+      await refreshSkills();
+    },
+    [refreshSkills],
+  );
+
   const deleteSkill = useCallback(
     async (id: string) => {
       await deleteSkillApi(id);
@@ -348,6 +356,7 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
         updateToolsLocal,
         saveTools,
         addSkill,
+        updateSkill,
         deleteSkill,
         updateModelsLocal: globalUpdateModels,
         saveModels: globalSaveModels,

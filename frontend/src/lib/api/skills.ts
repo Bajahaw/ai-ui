@@ -1,4 +1,9 @@
-import { SkillListResponse, SkillRequest, SkillResponse } from "./types";
+import {
+  SkillDetailResponse,
+  SkillListResponse,
+  SkillRequest,
+  SkillResponse,
+} from "./types";
 import { getHeaders } from "./headers";
 
 // Get all skills (list view, no content)
@@ -19,7 +24,25 @@ export const getSkills = async (): Promise<SkillResponse[]> => {
   return data.skills;
 };
 
-// Save (add/replace) a skill from uploaded markdown content
+// Get a single skill with full content (for editing)
+export const getSkill = async (id: string): Promise<SkillDetailResponse> => {
+  const response = await fetch(`/api/skills/${id}`, {
+    method: "GET",
+    headers: getHeaders({
+      "Content-Type": "application/json",
+    }),
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch skill: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+// Save (create) or update a skill. When id is provided, the existing skill
+// is updated; otherwise a new skill is created.
 export const saveSkill = async (
   skillData: SkillRequest,
 ): Promise<SkillResponse> => {

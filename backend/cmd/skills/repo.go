@@ -9,6 +9,7 @@ type Repository interface {
 	GetByID(id, user string) (*Skill, error)
 	GetByName(name, user string) (*Skill, error)
 	Save(skill *Skill) error
+	Update(id, user string, skill *Skill) error
 	DeleteByID(id, user string) error
 }
 
@@ -69,6 +70,21 @@ func (r *RepositoryImpl) Save(skill *Skill) error {
 	ON CONFLICT(user, name) DO UPDATE SET description=excluded.description, content=excluded.content`,
 		skill.ID, skill.Name, skill.Description, skill.Content, skill.User)
 	return err
+}
+
+// Update modifies an existing skill identified by id+user, allowing the name
+// to change. The (user, name) uniqueness constraint still applies.
+func (r *RepositoryImpl) Update(id, user string, skill *Skill) error {
+	res, err := r.db.Exec(`UPDATE Skills SET name=?, description=?, content=? WHERE id=? AND user=?`,
+		skill.Name, skill.Description, skill.Content, id, user)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func (r *RepositoryImpl) DeleteByID(id, user string) error {

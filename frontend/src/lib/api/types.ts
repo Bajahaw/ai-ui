@@ -273,7 +273,15 @@ export interface SkillListResponse {
   skills: SkillResponse[];
 }
 
+export interface SkillDetailResponse {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
+}
+
 export interface SkillRequest {
+  id?: string;
   name: string;
   description: string;
   content: string;

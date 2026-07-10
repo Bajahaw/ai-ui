@@ -12,6 +12,7 @@ func Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /all", listSkills)
+	mux.HandleFunc("GET /{id}", getSkill)
 	mux.HandleFunc("POST /save", saveSkill)
 	mux.HandleFunc("DELETE /{id}", deleteSkill)
 
@@ -34,6 +35,22 @@ func listSkills(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, resp, http.StatusOK)
 }
 
+func getSkill(w http.ResponseWriter, r *http.Request) {
+	user := utils.ExtractContextUser(r)
+	id := r.PathValue("id")
+	s, err := repo.GetByID(id, user)
+	if err != nil {
+		http.Error(w, "Skill not found", http.StatusNotFound)
+		return
+	}
+	utils.RespondWithJSON(w, SkillDetailResponse{
+		ID:          s.ID,
+		Name:        s.Name,
+		Description: s.Description,
+		Content:     s.Content,
+	}, http.StatusOK)
+}
+
 func saveSkill(w http.ResponseWriter, r *http.Request) {
 	user := utils.ExtractContextUser(r)
 	var req SkillRequest
@@ -43,6 +60,22 @@ func saveSkill(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Name == "" || req.Content == "" {
 		http.Error(w, "Name and content are required", http.StatusBadRequest)
+		return
+	}
+
+	// Update existing skill when ID is provided; otherwise create new.
+	if req.ID != "" {
+		skill := &Skill{
+			Name:        req.Name,
+			Description: req.Description,
+			Content:     req.Content,
+		}
+		if err := repo.Update(req.ID, user, skill); err != nil {
+			log.Error("Error updating skill", "err", err)
+			http.Error(w, "Error updating skill", http.StatusInternalServerError)
+			return
+		}
+		utils.RespondWithJSON(w, SkillResponse{ID: req.ID, Name: req.Name, Description: req.Description}, http.StatusOK)
 		return
 	}
 
