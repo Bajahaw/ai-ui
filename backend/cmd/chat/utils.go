@@ -44,7 +44,7 @@ const platformInstructions = `
 
 - To render rich widgets using HTML, CSS, and JS, use a code block tag with "widget" like this: (`+"```widget"+`).
 - Widgets can be used for visuals, functional utilities, generating files (e.g. docx, and pdfs), and execute scripts including WASM (e.g. Python).
-- Widgets should be full chat width, and use the already passed CSS variables to match the chat interface. (--background, --foreground, --muted, --muted-foreground --border).
+- Widgets should be full chat width, no margin, no outer border, adapt to light/dark thems via these already-passed css vars: (--background, --foreground, --muted, --muted-foreground --border).
 - The previous vars dont work in canvas e.g. Chart.js, instead you should use the __theme JS object (e.g., __theme['foreground'], __theme.isDark).
 
 - To render Mermaid diagrams, use a code block with "mermaid" as the language tag.

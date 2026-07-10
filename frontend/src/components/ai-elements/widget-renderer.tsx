@@ -344,7 +344,7 @@ export function WidgetRenderer({
           srcDoc={srcdoc}
           sandbox="allow-scripts allow-forms allow-modals allow-downloads"
           allow="clipboard-write *"
-          className="w-full my-8 rounded-xl border border-border"
+          className="w-full my-8 border border-border"
           style={{
             height: `${iframeHeight}px`,
             overflow: "hidden",
@@ -354,7 +354,7 @@ export function WidgetRenderer({
         />
       ) : (
         <div
-          className="w-full rounded-xl border border-border bg-background"
+          className="w-full border border-border bg-background"
           style={{ height: `${iframeHeight}px` }}
         />
       )}
