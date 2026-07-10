@@ -19,6 +19,7 @@ import (
 	"github.com/Bajahaw/ai-ui/cmd/files"
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/Bajahaw/ai-ui/cmd/settings"
+	"github.com/Bajahaw/ai-ui/cmd/skills"
 	"github.com/Bajahaw/ai-ui/cmd/tools"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"github.com/Bajahaw/ai-ui/cmd/version"
@@ -44,6 +45,7 @@ func main() {
 	setupFiles()
 	setupChatClient()
 	setupTools()
+	setupSkills()
 
 	startServer()
 }
@@ -73,6 +75,11 @@ func setupLogger() {
 func setupTools() {
 	tools.SetUpTools(log, db)
 	log.Info("Tools set up successfully")
+}
+
+func setupSkills() {
+	skills.SetupSkills(log, db)
+	log.Info("Skills set up successfully")
 }
 
 func setupUtils() {
@@ -176,6 +183,7 @@ func startServer() {
 	mux.Handle("/api/models/", providers.ModelsHandler())
 	mux.Handle("/api/settings/", settings.SettingsHandler())
 	mux.Handle("/api/tools/", tools.Handler())
+	mux.Handle("/api/skills/", skills.Handler())
 	mux.Handle("/api/auth/", auth.Handler())
 	mux.HandleFunc("/api/version", version.HandleGetVersion)
 

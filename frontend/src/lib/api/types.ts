@@ -262,6 +262,23 @@ export interface ToolListResponse {
   tools: Tool[];
 }
 
+// Skill types
+export interface SkillResponse {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface SkillListResponse {
+  skills: SkillResponse[];
+}
+
+export interface SkillRequest {
+  name: string;
+  description: string;
+  content: string;
+}
+
 // Tool types
 export interface Tool {
   id: string;

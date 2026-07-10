@@ -9,9 +9,10 @@ import (
 	"time"
 
 	fs "github.com/Bajahaw/ai-ui/cmd/files"
+	"github.com/Bajahaw/ai-ui/cmd/providers"
+	"github.com/Bajahaw/ai-ui/cmd/skills"
 	"github.com/google/uuid"
 
-	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/evgensoft/ddgo"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -113,6 +114,10 @@ func ExecuteMCPTool(toolCall providers.ToolCall, user, convID string) providers.
 			return ddgsTool(toolCall.Args)
 		case "get_weather":
 			return weatherTool()
+		case "list_skills":
+			return listSkillsTool(user)
+		case "read_skill":
+			return readSkillTool(toolCall.Args, user)
 		case "search_document":
 			return searchDocumentTool(toolCall.Args)
 		case "read_document_page":
@@ -300,6 +305,22 @@ func GetBuiltInTools() []*Tool {
 			InputSchema: `{"type":"object","properties":{"prompt":{"type":"string","description":"A detailed prompt for the image generation model"}},"required":["prompt"]}`,
 			IsEnabled:   true,
 		},
+		{
+			ID:          uuid.New().String(),
+			Name:        "list_skills",
+			MCPServerID: "default",
+			Description: "List all available skills (markdown documents that teach specialized workflows or styles). Returns each skill's name and a short description. Use this to discover what skills the user has configured.",
+			InputSchema: `{"type":"object","properties":{}}`,
+			IsEnabled:   true,
+		},
+		{
+			ID:          uuid.New().String(),
+			Name:        "read_skill",
+			MCPServerID: "default",
+			Description: "Read the full content (markdown) of a specific skill by its name. Use this after list_skills to load the instructions of a skill that matches the user's task.",
+			InputSchema: `{"type":"object","properties":{"name":{"type":"string","description":"The exact name of the skill to read"}},"required":["name"]}`,
+			IsEnabled:   true,
+		},
 	}
 }
 
@@ -425,4 +446,42 @@ func viewDocumentPageTool(args, user, convID string) providers.ToolOutput {
 	}
 
 	return providers.ToolOutput{File: imgData.ID, Content: fmt.Sprintf("Rendered page %d of document %s as image. Screenshot ID: %s Path: /%s", params.PageNumber, docs[0].Name, imgData.ID, imgData.Path)}
+}
+
+func listSkillsTool(user string) providers.ToolOutput {
+	all := skills.GetAll(user)
+	if len(all) == 0 {
+		return providers.ToolOutput{Content: "No skills available."}
+	}
+
+	var b strings.Builder
+	b.WriteString("Available skills:\n\n")
+	for _, s := range all {
+		desc := s.Description
+		if desc == "" {
+			desc = "(no description)"
+		}
+		b.WriteString(fmt.Sprintf("- %s: %s\n", s.Name, desc))
+	}
+	b.WriteString("\nUse the read_skill tool with a skill's name to load its full instructions.")
+	return providers.ToolOutput{Content: b.String()}
+}
+
+func readSkillTool(args, user string) providers.ToolOutput {
+	var params struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal([]byte(args), &params); err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("error decoding arguments: %v", err)}
+	}
+	if params.Name == "" {
+		return providers.ToolOutput{Content: "Error: 'name' parameter is required."}
+	}
+
+	s, err := skills.GetByName(params.Name, user)
+	if err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("Skill '%s' not found. Use list_skills to see available skills.", params.Name)}
+	}
+
+	return providers.ToolOutput{Content: s.Content}
 }

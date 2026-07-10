@@ -22,6 +22,11 @@ import {
 } from "@/lib/api/mcpServers";
 import { getAllTools, saveAllTools } from "@/lib/api/tools";
 import {
+  deleteSkill as deleteSkillApi,
+  getSkills,
+  saveSkill as saveSkillApi,
+} from "@/lib/api/skills";
+import {
   getSettings,
   updateSetting,
   updateSystemPrompt,
@@ -33,6 +38,8 @@ import {
   Model,
   ProviderRequest,
   ProviderResponse,
+  SkillRequest,
+  SkillResponse,
   Tool,
 } from "@/lib/api/types";
 import { useModelsContext } from "./useModelsContext";
@@ -42,6 +49,7 @@ interface SettingsData {
   providers: FrontendProvider[];
   mcpServers: MCPServerResponse[];
   tools: Tool[];
+  skills: SkillResponse[];
   settings: Record<string, string>;
   systemPrompt: string;
 }
@@ -72,6 +80,10 @@ interface SettingsDataContext {
   updateToolsLocal: (tools: Tool[]) => void;
   saveTools: (tools: Tool[]) => Promise<void>;
 
+  // Skills
+  addSkill: (data: SkillRequest) => Promise<void>;
+  deleteSkill: (id: string) => Promise<void>;
+
   // Models - delegates to global context
   updateModelsLocal: (models: Model[]) => void;
   saveModels: (models: Model[]) => Promise<void>;
@@ -99,6 +111,7 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
     providers: [],
     mcpServers: [],
     tools: [],
+    skills: [],
     settings: {},
     systemPrompt: "",
   });
@@ -112,12 +125,14 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
 
     try {
-      const [providersRes, mcpRes, toolsRes, settingsRes] = await Promise.all([
-        getProviders(),
-        getMCPServers(),
-        getAllTools(),
-        getSettings(),
-      ]);
+      const [providersRes, mcpRes, toolsRes, skillsRes, settingsRes] =
+        await Promise.all([
+          getProviders(),
+          getMCPServers(),
+          getAllTools(),
+          getSkills(),
+          getSettings(),
+        ]);
 
       const frontendProviders = providersRes.map((p: ProviderResponse) =>
         backendToFrontendProvider(p),
@@ -131,6 +146,7 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
           is_enabled: t.is_enabled ?? true,
           require_approval: t.require_approval ?? false,
         })),
+        skills: skillsRes,
         settings: settingsRes.settings,
         systemPrompt: settingsRes.settings.systemPrompt || "",
       });
@@ -268,6 +284,28 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
     await saveAllTools(tools);
   }, []);
 
+  // Skills
+  const refreshSkills = useCallback(async () => {
+    const skillsRes = await getSkills();
+    setData((d) => ({ ...d, skills: skillsRes }));
+  }, []);
+
+  const addSkill = useCallback(
+    async (skillData: SkillRequest) => {
+      await saveSkillApi(skillData);
+      await refreshSkills();
+    },
+    [refreshSkills],
+  );
+
+  const deleteSkill = useCallback(
+    async (id: string) => {
+      await deleteSkillApi(id);
+      setData((d) => ({ ...d, skills: d.skills.filter((s) => s.id !== id) }));
+    },
+    [],
+  );
+
   // Settings
   const updateSettingsLocal = useCallback((key: string, value: string) => {
     pendingSettings.current[key] = value;
@@ -309,6 +347,8 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
         restoreDefaultMCPServer,
         updateToolsLocal,
         saveTools,
+        addSkill,
+        deleteSkill,
         updateModelsLocal: globalUpdateModels,
         saveModels: globalSaveModels,
         getModelsByProvider,

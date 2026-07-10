@@ -275,5 +275,28 @@ func RunMigrations(db *sql.DB) error {
 		}
 	}
 
+	if userVersion < 6 {
+		schemaV6 := `
+		CREATE TABLE IF NOT EXISTS Skills (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			description TEXT NOT NULL DEFAULT '',
+			content TEXT NOT NULL,
+			user TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(user, name),
+			FOREIGN KEY (user) REFERENCES Users(username) ON DELETE CASCADE
+		);
+		`
+		_, err = db.Exec(schemaV6)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec("PRAGMA user_version = 6;")
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

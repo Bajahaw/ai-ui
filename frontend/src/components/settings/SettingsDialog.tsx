@@ -16,6 +16,7 @@ import {
   Loader2,
   FileText,
   Lock,
+  BookOpen,
 } from "lucide-react";
 import { ProvidersSection } from "./ProvidersSection";
 import { GlobalSettingsSection } from "./GlobalSettingsSection";
@@ -24,6 +25,7 @@ import { MCPServersSection } from "./MCPServersSection";
 import { ToolsSection } from "./ToolsSection";
 import { DocumentsSection } from "./DocumentsSection";
 import { AuthSection } from "./AuthSection";
+import { SkillsSection } from "./SkillsSection";
 import { useSettingsData } from "@/hooks/useSettingsData";
 
 interface SettingsDialogProps {
@@ -37,6 +39,7 @@ type SettingsTab =
   | "global"
   | "mcp"
   | "tools"
+  | "skills"
   | "documents"
   | "auth";
 
@@ -78,6 +81,11 @@ const SettingsDialogContent = () => {
       icon: Wrench,
     },
     {
+      id: "skills" as const,
+      label: "Skills",
+      icon: BookOpen,
+    },
+    {
       id: "documents" as const,
       label: "Documents",
       icon: FileText,
@@ -101,6 +109,8 @@ const SettingsDialogContent = () => {
         return <MCPServersSection />;
       case "tools":
         return <ToolsSection />;
+      case "skills":
+        return <SkillsSection />;
       case "documents":
         return <DocumentsSection />;
       case "auth":
