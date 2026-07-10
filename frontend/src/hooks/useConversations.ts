@@ -200,13 +200,16 @@ function addChildToParent(
 }
 
 /**
- * Updates user message with real ID and status after backend confirmation
+ * Updates user message with real ID and status after backend confirmation.
+ * Links the message into the backend tree so buildMessagesFromBackend can
+ * reach it during streaming (before updateAssistantMessageAfterComplete runs).
  */
 function updateUserMessageAfterSave(
   manager: ClientConversationManager,
   conversationId: string,
   tempMessageId: string,
   realMessageId: number,
+  parentMessageId: number,
   syncConversations: () => void,
 ): void {
   const conv = manager.getConversation(conversationId);
@@ -226,9 +229,21 @@ function updateUserMessageAfterSave(
     role: userMsg.role,
     content: userMsg.content,
     attachments: userMsg.attachments,
+    parentId: parentMessageId,
+    children: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   } as any;
+
+  // Link to parent so buildMessagesFromBackend can reach this message.
+  // Also set activeMessageId/activeBranches so the tree walk includes the
+  // new user message on the active path during streaming (before the
+  // assistant is finalized by updateAssistantMessageAfterComplete).
+  if (parentMessageId && parentMessageId > 0) {
+    addChildToParent(conv, parentMessageId, realMessageId);
+    conv.activeBranches.set(parentMessageId, realMessageId);
+  }
+  conv.backendConversation!.activeMessageId = realMessageId;
 
   syncConversations(); // Sync to show action buttons
 }
@@ -919,6 +934,18 @@ export const useConversations = () => {
           handlers.onToolCall,
           // onMetadata - Update user message immediately
           (metadata) => {
+            // Save user message first so it's in the backend tree with correct
+            // activeMessageId before the assistant swap runs.
+            if (tempMessageId) {
+              updateUserMessageAfterSave(
+                manager,
+                conversationId!,
+                tempMessageId,
+                metadata.userMessageId,
+                activeMessageId!,
+                syncConversations,
+              );
+            }
             if (metadata.assistantMessageId) {
               activeStreamAssistantMessageIdRef.current =
                 metadata.assistantMessageId;
@@ -935,15 +962,6 @@ export const useConversations = () => {
                 assistantPlaceholderRef.current =
                   metadata.assistantMessageId.toString();
               }
-            }
-            if (tempMessageId) {
-              updateUserMessageAfterSave(
-                manager,
-                conversationId!,
-                tempMessageId,
-                metadata.userMessageId,
-                syncConversations,
-              );
             }
           },
           // onComplete - Update IDs (called even after errors!)

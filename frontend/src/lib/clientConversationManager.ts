@@ -236,22 +236,39 @@ export class ClientConversationManager {
       }
     }
 
-    // Preserve only pending/error messages that don't have real backend IDs yet
-    // Messages with real IDs (numeric) are already in backend and will be included via buildMessagesFromBackend
-    const pendingAndErrorMessages = conversation.messages.filter(
-      (m) => (m.status === "pending" || !!m.error) && isNaN(parseInt(m.id)), // Only preserve temp IDs (temp_xxx format)
-    );
+    // Preserve pending/error messages that carry live client state not yet
+    // reflected in the backend tree.  This includes:
+    //  - temp-ID messages (never saved to backend)
+    //  - real-ID messages that are mid-stream (swapAssistantMessageId gave them
+    //    a real id, but updateAssistantMessageAfterComplete hasn't run yet).
+    //    These must be preserved even when the backend tree already contains a
+    //    stub for the same id, because the backend entry has stale/empty content
+    //    while the frontend message has the live streamed content, reasoning,
+    //    and tool calls.
+    const pendingAndErrorMessages = conversation.messages.filter((m) => {
+      if (m.status !== "pending" && !m.error) return false;
+      if (isNaN(parseInt(m.id))) return true; // temp IDs (temp_xxx format)
+      // Real ID: preserve only while still in-flight (pending in pendingMessageIds).
+      // Error messages with real IDs are already finalized in the backend tree.
+      return m.status === "pending" && conversation.pendingMessageIds.has(m.id);
+    });
 
     // Rebuild the visible message list to reflect the active branch only
     conversation.messages = this.buildMessagesFromBackend(
       conversation.backendConversation,
     );
 
-    // Add back pending and error messages that haven't been saved to backend yet
+    // Re-insert preserved messages.  When the rebuilt list already contains a
+    // message with the same id (from the backend tree), replace it in-place to
+    // keep the correct position while restoring the live streaming state.
     for (const msg of pendingAndErrorMessages) {
-      const exists = conversation.messages.some((m) => m.id === msg.id);
-      if (!exists) {
+      const existingIndex = conversation.messages.findIndex(
+        (m) => m.id === msg.id,
+      );
+      if (existingIndex === -1) {
         conversation.messages.push(msg);
+      } else {
+        conversation.messages[existingIndex] = msg;
       }
     }
   }
@@ -272,11 +289,23 @@ export class ClientConversationManager {
       );
 
       if (existingMessage) {
-        // Update existing message
-        existingMessage.content = backendMsg.content;
-        existingMessage.status = "completed";
-        existingMessage.attachments = backendMsg.attachments;
-        messageUpdated = true;
+        // Guard: don't overwrite in-flight streaming messages with stale
+        // backend data. When a concurrent fetch (e.g. selectConversation's
+        // lazy load) resolves mid-stream, the backend returns the assistant
+        // placeholder with empty content. Overwriting here would wipe the
+        // streamed content, reasoning, and tool calls, and mark the message
+        // as completed — killing the spinner permanently.
+        if (
+          conversation.pendingMessageIds.has(existingMessage.id) &&
+          existingMessage.status === "pending"
+        ) {
+          messageUpdated = true;
+        } else {
+          existingMessage.content = backendMsg.content;
+          existingMessage.status = "completed";
+          existingMessage.attachments = backendMsg.attachments;
+          messageUpdated = true;
+        }
       } else {
         // Find matching pending message by content and role
         const pendingMessage = conversation.messages.find(
@@ -331,10 +360,16 @@ export class ClientConversationManager {
       }
     }
 
-    // Clean up any remaining pending messages that should now be successful
-    // This handles edge cases where matching failed but messages should be marked as successful
+    // Clean up any remaining pending TEMP messages that should now be successful.
+    // Real-ID pending messages are in-flight (mid-stream) and are handled by the
+    // preserve-and-replace logic in updateWithChatResponse — exclude them here so
+    // the content-matching below doesn't wipe their streaming state or emit
+    // false-positive warnings.
     const remainingPendingMessages = conversation.messages.filter(
-      (m) => conversation.pendingMessageIds.has(m.id) && m.status === "pending",
+      (m) =>
+        conversation.pendingMessageIds.has(m.id) &&
+        m.status === "pending" &&
+        isNaN(parseInt(m.id)),
     );
 
     for (const message of remainingPendingMessages) {
