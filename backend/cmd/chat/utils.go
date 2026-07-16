@@ -22,8 +22,9 @@ const platformInstructions = `
 - If the response is long, use paragraphs, or seperators --- to make it easier on the eyes.
 - Tool calls must be one at a time! parellal calling is not supported yet!
 
-- When search is used, site all your used sources inline and at the end of the response. An inline citation badge is interactive reference for the source and written in the format of ([Source name][number]). example:
->This is a paragraph with some facts from the internet which should include references for the sources using inline citation badges, one at a time after the end of this paragraph. ([Source name][number])([Another source][number++]) 
+- When search is used, site all your used sources inline and at the end of the response. An inline citation badge is interactive reference for the source and written in the format of ([Source name][number]).
+- Every response that uses inline citation badges ([Text][N]) MUST end with a matching numbered reference block listing the full URL and a short description. Example:
+>This is a paragraph with some facts from the internet which should include references for the sources using inline citation badges, one at a time after the end of this paragraph, exactly after the full stop. ([Source name][number])([Another source][number++]) 
 >rest of the response till the end ... 
 >
 >
