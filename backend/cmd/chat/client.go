@@ -1,11 +1,11 @@
 package chat
 
 import (
+	"database/sql"
 	fs "github.com/Bajahaw/ai-ui/cmd/files"
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	stngs "github.com/Bajahaw/ai-ui/cmd/settings"
 	"github.com/Bajahaw/ai-ui/cmd/tools"
-	"database/sql"
 
 	logger "github.com/charmbracelet/log"
 )

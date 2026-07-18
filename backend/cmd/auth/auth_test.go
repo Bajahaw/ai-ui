@@ -1,11 +1,11 @@
 package auth
 
 import (
-	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"net/http"
 	"net/http/httptest"
 	"os"

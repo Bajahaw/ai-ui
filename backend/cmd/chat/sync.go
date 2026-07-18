@@ -1,9 +1,9 @@
 package chat
 
 import (
-	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"encoding/json"
 	"fmt"
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"net/http"
 	"sync"
 	"time"

@@ -107,7 +107,6 @@ func (r *statusRecorder) Flush() {
 	}
 }
 
-
 func cacheControlMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
