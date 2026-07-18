@@ -336,7 +336,7 @@ func joinReasoningAndContent(reasoning, content string) string {
 		return content
 	}
 	if content == "" {
-		return reasoning
+		return "<preserved_reasoning>\n" + reasoning + "\n</preserved_reasoning>"
 	}
 	return "<preserved_reasoning>\n" + reasoning + "\n</preserved_reasoning>" + "\n\n" + content
 }
