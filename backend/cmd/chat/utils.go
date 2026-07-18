@@ -46,8 +46,6 @@ const platformInstructions = `
 
 - To render rich widgets using HTML, CSS, and JS, use a code block tag with "widget" like this: (` + "```widget" + `).
 - Widgets can be used for visuals, functional utilities, generating files (e.g. docx, and pdfs), and execute scripts including WASM (e.g. Python).
-- Widgets should be full chat width, no margin, no outer border, adapt to light/dark thems via these already-passed css vars: (--background, --foreground, --muted, --muted-foreground --border).
-- The previous vars dont work in canvas e.g. Chart.js, instead you should use the __theme JS object (e.g., __theme['foreground'], __theme.isDark).
 
 - To render Mermaid diagrams, use a code block with "mermaid" as the language tag.
 - To render svg shapes and visuals, use the svg code block with "svg" language tag.
@@ -244,10 +242,10 @@ func enterAgentLoop(
 			Role:     "assistant",
 			ToolCall: toolCall,
 		}
-		// Include the model's accumulated text in the first tool-call message
-		// so the model sees what it already said before invoking tools.
+		// Include the model's accumulated reasoning and text in the first
+		// tool-call message so it can continue thinking across tool calls.
 		if i == 0 {
-			assistantMsg.Content = responseMessage.Content
+			assistantMsg.Content = joinReasoningAndContent(responseMessage.Reasoning, responseMessage.Content)
 		}
 		providerParams.Messages = append(providerParams.Messages, assistantMsg)
 
@@ -327,6 +325,20 @@ func enterAgentLoop(
 	}
 
 	return completion, err
+}
+
+// joinReasoningAndContent combines the model's reasoning chain with its
+// public text content. Used only inside an active agentic loop so the model
+// can continue reasoning across tool calls without leaking that reasoning
+// into the saved conversation history.
+func joinReasoningAndContent(reasoning, content string) string {
+	if reasoning == "" {
+		return content
+	}
+	if content == "" {
+		return reasoning
+	}
+	return "<preserved_reasoning>\n" + reasoning + "\n</preserved_reasoning>" + "\n\n" + content
 }
 
 func toBase64(data []byte) string {
