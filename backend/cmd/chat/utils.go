@@ -10,6 +10,7 @@ import (
 
 	fs "github.com/Bajahaw/ai-ui/cmd/files"
 	"github.com/Bajahaw/ai-ui/cmd/providers"
+	"github.com/Bajahaw/ai-ui/cmd/skills"
 	"github.com/Bajahaw/ai-ui/cmd/tools"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"github.com/openai/openai-go/v3"
@@ -43,7 +44,7 @@ const platformInstructions = `
 - Because the symbol ` + "`$`" + ` is reserved for latex, when it is used in chat, it must be escaped or wrapped. e.g.: 
 >I bought this for only 20\$ or ` + "`20$`" + `!
 
-- To render rich widgets using HTML, CSS, and JS, use a code block tag with "widget" like this: (`+"```widget"+`).
+- To render rich widgets using HTML, CSS, and JS, use a code block tag with "widget" like this: (` + "```widget" + `).
 - Widgets can be used for visuals, functional utilities, generating files (e.g. docx, and pdfs), and execute scripts including WASM (e.g. Python).
 - Widgets should be full chat width, no margin, no outer border, adapt to light/dark thems via these already-passed css vars: (--background, --foreground, --muted, --muted-foreground --border).
 - The previous vars dont work in canvas e.g. Chart.js, instead you should use the __theme JS object (e.g., __theme['foreground'], __theme.isDark).
@@ -62,16 +63,42 @@ func compileSystemPrompt(user string) string {
 	appendDateFlag, _ := settings.Get("appendDateToSystemPrompt", user)
 	appendPlatformFlag, _ := settings.Get("appendPlatformInstructions", user)
 
-	// Append date and/or platform instructions based on user settings
-	finalSystemPrompt := "<user_instructions>\n\n" + systemPrompt + "\n\n</user_instructions>"
+	var sb strings.Builder
+
 	if appendDateFlag == "true" {
-		finalSystemPrompt = "Current date: " + time.Now().Format("2006-01-02") + "\n\n" + finalSystemPrompt
-	}
-	if appendPlatformFlag == "true" {
-		finalSystemPrompt += "\n\n" + platformInstructions
+		sb.WriteString("Current date: ")
+		sb.WriteString(time.Now().Format("2006-01-02"))
+		sb.WriteString("\n\n")
 	}
 
-	return finalSystemPrompt
+	if appendPlatformFlag == "true" {
+		sb.WriteString(strings.TrimSpace(platformInstructions))
+		sb.WriteString("\n\n")
+	}
+
+	// Inject available skills so the model knows about them up front
+	availableSkills := skills.GetAll(user)
+	if len(availableSkills) > 0 {
+		sb.WriteString("<available_skills>\n\n")
+		for _, s := range availableSkills {
+			desc := s.Description
+			if desc == "" {
+				desc = "(no description)"
+			}
+			sb.WriteString("- ")
+			sb.WriteString(s.Name)
+			sb.WriteString(": ")
+			sb.WriteString(desc)
+			sb.WriteString("\n")
+		}
+		sb.WriteString("\n</available_skills>\n\n")
+	}
+
+	sb.WriteString("<user_instructions>\n\n")
+	sb.WriteString(systemPrompt)
+	sb.WriteString("\n\n</user_instructions>")
+
+	return sb.String()
 }
 
 // Helper
@@ -90,7 +117,6 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 	}
 
 	systemPrompt := compileSystemPrompt(user)
-
 
 	attachmentOcrOnly, _ := settings.Get("attachmentOcrOnly", user)
 	ocrOnly := attachmentOcrOnly == "true"

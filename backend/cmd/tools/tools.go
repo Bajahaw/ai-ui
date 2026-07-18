@@ -114,8 +114,6 @@ func ExecuteMCPTool(toolCall providers.ToolCall, user, convID string) providers.
 			return ddgsTool(toolCall.Args)
 		case "get_weather":
 			return weatherTool()
-		case "list_skills":
-			return listSkillsTool(user)
 		case "read_skill":
 			return readSkillTool(toolCall.Args, user)
 		case "search_document":
@@ -301,23 +299,15 @@ func GetBuiltInTools() []*Tool {
 			ID:          uuid.New().String(),
 			Name:        "generate_image",
 			MCPServerID: "default",
-			Description: "Generate an image via AI model currently selected by user. Provide a very detailed prompt describing the image you want to generate. Based on system instructions, you can embed the resulting image file in the chat.",
+			Description: "Generate an image via AI model currently selected by user. Pass the user prompt exactly as is, unless user requested you to enhance it. Embed the resulting image file in the chat. ONlY call when user asks for `AI generated image`!, and Never call more than once",
 			InputSchema: `{"type":"object","properties":{"prompt":{"type":"string","description":"A detailed prompt for the image generation model"}},"required":["prompt"]}`,
-			IsEnabled:   true,
-		},
-		{
-			ID:          uuid.New().String(),
-			Name:        "list_skills",
-			MCPServerID: "default",
-			Description: "List all available skills that teach specialized workflows or styles. Returns each skill's name and a short description. Use this to discover what skills you have.",
-			InputSchema: `{"type":"object","properties":{}}`,
 			IsEnabled:   true,
 		},
 		{
 			ID:          uuid.New().String(),
 			Name:        "read_skill",
 			MCPServerID: "default",
-			Description: "Read the full content of a specific skill by its name. You must call list_skills first to find the best fit skill that matches the user's task, then read using this tool.",
+			Description: "Read the full content of a specific skill by its name. Choose the skill that best matches the user's task from the <available_skills> section in the system prompt, then read its full instructions using this tool.",
 			InputSchema: `{"type":"object","properties":{"name":{"type":"string","description":"The exact name of the skill to read"}},"required":["name"]}`,
 			IsEnabled:   true,
 		},
@@ -448,25 +438,6 @@ func viewDocumentPageTool(args, user, convID string) providers.ToolOutput {
 	return providers.ToolOutput{File: imgData.ID, Content: fmt.Sprintf("Rendered page %d of document %s as image. Screenshot ID: %s Path: /%s", params.PageNumber, docs[0].Name, imgData.ID, imgData.Path)}
 }
 
-func listSkillsTool(user string) providers.ToolOutput {
-	all := skills.GetAll(user)
-	if len(all) == 0 {
-		return providers.ToolOutput{Content: "No skills available."}
-	}
-
-	var b strings.Builder
-	b.WriteString("Available skills:\n\n")
-	for _, s := range all {
-		desc := s.Description
-		if desc == "" {
-			desc = "(no description)"
-		}
-		b.WriteString(fmt.Sprintf("- %s: %s\n", s.Name, desc))
-	}
-	b.WriteString("\nUse the read_skill tool with a skill's name to load its full instructions.")
-	return providers.ToolOutput{Content: b.String()}
-}
-
 func readSkillTool(args, user string) providers.ToolOutput {
 	var params struct {
 		Name string `json:"name"`
@@ -480,7 +451,7 @@ func readSkillTool(args, user string) providers.ToolOutput {
 
 	s, err := skills.GetByName(params.Name, user)
 	if err != nil {
-		return providers.ToolOutput{Content: fmt.Sprintf("Skill '%s' not found. Use list_skills to see available skills.", params.Name)}
+		return providers.ToolOutput{Content: fmt.Sprintf("Skill '%s' not found. Select a skill from the <available_skills> section in the system prompt.", params.Name)}
 	}
 
 	return providers.ToolOutput{Content: s.Content}
