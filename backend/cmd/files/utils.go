@@ -113,9 +113,11 @@ func saveUploadedFile(file multipart.File, handler *multipart.FileHeader, user s
 
 	log.Debug("Uploaded file data", "file", fileData)
 
-	// ocr only is for images and other docs
+	// Extract content when OCR is requested for all attachments, or when
+	// agentic document retrieval is enabled and the file is a retrievable doc.
 	ocrOnly, _ := settings.Get("attachmentOcrOnly", user)
-	if ocrOnly == "true" {
+	agenticRetrieval, _ := settings.Get("agenticDocumentRetrieval", user)
+	if ocrOnly == "true" || (agenticRetrieval == "true" && IsRetrievableDoc(fileData.Type)) {
 		ocrModel, _ := settings.Get("ocrModel", user)
 		fileContent, err := extractFileContent(fileData, ocrModel)
 		if err != nil {
