@@ -57,6 +57,23 @@ const platformInstructions = `
 </platform_instructions>
 `
 
+func compileSystemPrompt(user string) string {
+	systemPrompt, _ := settings.Get("systemPrompt", user)
+	appendDateFlag, _ := settings.Get("appendDateToSystemPrompt", user)
+	appendPlatformFlag, _ := settings.Get("appendPlatformInstructions", user)
+
+	// Append date and/or platform instructions based on user settings
+	finalSystemPrompt := "<user_instructions>\n\n" + systemPrompt + "\n\n</user_instructions>"
+	if appendDateFlag == "true" {
+		finalSystemPrompt = "Current date: " + time.Now().Format("2006-01-02") + "\n\n" + finalSystemPrompt
+	}
+	if appendPlatformFlag == "true" {
+		finalSystemPrompt += "\n\n" + platformInstructions
+	}
+
+	return finalSystemPrompt
+}
+
 // Helper
 func buildContext(convID string, start int, user string) []providers.SimpleMessage {
 	var convMessages = getAllConversationMessages(convID, user) // todo: cache or something
@@ -72,18 +89,9 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 		current = leaf.ParentID
 	}
 
-	systemPrompt, _ := settings.Get("systemPrompt", user)
-	appendDateFlag, _ := settings.Get("appendDateToSystemPrompt", user)
-	appendPlatformFlag, _ := settings.Get("appendPlatformInstructions", user)
+	systemPrompt := compileSystemPrompt(user)
 
-	// Append date and/or platform instructions based on user settings
-	finalSystemPrompt := "<user_instructions>\n\n" + systemPrompt + "\n\n</user_instructions>"
-	if appendDateFlag == "true" {
-		finalSystemPrompt = "Current date: " + time.Now().Format("2006-01-02") + "\n\n" + finalSystemPrompt
-	}
-	if appendPlatformFlag == "true" {
-		finalSystemPrompt += "\n\n" + platformInstructions
-	}
+
 	attachmentOcrOnly, _ := settings.Get("attachmentOcrOnly", user)
 	ocrOnly := attachmentOcrOnly == "true"
 	agenticRetrievalStr, _ := settings.Get("agenticDocumentRetrieval", user)
@@ -92,7 +100,7 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 	var messages = []providers.SimpleMessage{
 		{
 			Role:    "system",
-			Content: finalSystemPrompt,
+			Content: systemPrompt,
 		},
 	}
 
