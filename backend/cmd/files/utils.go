@@ -22,7 +22,7 @@ import (
 )
 
 func saveUploadedFile(file multipart.File, handler *multipart.FileHeader, user string) (File, error) {
-	const maxUploadSize = 10 << 20 // 10 MB
+	const maxUploadSize = 50 << 20 // 50 MB
 	defer file.Close()
 
 	fileType, err := detectFileType(file)

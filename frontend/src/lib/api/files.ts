@@ -31,10 +31,10 @@ export const uploadFile = async (file: File): Promise<FileUploadResponse> => {
     throw new FileUploadError("No file provided");
   }
 
-  // Check file size (10MB limit as per backend)
-  const maxSize = 10 * 1024 * 1024; // 10MB
+  // Check file size (50MB limit as per backend)
+  const maxSize = 50 * 1024 * 1024; // 50MB
   if (file.size > maxSize) {
-    throw new FileUploadError("File size exceeds 10MB limit");
+    throw new FileUploadError("File size exceeds 50MB limit");
   }
 
   const formData = new FormData();

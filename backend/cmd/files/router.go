@@ -51,7 +51,7 @@ func UserBasedAccess(next http.Handler) http.Handler {
 
 func upload(w http.ResponseWriter, r *http.Request) {
 	user := utils.ExtractContextUser(r)
-	err := r.ParseMultipartForm(10 << 20) // limit to 10MB
+	err := r.ParseMultipartForm(50 << 20) // limit to 50MB
 	if err != nil {
 		log.Error("Error parsing multipart form", "err", err)
 		http.Error(w, "Error parsing form data", http.StatusBadRequest)
