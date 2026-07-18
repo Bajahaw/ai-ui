@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "../ui/card";
-import { BookOpen, Edit, Plus, Trash2 } from "lucide-react";
+import { BookOpen, Edit, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { SkillForm } from "./SkillForm";
 import { SkillRequest, SkillResponse } from "@/lib/api/types";
 import { useSettingsData } from "@/hooks/useSettingsData";
@@ -46,7 +46,16 @@ export const SkillsSection = () => {
 
       <p className="text-sm text-muted-foreground">
         Skills are markdown documents that teach the AI specialized workflows or
-        styles. The AI can list and read them via built-in tools during chat.
+        styles. The AI can list and read them via built-in tools during chat.{" "}
+        <a
+          href="https://github.com/Bajahaw/ai-ui/tree/main/examples/skills"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary inline-flex items-center gap-1 hover:underline"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+          Browse example skills
+        </a>
       </p>
 
       {data.skills.length === 0 ? (
