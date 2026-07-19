@@ -298,9 +298,10 @@ function App() {
       />
 
       {/* Main Content */}
-      <div className="chat-container overflow-hidden">
-        <div className="flex justify-between items-center p-4 pb-2">
-          <div className="flex items-center gap-3">
+      <div className="chat-container overflow-hidden relative">
+        {/* Floating toolbar — overlays chat so messages use full height */}
+        <div className="absolute top-0 inset-x-0 z-20 flex justify-between items-center p-4 pb-2 pointer-events-none">
+          <div className="flex items-center gap-3 pointer-events-auto">
             <Button
               variant="ghost"
               size="sm"
@@ -310,7 +311,7 @@ function App() {
               <MessageSquareIcon className="size-4" />
             </Button>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pointer-events-auto">
             <Button
               variant="ghost"
               size="sm"
@@ -327,8 +328,8 @@ function App() {
 
         {/* Error Display */}
         {conversationsError && (
-          <div className="flex justify-center px-6 mb-4">
-            <div className="w-full max-w-3xl p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <div className="absolute top-12 inset-x-0 z-20 flex justify-center px-6 pointer-events-none">
+            <div className="w-full max-w-3xl p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg pointer-events-auto shadow-sm">
               <div className="flex justify-between items-center">
                 <p className="text-red-700 dark:text-red-300 text-sm">
                   {conversationsError}
