@@ -5,7 +5,7 @@ import (
 	"github.com/openai/openai-go/v3/packages/param"
 )
 
-func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessageParamUnion {
+func OpenAIMessageParams(params *openai.ChatCompletionNewParams, messages []SimpleMessage) {
 	openaiMessages := make([]openai.ChatCompletionMessageParamUnion, 0, len(messages))
 	for _, msg := range messages {
 		switch msg.Role {
@@ -65,6 +65,17 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 					},
 				)
 			}
+			// Only set during live agent loop (SimpleMessage.Reasoning is empty otherwise).
+			if msg.Reasoning != "" {
+				assistantMsg.OfAssistant.SetExtraFields(map[string]any{
+					"reasoning_content": msg.Reasoning,
+				})
+				params.SetExtraFields(map[string]any{
+					"reasoning_history": "preserved",                           
+					"thinking":          map[string]any{"keep": "all"},         
+					"reasoning":         map[string]any{"context": "all_turns"}, 
+				})
+			}
 			openaiMessages = append(openaiMessages, assistantMsg)
 
 		case "tool":
@@ -116,7 +127,7 @@ func OpenAIMessageParams(messages []SimpleMessage) []openai.ChatCompletionMessag
 			continue
 		}
 	}
-	return openaiMessages
+	params.Messages = openaiMessages
 }
 
 func ReasoningEffort(level string) openai.ReasoningEffort {

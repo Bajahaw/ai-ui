@@ -40,11 +40,12 @@ func CancelStream(messageID int, userID string) bool {
 }
 
 type SimpleMessage struct {
-	Role     string
-	Content  string
-	ToolCall ToolCall
-	Images   []string
-	Files    []string
+	Role      string
+	Content   string
+	Reasoning string
+	ToolCall  ToolCall
+	Images    []string
+	Files     []string
 }
 
 type RequestParams struct {
@@ -102,10 +103,10 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompl
 	client := openai.NewClient(opts...)
 
 	openAIparams := openai.ChatCompletionNewParams{
-		Model:    model,
-		Messages: OpenAIMessageParams(params.Messages),
-		Tools:    params.Tools,
+		Model: model,
+		Tools: params.Tools,
 	}
+	OpenAIMessageParams(&openAIparams, params.Messages)
 
 	log.Debug("Params ReasoningEffort:", "value", params.ReasoningEffort)
 	if params.ReasoningEffort != "" {
@@ -182,10 +183,10 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 
 	openAIparams := openai.ChatCompletionNewParams{
 		Model:           model,
-		Messages:        OpenAIMessageParams(params.Messages),
 		ReasoningEffort: params.ReasoningEffort,
 		Tools:           params.Tools,
 	}
+	OpenAIMessageParams(&openAIparams, params.Messages)
 
 	utils.AddStreamHeaders(sc.Writer)
 

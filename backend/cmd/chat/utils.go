@@ -242,10 +242,11 @@ func enterAgentLoop(
 			Role:     "assistant",
 			ToolCall: toolCall,
 		}
-		// Include the model's accumulated reasoning and text in the first
-		// tool-call message so it can continue thinking across tool calls.
+		// Include content + reasoning on the first tool-call message so the
+		// model can continue thinking across tool calls via reasoning_content.
 		if i == 0 {
-			assistantMsg.Content = joinReasoningAndContent(responseMessage.Reasoning, responseMessage.Content)
+			assistantMsg.Content = responseMessage.Content
+			assistantMsg.Reasoning = responseMessage.Reasoning
 		}
 		providerParams.Messages = append(providerParams.Messages, assistantMsg)
 
@@ -325,20 +326,6 @@ func enterAgentLoop(
 	}
 
 	return completion, err
-}
-
-// joinReasoningAndContent combines the model's reasoning chain with its
-// public text content. Used only inside an active agentic loop so the model
-// can continue reasoning across tool calls without leaking that reasoning
-// into the saved conversation history.
-func joinReasoningAndContent(reasoning, content string) string {
-	if reasoning == "" {
-		return content
-	}
-	if content == "" {
-		return "<preserved_reasoning>\n" + reasoning + "\n</preserved_reasoning>"
-	}
-	return "<preserved_reasoning>\n" + reasoning + "\n</preserved_reasoning>" + "\n\n" + content
 }
 
 func toBase64(data []byte) string {
