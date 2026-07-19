@@ -1172,7 +1172,7 @@ export const ChatInterface = ({
             />
           </div>
         ) : (
-          <ConversationContent className="chat-interface w-full max-w-3xl mx-auto !px-5 lg:!px-3 !pt-14">
+          <ConversationContent className="chat-interface w-full max-w-3xl mx-auto !px-5 lg:!px-3 lg:!pt-14">
             {/* eslint-disable-next-line react-hooks/refs */}
             {messages.map((message, index) => {
               const stableKey = getMessageKey(message);
