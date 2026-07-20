@@ -73,7 +73,7 @@ func OpenAIMessageParams(params *openai.ChatCompletionNewParams, messages []Simp
 				params.SetExtraFields(map[string]any{
 					"reasoning_history": "preserved",                           
 					"thinking":          map[string]any{"keep": "all"},         
-					"reasoning":         map[string]any{"context": "all_turns"}, 
+					// "reasoning":         map[string]any{"context": "all_turns"}, // breaks some providers 
 				})
 			}
 			openaiMessages = append(openaiMessages, assistantMsg)
