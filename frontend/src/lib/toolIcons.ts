@@ -1,11 +1,6 @@
 import {
   WrenchIcon,
   SearchIcon,
-  ListIcon,
-  FileCodeIcon,
-  FilePlusIcon,
-  FileEditIcon,
-  FileXIcon,
   ImageIcon,
   type LucideIcon,
   BookIcon,
@@ -23,11 +18,6 @@ const BUILT_IN_TOOL_ICONS: Record<string, LucideIcon> = {
   search_document: SearchIcon,
   read_document_page: BookIcon,
   view_document_page: Scan,
-  list_document_parts: ListIcon,
-  read_document_part: FileCodeIcon,
-  create_document: FilePlusIcon,
-  write_document_part: FileEditIcon,
-  delete_document_part: FileXIcon,
   generate_image: ImageIcon,
 };
 
