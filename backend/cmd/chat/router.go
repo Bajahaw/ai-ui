@@ -23,6 +23,7 @@ func ConvsHandler() http.Handler {
 
 	mux.HandleFunc("GET     /", getAllConversations)
 	mux.HandleFunc("GET     /stats", getStats)
+	mux.HandleFunc("GET     /search", searchConversations)
 	mux.HandleFunc("GET     /sync", syncHandler)
 	mux.HandleFunc("POST 	/add", saveConversation)
 	mux.HandleFunc("GET  	/{id}", getConversation)

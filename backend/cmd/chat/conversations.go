@@ -2,10 +2,12 @@ package chat
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/Bajahaw/ai-ui/cmd/data"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
-	"net/http"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -77,6 +79,25 @@ func getAllConversations(writer http.ResponseWriter, r *http.Request) {
 		conversations.GetAll(user),
 		http.StatusOK,
 	)
+}
+
+// GET /api/conversations/search?q=...
+// Full-text search over message content, scoped to the authenticated user.
+func searchConversations(w http.ResponseWriter, r *http.Request) {
+	user := utils.ExtractContextUser(r)
+	q := r.URL.Query().Get("q")
+	if strings.TrimSpace(q) == "" {
+		utils.RespondWithJSON(w, []ConversationSearchHit{}, http.StatusOK)
+		return
+	}
+
+	hits, err := searchMessagesFTS(user, q, 40)
+	if err != nil {
+		log.Error("Error searching conversations", "err", err, "user", user)
+		http.Error(w, "Error searching conversations", http.StatusInternalServerError)
+		return
+	}
+	utils.RespondWithJSON(w, hits, http.StatusOK)
 }
 
 func deleteConversation(w http.ResponseWriter, r *http.Request) {

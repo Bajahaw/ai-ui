@@ -37,8 +37,8 @@ func TestRunMigrations_FreshDB(t *testing.T) {
 		t.Fatalf("Failed to get user_version: %v", err)
 	}
 
-	if userVersion != 6 {
-		t.Errorf("Expected user_version to be 6, got %d", userVersion)
+	if userVersion != 7 {
+		t.Errorf("Expected user_version to be 7, got %d", userVersion)
 	}
 
 	// Verify Skills table exists
@@ -49,6 +49,16 @@ func TestRunMigrations_FreshDB(t *testing.T) {
 	}
 	if !hasSkillsTable {
 		t.Error("Expected Skills table to exist after migrations, but it was not found")
+	}
+
+	// Verify MessagesFTS virtual table exists
+	var hasMessagesFTS bool
+	err = db.QueryRow("SELECT COUNT(*) > 0 FROM sqlite_master WHERE name='MessagesFTS';").Scan(&hasMessagesFTS)
+	if err != nil {
+		t.Fatalf("Failed to check MessagesFTS table: %v", err)
+	}
+	if !hasMessagesFTS {
+		t.Error("Expected MessagesFTS table to exist after migrations, but it was not found")
 	}
 
 	// Verify new columns exist
@@ -219,8 +229,8 @@ func TestRunMigrations_UpgradeFromV1(t *testing.T) {
 	if err := db.QueryRow("PRAGMA user_version;").Scan(&userVersion); err != nil {
 		t.Fatalf("Failed to retrieve user version: %v", err)
 	}
-	if userVersion != 6 {
-		t.Errorf("Expected bumped version to be 6, got %d", userVersion)
+	if userVersion != 7 {
+		t.Errorf("Expected bumped version to be 7, got %d", userVersion)
 	}
 
 	// Verify headers_json was added and old data is intact
