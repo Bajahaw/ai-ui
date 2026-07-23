@@ -65,6 +65,16 @@ export interface Conversation {
   activeBranches?: Record<number, number>; // messageId -> activeChildId mapping
 }
 
+/** FTS message search hit from GET /api/conversations/search */
+export interface ConversationSearchHit {
+  conversationId: string;
+  title: string;
+  messageId: number;
+  role: string;
+  snippet: string;
+  updatedAt: string;
+}
+
 export interface ChatRequest {
   conversationId: string | null;
   parentId: number;

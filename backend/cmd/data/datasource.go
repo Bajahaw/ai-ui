@@ -298,5 +298,42 @@ func RunMigrations(db *sql.DB) error {
 		}
 	}
 
+	if userVersion < 7 {
+		// External-content FTS5 over Messages.content, kept in sync via triggers.
+		// Rebuild indexes existing rows that triggers will not see.
+		schemaV7 := `
+		CREATE VIRTUAL TABLE IF NOT EXISTS MessagesFTS USING fts5(
+			content,
+			content='Messages',
+			content_rowid='rowid'
+		);
+
+		CREATE TRIGGER IF NOT EXISTS Messages_ai AFTER INSERT ON Messages BEGIN
+			INSERT INTO MessagesFTS (rowid, content) VALUES (new.rowid, new.content);
+		END;
+
+		CREATE TRIGGER IF NOT EXISTS Messages_ad AFTER DELETE ON Messages BEGIN
+			INSERT INTO MessagesFTS (MessagesFTS, rowid, content) VALUES ('delete', old.rowid, old.content);
+		END;
+
+		CREATE TRIGGER IF NOT EXISTS Messages_au AFTER UPDATE OF content ON Messages BEGIN
+			INSERT INTO MessagesFTS (MessagesFTS, rowid, content) VALUES ('delete', old.rowid, old.content);
+			INSERT INTO MessagesFTS (rowid, content) VALUES (new.rowid, new.content);
+		END;
+		`
+		_, err = db.Exec(schemaV7)
+		if err != nil {
+			return err
+		}
+		// Backfill: index rows that existed before the FTS table was created.
+		if _, err = db.Exec(`INSERT INTO MessagesFTS(MessagesFTS) VALUES('rebuild');`); err != nil {
+			return err
+		}
+		_, err = db.Exec("PRAGMA user_version = 7;")
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

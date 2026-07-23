@@ -19,13 +19,23 @@ import {
   LogOutIcon,
   SidebarIcon,
   SearchIcon,
+  Loader2Icon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ComponentProps, useEffect, useState, useMemo, useRef } from "react";
+import {
+  ComponentProps,
+  useDeferredValue,
+  useEffect,
+  useState,
+  useMemo,
+  useRef,
+} from "react";
 import { ClientConversation } from "@/lib/clientConversationManager";
 import { useAuth } from "@/hooks/useAuth";
 import { LoginDialog } from "@/components/auth/LoginDialog";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { conversationsAPI } from "@/lib/api/conversations";
+import type { ConversationSearchHit } from "@/lib/api/types";
 
 export interface ConversationSidebarProps extends ComponentProps<"div"> {
   conversations?: ClientConversation[];
@@ -39,6 +49,15 @@ export interface ConversationSidebarProps extends ComponentProps<"div"> {
   maxWidth?: string;
   isLoading?: boolean;
 }
+
+type ListConversation = ClientConversation & {
+  /** Present when this row matched via message FTS */
+  searchSnippet?: string;
+};
+
+type FlatItem =
+  | { type: "header"; id: string; label: string }
+  | { type: "item"; id: string; data: ListConversation };
 
 const getConversationGroup = (conversation: ClientConversation): string => {
   const dateStr =
@@ -60,6 +79,36 @@ const getConversationGroup = (conversation: ClientConversation): string => {
   return "Older";
 };
 
+const updatedAtMs = (c: ClientConversation): number => {
+  const raw =
+    c.backendConversation?.updatedAt || c.backendConversation?.createdAt;
+  if (!raw) return 0;
+  const t = Date.parse(raw);
+  return Number.isFinite(t) ? t : 0;
+};
+
+const sortByUpdatedDesc = (a: ClientConversation, b: ClientConversation) =>
+  updatedAtMs(b) - updatedAtMs(a);
+
+/** Render FTS snippet with [matched] markers from the backend. */
+const SearchSnippet = ({ snippet }: { snippet: string }) => {
+  const parts = snippet.split(/(\[[^\]]*\])/g);
+  return (
+    <span className="block text-xs text-muted-foreground/80 truncate leading-snug">
+      {parts.map((part, i) => {
+        if (part.startsWith("[") && part.endsWith("]") && part.length > 2) {
+          return (
+            <span key={i} className="text-foreground/70 font-medium">
+              {part.slice(1, -1)}
+            </span>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </span>
+  );
+};
+
 export const ConversationSidebar = ({
   conversations = [],
   activeConversationId,
@@ -77,79 +126,187 @@ export const ConversationSidebar = ({
   const width = 272; // Fixed width in pixels
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>("");
+  // Input value updates immediately; list filtering is deferred so typing stays responsive.
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const deferredSearch = useDeferredValue(searchTerm);
+  const [ftsHits, setFtsHits] = useState<ConversationSearchHit[]>([]);
+  const [ftsLoading, setFtsLoading] = useState(false);
 
-  // Sort and filter conversations
-  const filteredConversations = conversations
-    .filter((conversation) =>
-      conversation.title.toLowerCase().includes(searchTerm.toLowerCase()),
-    )
-    .sort((a, b) => {
-      const dateA = new Date(
-        a.backendConversation?.updatedAt ||
-          a.backendConversation?.createdAt ||
-          Date.now(),
-      );
-      const dateB = new Date(
-        b.backendConversation?.updatedAt ||
-          b.backendConversation?.createdAt ||
-          Date.now(),
-      );
-      return dateB.getTime() - dateA.getTime();
-    });
+  const trimmedSearch = deferredSearch.trim();
+  const isSearching = trimmedSearch.length > 0;
+  const isSearchPending = searchTerm.trim() !== trimmedSearch;
 
-  // Group conversations
+  // Title filter uses deferred query so the input never waits on list work.
+  const titleMatches = useMemo(() => {
+    if (!isSearching) return conversations;
+    const q = trimmedSearch.toLowerCase();
+    return conversations.filter((c) => c.title.toLowerCase().includes(q));
+  }, [conversations, isSearching, trimmedSearch]);
+
+  // Debounced FTS over message bodies. Loading flag only flips when fetch starts
+  // (not on every keystroke) to avoid extra re-renders while typing.
+  useEffect(() => {
+    if (!isSearching || !isAuthenticated) {
+      setFtsHits((prev) => (prev.length === 0 ? prev : []));
+      setFtsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const query = trimmedSearch;
+
+    const timer = window.setTimeout(async () => {
+      setFtsLoading(true);
+      try {
+        const hits = await conversationsAPI.searchConversations(
+          query,
+          controller.signal,
+        );
+        if (!controller.signal.aborted) {
+          setFtsHits(hits);
+        }
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (err instanceof Error && err.name === "AbortError") return;
+        console.error("Conversation search failed:", err);
+        setFtsHits([]);
+      } finally {
+        if (!controller.signal.aborted) {
+          setFtsLoading(false);
+        }
+      }
+    }, 220);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [trimmedSearch, isSearching, isAuthenticated]);
+
+  // Merge title matches + FTS hits into a single list for display.
+  const filteredConversations = useMemo((): ListConversation[] => {
+    // Manager already keeps sidebar order — avoid copy+sort on every idle render.
+    if (!isSearching) {
+      return conversations as ListConversation[];
+    }
+
+    const byId = new Map(conversations.map((c) => [c.id, c]));
+    const snippetByConv = new Map(
+      ftsHits.map((h) => [h.conversationId, h.snippet]),
+    );
+    const result = new Map<string, ListConversation>();
+
+    for (const c of titleMatches) {
+      const snippet = snippetByConv.get(c.id);
+      // Shallow wrapper only when a snippet is needed (keeps list work cheap).
+      result.set(c.id, snippet ? { ...c, searchSnippet: snippet } : c);
+    }
+
+    for (const hit of ftsHits) {
+      if (result.has(hit.conversationId)) {
+        const existing = result.get(hit.conversationId)!;
+        if (!existing.searchSnippet && hit.snippet) {
+          result.set(hit.conversationId, {
+            ...existing,
+            searchSnippet: hit.snippet,
+          });
+        }
+        continue;
+      }
+      const known = byId.get(hit.conversationId);
+      if (known) {
+        result.set(hit.conversationId, {
+          ...known,
+          searchSnippet: hit.snippet,
+        });
+      } else {
+        result.set(hit.conversationId, {
+          id: hit.conversationId,
+          title: hit.title || "New Chat",
+          messages: [],
+          pendingMessageIds: new Set(),
+          activeBranches: new Map(),
+          searchSnippet: hit.snippet,
+          backendConversation: {
+            id: hit.conversationId,
+            userId: "",
+            title: hit.title,
+            createdAt: hit.updatedAt,
+            updatedAt: hit.updatedAt,
+            messages: {},
+          },
+        });
+      }
+    }
+
+    return Array.from(result.values()).sort(sortByUpdatedDesc);
+  }, [conversations, isSearching, titleMatches, ftsHits]);
+
+  // Group conversations (skip date groups while searching — flat results feel faster)
   const groupedConversations = useMemo(() => {
-    const groups = {
-      Today: [] as ClientConversation[],
-      Yesterday: [] as ClientConversation[],
-      "Last 7 Days": [] as ClientConversation[],
-      Older: [] as ClientConversation[],
+    if (isSearching) {
+      return { Results: filteredConversations } as Record<
+        string,
+        ListConversation[]
+      >;
+    }
+
+    const groups: Record<string, ListConversation[]> = {
+      Today: [],
+      Yesterday: [],
+      "Last 7 Days": [],
+      Older: [],
     };
 
     filteredConversations.forEach((conversation) => {
       const group = getConversationGroup(conversation);
       if (group in groups) {
-        groups[group as keyof typeof groups].push(conversation);
+        groups[group].push(conversation);
       } else {
         groups["Older"].push(conversation);
       }
     });
 
     return groups;
-  }, [filteredConversations]);
-
-  type FlatItem =
-    | { type: "header"; id: string; label: string }
-    | { type: "item"; id: string; data: ClientConversation };
+  }, [filteredConversations, isSearching]);
 
   const flatItems = useMemo(() => {
     const items: FlatItem[] = [];
-    (
-      Object.keys(groupedConversations) as Array<
-        keyof typeof groupedConversations
-      >
-    ).forEach((group) => {
+    const groupOrder = isSearching
+      ? ["Results"]
+      : ["Today", "Yesterday", "Last 7 Days", "Older"];
+
+    groupOrder.forEach((group) => {
       const groupItems = groupedConversations[group];
-      if (groupItems.length > 0) {
+      if (!groupItems || groupItems.length === 0) return;
+      if (!isSearching) {
         items.push({ type: "header", id: `header-${group}`, label: group });
-        groupItems.forEach((conversation) => {
-          items.push({ type: "item", id: conversation.id, data: conversation });
-        });
       }
+      groupItems.forEach((conversation) => {
+        items.push({ type: "item", id: conversation.id, data: conversation });
+      });
     });
     return items;
-  }, [groupedConversations]);
+  }, [groupedConversations, isSearching]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Stable estimate lookup without closing over a new flatItems array identity
+  // in a way that forces virtualizer thrash every keystroke.
+  const flatItemsRef = useRef(flatItems);
+  flatItemsRef.current = flatItems;
 
   const rowVirtualizer = useVirtualizer({
     count: flatItems.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: (index) => {
-      return flatItems[index].type === "header" ? 24 + 16 : 40; // Approx heights with padding
+      const item = flatItemsRef.current[index];
+      if (!item || item.type === "header") return 40;
+      return item.data.searchSnippet ? 56 : 40;
     },
-    overscan: 10,
+    // Skip expensive DOM remeasure on every filter tick; estimates are close enough.
+    // measureElement still corrects when rows mount.
+    overscan: 8,
   });
 
   const handleRename = (conversationId: string, currentTitle: string) => {
@@ -175,6 +332,11 @@ export const ConversationSidebar = ({
       onDeleteConversation(conversationId);
     }
   };
+
+  const showEmptySearch =
+    isSearching &&
+    filteredConversations.length === 0 &&
+    !ftsLoading;
 
   return (
     <div
@@ -252,9 +414,13 @@ export const ConversationSidebar = ({
         {/* Search Input */}
         <div className="px-3 pt-3 flex-shrink-0">
           <div className="relative">
-            <SearchIcon className="absolute left-2 top-2.5 size-4 text-muted-foreground pointer-events-none" />
+            {ftsLoading ? (
+              <Loader2Icon className="absolute left-2 top-2.5 size-4 text-muted-foreground animate-spin pointer-events-none" />
+            ) : (
+              <SearchIcon className="absolute left-2 top-2.5 size-4 text-muted-foreground pointer-events-none" />
+            )}
             <Input
-              placeholder="Search conversations ..."
+              placeholder="Search titles & messages…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-8 h-9 text-sm border-0 border-b rounded-none focus-visible:ring-0 focus-visible:border-muted-foreground !bg-transparent"
@@ -292,14 +458,19 @@ export const ConversationSidebar = ({
                   )}
                 </div>
               </div>
-            ) : filteredConversations.length === 0 ? (
+            ) : showEmptySearch ? (
               <div className="px-3 py-4">
                 <div className="text-center py-8 text-muted-foreground text-sm">
                   No matching conversations found.
                 </div>
               </div>
             ) : (
-              <div className="px-3 py-4">
+              <div
+                className={cn(
+                  "px-3 py-4 transition-opacity duration-100",
+                  isSearchPending && "opacity-70",
+                )}
+              >
                 <div
                   className="relative w-full"
                   style={{
@@ -329,7 +500,10 @@ export const ConversationSidebar = ({
                         ) : (
                           <div
                             className={cn(
-                              "group relative w-full rounded-lg transition-colors py-[0.1rem] animate-fade-in",
+                              // No animate-fade-in while filtering — CSS animations
+                              // on remounted rows are a major source of typing jank.
+                              "group relative w-full rounded-lg transition-colors py-[0.1rem]",
+                              !isSearching && "animate-fade-in",
                               activeConversationId === item.data.id
                                 ? "bg-secondary/80"
                                 : "hover:bg-secondary/80",
@@ -365,10 +539,15 @@ export const ConversationSidebar = ({
                                     "flex-1 justify-start h-auto p-2 text-left hover:!bg-transparent max-w-[240px] group-hover/item:max-w-[210px] transition-all !duration-100 ease-in-out",
                                   )}
                                 >
-                                  <div className="flex items-center gap-2 w-full">
+                                  <div className="flex flex-col gap-0.5 w-full min-w-0">
                                     <span className="text-sm flex-1 truncate text-foreground/80">
                                       {item.data.title}
                                     </span>
+                                    {item.data.searchSnippet ? (
+                                      <SearchSnippet
+                                        snippet={item.data.searchSnippet}
+                                      />
+                                    ) : null}
                                   </div>
                                 </Button>
                                 <DropdownMenu>

@@ -1,4 +1,9 @@
-import { Conversation, Message, WelcomeStats } from "./types.ts";
+import {
+  Conversation,
+  ConversationSearchHit,
+  Message,
+  WelcomeStats,
+} from "./types.ts";
 
 import {
   ApiErrorHandler,
@@ -166,6 +171,52 @@ export class ConversationsAPI {
         );
       }
     }, `deleteConversation(${id})`);
+  }
+
+  // GET /api/conversations/search?q=...
+  // Supports AbortSignal so the sidebar can cancel in-flight queries while typing.
+  async searchConversations(
+    query: string,
+    signal?: AbortSignal,
+  ): Promise<ConversationSearchHit[]> {
+    const q = query.trim();
+    if (!q) {
+      return [];
+    }
+
+    try {
+      const response = await fetch(
+        `/api/conversations/search?q=${encodeURIComponent(q)}`,
+        {
+          method: "GET",
+          headers: getHeaders({
+            "Content-Type": "application/json",
+          }),
+          credentials: "include",
+          signal,
+        },
+      );
+
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(response, "Search conversations");
+      }
+
+      const data = await response.json();
+      return Array.isArray(data) ? (data as ConversationSearchHit[]) : [];
+    } catch (error) {
+      // Aborts are expected during debounce — don't log them as API errors
+      if (
+        (error instanceof DOMException && error.name === "AbortError") ||
+        (error instanceof Error && error.name === "AbortError") ||
+        signal?.aborted
+      ) {
+        throw error;
+      }
+      console.error("API Error in searchConversations:", error);
+      throw error instanceof Error
+        ? error
+        : new Error(`searchConversations: ${String(error)}`);
+    }
   }
 
   // GET /api/conversations/stats
