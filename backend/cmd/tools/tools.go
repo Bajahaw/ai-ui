@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -64,7 +65,14 @@ var toolCallManager = ToolCallManager{
 // 	return results
 // }
 
-func ExecuteMCPTool(toolCall providers.ToolCall, user, convID string) providers.ToolOutput {
+func ExecuteMCPTool(ctx context.Context, toolCall providers.ToolCall, user, convID string) providers.ToolOutput {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return providers.ToolOutput{Content: "Tool call was cancelled."}
+	}
+
 	tool, err := tools.GetByName(toolCall.Name, user)
 	if err != nil {
 		log.Error("Error retrieving tool", "err", err)
@@ -77,7 +85,8 @@ func ExecuteMCPTool(toolCall providers.ToolCall, user, convID string) providers.
 		return providers.ToolOutput{Content: "Error occurred while retrieving MCP server."}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	// Inherit generation cancel; still bound individual tool runtime.
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 
 	if tool.RequireApproval {
@@ -100,6 +109,9 @@ func ExecuteMCPTool(toolCall providers.ToolCall, user, convID string) providers.
 
 		select {
 		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.Canceled) {
+				return providers.ToolOutput{Content: "Tool call was cancelled."}
+			}
 			return providers.ToolOutput{Content: "Tool call approval timed out."}
 		case approved := <-responseChan:
 			if !approved {

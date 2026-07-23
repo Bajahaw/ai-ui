@@ -236,7 +236,15 @@ func enterAgentLoop(
 	convID, user string,
 	sc utils.StreamClient,
 ) (*providers.ChatCompletionMessage, error) {
+	if providers.IsGenerationCancelled(responseMessage.ID) {
+		return &providers.ChatCompletionMessage{Cancelled: true}, nil
+	}
+
 	for i, toolCall := range calls {
+		if providers.IsGenerationCancelled(responseMessage.ID) {
+			log.Debug("Generation cancelled before tool execution", "tool", toolCall.Name)
+			return &providers.ChatCompletionMessage{Cancelled: true}, nil
+		}
 
 		assistantMsg := providers.SimpleMessage{
 			Role:     "assistant",
@@ -253,7 +261,13 @@ func enterAgentLoop(
 		toolCall.MessageID = responseMessage.ID
 		toolCall.ConvID = convID
 
-		result := tools.ExecuteMCPTool(toolCall, user, convID)
+		result := tools.ExecuteMCPTool(providerParams.Context, toolCall, user, convID)
+		// If cancel raced with tool start, drop the result and stop.
+		if providers.IsGenerationCancelled(responseMessage.ID) {
+			log.Debug("Generation cancelled during tool execution", "tool", toolCall.Name)
+			return &providers.ChatCompletionMessage{Cancelled: true}, nil
+		}
+
 		toolCall.Output = result.Content
 		toolCall.File = result.File
 
@@ -283,6 +297,10 @@ func enterAgentLoop(
 
 	}
 
+	if providers.IsGenerationCancelled(responseMessage.ID) {
+		return &providers.ChatCompletionMessage{Cancelled: true}, nil
+	}
+
 	// Stream a newline separator before the post-tool completion so
 	// sentences from before and after the tool call don't run together.
 	// This mirrors the "\n" that is added to responseMessage.Content below.
@@ -305,6 +323,7 @@ func enterAgentLoop(
 
 	// Accumulate content from the post-tool completion into the response.
 	// Add a newline separator to prevent sentences from running together.
+	// Keep partial content even when the follow-up stream was cancelled.
 	if completion.Content != "" {
 		if responseMessage.Content != "" {
 			responseMessage.Content += "\n"
@@ -318,6 +337,10 @@ func enterAgentLoop(
 			responseMessage.Reasoning += "  \n`used tool:" + toolCall.Name + "`  \n"
 		}
 		responseMessage.Reasoning += completion.Reasoning
+	}
+
+	if completion.Cancelled || providers.IsGenerationCancelled(responseMessage.ID) {
+		return completion, nil
 	}
 
 	calls = completion.ToolCalls

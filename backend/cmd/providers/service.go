@@ -8,7 +8,6 @@ import (
 	"math"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Bajahaw/ai-ui/cmd/utils"
@@ -17,28 +16,6 @@ import (
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 )
-
-type ActiveStream struct {
-	Cancel context.CancelFunc
-	UserID string
-}
-
-var (
-	activeStreams   = make(map[int]ActiveStream)
-	activeStreamsMu sync.Mutex
-)
-
-func CancelStream(messageID int, userID string) bool {
-	activeStreamsMu.Lock()
-	stream, exists := activeStreams[messageID]
-	activeStreamsMu.Unlock()
-
-	if exists && stream.UserID == userID {
-		stream.Cancel()
-		return true
-	}
-	return false
-}
 
 type SimpleMessage struct {
 	Role      string
@@ -55,7 +32,10 @@ type RequestParams struct {
 	ReasoningEffort openai.ReasoningEffort
 	User            string
 	MessageID       int
-	Tools           []openai.ChatCompletionToolUnionParam
+	// Context scopes the full assistant generation (streams + tool calls).
+	// Cancelled by CancelStream / EndGeneration.
+	Context context.Context
+	Tools   []openai.ChatCompletionToolUnionParam
 }
 
 type ChatCompletionMessage struct {
@@ -63,6 +43,9 @@ type ChatCompletionMessage struct {
 	Reasoning string
 	ToolCalls []ToolCall
 	Stats     utils.StreamStats
+	// Cancelled is true when the generation was cancelled mid-stream.
+	// Callers must not execute tool calls or continue the agent loop.
+	Cancelled bool
 }
 
 type ToolCall struct {
@@ -156,21 +139,13 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 		return nil, errors.New("Provider not found")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-
-	activeStreamsMu.Lock()
-	activeStreams[params.MessageID] = ActiveStream{
-		Cancel: cancel,
-		UserID: params.User,
+	parent := params.Context
+	if parent == nil {
+		parent = context.Background()
 	}
-	activeStreamsMu.Unlock()
-
-	defer func() {
-		activeStreamsMu.Lock()
-		delete(activeStreams, params.MessageID)
-		activeStreamsMu.Unlock()
-		cancel()
-	}()
+	// Bound each provider stream; parent cancellation (user stop) still wins.
+	ctx, cancel := context.WithTimeout(parent, 30*time.Minute)
+	defer cancel()
 
 	opts := []option.RequestOption{
 		option.WithAPIKey(provider.APIKey),
@@ -256,10 +231,11 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 	}
 
 	duration := time.Since(start)
+	cancelled := isContextCanceled(ctx.Err()) || isContextCanceled(stream.Err())
 
 	if err := stream.Err(); err != nil {
 		log.Info("Stream detailed error", "err", err)
-		if errors.Is(err, context.Canceled) {
+		if isContextCanceled(err) {
 			log.Debug("Stream cancelled by user")
 			// Ignore context cancelled error and return partial response
 		} else {
@@ -299,35 +275,19 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 	if !(len(acc.Choices) > 0) {
 		log.Debug("Stream completed with no choices")
 		// If cancelled by user, return empty content instead of error
-		if errors.Is(stream.Err(), context.Canceled) {
+		if cancelled {
 			return &ChatCompletionMessage{
 				Content:   "",
 				Reasoning: "",
 				ToolCalls: []ToolCall{},
 				Stats:     utils.StreamStats{},
+				Cancelled: true,
 			}, nil
 		}
 		return nil, fmt.Errorf("no choices in completion")
 	}
 
 	log.Debug("Stop reason:", "reason", acc.Choices[0].FinishReason)
-
-	// this mapping is needed because providers are not always
-	// guaranteed to generate unique IDs for tool calls,
-	// so we generate our own IDs here
-	var toolCalls []ToolCall
-	for _, tc := range acc.Choices[0].Message.ToolCalls {
-		id, ok := uniqueToolIDs[tc.ID]
-		if !ok {
-			id = uuid.New().String()
-		}
-		toolCalls = append(toolCalls, ToolCall{
-			ID:          id,
-			ReferenceID: tc.ID,
-			Name:        tc.Function.Name,
-			Args:        tc.Function.Arguments,
-		})
-	}
 
 	// Compatibility across providers: some use reasoning_text or reasoning_content.
 	reasoning := acc.Choices[0].Message.Reasoning
@@ -338,10 +298,35 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 		reasoning = acc.Choices[0].Message.ReasoningContent
 	}
 
-	log.Debug("response completed", "content", acc.Choices[0].Message.Content)
+	content := acc.Choices[0].Message.Content
+
+	// On cancel, never hand partial/incomplete tool calls to the agent loop.
+	// JustFinishedToolCall may never have fired for truncated argument streams.
+	var toolCalls []ToolCall
+	if !cancelled {
+		// this mapping is needed because providers are not always
+		// guaranteed to generate unique IDs for tool calls,
+		// so we generate our own IDs here
+		for _, tc := range acc.Choices[0].Message.ToolCalls {
+			id, ok := uniqueToolIDs[tc.ID]
+			if !ok {
+				id = uuid.New().String()
+			}
+			toolCalls = append(toolCalls, ToolCall{
+				ID:          id,
+				ReferenceID: tc.ID,
+				Name:        tc.Function.Name,
+				Args:        tc.Function.Arguments,
+			})
+		}
+	} else {
+		log.Debug("Generation cancelled; dropping tool calls from partial stream",
+			"count", len(acc.Choices[0].Message.ToolCalls))
+	}
+
+	log.Debug("response completed", "content", content, "cancelled", cancelled)
 	log.Debug("Usage stats:", "tokens", acc.Usage.TotalTokens, "prompt", acc.Usage.PromptTokens, "completion", acc.Usage.CompletionTokens)
 
-	content := acc.Choices[0].Message.Content
 	promptTokens := int(acc.Usage.PromptTokens)
 	completionTokens := int(acc.Usage.CompletionTokens)
 
@@ -389,7 +374,12 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 		Reasoning: reasoning,
 		ToolCalls: toolCalls,
 		Stats:     stats,
+		Cancelled: cancelled,
 	}, nil
+}
+
+func isContextCanceled(err error) bool {
+	return err != nil && errors.Is(err, context.Canceled)
 }
 
 // estimatePromptText concatenates request message text used for fallback

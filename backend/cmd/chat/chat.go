@@ -158,6 +158,10 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// Generation spans every provider stream and tool execution for this message.
+	genCtx := providers.StartGeneration(responseMessage.ID, user)
+	defer providers.EndGeneration(responseMessage.ID)
+
 	// Send metadata first (conversation ID, user message ID)
 	metadata := utils.StreamMetadata{
 		ConversationID:     convID,
@@ -180,12 +184,13 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		ReasoningEffort: providers.ReasoningEffort(reasoningSetting),
 		User:            user,
 		MessageID:       responseMessage.ID,
+		Context:         genCtx,
 		Tools:           toOpenAITools(tools.GetAvailableTools(user)),
 	}
 
 	var calls []providers.ToolCall
-	var isToolsUsed bool
 	var streamStats utils.StreamStats
+	var cancelled bool
 
 	completion, err := provider.SendChatCompletionStreamRequest(providerParams, sc)
 	if err != nil {
@@ -200,11 +205,12 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		responseMessage.Reasoning = completion.Reasoning
 		streamStats = completion.Stats
 		calls = completion.ToolCalls
+		cancelled = completion.Cancelled
 	}
 
-	isToolsUsed = len(calls) > 0
-
-	if isToolsUsed {
+	// Never run tools or follow-up streams after a user cancel — partial tool
+	// call JSON is common when stop is pressed mid-toolcall.
+	if !cancelled && !providers.IsGenerationCancelled(responseMessage.ID) && len(calls) > 0 {
 		completion, err = enterAgentLoop(
 			calls, providerParams,
 			&responseMessage,
@@ -213,7 +219,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		)
 		if err != nil {
 			responseMessage.Error = err.Error()
-		} else {
+		} else if completion != nil {
 			// Content is already accumulated in responseMessage by enterAgentLoop.
 			streamStats = completion.Stats
 		}
@@ -326,6 +332,9 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	genCtx := providers.StartGeneration(responseMessage.ID, user)
+	defer providers.EndGeneration(responseMessage.ID)
+
 	// Metadata: no new user message; client already knows conversation
 	metadata := utils.StreamMetadata{
 		ConversationID:     req.ConversationID,
@@ -347,12 +356,13 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		ReasoningEffort: providers.ReasoningEffort(reasoningSetting),
 		User:            user,
 		MessageID:       responseMessage.ID,
+		Context:         genCtx,
 		Tools:           toOpenAITools(tools.GetAvailableTools(user)),
 	}
 
 	var calls []providers.ToolCall
-	var isToolsUsed bool
 	var streamStats utils.StreamStats
+	var cancelled bool
 
 	// Stream assistant content
 	completion, err := provider.SendChatCompletionStreamRequest(providerParams, sc)
@@ -368,13 +378,10 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		responseMessage.Reasoning = completion.Reasoning
 		streamStats = completion.Stats
 		calls = completion.ToolCalls
+		cancelled = completion.Cancelled
 	}
 
-	isToolsUsed = len(calls) > 0
-	// if !isToolsUsed {
-	// }
-
-	if isToolsUsed {
+	if !cancelled && !providers.IsGenerationCancelled(responseMessage.ID) && len(calls) > 0 {
 		completion, err = enterAgentLoop(
 			calls, providerParams,
 			&responseMessage,
@@ -383,7 +390,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		)
 		if err != nil {
 			responseMessage.Error = err.Error()
-		} else {
+		} else if completion != nil {
 			// Content is already accumulated in responseMessage by enterAgentLoop.
 			streamStats = completion.Stats
 		}
