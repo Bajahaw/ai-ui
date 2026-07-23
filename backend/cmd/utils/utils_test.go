@@ -3,8 +3,33 @@ package utils
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
+
+func TestEstimateTokens(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+		want int
+	}{
+		{name: "empty", text: "", want: 0},
+		{name: "short", text: "hi", want: 1},
+		{name: "exactly four runes", text: "abcd", want: 1},
+		{name: "five runes", text: "abcde", want: 2},
+		{name: "sixteen runes", text: strings.Repeat("a", 16), want: 4},
+		{name: "unicode runes", text: "你好世界", want: 1}, // 4 runes -> 1 token
+		{name: "unicode longer", text: "你好世界!!", want: 2}, // 6 runes -> 2 tokens
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := EstimateTokens(tt.text)
+			if got != tt.want {
+				t.Fatalf("EstimateTokens(%q) = %d, want %d", tt.text, got, tt.want)
+			}
+		})
+	}
+}
 
 func TestCacheControlMiddleware_API(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

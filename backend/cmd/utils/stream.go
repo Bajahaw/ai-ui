@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"unicode/utf8"
 )
 
 const (
@@ -49,6 +50,18 @@ type StreamStats struct {
 	// TotalTokens int
 	// Tokens per second
 	Speed float64
+}
+
+// EstimateTokens approximates token count when the API does not return usage
+// fields. Uses a ~4 characters-per-token heuristic based on Unicode rune count,
+// which is a common rough estimate across English and many other languages.
+func EstimateTokens(text string) int {
+	if text == "" {
+		return 0
+	}
+	n := utf8.RuneCountInString(text)
+	// ceil(n / 4)
+	return (n + 3) / 4
 }
 
 func AddStreamHeaders(w http.ResponseWriter) {

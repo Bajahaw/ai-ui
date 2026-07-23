@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -185,6 +186,10 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 		Model:           model,
 		ReasoningEffort: params.ReasoningEffort,
 		Tools:           params.Tools,
+		// Prefer real usage from providers that support the final usage chunk.
+		StreamOptions: openai.ChatCompletionStreamOptionsParam{
+			IncludeUsage: openai.Bool(true),
+		},
 	}
 	OpenAIMessageParams(&openAIparams, params.Messages)
 
@@ -335,18 +340,41 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 
 	log.Debug("response completed", "content", acc.Choices[0].Message.Content)
 	log.Debug("Usage stats:", "tokens", acc.Usage.TotalTokens, "prompt", acc.Usage.PromptTokens, "completion", acc.Usage.CompletionTokens)
+
+	content := acc.Choices[0].Message.Content
+	promptTokens := int(acc.Usage.PromptTokens)
+	completionTokens := int(acc.Usage.CompletionTokens)
+
+	// Fallback when the provider omits usage fields (common on some
+	// OpenAI-compatible APIs and interrupted streams).
+	if completionTokens <= 0 {
+		var b strings.Builder
+		b.WriteString(content)
+		b.WriteString(reasoning)
+		for _, tc := range toolCalls {
+			b.WriteString(tc.Name)
+			b.WriteString(tc.Args)
+		}
+		completionTokens = utils.EstimateTokens(b.String())
+		log.Debug("API usage missing completion tokens; using estimate", "tokens", completionTokens)
+	}
+	if promptTokens <= 0 {
+		promptTokens = utils.EstimateTokens(estimatePromptText(params.Messages))
+		log.Debug("API usage missing prompt tokens; using estimate", "tokens", promptTokens)
+	}
+
 	seconds := duration.Seconds()
 	if seconds == 0 {
 		seconds = 1
 	}
-	speed := float64(acc.Usage.CompletionTokens) / seconds
+	speed := float64(completionTokens) / seconds
 	log.Debug("Response speed:", "tokens_per_second", speed)
 
 	stats := utils.StreamStats{
-		PromptTokens:     int(acc.Usage.PromptTokens),
-		CompletionTokens: int(acc.Usage.CompletionTokens),
+		PromptTokens:     promptTokens,
+		CompletionTokens: completionTokens,
 		// TotalTokens:      int(acc.Usage.TotalTokens),
-		Speed: math.Round(float64(acc.Usage.CompletionTokens)/seconds*10) / 10,
+		Speed: math.Round(speed*10) / 10,
 	}
 
 	if len(toolCalls) > 0 {
@@ -357,9 +385,25 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 	}
 
 	return &ChatCompletionMessage{
-		Content:   acc.Choices[0].Message.Content,
+		Content:   content,
 		Reasoning: reasoning,
 		ToolCalls: toolCalls,
 		Stats:     stats,
 	}, nil
+}
+
+// estimatePromptText concatenates request message text used for fallback
+// prompt-token estimation when the API omits usage fields.
+func estimatePromptText(messages []SimpleMessage) string {
+	var b strings.Builder
+	for _, m := range messages {
+		b.WriteString(m.Content)
+		b.WriteString(m.Reasoning)
+		if m.ToolCall.Name != "" || m.ToolCall.Args != "" || m.ToolCall.Output != "" {
+			b.WriteString(m.ToolCall.Name)
+			b.WriteString(m.ToolCall.Args)
+			b.WriteString(m.ToolCall.Output)
+		}
+	}
+	return b.String()
 }
