@@ -1,10 +1,9 @@
 import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
-import type { UIMessage } from "ai";
 import { getTextAlignment, getTextDirection } from "@/lib/rtl-utils";
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
-  from: UIMessage["role"];
+  from: "system" | "user" | "assistant" | string;
   status?: "completed" | "pending";
   error?: string;
 };

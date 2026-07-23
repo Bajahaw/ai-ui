@@ -24,9 +24,15 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible.tsx";
 import { cn } from "@/lib/utils.ts";
-import type { ToolUIPart } from "ai";
 import { CodeBlock } from "./code-block.tsx";
 
+/** Tool call lifecycle states used by the tool UI. */
+export type ToolCallState =
+  | "input-streaming"
+  | "input-available"
+  | "output-available"
+  | "output-error"
+  | "awaiting-approval";
 
 export type ToolProps = ComponentProps<typeof Collapsible>;
 
@@ -38,13 +44,13 @@ export const Tool = ({ className, ...props }: ToolProps) => (
 );
 
 export type ToolHeaderProps = {
-  type: ToolUIPart["type"];
-  state: ToolUIPart["state"] | "awaiting-approval";
+  type: string;
+  state: ToolCallState;
   className?: string;
   mcpUrl?: string;
 };
 
-const getStatusBadge = (status: ToolUIPart["state"] | "awaiting-approval") => {
+const getStatusBadge = (status: ToolCallState) => {
   // const labels = {
   //   'input-streaming': 'Pending',
   //   'input-available': 'Running',
@@ -52,9 +58,7 @@ const getStatusBadge = (status: ToolUIPart["state"] | "awaiting-approval") => {
   //   'output-error': 'Error',
   // } as const;
 
-  const icons: Partial<
-    Record<ToolUIPart["state"] | "awaiting-approval", ReactNode>
-  > = {
+  const icons: Partial<Record<ToolCallState, ReactNode>> = {
     "input-streaming": <CircleIcon className="size-4" />,
     "input-available": <ClockIcon className="size-4 animate-pulse" />,
     "output-available": <CheckCircleIcon className="size-4 text-green-600" />,
@@ -212,7 +216,7 @@ export const ToolContent = ({ className, ...props }: ToolContentProps) => (
 );
 
 export type ToolInputProps = ComponentProps<"div"> & {
-  input: ToolUIPart["input"];
+  input: unknown;
 };
 
 export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
@@ -228,7 +232,7 @@ export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
 
 export type ToolOutputProps = ComponentProps<"div"> & {
   output: ReactNode;
-  errorText: ToolUIPart["errorText"];
+  errorText?: string;
 };
 
 export const ToolOutput = ({

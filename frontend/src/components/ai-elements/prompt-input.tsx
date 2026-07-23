@@ -20,8 +20,10 @@ import { Button } from "@/components/ui/button.tsx";
 import { Textarea } from "@/components/ui/textarea.tsx";
 import { cn } from "@/lib/utils.ts";
 import { getTextDirection } from "@/lib/rtl-utils.ts";
-import type { ChatStatus } from "ai";
 import { useSettings } from "@/hooks/useSettings";
+
+/** Submit button chat status (streaming UI only). */
+export type ChatStatus = "submitted" | "streaming" | "ready" | "error";
 
 export type PromptInputProps = HTMLAttributes<HTMLFormElement>;
 

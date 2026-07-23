@@ -402,8 +402,17 @@ const components: Options["components"] = {
       if (typeof childProps.className === "string") {
         language = childProps.className.replace("language-", "");
       }
-    } else if (typeof node?.properties?.className === "string") {
-      language = node.properties.className.replace("language-", "");
+    } else {
+      // hast Element.properties.className is Array<string> | undefined
+      const nodeClassName = node?.properties?.className;
+      if (Array.isArray(nodeClassName)) {
+        const languageClass = nodeClassName.find((c) =>
+          c.startsWith("language-"),
+        );
+        if (languageClass) {
+          language = languageClass.replace("language-", "");
+        }
+      }
     }
 
     if (!childrenIsCode) {
