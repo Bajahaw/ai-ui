@@ -2,6 +2,7 @@
 export { SettingsDialog } from "./SettingsDialog";
 export { ProvidersSection } from "./ProvidersSection";
 export { GlobalSettingsSection } from "./GlobalSettingsSection";
+export { MediaSection } from "./MediaSection";
 export { ProviderForm } from "./ProviderForm";
 export { ModelsSection } from "./ModelsSection";
 export { MCPServersSection } from "./MCPServersSection";

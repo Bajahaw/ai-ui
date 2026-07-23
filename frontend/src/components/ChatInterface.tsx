@@ -47,6 +47,8 @@ import {
   Plus,
   UploadIcon,
   ReplyIcon,
+  Volume2Icon,
+  SquareIcon,
 } from "lucide-react";
 import { Loader } from "@/components/ai-elements/loader";
 import { Actions, Action } from "@/components/ai-elements/actions";
@@ -64,6 +66,7 @@ import {
 } from "@/components/ui/file-upload";
 import { ThoughtsToolsGroup } from "@/components/ai-elements/thoughts-tools-group";
 import { uploadFile, FileUploadError } from "@/lib/api/files";
+import { synthesizeMessageSpeech } from "@/lib/api/tts";
 import { FileManagerDialog } from "@/components/file-manager/FileManagerDialog";
 import { ModelOption } from "@/components/ai-elements/model-select";
 
@@ -398,6 +401,19 @@ export const ChatInterface = ({
   const [updatingMessageId, setUpdatingMessageId] = useState<string | null>(
     null,
   );
+  // Read-aloud TTS (one message at a time)
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(
+    null,
+  );
+  const [ttsLoadingMessageId, setTtsLoadingMessageId] = useState<string | null>(
+    null,
+  );
+  const [ttsErrorMessageId, setTtsErrorMessageId] = useState<string | null>(
+    null,
+  );
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsObjectUrlRef = useRef<string | null>(null);
+  const ttsAbortRef = useRef<AbortController | null>(null);
   const editableMessageRefs = useRef<Record<string, EditableMessageRef | null>>(
     {},
   );
@@ -811,6 +827,88 @@ export const ChatInterface = ({
     }
   };
 
+  const stopReadAloud = useCallback(() => {
+    ttsAbortRef.current?.abort();
+    ttsAbortRef.current = null;
+    if (ttsAudioRef.current) {
+      ttsAudioRef.current.pause();
+      ttsAudioRef.current.onended = null;
+      ttsAudioRef.current.onerror = null;
+      ttsAudioRef.current = null;
+    }
+    if (ttsObjectUrlRef.current) {
+      URL.revokeObjectURL(ttsObjectUrlRef.current);
+      ttsObjectUrlRef.current = null;
+    }
+    setSpeakingMessageId(null);
+    setTtsLoadingMessageId(null);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopReadAloud();
+    };
+  }, [stopReadAloud]);
+
+  // Stop playback when switching conversations
+  useEffect(() => {
+    stopReadAloud();
+    setTtsErrorMessageId(null);
+  }, [currentConversation?.id, stopReadAloud]);
+
+  const handleReadAloud = useCallback(
+    async (message: FrontendMessage) => {
+      if (message.role !== "assistant") return;
+      if (!(message.content || "").trim()) return;
+      // Backend numeric id required for GET /api/tts/messages/{id}
+      if (!/^\d+$/.test(message.id)) return;
+
+      // Toggle off if this message is already speaking or loading
+      if (
+        speakingMessageId === message.id ||
+        ttsLoadingMessageId === message.id
+      ) {
+        stopReadAloud();
+        return;
+      }
+
+      stopReadAloud();
+      setTtsErrorMessageId(null);
+      setTtsLoadingMessageId(message.id);
+
+      const abort = new AbortController();
+      ttsAbortRef.current = abort;
+
+      try {
+        const blob = await synthesizeMessageSpeech(message.id, abort.signal);
+        if (abort.signal.aborted) return;
+
+        const objectUrl = URL.createObjectURL(blob);
+        ttsObjectUrlRef.current = objectUrl;
+        const audio = new Audio(objectUrl);
+        ttsAudioRef.current = audio;
+
+        audio.onended = () => {
+          stopReadAloud();
+        };
+        audio.onerror = () => {
+          setTtsErrorMessageId(message.id);
+          stopReadAloud();
+        };
+
+        setTtsLoadingMessageId(null);
+        setSpeakingMessageId(message.id);
+        await audio.play();
+      } catch (err) {
+        if (abort.signal.aborted) return;
+        console.error("Read aloud failed:", err);
+        setTtsErrorMessageId(message.id);
+        stopReadAloud();
+      }
+    },
+    [speakingMessageId, ttsLoadingMessageId, stopReadAloud],
+  );
+
   const handleRetryMessage = async (messageId: string) => {
     // Prevent retry when model is invalid
     if (!isModelValid) {
@@ -948,6 +1046,43 @@ export const ChatInterface = ({
               <CopyIcon className="size-4" />
             </Action>
 
+            {message.role === "assistant" &&
+              !message.error &&
+              message.content?.trim() &&
+              message.status !== "pending" && (
+                <Action
+                  tooltip={
+                    ttsErrorMessageId === message.id
+                      ? "Read aloud failed — check TTS model in Settings → Media"
+                      : speakingMessageId === message.id
+                        ? "Stop reading"
+                        : ttsLoadingMessageId === message.id
+                          ? "Loading audio…"
+                          : "Read aloud"
+                  }
+                  onClick={() => handleReadAloud(message)}
+                  disabled={
+                    ttsLoadingMessageId !== null &&
+                    ttsLoadingMessageId !== message.id
+                  }
+                  className={
+                    ttsErrorMessageId === message.id
+                      ? "text-destructive hover:text-destructive-foreground hover:bg-destructive"
+                      : speakingMessageId === message.id
+                        ? "text-primary"
+                        : ""
+                  }
+                >
+                  {ttsLoadingMessageId === message.id ? (
+                    <div className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  ) : speakingMessageId === message.id ? (
+                    <SquareIcon className="size-4" />
+                  ) : (
+                    <Volume2Icon className="size-4" />
+                  )}
+                </Action>
+              )}
+
             {message.role === "assistant" && message.status !== "pending" && (
               <Action
                 tooltip={
@@ -1015,8 +1150,12 @@ export const ChatInterface = ({
       editingMessageId,
       updatingMessageId,
       retryingMessageId,
+      speakingMessageId,
+      ttsLoadingMessageId,
+      ttsErrorMessageId,
       onSwitchBranch,
       handleRetryMessage,
+      handleReadAloud,
       copyMessage,
       setEditingMessageId,
       editableMessageRefs,

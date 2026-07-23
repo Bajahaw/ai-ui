@@ -17,9 +17,11 @@ import {
   FileText,
   Lock,
   BookOpen,
+  ImageIcon,
 } from "lucide-react";
 import { ProvidersSection } from "./ProvidersSection";
 import { GlobalSettingsSection } from "./GlobalSettingsSection";
+import { MediaSection } from "./MediaSection";
 import { ModelsSection } from "./ModelsSection";
 import { MCPServersSection } from "./MCPServersSection";
 import { ToolsSection } from "./ToolsSection";
@@ -37,6 +39,7 @@ type SettingsTab =
   | "providers"
   | "models"
   | "global"
+  | "media"
   | "mcp"
   | "tools"
   | "skills"
@@ -91,6 +94,11 @@ const SettingsDialogContent = () => {
       icon: FileText,
     },
     {
+      id: "media" as const,
+      label: "Media",
+      icon: ImageIcon,
+    },
+    {
       id: "auth" as const,
       label: "Account",
       icon: Lock,
@@ -105,6 +113,8 @@ const SettingsDialogContent = () => {
         return <ModelsSection />;
       case "global":
         return <GlobalSettingsSection />;
+      case "media":
+        return <MediaSection />;
       case "mcp":
         return <MCPServersSection />;
       case "tools":

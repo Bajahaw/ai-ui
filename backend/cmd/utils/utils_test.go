@@ -53,6 +53,26 @@ func TestCacheControlMiddleware_API(t *testing.T) {
 	}
 }
 
+func TestCacheControlMiddleware_TTSAllowsHandlerCache(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "private, max-age=0, must-revalidate")
+		w.Header().Set("ETag", `"abc"`)
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tts/messages/1", nil)
+	rr := httptest.NewRecorder()
+
+	cacheControlMiddleware(handler).ServeHTTP(rr, req)
+
+	if rr.Header().Get("Cache-Control") != "private, max-age=0, must-revalidate" {
+		t.Errorf("unexpected Cache-Control %q", rr.Header().Get("Cache-Control"))
+	}
+	if rr.Header().Get("Pragma") != "" {
+		t.Errorf("expected no Pragma for TTS path, got %q", rr.Header().Get("Pragma"))
+	}
+}
+
 func TestCacheControlMiddleware_Resources(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

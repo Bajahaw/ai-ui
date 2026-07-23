@@ -181,6 +181,7 @@ func startServer() {
 	mux.Handle("/api/conversations/", chat.ConvsHandler())
 	mux.Handle("/api/providers/", providers.Handler())
 	mux.Handle("/api/models/", providers.ModelsHandler())
+	mux.Handle("/api/tts/", chat.TTSHandler())
 	mux.Handle("/api/settings/", settings.SettingsHandler())
 	mux.Handle("/api/tools/", tools.Handler())
 	mux.Handle("/api/skills/", skills.Handler())

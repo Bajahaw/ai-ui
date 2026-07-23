@@ -16,6 +16,10 @@ func SetDefaults(user string) {
 		"agenticDocumentRetrieval":   "false",
 		"ocrModel":                   "deepseek-ocr",
 		"imageModel":                 "dall-e-3",
+		// TTS read-aloud (OpenAI-compatible /audio/speech)
+		"ttsModel":                   "",
+		"ttsVoice":                   "alloy",
+		"ttsSpeed":                   "1",
 	}
 
 	if err := repo.SaveDefaults(defaults, user); err != nil {

@@ -110,6 +110,9 @@ func (r *statusRecorder) Flush() {
 func cacheControlMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case strings.HasPrefix(r.URL.Path, "/api/tts/"):
+			// TTS audio sets its own ETag / Cache-Control in the handler.
+			// Do not force no-store here so browsers can revalidate and reuse clips.
 		case strings.HasPrefix(r.URL.Path, "/api/"):
 			// API responses are user-specific and dynamic; never cache them.
 			w.Header().Set("Cache-Control", "private, no-store, no-cache, must-revalidate")
