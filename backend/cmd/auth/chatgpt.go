@@ -45,13 +45,21 @@ func optionalUserFromCookie(r *http.Request) string {
 func startChatGPTLogin(w http.ResponseWriter, r *http.Request) {
 	// If already logged in, attach provider to that user; otherwise full sign-in.
 	username := optionalUserFromCookie(r)
-	authURL, state, err := chatgptoauth.DefaultLoginManager.Start(username)
+	redirectURI := chatgptoauth.ResolveRedirectURI(r)
+	authURL, state, err := chatgptoauth.DefaultLoginManager.Start(username, redirectURI)
 	if err != nil {
 		log.Error("Failed to start ChatGPT OAuth", "err", err)
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
+	log.Debug("ChatGPT OAuth started", "redirect_uri", redirectURI, "state", state)
 	utils.RespondWithJSON(w, chatgptStartResponse{AuthURL: authURL, State: state}, http.StatusOK)
+}
+
+// handleChatGPTCallback is the public OAuth redirect target on this app's domain.
+// OpenAI redirects the browser here with ?code=&state= after consent.
+func handleChatGPTCallback(w http.ResponseWriter, r *http.Request) {
+	chatgptoauth.DefaultLoginManager.HandleCallback(w, r)
 }
 
 func pollChatGPTLogin(w http.ResponseWriter, r *http.Request) {

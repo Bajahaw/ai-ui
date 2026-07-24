@@ -114,12 +114,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }> => {
     let popup: Window | null = null;
     const onMessage = (event: MessageEvent) => {
-      // Callback server is localhost:1455 only — ignore other origins.
-      const origin = event?.origin ?? "";
-      if (
-        origin !== "http://127.0.0.1:1455" &&
-        origin !== "http://localhost:1455"
-      ) {
+      // Callback is same-origin (/api/auth/chatgpt/callback on this app domain).
+      if (event?.origin !== window.location.origin) {
         return;
       }
       if (event?.data?.type === "chatgpt-oauth" && popup && !popup.closed) {

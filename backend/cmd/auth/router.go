@@ -54,6 +54,8 @@ func Handler() http.Handler {
 	mux.Handle("POST /change-pass", Authenticated(http.HandlerFunc(UpdateUser)))
 	mux.HandleFunc("POST /chatgpt/start", startChatGPTLogin)
 	mux.HandleFunc("GET /chatgpt/status", pollChatGPTLogin)
+	// Public OAuth redirect (no auth cookie required). Must match redirect_uri.
+	mux.HandleFunc("GET /chatgpt/callback", handleChatGPTCallback)
 
 	return http.StripPrefix("/api/auth", mux)
 }

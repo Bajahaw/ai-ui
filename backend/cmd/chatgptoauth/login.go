@@ -3,7 +3,6 @@ package chatgptoauth
 import (
 	"fmt"
 	"html"
-	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -34,24 +33,24 @@ type PendingLogin struct {
 	CreatedAt time.Time
 }
 
-// LoginManager runs the localhost:1455 callback server and tracks pending logins.
+// LoginManager tracks pending OAuth logins. The OAuth redirect is handled by
+// the main app HTTP server (see CallbackPath), not a localhost side-listener.
 type LoginManager struct {
-	mu       sync.Mutex
-	pending  map[string]*PendingLogin
-	server   *http.Server
-	listener net.Listener
+	mu      sync.Mutex
+	pending map[string]*PendingLogin
 }
 
-// DefaultLoginManager is the process-wide manager (port 1455 is unique).
+// DefaultLoginManager is the process-wide manager.
 var DefaultLoginManager = NewLoginManager()
 
 func NewLoginManager() *LoginManager {
 	return &LoginManager{pending: make(map[string]*PendingLogin)}
 }
 
-// Start begins a new OAuth login. openURL is returned for the browser.
-func (m *LoginManager) Start(username string) (authURL, state string, err error) {
-	req, err := CreateAuthRequest(DefaultRedirect, DefaultClientID)
+// Start begins a new OAuth login. redirectURI must match the public callback
+// URL registered with OpenAI (typically {PUBLIC_BASE_URL}/api/auth/chatgpt/callback).
+func (m *LoginManager) Start(username, redirectURI string) (authURL, state string, err error) {
+	req, err := CreateAuthRequest(redirectURI, DefaultClientID)
 	if err != nil {
 		return "", "", err
 	}
@@ -74,11 +73,6 @@ func (m *LoginManager) Start(username string) (authURL, state string, err error)
 		Username:     username,
 		Status:       StatusPending,
 		CreatedAt:    now,
-	}
-
-	if err := m.ensureServerLocked(); err != nil {
-		delete(m.pending, req.State)
-		return "", "", err
 	}
 
 	return req.AuthorizationURL, req.State, nil
@@ -106,7 +100,6 @@ func (m *LoginManager) Poll(state string) *PendingLogin {
 	}
 	if p.Status == StatusSuccess || p.Status == StatusError {
 		delete(m.pending, state)
-		m.maybeStopServerLocked()
 	}
 	return &out
 }
@@ -146,53 +139,13 @@ func (m *LoginManager) Consume(state string) *PendingLogin {
 	}
 	if p.Status == StatusSuccess || p.Status == StatusError {
 		delete(m.pending, state)
-		m.maybeStopServerLocked()
 	}
 	return &out
 }
 
-func (m *LoginManager) ensureServerLocked() error {
-	if m.server != nil {
-		return nil
-	}
-
-	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", DefaultLoginPort))
-	if err != nil {
-		ln, err = net.Listen("tcp", fmt.Sprintf("[::1]:%d", DefaultLoginPort))
-		if err != nil {
-			return fmt.Errorf("cannot bind OAuth callback port %d (is another login in progress?): %w", DefaultLoginPort, err)
-		}
-	}
-	m.listener = ln
-	mux := http.NewServeMux()
-	mux.HandleFunc("/auth/callback", m.handleCallback)
-	mux.HandleFunc("/cancel", m.handleCancel)
-	m.server = &http.Server{Handler: mux}
-	go func() {
-		_ = m.server.Serve(ln)
-	}()
-	return nil
-}
-
-func (m *LoginManager) maybeStopServerLocked() {
-	if len(m.pending) > 0 || m.server == nil {
-		return
-	}
-	srv := m.server
-	m.server = nil
-	m.listener = nil
-	go func() {
-		_ = srv.Close()
-	}()
-}
-
-func (m *LoginManager) handleCancel(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("Cancelled"))
-}
-
-func (m *LoginManager) handleCallback(w http.ResponseWriter, r *http.Request) {
+// HandleCallback processes the OAuth redirect on the main app server.
+// It exchanges the authorization code and marks the pending login complete.
+func (m *LoginManager) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	state := q.Get("state")
 	code := q.Get("code")
@@ -275,8 +228,8 @@ p{color:#a1a1aa;margin:0;line-height:1.5}
   var ok = %s;
   try {
     if (window.opener && !window.opener.closed) {
-      // Opener may be any app origin; payload is non-secret (status only).
-      window.opener.postMessage({ type: "chatgpt-oauth", ok: ok }, "*");
+      // Opener is the same app origin; payload is non-secret (status only).
+      window.opener.postMessage({ type: "chatgpt-oauth", ok: ok }, window.location.origin);
     }
   } catch (e) {}
   // Browsers only allow close() for script-opened windows; try a few times.

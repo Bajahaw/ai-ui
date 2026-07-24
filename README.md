@@ -37,6 +37,22 @@ Access at `http://localhost:8080`
 
 For presistant storage you need to bind `/app/data` to your file system
 
+### ChatGPT OAuth (production)
+
+Sign-in with ChatGPT redirects back to **your app domain**, not localhost:
+
+`https://your-domain/api/auth/chatgpt/callback`
+
+Set one of these on the server:
+
+```bash
+PUBLIC_BASE_URL=https://your-domain
+# or the full callback URL:
+# CHATGPT_OAUTH_REDIRECT_URI=https://your-domain/api/auth/chatgpt/callback
+```
+
+If unset, the backend derives the origin from the request (`Origin` / `X-Forwarded-Proto` + `Host`).
+
 
 ## License
 MIT

@@ -9,20 +9,23 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
 
 const (
-	DefaultClientID  = "app_EMoamEEZ73f0CkXaXp7hrann"
-	DefaultIssuer    = "https://auth.openai.com"
-	DefaultTokenURL  = "https://auth.openai.com/oauth/token"
-	DefaultScope     = "openid profile email offline_access"
-	DefaultCodexURL  = "https://chatgpt.com/backend-api/codex"
-	DefaultRedirect  = "http://localhost:1455/auth/callback"
-	DefaultLoginPort = 1455
-	ProviderType     = "chatgpt-oauth"
-	ProviderBaseURL  = "chatgpt://oauth"
+	DefaultClientID = "app_EMoamEEZ73f0CkXaXp7hrann"
+	DefaultIssuer   = "https://auth.openai.com"
+	DefaultTokenURL = "https://auth.openai.com/oauth/token"
+	DefaultScope    = "openid profile email offline_access"
+	DefaultCodexURL = "https://chatgpt.com/backend-api/codex"
+	// CallbackPath is the public OAuth redirect path on this app's domain.
+	// Full redirect URI is {PUBLIC_BASE_URL}/api/auth/chatgpt/callback (or
+	// derived from the request when PUBLIC_BASE_URL is unset).
+	CallbackPath = "/api/auth/chatgpt/callback"
+	ProviderType = "chatgpt-oauth"
+	ProviderBaseURL = "chatgpt://oauth"
 	// Stable provider id prefix; full id is chatgpt-<account_suffix>
 	ProviderIDPrefix = "chatgpt"
 )
@@ -67,10 +70,51 @@ func codeChallengeS256(verifier string) string {
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
+// ResolveRedirectURI returns the OAuth redirect_uri for authorize + token exchange.
+// Priority:
+//  1. CHATGPT_OAUTH_REDIRECT_URI (full URL)
+//  2. PUBLIC_BASE_URL + CallbackPath
+//  3. Derived from the HTTP request (Origin / X-Forwarded-* / Host)
+func ResolveRedirectURI(r *http.Request) string {
+	if v := strings.TrimSpace(os.Getenv("CHATGPT_OAUTH_REDIRECT_URI")); v != "" {
+		return v
+	}
+	if base := strings.TrimRight(strings.TrimSpace(os.Getenv("PUBLIC_BASE_URL")), "/"); base != "" {
+		return base + CallbackPath
+	}
+	return publicOrigin(r) + CallbackPath
+}
+
+// publicOrigin is the browser-facing scheme://host for this request.
+func publicOrigin(r *http.Request) string {
+	// Prefer Origin so Vite proxy / SPA origin matches the callback the popup hits.
+	if origin := strings.TrimSpace(r.Header.Get("Origin")); origin != "" {
+		return strings.TrimRight(origin, "/")
+	}
+	scheme := "http"
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		scheme = strings.Split(proto, ",")[0]
+		scheme = strings.TrimSpace(scheme)
+	} else if r.TLS != nil {
+		scheme = "https"
+	} else if os.Getenv("ENV") != "dev" {
+		// Prod behind TLS-terminating reverse proxy often omits X-Forwarded-Proto.
+		scheme = "https"
+	}
+	host := r.Header.Get("X-Forwarded-Host")
+	if host != "" {
+		host = strings.TrimSpace(strings.Split(host, ",")[0])
+	}
+	if host == "" {
+		host = r.Host
+	}
+	return scheme + "://" + host
+}
+
 // CreateAuthRequest builds a ChatGPT OAuth authorize URL (PKCE).
 func CreateAuthRequest(redirectURI, clientID string) (*AuthRequest, error) {
 	if redirectURI == "" {
-		redirectURI = DefaultRedirect
+		return nil, fmt.Errorf("redirect_uri is required")
 	}
 	if clientID == "" {
 		clientID = DefaultClientID
@@ -115,7 +159,7 @@ func ExchangeCode(code, codeVerifier, redirectURI, clientID string) (*Tokens, er
 		clientID = DefaultClientID
 	}
 	if redirectURI == "" {
-		redirectURI = DefaultRedirect
+		return nil, fmt.Errorf("redirect_uri is required")
 	}
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
