@@ -11,9 +11,16 @@ import (
 // It saves or updates a ChatGPT OAuth provider for the given user and returns provider id.
 var ChatGPTProviderSaver func(username string, tokens *chatgptoauth.Tokens) (providerID string, model string, err error)
 
+type chatgptStartRequest struct {
+	// RedirectOrigin is the browser-facing origin (e.g. https://aichat.example.com).
+	// Preferred over request headers so reverse proxies cannot mis-resolve the URI.
+	RedirectOrigin string `json:"redirect_origin,omitempty"`
+}
+
 type chatgptStartResponse struct {
-	AuthURL string `json:"auth_url"`
-	State   string `json:"state"`
+	AuthURL     string `json:"auth_url"`
+	State       string `json:"state"`
+	RedirectURI string `json:"redirect_uri"`
 }
 
 type chatgptStatusResponse struct {
@@ -45,15 +52,24 @@ func optionalUserFromCookie(r *http.Request) string {
 func startChatGPTLogin(w http.ResponseWriter, r *http.Request) {
 	// If already logged in, attach provider to that user; otherwise full sign-in.
 	username := optionalUserFromCookie(r)
-	redirectURI := chatgptoauth.ResolveRedirectURI(r)
+
+	var body chatgptStartRequest
+	// Body is optional (older clients omit it).
+	_ = utils.ExtractJSONBody(r, &body)
+
+	redirectURI := chatgptoauth.ResolveRedirectURI(r, body.RedirectOrigin)
 	authURL, state, err := chatgptoauth.DefaultLoginManager.Start(username, redirectURI)
 	if err != nil {
 		log.Error("Failed to start ChatGPT OAuth", "err", err)
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
-	log.Debug("ChatGPT OAuth started", "redirect_uri", redirectURI, "state", state)
-	utils.RespondWithJSON(w, chatgptStartResponse{AuthURL: authURL, State: state}, http.StatusOK)
+	log.Info("ChatGPT OAuth started", "redirect_uri", redirectURI, "state", state)
+	utils.RespondWithJSON(w, chatgptStartResponse{
+		AuthURL:     authURL,
+		State:       state,
+		RedirectURI: redirectURI,
+	}, http.StatusOK)
 }
 
 // handleChatGPTCallback is the public OAuth redirect target on this app's domain.

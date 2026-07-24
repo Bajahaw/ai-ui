@@ -121,12 +121,20 @@ export class AuthAPI {
   }
 
   // POST /api/auth/chatgpt/start - begin ChatGPT OAuth (sign-in or connect)
-  async startChatGPTLogin(): Promise<{ auth_url: string; state: string }> {
+  async startChatGPTLogin(): Promise<{
+    auth_url: string;
+    state: string;
+    redirect_uri: string;
+  }> {
     return ApiErrorHandler.handleApiCall(async () => {
       const response = await fetch("/api/auth/chatgpt/start", {
         method: "POST",
         headers: getHeaders({
           "Content-Type": "application/json",
+        }),
+        // Tell the backend our browser origin so OAuth redirect_uri hits this domain.
+        body: JSON.stringify({
+          redirect_origin: window.location.origin,
         }),
         credentials: "include",
       });

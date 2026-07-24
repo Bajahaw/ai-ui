@@ -74,13 +74,20 @@ func codeChallengeS256(verifier string) string {
 // Priority:
 //  1. CHATGPT_OAUTH_REDIRECT_URI (full URL)
 //  2. PUBLIC_BASE_URL + CallbackPath
-//  3. Derived from the HTTP request (Origin / X-Forwarded-* / Host)
-func ResolveRedirectURI(r *http.Request) string {
+//  3. redirectOrigin from the browser (window.location.origin)
+//  4. Derived from the HTTP request (Origin / X-Forwarded-* / Host)
+func ResolveRedirectURI(r *http.Request, redirectOrigin string) string {
 	if v := strings.TrimSpace(os.Getenv("CHATGPT_OAUTH_REDIRECT_URI")); v != "" {
 		return v
 	}
 	if base := strings.TrimRight(strings.TrimSpace(os.Getenv("PUBLIC_BASE_URL")), "/"); base != "" {
 		return base + CallbackPath
+	}
+	if origin := strings.TrimRight(strings.TrimSpace(redirectOrigin), "/"); origin != "" {
+		// Only allow http(s) origins to avoid open-redirect style abuse.
+		if strings.HasPrefix(origin, "https://") || strings.HasPrefix(origin, "http://") {
+			return origin + CallbackPath
+		}
 	}
 	return publicOrigin(r) + CallbackPath
 }
