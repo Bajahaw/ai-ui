@@ -167,6 +167,31 @@ export class AuthAPI {
       return response.json();
     }, "pollChatGPTLogin");
   }
+
+  // POST /api/auth/chatgpt/callback - manual paste of localhost redirect URL
+  async submitChatGPTCallback(url: string): Promise<void> {
+    if (!url?.trim()) {
+      throw new Error("Callback URL is required");
+    }
+
+    return ApiErrorHandler.handleApiCall(async () => {
+      const response = await fetch("/api/auth/chatgpt/callback", {
+        method: "POST",
+        headers: getHeaders({
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify({ url: url.trim() }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(
+          response,
+          "ChatGPT Manual Callback",
+        );
+      }
+    }, "submitChatGPTCallback");
+  }
 }
 
 // Default instance

@@ -5,6 +5,8 @@ import (
 	"html"
 	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 )
@@ -50,6 +52,9 @@ func NewLoginManager() *LoginManager {
 }
 
 // Start begins a new OAuth login. openURL is returned for the browser.
+// The localhost:1455 callback server is best-effort: when the process cannot
+// bind that port (or is remote and the browser will never hit it), the user can
+// paste the redirect URL into the app via CompleteFromCallbackURL.
 func (m *LoginManager) Start(username string) (authURL, state string, err error) {
 	req, err := CreateAuthRequest(DefaultRedirect, DefaultClientID)
 	if err != nil {
@@ -76,10 +81,9 @@ func (m *LoginManager) Start(username string) (authURL, state string, err error)
 		CreatedAt:    now,
 	}
 
-	if err := m.ensureServerLocked(); err != nil {
-		delete(m.pending, req.State)
-		return "", "", err
-	}
+	// Local callback server is optional. Remote / container deploys still work
+	// with manual paste of the localhost redirect URL.
+	_ = m.ensureServerLocked()
 
 	return req.AuthorizationURL, req.State, nil
 }
@@ -193,10 +197,68 @@ func (m *LoginManager) handleCancel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *LoginManager) handleCallback(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
+	if err := m.completeFromQuery(r.URL.Query()); err != nil {
+		writeHTML(w, http.StatusBadRequest, "Login failed", err.Error()+". You can close this window and return to the app.")
+		return
+	}
+	writeHTML(w, http.StatusOK, "Sign-in complete", "Your ChatGPT account is connected. You can close this window and return to the app.")
+}
+
+// CompleteFromCallbackURL finishes a pending login from a browser redirect URL
+// (or a bare query string) the user copies when localhost:1455 is unreachable.
+// Accepts forms like:
+//   - http://localhost:1455/auth/callback?code=...&state=...
+//   - /auth/callback?code=...&state=...
+//   - code=...&state=...
+func (m *LoginManager) CompleteFromCallbackURL(raw string) error {
+	q, err := parseCallbackInput(raw)
+	if err != nil {
+		return err
+	}
+	return m.completeFromQuery(q)
+}
+
+func parseCallbackInput(raw string) (url.Values, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, fmt.Errorf("callback URL is empty")
+	}
+	// Full URL
+	if strings.HasPrefix(raw, "http://") || strings.HasPrefix(raw, "https://") {
+		u, err := url.Parse(raw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid callback URL: %w", err)
+		}
+		return u.Query(), nil
+	}
+	// Path + query (e.g. /auth/callback?code=...&state=...)
+	if strings.HasPrefix(raw, "/") {
+		u, err := url.Parse(raw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid callback path: %w", err)
+		}
+		return u.Query(), nil
+	}
+	// Bare query string (with or without leading ?)
+	q, err := url.ParseQuery(strings.TrimPrefix(raw, "?"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid callback query: %w", err)
+	}
+	if q.Get("code") == "" && q.Get("state") == "" && q.Get("error") == "" {
+		return nil, fmt.Errorf("callback URL must include code and state (got no OAuth params)")
+	}
+	return q, nil
+}
+
+// completeFromQuery exchanges the authorization code for tokens and updates pending state.
+func (m *LoginManager) completeFromQuery(q url.Values) error {
 	state := q.Get("state")
 	code := q.Get("code")
 	errParam := q.Get("error")
+
+	if state == "" {
+		return fmt.Errorf("missing state in callback")
+	}
 
 	m.mu.Lock()
 	p, ok := m.pending[state]
@@ -205,30 +267,33 @@ func (m *LoginManager) handleCallback(w http.ResponseWriter, r *http.Request) {
 		// Copy PKCE material under lock; exchange is slow and must not race on map entry.
 		codeVerifier = p.CodeVerifier
 		redirectURI = p.RedirectURI
+		if p.Status != StatusPending {
+			m.mu.Unlock()
+			if p.Status == StatusSuccess {
+				return nil // already completed (e.g. double-submit)
+			}
+			return fmt.Errorf("login already failed: %s", p.Error)
+		}
 	}
 	m.mu.Unlock()
 
 	if !ok {
-		writeHTML(w, http.StatusBadRequest, "Login failed", "Unknown or expired login session. Return to the app and try again.")
-		return
+		return fmt.Errorf("unknown or expired login session; start ChatGPT sign-in again")
 	}
 
 	if errParam != "" {
 		m.fail(state, "OpenAI OAuth error: "+errParam)
-		writeHTML(w, http.StatusBadRequest, "Login failed", "You can close this window and return to the app.")
-		return
+		return fmt.Errorf("OpenAI OAuth error: %s", errParam)
 	}
 	if code == "" {
 		m.fail(state, "missing authorization code")
-		writeHTML(w, http.StatusBadRequest, "Login failed", "You can close this window and return to the app.")
-		return
+		return fmt.Errorf("missing authorization code in callback")
 	}
 
 	tokens, err := ExchangeCode(code, codeVerifier, redirectURI, DefaultClientID)
 	if err != nil {
 		m.fail(state, err.Error())
-		writeHTML(w, http.StatusBadRequest, "Login failed", "Token exchange failed. You can close this window.")
-		return
+		return fmt.Errorf("token exchange failed: %w", err)
 	}
 
 	m.mu.Lock()
@@ -237,8 +302,7 @@ func (m *LoginManager) handleCallback(w http.ResponseWriter, r *http.Request) {
 		cur.Tokens = tokens
 	}
 	m.mu.Unlock()
-
-	writeHTML(w, http.StatusOK, "Sign-in complete", "Your ChatGPT account is connected. You can close this window and return to the app.")
+	return nil
 }
 
 func (m *LoginManager) fail(state, msg string) {

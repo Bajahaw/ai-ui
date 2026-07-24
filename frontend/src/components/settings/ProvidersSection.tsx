@@ -88,9 +88,6 @@ export const ProvidersSection = () => {
       await refreshModels();
     } catch (err) {
       console.error("Failed to connect ChatGPT:", err);
-      alert(
-        err instanceof Error ? err.message : "Failed to connect ChatGPT account",
-      );
     } finally {
       setConnectingChatGPT(false);
     }

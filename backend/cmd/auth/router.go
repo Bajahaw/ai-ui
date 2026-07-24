@@ -53,6 +53,7 @@ func Handler() http.Handler {
 	mux.Handle("GET /status", GetAuthStatus())
 	mux.Handle("POST /change-pass", Authenticated(http.HandlerFunc(UpdateUser)))
 	mux.HandleFunc("POST /chatgpt/start", startChatGPTLogin)
+	mux.HandleFunc("POST /chatgpt/callback", submitChatGPTCallback)
 	mux.HandleFunc("GET /chatgpt/status", pollChatGPTLogin)
 
 	return http.StripPrefix("/api/auth", mux)

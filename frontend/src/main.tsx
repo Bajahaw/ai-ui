@@ -6,6 +6,7 @@ import { ThemeProvider } from "./components/theme-provider.tsx";
 import { AuthProvider } from "./hooks/useAuth.tsx";
 import { ModelsProvider } from "./hooks/useModelsContext.tsx";
 import { SettingsDataProvider } from "./hooks/useSettingsData.tsx";
+import { ChatGPTOAuthWaitingDialog } from "./components/auth/ChatGPTOAuthWaitingDialog.tsx";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 /**
  * AuthGuard - Keeps the application shell mounted at all times.
@@ -20,9 +21,10 @@ const isDevelopment = (import.meta as any).env.DEV;
 
 // Conditionally wrap with StrictMode - disable in dev to prevent duplicate messages
 // AuthProvider must be outermost so auth state is available to guard components
-const AppWrapper = isDevelopment ? (
+const AppTree = (
   <AuthProvider>
     <ThemeProvider defaultTheme="dark" storageKey="ai-ui-theme">
+      <ChatGPTOAuthWaitingDialog />
       <AuthGuard>
         <BrowserRouter>
           <ModelsProvider>
@@ -38,26 +40,12 @@ const AppWrapper = isDevelopment ? (
       </AuthGuard>
     </ThemeProvider>
   </AuthProvider>
+);
+
+const AppWrapper = isDevelopment ? (
+  AppTree
 ) : (
-  <React.StrictMode>
-    <AuthProvider>
-      <ThemeProvider defaultTheme="dark" storageKey="ai-ui-theme">
-        <AuthGuard>
-          <BrowserRouter>
-            <ModelsProvider>
-              <SettingsDataProvider>
-                <Routes>
-                  <Route path="/" element={<App />} />
-                  <Route path="/c/:convId" element={<App />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </SettingsDataProvider>
-            </ModelsProvider>
-          </BrowserRouter>
-        </AuthGuard>
-      </ThemeProvider>
-    </AuthProvider>
-  </React.StrictMode>
+  <React.StrictMode>{AppTree}</React.StrictMode>
 );
 
 ReactDOM.createRoot(document.getElementById("root")!).render(AppWrapper);

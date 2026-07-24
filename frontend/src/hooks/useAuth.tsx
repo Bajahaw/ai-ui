@@ -3,6 +3,7 @@ import React, {
   useContext,
   useState,
   useEffect,
+  useRef,
   ReactNode,
 } from "react";
 import { authAPI } from "@/lib/api/auth.ts";
@@ -11,8 +12,14 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isCheckingAuth: boolean;
   isLoading: boolean;
+  /** True while waiting for ChatGPT OAuth (popup or manual paste). */
+  chatgptOAuthPending: boolean;
   login: (username: string, password: string) => Promise<void>;
   loginWithChatGPT: () => Promise<{ providerId?: string; model?: string }>;
+  /** Paste the localhost:1455 redirect URL when automatic callback fails (remote deploy). */
+  submitChatGPTCallbackUrl: (url: string) => Promise<void>;
+  /** Abort an in-flight ChatGPT OAuth attempt (waiting modal closed, etc.). */
+  cancelChatGPTOAuth: () => void;
   logout: () => Promise<void>;
   register: (username: string, password: string) => Promise<void>;
   error: string | null;
@@ -30,6 +37,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [chatgptOAuthPending, setChatgptOAuthPending] = useState(false);
+  const oauthAbortRef = useRef<AbortController | null>(null);
 
   // Check authentication status on mount
   useEffect(() => {
@@ -113,6 +122,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     model?: string;
   }> => {
     let popup: Window | null = null;
+    const abort = new AbortController();
+    oauthAbortRef.current = abort;
+
     const onMessage = (event: MessageEvent) => {
       // Callback server is localhost:1455 only — ignore other origins.
       const origin = event?.origin ?? "";
@@ -130,18 +142,51 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
     };
+
+    const throwIfCancelled = () => {
+      if (abort.signal.aborted) {
+        throw new Error("ChatGPT sign-in cancelled");
+      }
+    };
+
     try {
       setError(null);
       setIsLoading(true);
+      setChatgptOAuthPending(true);
       const { auth_url, state } = await authAPI.startChatGPTLogin();
+      throwIfCancelled();
+
       popup = window.open(auth_url, "chatgpt-oauth", "width=520,height=720");
+      if (!popup) {
+        throw new Error(
+          "ChatGPT sign-in popup was blocked. Allow popups for this site and try again.",
+        );
+      }
       window.addEventListener("message", onMessage);
 
       const deadline = Date.now() + 5 * 60 * 1000;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 1200));
-        const status = await authAPI.pollChatGPTLogin(state);
-        if (status.status === "pending") continue;
+        throwIfCancelled();
+
+        // Poll first so a successful local callback is not misread as "window closed".
+        let status = await authAPI.pollChatGPTLogin(state);
+        throwIfCancelled();
+
+        if (status.status === "pending" && popup.closed) {
+          // Local success page may have closed the popup just after a pending poll —
+          // re-check once before treating it as a user cancel.
+          await new Promise((r) => setTimeout(r, 400));
+          throwIfCancelled();
+          status = await authAPI.pollChatGPTLogin(state);
+          throwIfCancelled();
+          if (status.status === "pending") {
+            throw new Error("Failed to sign in with ChatGPT");
+          }
+        } else if (status.status === "pending") {
+          continue;
+        }
+
         if (status.status === "error") {
           throw new Error(status.error || "ChatGPT sign-in failed");
         }
@@ -172,7 +217,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "ChatGPT sign-in failed";
-      setError(errorMessage);
+      // Cancellation from the waiting dialog is intentional — don't sticky-error the login form.
+      if (errorMessage !== "ChatGPT sign-in cancelled") {
+        setError(errorMessage);
+      }
       throw err;
     } finally {
       window.removeEventListener("message", onMessage);
@@ -183,8 +231,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           /* ignore */
         }
       }
+      if (oauthAbortRef.current === abort) {
+        oauthAbortRef.current = null;
+      }
+      setChatgptOAuthPending(false);
       setIsLoading(false);
     }
+  };
+
+  /** Finish OAuth when the browser lands on localhost:1455 and the user pastes that URL. */
+  const submitChatGPTCallbackUrl = async (url: string): Promise<void> => {
+    try {
+      await authAPI.submitChatGPTCallback(url);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Invalid callback URL";
+      throw new Error(errorMessage);
+    }
+  };
+
+  const cancelChatGPTOAuth = () => {
+    oauthAbortRef.current?.abort();
   };
 
   const clearError = () => {
@@ -195,8 +262,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated,
     isCheckingAuth,
     isLoading,
+    chatgptOAuthPending,
     login,
     loginWithChatGPT,
+    submitChatGPTCallbackUrl,
+    cancelChatGPTOAuth,
     logout,
     register,
     error,

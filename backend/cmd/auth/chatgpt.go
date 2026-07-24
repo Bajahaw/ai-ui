@@ -2,6 +2,7 @@ package auth
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/Bajahaw/ai-ui/cmd/chatgptoauth"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
@@ -52,6 +53,29 @@ func startChatGPTLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	utils.RespondWithJSON(w, chatgptStartResponse{AuthURL: authURL, State: state}, http.StatusOK)
+}
+
+// submitChatGPTCallback accepts a pasted OpenAI redirect URL (localhost:1455)
+// so remote deploys can finish OAuth without binding that port on the client.
+func submitChatGPTCallback(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		URL string `json:"url"`
+	}
+	if err := utils.ExtractJSONBody(r, &req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.URL) == "" {
+		http.Error(w, "url is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := chatgptoauth.DefaultLoginManager.CompleteFromCallbackURL(req.URL); err != nil {
+		log.Error("Manual ChatGPT OAuth callback failed", "err", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	utils.RespondWithJSON(w, map[string]string{"status": "ok"}, http.StatusOK)
 }
 
 func pollChatGPTLogin(w http.ResponseWriter, r *http.Request) {
