@@ -2,20 +2,34 @@ package auth
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
+// TokenTTL is how long a session remains valid without activity.
+// Active use re-issues a fresh token (sliding session).
+const TokenTTL = 72 * time.Hour
+
+// refreshIfRemainingBelow re-issues the auth cookie when less than this much
+// lifetime remains, so daily use extends the session without minting a JWT
+// on every API request.
+const refreshIfRemainingBelow = TokenTTL / 2
+
 func generateJWT(username string) (string, error) {
+	return generateJWTWithTTL(username, TokenTTL)
+}
+
+func generateJWTWithTTL(username string, ttl time.Duration) (string, error) {
 	if JWT_SECRET == "" {
 		return "", fmt.Errorf("JWT_SECRET environment variable not set")
 	}
 
 	claims := jwt.MapClaims{
 		"username": username,
-		"exp":      time.Now().Add(7 * 24 * time.Hour).Unix(),
+		"exp":      time.Now().Add(ttl).Unix(),
 		"iat":      time.Now().Unix(),
 	}
 
@@ -26,6 +40,61 @@ func generateJWT(username string) (string, error) {
 	}
 
 	return signedToken, nil
+}
+
+func setAuthCookie(w http.ResponseWriter, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     AUTH_COOKIE,
+		Value:    token,
+		Path:     "/",
+		Expires:  time.Now().Add(TokenTTL),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+}
+
+func clearAuthCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     AUTH_COOKIE,
+		Value:    "",
+		Path:     "/",
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+}
+
+// issueAuthCookie mints a new JWT and sets the auth cookie.
+func issueAuthCookie(w http.ResponseWriter, username string) error {
+	token, err := generateJWT(username)
+	if err != nil {
+		return err
+	}
+	setAuthCookie(w, token)
+	return nil
+}
+
+// maybeRefreshAuthCookie re-issues the session cookie when the current token
+// is past the halfway point of its lifetime (sliding reactivation).
+func maybeRefreshAuthCookie(w http.ResponseWriter, username string, claims map[string]any) {
+	exp, ok := claims["exp"].(float64)
+	if !ok {
+		return
+	}
+	remaining := time.Until(time.Unix(int64(exp), 0))
+	if remaining > refreshIfRemainingBelow {
+		return
+	}
+	if err := issueAuthCookie(w, username); err != nil {
+		log.Warn("Failed to refresh auth cookie", "username", username, "error", err)
+	}
+}
+
+func claimUsername(claims map[string]any) (string, bool) {
+	username, ok := claims["username"].(string)
+	return username, ok && username != ""
 }
 
 func extractClaims(token string) (map[string]any, error) {

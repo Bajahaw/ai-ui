@@ -317,6 +317,136 @@ func TestAuthStatus(t *testing.T) {
 	}
 }
 
+func authCookieFromResponse(w *httptest.ResponseRecorder) *http.Cookie {
+	for _, c := range w.Result().Cookies() {
+		if c.Name == AUTH_COOKIE {
+			return c
+		}
+	}
+	return nil
+}
+
+func TestLoginCookieTTL(t *testing.T) {
+	repo := setupTest()
+	hash, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	repo.users["testuser"] = &User{
+		Username: "testuser",
+		passHash: string(hash),
+	}
+
+	req := httptest.NewRequest("POST", "/login", nil)
+	req.ParseForm()
+	req.Form.Add("username", "testuser")
+	req.Form.Add("password", "password123")
+
+	w := httptest.NewRecorder()
+	Login().ServeHTTP(w, req)
+
+	cookie := authCookieFromResponse(w)
+	if cookie == nil {
+		t.Fatal("expected auth cookie")
+	}
+
+	// Cookie expiry should be ~TokenTTL from now (allow small clock skew).
+	until := time.Until(cookie.Expires)
+	if until < TokenTTL-time.Minute || until > TokenTTL+time.Minute {
+		t.Errorf("expected cookie TTL ~%v, got %v", TokenTTL, until)
+	}
+
+	claims, err := extractClaims(cookie.Value)
+	if err != nil {
+		t.Fatalf("extractClaims: %v", err)
+	}
+	exp := time.Unix(int64(claims["exp"].(float64)), 0)
+	if time.Until(exp) < TokenTTL-time.Minute || time.Until(exp) > TokenTTL+time.Minute {
+		t.Errorf("expected JWT exp ~%v from now, got %v", TokenTTL, time.Until(exp))
+	}
+}
+
+func TestAuthStatusRefreshesAgingToken(t *testing.T) {
+	setupTest()
+
+	// Token in second half of life should be re-issued.
+	aging, err := generateJWTWithTTL("testuser", refreshIfRemainingBelow-time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("GET", "/status", nil)
+	req.AddCookie(&http.Cookie{Name: AUTH_COOKIE, Value: aging})
+	w := httptest.NewRecorder()
+	GetAuthStatus().ServeHTTP(w, req)
+
+	var status AuthStatus
+	json.NewDecoder(w.Body).Decode(&status)
+	if !status.Authenticated {
+		t.Fatal("expected authenticated")
+	}
+
+	cookie := authCookieFromResponse(w)
+	if cookie == nil {
+		t.Fatal("expected refreshed auth cookie")
+	}
+	if cookie.Value == aging {
+		t.Error("expected a new token value on refresh")
+	}
+	claims, err := extractClaims(cookie.Value)
+	if err != nil {
+		t.Fatalf("refreshed token invalid: %v", err)
+	}
+	exp := time.Unix(int64(claims["exp"].(float64)), 0)
+	if time.Until(exp) < TokenTTL-time.Minute {
+		t.Errorf("refreshed token should have full TTL, remaining %v", time.Until(exp))
+	}
+}
+
+func TestAuthStatusDoesNotRefreshFreshToken(t *testing.T) {
+	setupTest()
+
+	fresh, err := generateJWT("testuser")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("GET", "/status", nil)
+	req.AddCookie(&http.Cookie{Name: AUTH_COOKIE, Value: fresh})
+	w := httptest.NewRecorder()
+	GetAuthStatus().ServeHTTP(w, req)
+
+	if authCookieFromResponse(w) != nil {
+		t.Error("fresh token should not trigger Set-Cookie")
+	}
+}
+
+func TestAuthenticatedMiddlewareRefreshesAgingToken(t *testing.T) {
+	setupTest()
+
+	aging, err := generateJWTWithTTL("testuser", refreshIfRemainingBelow-time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(&http.Cookie{Name: AUTH_COOKIE, Value: aging})
+	w := httptest.NewRecorder()
+	Authenticated(nextHandler).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	cookie := authCookieFromResponse(w)
+	if cookie == nil {
+		t.Fatal("expected refreshed auth cookie from middleware")
+	}
+	if cookie.Value == aging {
+		t.Error("expected a new token value on refresh")
+	}
+}
+
 func TestLogout(t *testing.T) {
 	setupTest()
 

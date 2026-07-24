@@ -5,10 +5,10 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"fmt"
-	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"net/http"
 	"os"
-	"time"
+
+	"github.com/Bajahaw/ai-ui/cmd/utils"
 
 	logger "github.com/charmbracelet/log"
 )
@@ -130,38 +130,17 @@ func Login() http.HandlerFunc {
 			return
 		}
 
-		signedToken, err := generateJWT(username)
-		if err != nil {
+		if err := issueAuthCookie(w, username); err != nil {
 			http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 			return
 		}
-
-		cookie := &http.Cookie{
-			Name:     AUTH_COOKIE,
-			Value:    signedToken,
-			Path:     "/",
-			Expires:  time.Now().Add(7 * 24 * time.Hour),
-			HttpOnly: true,
-			Secure:   true,
-			SameSite: http.SameSiteStrictMode,
-		}
-		http.SetCookie(w, cookie)
 		fmt.Fprintln(w, "Login successful. Cookie set.")
 	}
 }
 
 func Logout() http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		cookie := &http.Cookie{
-			Name:     AUTH_COOKIE,
-			Value:    "",
-			Path:     "/",
-			Expires:  time.Unix(0, 0),
-			HttpOnly: true,
-			Secure:   true,
-			SameSite: http.SameSiteStrictMode,
-		}
-		http.SetCookie(w, cookie)
+		clearAuthCookie(w)
 		fmt.Fprintln(w, "Logged out.")
 	}
 }
@@ -182,38 +161,46 @@ func Authenticated(next http.Handler) http.Handler {
 			return
 		}
 
-		username := claims["username"].(string)
-		exp := claims["exp"].(float64)
-		if time.Now().After(time.Unix(int64(exp), 0)) {
-			log.Warn("Auth token expired", "path", r.URL.Path, "ip", r.RemoteAddr)
+		username, ok := claimUsername(claims)
+		if !ok {
+			log.Warn("Auth token missing username", "path", r.URL.Path, "ip", r.RemoteAddr)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		r = r.WithContext(context.WithValue(r.Context(), "user", username))
+		// Sliding session: re-issue when the token is in the second half of its life.
+		maybeRefreshAuthCookie(w, username, claims)
 
+		r = r.WithContext(context.WithValue(r.Context(), "user", username))
 		next.ServeHTTP(w, r)
 	})
 }
 
 func GetAuthStatus() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var status = AuthStatus{
-			Authenticated: false,
-		}
+		status := AuthStatus{Authenticated: false}
 
 		cookie, err := r.Cookie(AUTH_COOKIE)
 		if err != nil {
-			status.Authenticated = false
 			utils.RespondWithJSON(w, &status, http.StatusOK)
 			return
 		}
 
 		claims, err := extractClaims(cookie.Value)
-		if err == nil && claims["username"] != "" {
-			status.Authenticated = true
+		if err != nil {
+			utils.RespondWithJSON(w, &status, http.StatusOK)
+			return
 		}
 
+		username, ok := claimUsername(claims)
+		if !ok {
+			utils.RespondWithJSON(w, &status, http.StatusOK)
+			return
+		}
+
+		status.Authenticated = true
+		// App open / connection: extend session if the token is aging.
+		maybeRefreshAuthCookie(w, username, claims)
 		utils.RespondWithJSON(w, &status, http.StatusOK)
 	})
 }
