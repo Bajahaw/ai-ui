@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/Bajahaw/ai-ui/cmd/auth"
+	"github.com/Bajahaw/ai-ui/cmd/chatgptoauth"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
 
 	"github.com/google/uuid"
@@ -21,6 +22,7 @@ type Request struct {
 
 type Response struct {
 	ID      string            `json:"id"`
+	Type    string            `json:"type"`
 	BaseURL string            `json:"base_url"`
 	Headers map[string]string `json:"headers"`
 }
@@ -96,6 +98,29 @@ func saveModels(w http.ResponseWriter, r *http.Request) {
 }
 
 func fetchAllModels(provider *Provider) ([]*Model, error) {
+	if provider.Type == chatgptoauth.ProviderType {
+		tokens, err := resolveChatGPTTokens(provider)
+		if err != nil {
+			return nil, err
+		}
+		client := chatgptoauth.NewClient()
+		list, err := client.ListModels(context.Background(), tokens)
+		if err != nil {
+			log.Error("Error fetching ChatGPT models", "provider", provider.ID, "err", err)
+			return nil, err
+		}
+		models := make([]*Model, 0, len(list))
+		for _, model := range list {
+			models = append(models, &Model{
+				ID:         provider.ID + "/" + model.Slug,
+				Name:       model.Slug,
+				ProviderID: provider.ID,
+				IsEnabled:  true,
+			})
+		}
+		return models, nil
+	}
+
 	models := make([]*Model, 0)
 	opts := []option.RequestOption{
 		option.WithAPIKey(provider.APIKey),
@@ -133,6 +158,7 @@ func getProvidersList(w http.ResponseWriter, r *http.Request) {
 	for _, p := range providers {
 		response = append(response, Response{
 			ID:      p.ID,
+			Type:    p.Type,
 			BaseURL: p.BaseURL,
 			Headers: p.Headers,
 		})
@@ -153,6 +179,7 @@ func getProvider(w http.ResponseWriter, r *http.Request) {
 
 	response := Response{
 		ID:      provider.ID,
+		Type:    provider.Type,
 		BaseURL: provider.BaseURL,
 		Headers: provider.Headers,
 	}
@@ -171,6 +198,7 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 
 	provider := &Provider{
 		ID:      utils.ExtractProviderName(req.BaseURL) + "-" + uuid.New().String()[:4],
+		Type:    ProviderTypeOpenAI,
 		BaseURL: req.BaseURL,
 		APIKey:  req.APIKey,
 		User:    utils.ExtractContextUser(r),
@@ -195,6 +223,7 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 
 	response := Response{
 		ID:      provider.ID,
+		Type:    provider.Type,
 		BaseURL: provider.BaseURL,
 		Headers: provider.Headers,
 	}

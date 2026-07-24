@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Bajahaw/ai-ui/cmd/chatgptoauth"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
 
 	"github.com/google/uuid"
@@ -76,6 +77,10 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompl
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
+
+	if provider.Type == chatgptoauth.ProviderType {
+		return sendChatGPTCompletion(ctx, provider, model, params, nil)
+	}
 
 	opts := []option.RequestOption{
 		option.WithAPIKey(provider.APIKey),
@@ -146,6 +151,11 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 	// Bound each provider stream; parent cancellation (user stop) still wins.
 	ctx, cancel := context.WithTimeout(parent, 30*time.Minute)
 	defer cancel()
+
+	if provider.Type == chatgptoauth.ProviderType {
+		sc := sc
+		return sendChatGPTCompletion(ctx, provider, model, params, &sc)
+	}
 
 	opts := []option.RequestOption{
 		option.WithAPIKey(provider.APIKey),

@@ -335,5 +335,20 @@ func RunMigrations(db *sql.DB) error {
 		}
 	}
 
+	if userVersion < 8 {
+		schemaV8 := `
+		ALTER TABLE Providers ADD COLUMN type TEXT NOT NULL DEFAULT 'openai';
+		ALTER TABLE Providers ADD COLUMN oauth_json TEXT DEFAULT '';
+		`
+		_, err = db.Exec(schemaV8)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec("PRAGMA user_version = 8;")
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

@@ -217,6 +217,7 @@ export interface ProviderRequest {
 
 export interface ProviderResponse {
   id: string;
+  type?: string;
   base_url: string;
   headers?: Record<string, string>;
 }
@@ -244,6 +245,7 @@ export interface Settings {
 export interface FrontendProvider {
   id: string;
   name: string;
+  type?: string;
   baseUrl: string;
   headers?: Record<string, string>;
 }

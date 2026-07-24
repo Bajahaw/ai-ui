@@ -26,3 +26,17 @@ func SetDefaults(user string) {
 		log.Error("Error setting default settings", "err", err)
 	}
 }
+
+
+// MaybeSetDefaultModel sets the default chat model when unset or still the placeholder.
+func MaybeSetDefaultModel(user, modelID string) {
+	if modelID == "" || repo == nil {
+		return
+	}
+	v, err := repo.Get("model", user)
+	if err != nil || v == "" || v == "gpt-4o" {
+		if err := repo.Save(map[string]string{"model": modelID}, user); err != nil {
+			log.Error("Error setting default ChatGPT model", "err", err)
+		}
+	}
+}
