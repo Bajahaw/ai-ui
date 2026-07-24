@@ -7,23 +7,29 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Bajahaw/ai-ui/cmd/chatgptoauth"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
 )
 
 var ErrUnauthorizedProviderReference = errors.New("unauthorized provider reference")
 
+const ProviderTypeOpenAI = "openai"
+
 type Provider struct {
-	ID      string            `json:"id"`
-	BaseURL string            `json:"base_url"`
-	APIKey  string            `json:"api_key"`
-	User    string            `json:"-"`
-	Headers map[string]string `json:"headers"`
+	ID      string                    `json:"id"`
+	Type    string                    `json:"type"`
+	BaseURL string                    `json:"base_url"`
+	APIKey  string                    `json:"api_key"`
+	User    string                    `json:"-"`
+	Headers map[string]string         `json:"headers"`
+	OAuth   *chatgptoauth.Tokens      `json:"-"`
 }
 
 type Repository interface {
 	GetAll(user string) []*Provider
 	GetByID(id string, user string) (*Provider, error)
 	Save(provider *Provider) error
+	Upsert(provider *Provider) error
 	DeleteByID(id string, user string) error
 	SaveModels(models []*Model, user string) error
 	GetAllModels(user string) []*Model
@@ -33,19 +39,46 @@ type Repository interface {
 
 type Repo struct {
 	db *sql.DB
-	//cache map[string]*Provider
 }
 
 func NewRepository(db *sql.DB) Repository {
 	return &Repo{
 		db: db,
-		//cache: make(map[string]*Provider),
+	}
+}
+
+func scanProvider(id, baseURL, apiKey, headersJson, pType, oauthJson, user string) *Provider {
+	var headers map[string]string
+	if headersJson != "" {
+		_ = json.Unmarshal([]byte(headersJson), &headers)
+	}
+	if headers == nil {
+		headers = make(map[string]string)
+	}
+	if pType == "" {
+		pType = ProviderTypeOpenAI
+	}
+	var oauth *chatgptoauth.Tokens
+	if oauthJson != "" {
+		var t chatgptoauth.Tokens
+		if err := json.Unmarshal([]byte(oauthJson), &t); err == nil && t.AccessToken != "" {
+			oauth = &t
+		}
+	}
+	return &Provider{
+		ID:      id,
+		Type:    pType,
+		BaseURL: baseURL,
+		APIKey:  apiKey,
+		User:    user,
+		Headers: headers,
+		OAuth:   oauth,
 	}
 }
 
 func (repo *Repo) GetAll(user string) []*Provider {
 	var allProviders = make([]*Provider, 0)
-	query := `SELECT id, url, api_key, headers_json FROM Providers WHERE user = ?`
+	query := `SELECT id, url, api_key, headers_json, type, oauth_json FROM Providers WHERE user = ?`
 	rows, err := repo.db.Query(query, user)
 	if err != nil {
 		log.Error("Error querying providers", "err", err)
@@ -53,26 +86,12 @@ func (repo *Repo) GetAll(user string) []*Provider {
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var p Provider
-		var headersJson string
-		if err = rows.Scan(&p.ID, &p.BaseURL, &p.APIKey, &headersJson); err != nil {
+		var id, baseURL, apiKey, headersJson, pType, oauthJson string
+		if err = rows.Scan(&id, &baseURL, &apiKey, &headersJson, &pType, &oauthJson); err != nil {
 			log.Error("Error scanning provider", "err", err)
 			continue
 		}
-		var headers map[string]string
-		if headersJson != "" {
-			_ = json.Unmarshal([]byte(headersJson), &headers)
-		}
-		if headers == nil {
-			headers = make(map[string]string)
-		}
-		allProviders = append(allProviders, &Provider{
-			ID:      p.ID,
-			BaseURL: p.BaseURL,
-			APIKey:  p.APIKey,
-			User:    user,
-			Headers: headers,
-		})
+		allProviders = append(allProviders, scanProvider(id, baseURL, apiKey, headersJson, pType, oauthJson, user))
 	}
 	if err = rows.Err(); err != nil {
 		log.Error("Error iterating over provider rows", "err", err)
@@ -82,41 +101,69 @@ func (repo *Repo) GetAll(user string) []*Provider {
 }
 
 func (repo *Repo) GetByID(id string, user string) (*Provider, error) {
-	var p Provider
-	var headersJson string
-	query := `SELECT id, url, api_key, headers_json FROM Providers WHERE id = ? AND user = ?`
-	err := repo.db.QueryRow(query, id, user).Scan(&p.ID, &p.BaseURL, &p.APIKey, &headersJson)
+	var baseURL, apiKey, headersJson, pType, oauthJson string
+	query := `SELECT id, url, api_key, headers_json, type, oauth_json FROM Providers WHERE id = ? AND user = ?`
+	var scannedID string
+	err := repo.db.QueryRow(query, id, user).Scan(&scannedID, &baseURL, &apiKey, &headersJson, &pType, &oauthJson)
 	if err != nil {
 		return nil, err
 	}
+	return scanProvider(scannedID, baseURL, apiKey, headersJson, pType, oauthJson, user), nil
+}
 
-	var headers map[string]string
-	if headersJson != "" {
-		_ = json.Unmarshal([]byte(headersJson), &headers)
+func providerOAuthJSON(p *Provider) string {
+	if p.OAuth == nil {
+		return ""
 	}
-	if headers == nil {
-		headers = make(map[string]string)
+	b, err := json.Marshal(p.OAuth)
+	if err != nil {
+		return ""
 	}
-
-	return &Provider{
-		ID:      p.ID,
-		BaseURL: p.BaseURL,
-		APIKey:  p.APIKey,
-		User:    user,
-		Headers: headers,
-	}, nil
+	return string(b)
 }
 
 func (repo *Repo) Save(provider *Provider) error {
 	if provider.Headers == nil {
 		provider.Headers = make(map[string]string)
 	}
+	if provider.Type == "" {
+		provider.Type = ProviderTypeOpenAI
+	}
 	headersBytes, _ := json.Marshal(provider.Headers)
 	headersJson := string(headersBytes)
 
-	query := `INSERT INTO Providers (id, url, api_key, user, headers_json) VALUES (?, ?, ?, ?, ?)`
-	_, err := repo.db.Exec(query, provider.ID, provider.BaseURL, provider.APIKey, provider.User, headersJson)
+	query := `INSERT INTO Providers (id, url, api_key, user, headers_json, type, oauth_json) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	_, err := repo.db.Exec(query, provider.ID, provider.BaseURL, provider.APIKey, provider.User, headersJson, provider.Type, providerOAuthJSON(provider))
 	return err
+}
+
+func (repo *Repo) Upsert(provider *Provider) error {
+	if provider.Headers == nil {
+		provider.Headers = make(map[string]string)
+	}
+	if provider.Type == "" {
+		provider.Type = ProviderTypeOpenAI
+	}
+	headersBytes, _ := json.Marshal(provider.Headers)
+	headersJson := string(headersBytes)
+
+	query := `INSERT INTO Providers (id, url, api_key, user, headers_json, type, oauth_json) VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			url=excluded.url,
+			api_key=excluded.api_key,
+			headers_json=excluded.headers_json,
+			type=excluded.type,
+			oauth_json=excluded.oauth_json
+		WHERE Providers.user=excluded.user`
+	res, err := repo.db.Exec(query, provider.ID, provider.BaseURL, provider.APIKey, provider.User, headersJson, provider.Type, providerOAuthJSON(provider))
+	if err != nil {
+		return err
+	}
+	// Conflict with a different user's id: UPDATE WHERE fails and 0 rows change.
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("provider id conflict or unauthorized update")
+	}
+	return nil
 }
 
 func (repo *Repo) DeleteByID(id string, user string) error {

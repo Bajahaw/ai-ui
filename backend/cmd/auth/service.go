@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"crypto/rand"
 	"fmt"
 	"net/http"
 	"time"
@@ -164,4 +165,35 @@ func hashPassword(password string) ([]byte, error) {
 		return nil, err
 	}
 	return hash, nil
+}
+
+
+// IssueSession mints an auth cookie for the given username (used by OAuth sign-in).
+func IssueSession(w http.ResponseWriter, username string) error {
+	return issueAuthCookie(w, username)
+}
+
+// EnsureOAuthUser creates a local user for ChatGPT sign-in if missing.
+// Returns (username, created, error).
+func EnsureOAuthUser(username string) (string, bool, error) {
+	if username == "" {
+		return "", false, fmt.Errorf("empty username")
+	}
+	if _, err := users.GetByUsername(username); err == nil {
+		return username, false, nil
+	}
+	// Random unusable password; account is OAuth-primary.
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", false, err
+	}
+	hash, err := bcrypt.GenerateFromPassword(raw, bcrypt.DefaultCost)
+	if err != nil {
+		return "", false, err
+	}
+	err = users.Save(&User{Username: username, passHash: string(hash)})
+	if err != nil {
+		return "", false, err
+	}
+	return username, true, nil
 }

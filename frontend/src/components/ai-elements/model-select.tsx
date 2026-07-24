@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { formatProviderSelectLabel } from "@/lib/api/providers";
 
 export interface ModelOption {
   id: string;
@@ -127,7 +128,7 @@ export const ModelSelect = ({
                 <div className="max-w-[280px] overflow-hidden text-ellipsis text-nowrap select-none translate-y-[-2px]">
                   <span className="font-medium">{modelOption.name}</span>{" "}
                   <span className="text-xs text-muted-foreground">
-                    {modelOption.provider}
+                    {formatProviderSelectLabel(modelOption.provider)}
                   </span>
                 </div>
               </SelectItem>

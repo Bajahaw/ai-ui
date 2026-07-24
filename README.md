@@ -16,6 +16,7 @@ Lightweight AI chat interface built with React and Golang.
 
 - Conversations, history, edits, and branching
 - Multi-provider AI support (OpenAI compatible ones)
+- Sign in with ChatGPT — connect your ChatGPT account as a provider
 - Multi-user support.
 - Tools/MCP integration
 - Agentic document retrieval.

@@ -13,6 +13,7 @@ import {
   Square,
 } from "lucide-react";
 import { locallyApplyEnableFlags } from "@/lib/api/models";
+import { formatProviderSelectLabel } from "@/lib/api/providers";
 import { Model } from "@/lib/api/types";
 import { useSettingsData } from "@/hooks/useSettingsData";
 
@@ -287,8 +288,11 @@ export const ModelsSection: React.FC = () => {
                           </span>
                         </div>
 
-                        <div className="text-[11px] text-muted-foreground truncate max-w-[200px] sm:max-w-[300px]">
-                          {model.id}
+                        <div
+                          className="text-[11px] text-muted-foreground truncate max-w-[200px] sm:max-w-[300px]"
+                          title={model.id}
+                        >
+                          {formatProviderSelectLabel(model.provider)}
                         </div>
                       </div>
 

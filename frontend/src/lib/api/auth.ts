@@ -119,6 +119,54 @@ export class AuthAPI {
       }
     }, "logout");
   }
+
+  // POST /api/auth/chatgpt/start - begin ChatGPT OAuth (sign-in or connect)
+  async startChatGPTLogin(): Promise<{ auth_url: string; state: string }> {
+    return ApiErrorHandler.handleApiCall(async () => {
+      const response = await fetch("/api/auth/chatgpt/start", {
+        method: "POST",
+        headers: getHeaders({
+          "Content-Type": "application/json",
+        }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(response, "ChatGPT Login Start");
+      }
+
+      return response.json();
+    }, "startChatGPTLogin");
+  }
+
+  // GET /api/auth/chatgpt/status - poll OAuth completion
+  async pollChatGPTLogin(state: string): Promise<{
+    status: "pending" | "success" | "error";
+    error?: string;
+    provider_id?: string;
+    username?: string;
+    model?: string;
+    created?: boolean;
+  }> {
+    return ApiErrorHandler.handleApiCall(async () => {
+      const response = await fetch(
+        `/api/auth/chatgpt/status?state=${encodeURIComponent(state)}`,
+        {
+          method: "GET",
+          headers: getHeaders({
+            "Content-Type": "application/json",
+          }),
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(response, "ChatGPT Login Status");
+      }
+
+      return response.json();
+    }, "pollChatGPTLogin");
+  }
 }
 
 // Default instance
