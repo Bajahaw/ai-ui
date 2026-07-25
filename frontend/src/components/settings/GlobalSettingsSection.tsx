@@ -28,9 +28,6 @@ export const GlobalSettingsSection = () => {
   const systemPrompt = data.settings.systemPrompt || "";
   const appendDate = data.settings.appendDateToSystemPrompt || "false";
   const appendPlatform = data.settings.appendPlatformInstructions || "false";
-  // Default on when unset (matches backend defaults / builtinsEnabled).
-  const enableBuiltinSkills =
-    data.settings.enableBuiltinSkills === "false" ? "false" : "true";
   const defaultModel = data.settings.defaultModel || "";
   const reasoningEffort = data.settings.reasoningEffort || "medium";
   const enterBehavior = data.settings.enterBehavior || "send";
@@ -42,7 +39,6 @@ export const GlobalSettingsSection = () => {
     enterBehavior,
     appendDateToSystemPrompt: appendDate,
     appendPlatformInstructions: appendPlatform,
-    enableBuiltinSkills,
   });
 
   useEffect(() => {
@@ -53,7 +49,6 @@ export const GlobalSettingsSection = () => {
       enterBehavior,
       appendDateToSystemPrompt: appendDate,
       appendPlatformInstructions: appendPlatform,
-      enableBuiltinSkills,
     });
     setHasChanges(false);
   }, [
@@ -63,7 +58,6 @@ export const GlobalSettingsSection = () => {
     enterBehavior,
     appendDate,
     appendPlatform,
-    enableBuiltinSkills,
   ]);
 
   const handleChange = (key: string, value: string) => {
@@ -94,7 +88,6 @@ export const GlobalSettingsSection = () => {
       enterBehavior,
       appendDateToSystemPrompt: appendDate,
       appendPlatformInstructions: appendPlatform,
-      enableBuiltinSkills,
     });
     setHasChanges(false);
   };
@@ -207,26 +200,6 @@ export const GlobalSettingsSection = () => {
                   local.appendPlatformInstructions === "true"
                     ? "false"
                     : "true",
-                )
-              }
-              disabled={isSaving}
-            />
-          </div>
-          <div className="flex items-center justify-between pt-2">
-            <div className="pr-4">
-              <Label className="!mb-0">Enable built-in skills</Label>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Ship system skills (widgets, etc.) to the model. Turn off if
-                they override your own workflows.
-              </p>
-            </div>
-            <Switch
-              className="mx-1 flex-shrink-0"
-              checked={local.enableBuiltinSkills === "true"}
-              onCheckedChange={() =>
-                handleChange(
-                  "enableBuiltinSkills",
-                  local.enableBuiltinSkills === "true" ? "false" : "true",
                 )
               }
               disabled={isSaving}

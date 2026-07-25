@@ -11,7 +11,7 @@ These ship with the app (embedded) and are available to every user by default:
 | `good-widgets` | Native full-width chat widget layout/theming |
 | `match-stats-widget` | Football match widgets via TheSportsDB |
 
-Disable them for **your account** under **Settings → General → Enable built-in skills**.
+Disable them for **your account** under **Settings → Skills → Enable built-in skills**.
 
 A user skill with the **same name** always replaces the built-in for that user (shadowing).
 

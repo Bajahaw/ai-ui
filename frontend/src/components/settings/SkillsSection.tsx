@@ -1,19 +1,42 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "../ui/card";
-import { BookOpen, Edit, Eye, Plus, Trash2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { BookOpen, Edit, ExternalLink, Eye, Plus, Trash2 } from "lucide-react";
 import { SkillForm } from "./SkillForm";
 import { SkillRequest, SkillResponse } from "@/lib/api/types";
 import { useSettingsData } from "@/hooks/useSettingsData";
 
 export const SkillsSection = () => {
-  const { data, addSkill, updateSkill, deleteSkill } = useSettingsData();
+  const {
+    data,
+    addSkill,
+    updateSkill,
+    deleteSkill,
+    updateSettingsLocal,
+    saveSettings,
+  } = useSettingsData();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingSkill, setEditingSkill] = useState<SkillResponse | null>(null);
   const [viewOnly, setViewOnly] = useState(false);
+  const [togglingBuiltins, setTogglingBuiltins] = useState(false);
 
-  const builtinsEnabled =
-    data.settings.enableBuiltinSkills !== "false";
+  const builtinsEnabled = data.settings.enableBuiltinSkills !== "false";
+
+  // Switch onClick does not pass a boolean — flip from current state.
+  const handleBuiltinToggle = async () => {
+    setTogglingBuiltins(true);
+    try {
+      updateSettingsLocal(
+        "enableBuiltinSkills",
+        builtinsEnabled ? "false" : "true",
+      );
+      await saveSettings();
+    } finally {
+      setTogglingBuiltins(false);
+    }
+  };
 
   const handleAddSkill = async (skillData: SkillRequest) => {
     await addSkill(skillData);
@@ -61,21 +84,28 @@ export const SkillsSection = () => {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Skills are markdown documents that teach the AI specialized workflows.
-        The model only sees skills listed as available (via{" "}
-        <code className="text-xs">read_skill</code>). Built-in skills can be
-        turned off for your account under{" "}
-        <span className="font-medium text-foreground">General → Enable built-in skills</span>
-        . Your skills always win over a built-in with the same name.
+        Skills are markdown documents that teach the AI specialized workflows or
+        styles. The AI can list and read them via built-in tools during chat.{" "}
+        <a
+          href="https://github.com/Bajahaw/ai-ui/tree/main/examples/skills"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary inline-flex items-center gap-1 hover:underline"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+          Browse example skills
+        </a>
       </p>
 
-      {!builtinsEnabled && builtinSkills.length > 0 && (
-        <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
-          Built-in skills are disabled for your account. They stay listed below
-          but are hidden from the model until you re-enable them in General
-          settings.
-        </p>
-      )}
+      <div className="flex items-center justify-between">
+        <Label className="!mb-0">Enable built-in skills</Label>
+        <Switch
+          className="mx-1"
+          checked={builtinsEnabled}
+          onCheckedChange={handleBuiltinToggle}
+          disabled={togglingBuiltins}
+        />
+      </div>
 
       {data.skills.length === 0 ? (
         <Card className="p-6 text-center bg-transparent border-dashed">
