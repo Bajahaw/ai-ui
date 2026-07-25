@@ -74,10 +74,13 @@ func compileSystemPrompt(user string) string {
 		sb.WriteString("\n\n")
 	}
 
-	// Inject available skills so the model knows about them up front
-	availableSkills := skills.GetAll(user)
+	// Inject available skills so the model knows about them up front.
+	// Built-ins are omitted when the user disabled enableBuiltinSkills;
+	// a user skill with the same name always shadows the built-in.
+	availableSkills := skills.GetAvailable(user)
 	if len(availableSkills) > 0 {
-		sb.WriteString("<available_skills>\n\n")
+		sb.WriteString("<available_skills>\n")
+		sb.WriteString("Prefer user skills over system built-ins when both could apply.\n\n")
 		for _, s := range availableSkills {
 			desc := s.Description
 			if desc == "" {

@@ -279,6 +279,10 @@ export interface SkillResponse {
   id: string;
   name: string;
   description: string;
+  /** Shipped with the app (not user-created). */
+  builtin?: boolean;
+  /** False when built-in skills are disabled for this user. */
+  active?: boolean;
 }
 
 export interface SkillListResponse {
@@ -290,6 +294,8 @@ export interface SkillDetailResponse {
   name: string;
   description: string;
   content: string;
+  builtin?: boolean;
+  active?: boolean;
 }
 
 export interface SkillRequest {

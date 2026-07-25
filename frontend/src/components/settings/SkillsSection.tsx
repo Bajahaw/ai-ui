@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "../ui/card";
-import { BookOpen, Edit, ExternalLink, Plus, Trash2 } from "lucide-react";
+import { BookOpen, Edit, Eye, Plus, Trash2 } from "lucide-react";
 import { SkillForm } from "./SkillForm";
 import { SkillRequest, SkillResponse } from "@/lib/api/types";
 import { useSettingsData } from "@/hooks/useSettingsData";
@@ -10,6 +10,10 @@ export const SkillsSection = () => {
   const { data, addSkill, updateSkill, deleteSkill } = useSettingsData();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingSkill, setEditingSkill] = useState<SkillResponse | null>(null);
+  const [viewOnly, setViewOnly] = useState(false);
+
+  const builtinsEnabled =
+    data.settings.enableBuiltinSkills !== "false";
 
   const handleAddSkill = async (skillData: SkillRequest) => {
     await addSkill(skillData);
@@ -19,13 +23,25 @@ export const SkillsSection = () => {
   const handleEditSkill = async (skillData: SkillRequest) => {
     await updateSkill(skillData);
     setEditingSkill(null);
+    setViewOnly(false);
   };
 
   const handleDeleteSkill = async (id: string, name: string) => {
+    if (id.startsWith("builtin:")) {
+      return;
+    }
     if (confirm(`Are you sure you want to delete the skill "${name}"?`)) {
       await deleteSkill(id);
     }
   };
+
+  const openSkill = (skill: SkillResponse, readOnly: boolean) => {
+    setViewOnly(readOnly);
+    setEditingSkill(skill);
+  };
+
+  const userSkills = data.skills.filter((s) => !s.builtin);
+  const builtinSkills = data.skills.filter((s) => s.builtin);
 
   return (
     <div className="space-y-4">
@@ -45,18 +61,21 @@ export const SkillsSection = () => {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Skills are markdown documents that teach the AI specialized workflows or
-        styles. The AI can list and read them via built-in tools during chat.{" "}
-        <a
-          href="https://github.com/Bajahaw/ai-ui/tree/main/examples/skills"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-primary inline-flex items-center gap-1 hover:underline"
-        >
-          <ExternalLink className="h-3.5 w-3.5" />
-          Browse example skills
-        </a>
+        Skills are markdown documents that teach the AI specialized workflows.
+        The model only sees skills listed as available (via{" "}
+        <code className="text-xs">read_skill</code>). Built-in skills can be
+        turned off for your account under{" "}
+        <span className="font-medium text-foreground">General → Enable built-in skills</span>
+        . Your skills always win over a built-in with the same name.
       </p>
+
+      {!builtinsEnabled && builtinSkills.length > 0 && (
+        <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg px-3 py-2">
+          Built-in skills are disabled for your account. They stay listed below
+          but are hidden from the model until you re-enable them in General
+          settings.
+        </p>
+      )}
 
       {data.skills.length === 0 ? (
         <Card className="p-6 text-center bg-transparent border-dashed">
@@ -73,51 +92,44 @@ export const SkillsSection = () => {
           </div>
         </Card>
       ) : (
-        <div className="space-y-4 overflow-hidden">
-          {data.skills.map((skill) => (
-            <Card
-              key={skill.id}
-              className="p-4 bg-transparent overflow-hidden"
-            >
-              <div className="space-y-2">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <h4 className="truncate max-w-[75px] sm:max-w-[300px]">
-                      {skill.name}
-                    </h4>
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setEditingSkill(skill)}
-                      title="Edit skill"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteSkill(skill.id, skill.name)}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                      title="Delete skill"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                {skill.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {skill.description}
-                  </p>
+        <div className="space-y-6 overflow-hidden">
+          {userSkills.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-muted-foreground">
+                Your skills
+              </h4>
+              {userSkills.map((skill) => (
+                <SkillCard
+                  key={skill.id}
+                  skill={skill}
+                  onEdit={() => openSkill(skill, false)}
+                  onDelete={() => handleDeleteSkill(skill.id, skill.name)}
+                />
+              ))}
+            </div>
+          )}
+
+          {builtinSkills.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-muted-foreground">
+                Built-in skills
+                {!builtinsEnabled && (
+                  <span className="ml-2 text-xs font-normal">(disabled)</span>
                 )}
-              </div>
-            </Card>
-          ))}
+              </h4>
+              {builtinSkills.map((skill) => (
+                <SkillCard
+                  key={skill.id}
+                  skill={skill}
+                  inactive={!builtinsEnabled}
+                  onView={() => openSkill(skill, true)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Add Skill Form */}
       <SkillForm
         open={showAddForm}
         onOpenChange={setShowAddForm}
@@ -126,15 +138,97 @@ export const SkillsSection = () => {
         submitLabel="Add Skill"
       />
 
-      {/* Edit Skill Form */}
       <SkillForm
         open={!!editingSkill}
-        onOpenChange={(open) => !open && setEditingSkill(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingSkill(null);
+            setViewOnly(false);
+          }
+        }}
         onSubmit={handleEditSkill}
         skill={editingSkill}
-        title="Edit Skill"
+        title={viewOnly ? "View Built-in Skill" : "Edit Skill"}
         submitLabel="Save Changes"
+        readOnly={viewOnly}
       />
     </div>
   );
 };
+
+function SkillCard({
+  skill,
+  inactive = false,
+  onEdit,
+  onView,
+  onDelete,
+}: {
+  skill: SkillResponse;
+  inactive?: boolean;
+  onEdit?: () => void;
+  onView?: () => void;
+  onDelete?: () => void;
+}) {
+  return (
+    <Card
+      className={`p-4 bg-transparent overflow-hidden ${
+        inactive ? "opacity-60" : ""
+      }`}
+    >
+      <div className="space-y-2">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h4 className="truncate max-w-[75px] sm:max-w-[280px]">
+                {skill.name}
+              </h4>
+              {skill.builtin && (
+                <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                  System
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {onView && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onView}
+                title="View skill"
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+            )}
+            {onEdit && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onEdit}
+                title="Edit skill"
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+            )}
+            {onDelete && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDelete}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                title="Delete skill"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+        {skill.description && (
+          <p className="text-sm text-muted-foreground line-clamp-2">
+            {skill.description}
+          </p>
+        )}
+      </div>
+    </Card>
+  );
+}

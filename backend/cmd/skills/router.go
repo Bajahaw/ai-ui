@@ -21,7 +21,7 @@ func Handler() http.Handler {
 
 func listSkills(w http.ResponseWriter, r *http.Request) {
 	user := utils.ExtractContextUser(r)
-	all := repo.GetAll(user)
+	all := GetAll(user)
 	resp := SkillListResponse{
 		Skills: make([]SkillResponse, 0, len(all)),
 	}
@@ -30,6 +30,8 @@ func listSkills(w http.ResponseWriter, r *http.Request) {
 			ID:          s.ID,
 			Name:        s.Name,
 			Description: s.Description,
+			Builtin:     s.Builtin,
+			Active:      s.Active,
 		})
 	}
 	utils.RespondWithJSON(w, resp, http.StatusOK)
@@ -38,7 +40,7 @@ func listSkills(w http.ResponseWriter, r *http.Request) {
 func getSkill(w http.ResponseWriter, r *http.Request) {
 	user := utils.ExtractContextUser(r)
 	id := r.PathValue("id")
-	s, err := repo.GetByID(id, user)
+	s, err := GetByID(id, user)
 	if err != nil {
 		http.Error(w, "Skill not found", http.StatusNotFound)
 		return
@@ -48,6 +50,8 @@ func getSkill(w http.ResponseWriter, r *http.Request) {
 		Name:        s.Name,
 		Description: s.Description,
 		Content:     s.Content,
+		Builtin:     s.Builtin,
+		Active:      s.Active,
 	}, http.StatusOK)
 }
 
@@ -63,6 +67,11 @@ func saveSkill(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Builtins are read-only; saving with a builtin id creates/updates a user override.
+	if isBuiltinID(req.ID) {
+		req.ID = ""
+	}
+
 	// Update existing skill when ID is provided; otherwise create new.
 	if req.ID != "" {
 		skill := &Skill{
@@ -75,7 +84,10 @@ func saveSkill(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Error updating skill", http.StatusInternalServerError)
 			return
 		}
-		utils.RespondWithJSON(w, SkillResponse{ID: req.ID, Name: req.Name, Description: req.Description}, http.StatusOK)
+		utils.RespondWithJSON(w, SkillResponse{
+			ID: req.ID, Name: req.Name, Description: req.Description,
+			Builtin: false, Active: true,
+		}, http.StatusOK)
 		return
 	}
 
@@ -95,15 +107,25 @@ func saveSkill(w http.ResponseWriter, r *http.Request) {
 	// Re-fetch to get the canonical ID (upsert may have kept an existing row).
 	saved, err := repo.GetByName(req.Name, user)
 	if err != nil {
-		utils.RespondWithJSON(w, SkillResponse{Name: req.Name, Description: req.Description}, http.StatusCreated)
+		utils.RespondWithJSON(w, SkillResponse{
+			Name: req.Name, Description: req.Description,
+			Builtin: false, Active: true,
+		}, http.StatusCreated)
 		return
 	}
-	utils.RespondWithJSON(w, SkillResponse{ID: saved.ID, Name: saved.Name, Description: saved.Description}, http.StatusCreated)
+	utils.RespondWithJSON(w, SkillResponse{
+		ID: saved.ID, Name: saved.Name, Description: saved.Description,
+		Builtin: false, Active: true,
+	}, http.StatusCreated)
 }
 
 func deleteSkill(w http.ResponseWriter, r *http.Request) {
 	user := utils.ExtractContextUser(r)
 	id := r.PathValue("id")
+	if isBuiltinID(id) {
+		http.Error(w, "Built-in skills cannot be deleted; disable them in General Settings", http.StatusBadRequest)
+		return
+	}
 	if err := repo.DeleteByID(id, user); err != nil {
 		log.Error("Error deleting skill", "err", err)
 		http.Error(w, "Error deleting skill", http.StatusInternalServerError)

@@ -21,6 +21,8 @@ interface SkillFormProps {
   title: string;
   submitLabel: string;
   skill?: SkillResponse | null;
+  /** View-only mode for built-in skills (no save / upload). */
+  readOnly?: boolean;
 }
 
 export const SkillForm = ({
@@ -30,6 +32,7 @@ export const SkillForm = ({
   title,
   submitLabel,
   skill,
+  readOnly = false,
 }: SkillFormProps) => {
   const [formData, setFormData] = useState<SkillRequest>({
     id: "",
@@ -105,6 +108,10 @@ export const SkillForm = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (readOnly) {
+      onOpenChange(false);
+      return;
+    }
     setError(null);
 
     if (!formData.name.trim()) {
@@ -127,6 +134,8 @@ export const SkillForm = ({
       setIsSubmitting(false);
     }
   };
+
+  const fieldsDisabled = isSubmitting || isLoadingContent || readOnly;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -154,7 +163,7 @@ export const SkillForm = ({
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, name: e.target.value }))
                 }
-                disabled={isSubmitting || isLoadingContent}
+                disabled={fieldsDisabled}
                 required
               />
             </div>
@@ -163,7 +172,7 @@ export const SkillForm = ({
               <Label htmlFor="skill-description">Description</Label>
               <Textarea
                 id="skill-description"
-                placeholder="Short description of what this skill teaches..."
+                placeholder="Short description of what this skill teaches (shown to the model)..."
                 value={formData.description}
                 onChange={(e) =>
                   setFormData((prev) => ({
@@ -172,7 +181,7 @@ export const SkillForm = ({
                   }))
                 }
                 className="min-h-[60px] text-sm resize-none !bg-secondary/50 rounded-xl border-border/80 focus-visible:border-border"
-                disabled={isSubmitting || isLoadingContent}
+                disabled={fieldsDisabled}
               />
             </div>
 
@@ -199,40 +208,49 @@ export const SkillForm = ({
                   }))
                 }
                 className="h-40 text-sm font-mono resize-y overflow-y-auto !bg-secondary/50 rounded-xl border-border/80 focus-visible:border-border"
-                disabled={isSubmitting}
+                disabled={fieldsDisabled}
               />
             )}
           </div>
 
           <DialogFooter className="px-6 pb-6 pt-2 flex-shrink-0 gap-2">
             <div className="flex-1" />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isSubmitting || isLoadingContent}
-              className="gap-2"
-            >
-              <Upload className="h-4 w-4" />
-              {fileName ? "Replace" : "Upload"}
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".md,text/markdown"
-              onChange={handleFileChange}
-              disabled={isSubmitting || isLoadingContent}
-              className="hidden"
-            />
-            <Button
-              type="submit"
-              disabled={isSubmitting || isLoadingContent}
-            >
-              {isSubmitting && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              {submitLabel}
-            </Button>
+            {!readOnly && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={fieldsDisabled}
+                  className="gap-2"
+                >
+                  <Upload className="h-4 w-4" />
+                  {fileName ? "Replace" : "Upload"}
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".md,text/markdown"
+                  onChange={handleFileChange}
+                  disabled={fieldsDisabled}
+                  className="hidden"
+                />
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || isLoadingContent}
+                >
+                  {isSubmitting && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  {submitLabel}
+                </Button>
+              </>
+            )}
+            {readOnly && (
+              <Button type="button" onClick={() => onOpenChange(false)}>
+                Close
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

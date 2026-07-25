@@ -24,9 +24,9 @@ export const getSkills = async (): Promise<SkillResponse[]> => {
   return data.skills;
 };
 
-// Get a single skill with full content (for editing)
+// Get a single skill with full content (for editing / viewing builtins)
 export const getSkill = async (id: string): Promise<SkillDetailResponse> => {
-  const response = await fetch(`/api/skills/${id}`, {
+  const response = await fetch(`/api/skills/${encodeURIComponent(id)}`, {
     method: "GET",
     headers: getHeaders({
       "Content-Type": "application/json",
@@ -62,9 +62,9 @@ export const saveSkill = async (
   return response.json();
 };
 
-// Delete a skill
+// Delete a skill (user skills only; builtins are rejected by the API)
 export const deleteSkill = async (id: string): Promise<void> => {
-  const response = await fetch(`/api/skills/${id}`, {
+  const response = await fetch(`/api/skills/${encodeURIComponent(id)}`, {
     method: "DELETE",
     headers: getHeaders({
       "Content-Type": "application/json",

@@ -15,3 +15,8 @@ func SetupSettings(l *logger.Logger, d *sql.DB) {
 	db = d
 	repo = NewRepository(db)
 }
+
+// Get returns a single setting value for the user.
+func Get(key, user string) (string, error) {
+	return repo.Get(key, user)
+}

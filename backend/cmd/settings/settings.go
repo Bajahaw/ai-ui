@@ -11,6 +11,8 @@ func SetDefaults(user string) {
 		// New toggles to control extra content appended to the system prompt
 		"appendDateToSystemPrompt":   "false",
 		"appendPlatformInstructions": "true",
+		// Built-in skills shipped with the app (user can disable for their account)
+		"enableBuiltinSkills":        "true",
 		"reasoningEffort":            "disabled",
 		"attachmentOcrOnly":          "false",
 		"agenticDocumentRetrieval":   "false",
