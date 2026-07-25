@@ -215,12 +215,14 @@ func GetAvailableTools(user string) []*Tool {
 	return enabledTools
 }
 
+// GetBuiltInTools returns the platform built-in tools.
+// MCPServerID is left empty; callers must set it to the owning server ID
+// (e.g. "default-{user}") before persisting, so the Tools FK is satisfied.
 func GetBuiltInTools() []*Tool {
 	return []*Tool{
 		{
 			ID:          uuid.New().String(),
 			Name:        "search_ddgs",
-			MCPServerID: "default",
 			Description: "Search the web using DuckDuckGo",
 			InputSchema: `{"type": "object","properties": {"query": {"type": "string","description": "The search query to look up on DuckDuckGo"}},"required": ["query"]}`,
 			IsEnabled:   true,
@@ -228,7 +230,6 @@ func GetBuiltInTools() []*Tool {
 		{
 			ID:          uuid.New().String(),
 			Name:        "get_weather",
-			MCPServerID: "default",
 			Description: "Get the current weather",
 			InputSchema: `{"type": "object","properties": {"location": {"type": "string","description": "The location to get weather for"}},"required": ["location"]}`,
 			IsEnabled:   true,
@@ -236,7 +237,6 @@ func GetBuiltInTools() []*Tool {
 		{
 			ID:          uuid.New().String(),
 			Name:        "search_document",
-			MCPServerID: "default",
 			Description: "Search a specific attached document for a keyword or phrase constraint. Returns best matching pages.",
 			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"query":{"type":"string","description":"The keyword or phrase to search for"}},"required":["file_id","query"]}`,
 			IsEnabled:   true,
@@ -244,7 +244,6 @@ func GetBuiltInTools() []*Tool {
 		{
 			ID:          uuid.New().String(),
 			Name:        "read_document_page",
-			MCPServerID: "default",
 			Description: "Read the extracted text of specific pages from a retreivable attached document.",
 			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"start_page":{"type":"integer","description":"The 1-based page number to start reading from"},"end_page":{"type":"integer","description":"The 1-based page number to end reading at (inclusive)"}},"required":["file_id","start_page","end_page"]}`,
 			IsEnabled:   true,
@@ -252,7 +251,6 @@ func GetBuiltInTools() []*Tool {
 		{
 			ID:          uuid.New().String(),
 			Name:        "view_document_page",
-			MCPServerID: "default",
 			Description: "Get a screenshot of a specific PDF page (works only with pdf!). Use this when the user specifically mentions looking at an image, chart, format, or layout in a PDF. Pass array of files_ids via file_id property if needed.",
 			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"page_number":{"type":"integer","description":"The 1-based page number to view"}},"required":["file_id","page_number"]}`,
 			IsEnabled:   true,
@@ -260,7 +258,6 @@ func GetBuiltInTools() []*Tool {
 		{
 			ID:          uuid.New().String(),
 			Name:        "generate_image",
-			MCPServerID: "default",
 			Description: "Generate an image via AI model currently selected by user. Pass the user prompt exactly as is, unless user requested you to enhance it. Embed the resulting image file in the chat. ONlY call when user asks for `AI generated image`!, and Never call more than once",
 			InputSchema: `{"type":"object","properties":{"prompt":{"type":"string","description":"A detailed prompt for the image generation model"}},"required":["prompt"]}`,
 			IsEnabled:   true,
@@ -268,7 +265,6 @@ func GetBuiltInTools() []*Tool {
 		{
 			ID:          uuid.New().String(),
 			Name:        "read_skill",
-			MCPServerID: "default",
 			Description: "Read the full content of a specific skill by its name. Choose the skill that best matches the user's task from the <available_skills> section in the system prompt, then read its full instructions using this tool.",
 			InputSchema: `{"type":"object","properties":{"name":{"type":"string","description":"The exact name of the skill to read"}},"required":["name"]}`,
 			IsEnabled:   true,

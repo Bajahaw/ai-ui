@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Bajahaw/ai-ui/cmd/data"
+	logger "github.com/charmbracelet/log"
 )
 
 // setupTestDB creates a temp SQLite DB with full schema and returns the db + repo.
@@ -250,6 +251,48 @@ func TestDeleteNotIn_EmptyList_DeletesAll(t *testing.T) {
 	got := repo.GetAllByMCPServerID("server1")
 	if len(got) != 0 {
 		t.Fatalf("Expected 0 tools after DeleteNotIn with empty list, got %d", len(got))
+	}
+}
+
+// --------------------------------------------------------------------------
+// Default MCP server on registration
+// --------------------------------------------------------------------------
+
+func TestSaveDefaultMCPServer_AttachesBuiltInTools(t *testing.T) {
+	db, toolRepo := setupTestDB(t)
+
+	// Package-level deps used by SaveDefaultMCPServer
+	log = logger.New(os.Stderr)
+	mcps = NewMCPRepository(db, toolRepo)
+	tools = toolRepo
+
+	user := "newuser"
+	if _, err := db.Exec("INSERT INTO Users (username, pass_hash) VALUES (?, 'hash')", user); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+
+	SaveDefaultMCPServer(user)
+
+	serverID := "default-" + user
+	server, err := mcps.GetByID(serverID, user)
+	if err != nil {
+		t.Fatalf("default MCP server not saved: %v", err)
+	}
+	if len(server.Tools) == 0 {
+		t.Fatal("expected built-in tools on default MCP server, got none (FK/mcp_server_id mismatch?)")
+	}
+	for _, tool := range server.Tools {
+		if tool.MCPServerID != serverID {
+			t.Errorf("tool %q has MCPServerID %q, want %q", tool.Name, tool.MCPServerID, serverID)
+		}
+		if !tool.IsEnabled {
+			t.Errorf("tool %q should be enabled by default", tool.Name)
+		}
+	}
+	// JOIN-based list used by GetAvailableTools must also see them
+	all := toolRepo.GetAll(user)
+	if len(all) != len(server.Tools) {
+		t.Errorf("GetAll(user) returned %d tools, server has %d", len(all), len(server.Tools))
 	}
 }
 
