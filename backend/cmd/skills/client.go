@@ -24,8 +24,12 @@ func SetupSkills(l *logger.Logger, database *sql.DB) {
 }
 
 // builtinsEnabled reports whether this user has built-in skills turned on.
-// Default is enabled when the setting is missing (matches SetDefaults).
+// Default is enabled when the setting is missing or settings are not set up
+// yet (matches SetDefaults / unit-test friendliness).
 func builtinsEnabled(user string) bool {
+	if user == "" {
+		return true
+	}
 	v, err := settings.Get("enableBuiltinSkills", user)
 	if err != nil || v == "" {
 		return true

@@ -17,6 +17,10 @@ func SetupSettings(l *logger.Logger, d *sql.DB) {
 }
 
 // Get returns a single setting value for the user.
+// Safe when SetupSettings has not run (e.g. unit tests): returns ("", err).
 func Get(key, user string) (string, error) {
+	if repo == nil {
+		return "", sql.ErrNoRows
+	}
 	return repo.Get(key, user)
 }
