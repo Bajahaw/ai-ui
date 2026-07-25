@@ -165,25 +165,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       window.addEventListener("message", onMessage);
 
       const deadline = Date.now() + 5 * 60 * 1000;
+      // Keep waiting even if the OAuth window is closed — on mobile users often
+      // leave that window to copy/paste the redirect URL into "Having problems?".
+      // Only cancel when the waiting modal is closed (abort), success, error, or timeout.
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 1200));
         throwIfCancelled();
 
-        // Poll first so a successful local callback is not misread as "window closed".
-        let status = await authAPI.pollChatGPTLogin(state);
+        const status = await authAPI.pollChatGPTLogin(state);
         throwIfCancelled();
 
-        if (status.status === "pending" && popup.closed) {
-          // Local success page may have closed the popup just after a pending poll —
-          // re-check once before treating it as a user cancel.
-          await new Promise((r) => setTimeout(r, 400));
-          throwIfCancelled();
-          status = await authAPI.pollChatGPTLogin(state);
-          throwIfCancelled();
-          if (status.status === "pending") {
-            throw new Error("Failed to sign in with ChatGPT");
-          }
-        } else if (status.status === "pending") {
+        if (status.status === "pending") {
           continue;
         }
 

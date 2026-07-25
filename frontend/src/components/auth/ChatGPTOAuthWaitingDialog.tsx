@@ -95,7 +95,7 @@ export const ChatGPTOAuthWaitingDialog: React.FC = () => {
   return (
     <Dialog open={chatgptOAuthPending} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="sm:max-w-sm"
+        className="sm:max-w-sm rounded-xl"
         showCloseButton
         onPointerDownOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
@@ -143,7 +143,7 @@ export const ChatGPTOAuthWaitingDialog: React.FC = () => {
                       if (localError) setLocalError(null);
                     }}
                     placeholder="http://localhost:1455/auth/callback?code=…"
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-[0.5px] focus:ring-primary/40"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-[0.5px] focus:ring-primary/40"
                     disabled={submitting}
                     autoComplete="off"
                     spellCheck={false}
@@ -151,7 +151,7 @@ export const ChatGPTOAuthWaitingDialog: React.FC = () => {
                   <button
                     type="submit"
                     disabled={submitting || !url.trim()}
-                    className="w-full px-3 py-1.5 text-xs rounded-lg border border-input bg-background hover:bg-muted/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-input bg-background hover:bg-muted/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {submitting ? "Verifying..." : "Submit"}
                   </button>
