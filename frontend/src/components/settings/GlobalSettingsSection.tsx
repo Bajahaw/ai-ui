@@ -26,8 +26,9 @@ export const GlobalSettingsSection = () => {
   );
 
   const systemPrompt = data.settings.systemPrompt || "";
-  const appendDate = data.settings.appendDateToSystemPrompt || "false";
-  const appendPlatform = data.settings.appendPlatformInstructions || "false";
+  // Match backend SetDefaults: both append toggles default on for new accounts
+  const appendDate = data.settings.appendDateToSystemPrompt || "true";
+  const appendPlatform = data.settings.appendPlatformInstructions || "true";
   const defaultModel = data.settings.defaultModel || "";
   const reasoningEffort = data.settings.reasoningEffort || "medium";
   const enterBehavior = data.settings.enterBehavior || "send";

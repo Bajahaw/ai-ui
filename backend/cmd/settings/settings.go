@@ -9,7 +9,7 @@ func SetDefaults(user string) {
 		"model":        "gpt-4o",
 		"systemPrompt": "You are a helpful assistant. Provide clear accurate and helpful responses to the user questions.",
 		// New toggles to control extra content appended to the system prompt
-		"appendDateToSystemPrompt":   "false",
+		"appendDateToSystemPrompt":   "true",
 		"appendPlatformInstructions": "true",
 		// Built-in skills shipped with the app (user can disable for their account)
 		"enableBuiltinSkills":        "true",
