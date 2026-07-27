@@ -113,6 +113,13 @@ func saveUploadedFile(file multipart.File, handler *multipart.FileHeader, user s
 
 	log.Debug("Uploaded file data", "file", fileData)
 
+	// Save file first so FilePages FK (file_id -> Files.id) succeeds during extraction.
+	err = repo.Save(fileData)
+	if err != nil {
+		_ = os.Remove(filePath)
+		return File{}, err
+	}
+
 	// Extract content when OCR is requested for all attachments, or when
 	// agentic document retrieval is enabled and the file is a retrievable doc.
 	ocrOnly, _ := settings.Get("attachmentOcrOnly", user)
@@ -121,16 +128,17 @@ func saveUploadedFile(file multipart.File, handler *multipart.FileHeader, user s
 		ocrModel, _ := settings.Get("ocrModel", user)
 		fileContent, err := extractFileContent(fileData, ocrModel)
 		if err != nil {
+			_ = repo.DeleteByID(fileData.ID, user)
+			_ = os.Remove(filePath)
 			return File{}, err
 		}
 		fileData.Content = fileContent
 		log.Debug("Extracted file content", "content", fileContent)
-	}
-
-	err = repo.Save(fileData)
-	if err != nil {
-		_ = os.Remove(filePath)
-		return File{}, err
+		if err := repo.UpdateContent(fileData.ID, user, fileContent); err != nil {
+			_ = repo.DeleteByID(fileData.ID, user)
+			_ = os.Remove(filePath)
+			return File{}, err
+		}
 	}
 
 	return fileData, nil
