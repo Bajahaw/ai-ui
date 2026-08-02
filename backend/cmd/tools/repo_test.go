@@ -16,7 +16,7 @@ func setupTestDB(t *testing.T) (*sql.DB, ToolRepository) {
 	tmpDir := t.TempDir()
 	dbPath := path.Join(tmpDir, "test.db")
 
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatalf("Failed to open test DB: %v", err)
 	}

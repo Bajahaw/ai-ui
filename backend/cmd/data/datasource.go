@@ -5,9 +5,7 @@ import (
 	"os"
 	"path"
 
-	_ "modernc.org/sqlite"
-	// _ "github.com/mattn/go-sqlite3"
-	// _ "github.com/tursodatabase/turso-go"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var DB *sql.DB
@@ -20,9 +18,9 @@ func InitDataSource(dataSourceName string) error {
 		return err
 	}
 	// Add _pragma=foreign_keys(1) to ensure foreign keys are enabled on every connection
-	// This is critical for modernc.org/sqlite with connection pooling
-	dsn := dataSourceName + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
-	DB, err = sql.Open("sqlite", dsn)
+	// This is critical for sqlite drivers with connection pooling
+	dsn := dataSourceName + "?_foreign_keys=on&_busy_timeout=5000"
+	DB, err = sql.Open("sqlite3", dsn)
 	if err != nil {
 		return err
 	}

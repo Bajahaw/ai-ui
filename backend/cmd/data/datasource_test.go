@@ -14,7 +14,7 @@ func TestRunMigrations_FreshDB(t *testing.T) {
 	dbPath := path.Join(tmpDir, "test.db")
 
 	// Create an empty DB connection
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatalf("Failed to open test DB: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestRunMigrations_UpgradeFromV1(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := path.Join(tmpDir, "test_v1.db")
 
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		t.Fatalf("Failed to open test DB: %v", err)
 	}

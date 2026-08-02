@@ -14,7 +14,7 @@ func setupSearchTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	tmpDir := t.TempDir()
 	dbPath := path.Join(tmpDir, "search.db")
-	db, err := sql.Open("sqlite", dbPath+"?_pragma=foreign_keys(1)")
+	db, err := sql.Open("sqlite3", dbPath+"?_foreign_keys=on")
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}

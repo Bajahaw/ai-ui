@@ -41,7 +41,7 @@ jobs:
         run: echo "Downloads finished. Starting backend tests..."
 
       - name: Run backend tests
-        run: go test ./...
+        run: go test -tags sqlite_fts5 ./...
 
   build:
     needs: backend-tests
