@@ -6,6 +6,7 @@ import {
   BookIcon,
   CloudIcon,
   Scan,
+  GlobeIcon,
 } from "lucide-react";
 
 /**
@@ -19,6 +20,7 @@ const BUILT_IN_TOOL_ICONS: Record<string, LucideIcon> = {
   read_document_page: BookIcon,
   view_document_page: Scan,
   generate_image: ImageIcon,
+  http_request: GlobeIcon,
 };
 
 export const getToolIcon = (toolName: string): LucideIcon => {

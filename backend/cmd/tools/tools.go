@@ -136,6 +136,8 @@ func ExecuteMCPTool(ctx context.Context, toolCall providers.ToolCall, user, conv
 			return viewDocumentPageTool(toolCall.Args, user, convID)
 		case "generate_image":
 			return generateImageTool(toolCall.Args, user, convID)
+		case "http_request":
+			return httpRequestTool(toolCall.Args)
 		}
 	}
 
@@ -268,6 +270,14 @@ func GetBuiltInTools() []*Tool {
 			Description: "Read the full content of a specific skill by its name. Choose the skill that best matches the user's task from the <available_skills> section in the system prompt, then read its full instructions using this tool.",
 			InputSchema: `{"type":"object","properties":{"name":{"type":"string","description":"The exact name of the skill to read"}},"required":["name"]}`,
 			IsEnabled:   true,
+		},
+		{
+			ID:              uuid.New().String(),
+			Name:            "http_request",
+			Description:     "Make an HTTPS request to a public API. DNS hostnames only (no IPs). Private/loopback/link-local/metadata blocked. Request body max 1MiB. Text responses included (capped); binary responses return metadata + SHA256 only (no raw bytes). Prefer JSON/text APIs.",
+			InputSchema:     `{"type":"object","properties":{"url":{"type":"string","description":"Full https URL with a DNS hostname (not an IP)"},"method":{"type":"string","description":"HTTP method: GET, HEAD, POST, PUT, PATCH, or DELETE","default":"GET"},"headers":{"type":"object","additionalProperties":{"type":"string"},"description":"Optional request headers (Host, Transfer-Encoding, etc. are rejected)"},"body":{"type":"string","description":"Optional request body for POST/PUT/PATCH/DELETE (max 1MiB)"}},"required":["url"]}`,
+			RequireApproval: true,
+			IsEnabled:       true,
 		},
 	}
 }
