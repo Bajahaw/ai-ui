@@ -1,14 +1,20 @@
 package tools
 
 import (
+	"database/sql"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path"
 	"strings"
 	"testing"
+
+	"github.com/Bajahaw/ai-ui/cmd/data"
+	"github.com/Bajahaw/ai-ui/cmd/secrets"
+	_ "modernc.org/sqlite"
 )
 
 func TestValidateHostname_RejectsIPsAndLocal(t *testing.T) {
@@ -239,6 +245,33 @@ func TestHTTPRequestTool_BlocksSSRFVectors(t *testing.T) {
 	}
 }
 
+func setupSecretsDB(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	dbPath := path.Join(dir, "test.db")
+	db, err := sql.Open("sqlite", dbPath+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := data.RunMigrations(db); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO Users (username, pass_hash) VALUES ('alice', 'x')`); err != nil {
+		t.Fatal(err)
+	}
+	secrets.SetupSecrets(nil, db)
+	if _, err := secrets.Create("alice", "API_KEY", "zone_abc123"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := secrets.Create("alice", "TOKEN", "tok_xyz"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := secrets.Create("alice", "ODD", "a/b c?d=e"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestInjectHTTPRequestSecrets(t *testing.T) {
 	// Unit-test expansion rules without DB: empty map => unknown secret errors.
 	params := &httpRequestParams{
@@ -260,12 +293,121 @@ func TestInjectHTTPRequestSecrets(t *testing.T) {
 		t.Fatalf("expected body rejection, got %v", err)
 	}
 
-	// Path rejected
+	// Path allowed (unknown secret without store)
 	params3 := &httpRequestParams{
 		URL: "https://api.example.com/$secrets.API_KEY$/x",
 	}
-	if err := injectHTTPRequestSecrets(params3, "nobody"); err == nil || !strings.Contains(err.Error(), "path") {
-		t.Fatalf("expected path rejection, got %v", err)
+	if err := injectHTTPRequestSecrets(params3, "nobody"); err == nil || !strings.Contains(err.Error(), "unknown secret") {
+		t.Fatalf("expected unknown secret on path expand, got %v", err)
+	}
+
+	// Host still rejected
+	params4 := &httpRequestParams{
+		URL: "https://$secrets.API_KEY$.example.com/",
+	}
+	if err := injectHTTPRequestSecrets(params4, "nobody"); err == nil || !strings.Contains(err.Error(), "host") {
+		t.Fatalf("expected host rejection, got %v", err)
+	}
+}
+
+func TestInjectHTTPRequestSecrets_ExpandsPathQueryHeaders(t *testing.T) {
+	setupSecretsDB(t)
+
+	// Cloudflare-style path secret
+	p := &httpRequestParams{
+		URL: "https://api.cloudflare.com/client/v4/zones/$secrets.API_KEY$/purge_cache",
+		Headers: map[string]string{
+			"Authorization": "Bearer $secrets.TOKEN$",
+		},
+	}
+	if err := injectHTTPRequestSecrets(p, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	if p.URL != "https://api.cloudflare.com/client/v4/zones/zone_abc123/purge_cache" {
+		t.Fatalf("path expand: got %q", p.URL)
+	}
+	if p.Headers["Authorization"] != "Bearer tok_xyz" {
+		t.Fatalf("header expand: got %q", p.Headers["Authorization"])
+	}
+	// Placeholder must not remain
+	if strings.Contains(p.URL, "$secrets.") || strings.Contains(p.Headers["Authorization"], "$secrets.") {
+		t.Fatal("placeholder leaked after expand")
+	}
+
+	// Query only
+	q := &httpRequestParams{
+		URL: "https://api.example.com/v1?token=$secrets.TOKEN$&ok=1",
+	}
+	if err := injectHTTPRequestSecrets(q, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	u, err := url.Parse(q.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Query().Get("token") != "tok_xyz" || u.Query().Get("ok") != "1" {
+		t.Fatalf("query expand: %q", q.URL)
+	}
+
+	// Path + query together
+	both := &httpRequestParams{
+		URL: "https://api.example.com/zones/$secrets.API_KEY$/items?key=$secrets.TOKEN$",
+	}
+	if err := injectHTTPRequestSecrets(both, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	wantBoth := "https://api.example.com/zones/zone_abc123/items?key=tok_xyz"
+	if both.URL != wantBoth {
+		t.Fatalf("path+query: got %q want %q", both.URL, wantBoth)
+	}
+
+	// Secret with reserved chars is expanded (no placeholder left); host unchanged
+	odd := &httpRequestParams{
+		URL: "https://api.example.com/p/$secrets.ODD$/tail",
+	}
+	if err := injectHTTPRequestSecrets(odd, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(odd.URL, "$secrets.") {
+		t.Fatalf("placeholder remained: %q", odd.URL)
+	}
+	ou, err := url.Parse(odd.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ou.Host != "api.example.com" {
+		t.Fatalf("host changed: %q", ou.Host)
+	}
+	if !strings.Contains(odd.URL, "a") || !strings.Contains(ou.Path, "a") {
+		t.Fatalf("expanded value missing from url: %q path=%q", odd.URL, ou.Path)
+	}
+
+	// Host / userinfo / body still rejected with real secrets present
+	for _, tc := range []struct {
+		name string
+		p    *httpRequestParams
+		sub  string
+	}{
+		{"host", &httpRequestParams{URL: "https://$secrets.API_KEY$.example.com/"}, "host"},
+		{"userinfo", &httpRequestParams{URL: "https://$secrets.TOKEN$@api.example.com/"}, "userinfo"},
+		{"body", &httpRequestParams{URL: "https://api.example.com/", Body: `$secrets.TOKEN$`}, "body"},
+		{"header name", &httpRequestParams{
+			URL:     "https://api.example.com/",
+			Headers: map[string]string{"X-$secrets.TOKEN$": "v"},
+		}, "header names"},
+	} {
+		err := injectHTTPRequestSecrets(tc.p, "alice")
+		if err == nil || !strings.Contains(err.Error(), tc.sub) {
+			t.Fatalf("%s: expected error containing %q, got %v", tc.name, tc.sub, err)
+		}
+	}
+
+	// Other user cannot use alice secrets
+	iso := &httpRequestParams{
+		URL: "https://api.example.com/$secrets.API_KEY$/x",
+	}
+	if err := injectHTTPRequestSecrets(iso, "bob"); err == nil || !strings.Contains(err.Error(), "unknown secret") {
+		t.Fatalf("isolation: got %v", err)
 	}
 }
 

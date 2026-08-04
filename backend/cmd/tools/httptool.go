@@ -93,13 +93,15 @@ func httpRequestTool(args, user string) providers.ToolOutput {
 	return providers.ToolOutput{Content: result}
 }
 
-// injectHTTPRequestSecrets expands $secrets.NAME$ only in header values and URL query.
-// Body, path, host, and userinfo are rejected if they contain placeholders.
+// injectHTTPRequestSecrets expands $secrets.NAME$ in header values and URL path/query.
+// Body, host, scheme, userinfo, and fragment are rejected if they contain placeholders.
+// Path secrets are allowed (same exposure as query); destination host stays fixed so SSRF
+// checks always see the model-chosen host before any secret value is applied there.
 func injectHTTPRequestSecrets(params *httpRequestParams, user string) error {
 	const marker = "$secrets."
 
 	if strings.Contains(params.Body, marker) {
-		return errors.New("secret placeholders are only allowed in headers and URL query, not body")
+		return errors.New("secret placeholders are only allowed in headers and URL path/query, not body")
 	}
 
 	byName := secrets.GetValueMap(user)
@@ -128,23 +130,38 @@ func injectHTTPRequestSecrets(params *httpRequestParams, user string) error {
 	if err != nil {
 		return fmt.Errorf("invalid url: %w", err)
 	}
-	for _, part := range []string{u.Scheme, u.Host, u.Path, u.Fragment, u.Opaque} {
+	for _, part := range []string{u.Scheme, u.Host, u.Fragment, u.Opaque} {
 		if strings.Contains(part, marker) {
-			return errors.New("secret placeholders are only allowed in headers and URL query, not path/host")
+			return errors.New("secret placeholders are only allowed in headers and URL path/query, not host/scheme")
 		}
 	}
 	if u.User != nil && strings.Contains(u.User.String(), marker) {
-		return errors.New("secret placeholders are only allowed in headers and URL query, not userinfo")
+		return errors.New("secret placeholders are not allowed in URL userinfo")
 	}
-	if !strings.Contains(u.RawQuery, marker) {
-		// Placeholder somewhere odd (e.g. malformed); refuse.
-		return errors.New("secret placeholders are only allowed in headers and URL query")
+	pathHas := strings.Contains(u.Path, marker) || strings.Contains(u.RawPath, marker)
+	queryHas := strings.Contains(u.RawQuery, marker)
+	if !pathHas && !queryHas {
+		return errors.New("secret placeholders are only allowed in headers and URL path/query")
 	}
-	expandedQuery, err := secrets.Expand(u.RawQuery, byName)
-	if err != nil {
-		return err
+	if pathHas {
+		pathSrc := u.Path
+		if strings.Contains(u.RawPath, marker) {
+			pathSrc = u.RawPath
+		}
+		expandedPath, err := secrets.Expand(pathSrc, byName)
+		if err != nil {
+			return err
+		}
+		u.Path = expandedPath
+		u.RawPath = ""
 	}
-	u.RawQuery = expandedQuery
+	if queryHas {
+		expandedQuery, err := secrets.Expand(u.RawQuery, byName)
+		if err != nil {
+			return err
+		}
+		u.RawQuery = expandedQuery
+	}
 	params.URL = u.String()
 	return nil
 }
