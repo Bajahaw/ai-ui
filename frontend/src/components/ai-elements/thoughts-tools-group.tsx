@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BrainIcon, ClockIcon } from "lucide-react";
-import { getToolIcon } from "@/lib/toolIcons";
+import {
+  getFaviconUrl,
+  getToolCallIconSourceUrl,
+  getToolIcon,
+} from "@/lib/toolIcons";
 import {
   Reasoning,
   ReasoningContent,
@@ -82,13 +86,15 @@ const ToolCallItem = ({
       <ToolHeader
         type={`tool-${toolCall.name}` as `tool-${string}`}
         state={localState}
-        mcpUrl={(() => {
-          if (!tool || !tool.mcp_server_id) return undefined;
-          const server = settingsData.mcpServers.find(
-            (mcpServer) => mcpServer.id === tool.mcp_server_id,
-          );
-          return server?.endpoint;
-        })()}
+        mcpUrl={getToolCallIconSourceUrl(
+          toolCall.name,
+          toolCall.args,
+          tool?.mcp_server_id
+            ? settingsData.mcpServers.find(
+                (mcpServer) => mcpServer.id === tool.mcp_server_id,
+              )?.endpoint
+            : undefined,
+        )}
       />
       <ToolContent>
         <ToolInput input={safeParseJSON(toolCall.args)} />
@@ -110,37 +116,20 @@ const ToolCallItem = ({
   );
 };
 
-const getMcpUrlForToolCall = (
+const getIconSourceUrlForToolCall = (
   toolCall: ToolCall,
   settingsData: SettingsDataLike,
 ) => {
   const tool = settingsData.tools.find(
     (candidate) => candidate.name === toolCall.name,
   );
-  if (!tool?.mcp_server_id) {
-    return undefined;
-  }
+  const mcpEndpoint = tool?.mcp_server_id
+    ? settingsData.mcpServers.find(
+        (mcpServer) => mcpServer.id === tool.mcp_server_id,
+      )?.endpoint
+    : undefined;
 
-  const server = settingsData.mcpServers.find(
-    (mcpServer) => mcpServer.id === tool.mcp_server_id,
-  );
-
-  return server?.endpoint;
-};
-
-const getFaviconUrl = (mcpUrl: string | undefined) => {
-  if (!mcpUrl) {
-    return null;
-  }
-
-  try {
-    const url = new URL(mcpUrl);
-    const parts = url.hostname.split(".");
-    const domain = parts.length > 2 ? parts.slice(-2).join(".") : url.hostname;
-    return `https://www.google.com/s2/favicons?domain=https://${domain}&sz=32`;
-  } catch {
-    return null;
-  }
+  return getToolCallIconSourceUrl(toolCall.name, toolCall.args, mcpEndpoint);
 };
 
 const ToolSummaryIcon = ({
@@ -151,18 +140,18 @@ const ToolSummaryIcon = ({
   settingsData: SettingsDataLike;
 }) => {
   const [imageError, setImageError] = useState(false);
-  const mcpUrl = useMemo(
-    () => getMcpUrlForToolCall(toolCall, settingsData),
+  const iconSourceUrl = useMemo(
+    () => getIconSourceUrlForToolCall(toolCall, settingsData),
     [toolCall, settingsData],
   );
   const faviconUrl = useMemo(
-    () => (!imageError ? getFaviconUrl(mcpUrl) : null),
-    [mcpUrl, imageError],
+    () => (!imageError ? getFaviconUrl(iconSourceUrl) : null),
+    [iconSourceUrl, imageError],
   );
 
   useEffect(() => {
     setImageError(false);
-  }, [mcpUrl]);
+  }, [iconSourceUrl]);
 
   const ToolIcon = getToolIcon(toolCall.name);
 

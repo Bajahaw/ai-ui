@@ -9,7 +9,7 @@ import {
   CheckIcon,
   XIcon,
 } from "lucide-react";
-import { getToolIcon } from "@/lib/toolIcons";
+import { getFaviconUrl, getToolIcon } from "@/lib/toolIcons";
 import {
   type ComponentProps,
   type ReactNode,
@@ -102,25 +102,7 @@ export const ToolHeader = ({
   const toolName = type.startsWith("tool-") ? type.slice(5) : type;
   const ToolIcon = getToolIcon(toolName);
 
-  let faviconUrl: string | null = null;
-  if (mcpUrl && !imageError) {
-    try {
-      const url = new URL(mcpUrl);
-      const hostname = url.hostname;
-      // Simple heuristic: if there are more than 2 parts and the first part is 'api' or 'www', remove it.
-      // This is a basic implementation of "trim subdomains".
-      const parts = hostname.split(".");
-      let domain = hostname;
-      if (parts.length > 2) {
-        domain = parts.slice(-2).join(".");
-      }
-
-      faviconUrl = `https://www.google.com/s2/favicons?domain=https://${domain}&sz=32`;
-    } catch (e) {
-      console.warn("Invalid MCP URL for favicon:", mcpUrl);
-      // invalid url, ignore
-    }
-  }
+  const faviconUrl = !imageError ? getFaviconUrl(mcpUrl) : null;
 
   return (
     <CollapsibleTrigger
