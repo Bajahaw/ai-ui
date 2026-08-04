@@ -305,6 +305,23 @@ export interface SkillRequest {
   content: string;
 }
 
+// User secrets (values are write-only; never returned after create)
+export interface SecretResponse {
+  id: string;
+  name: string;
+}
+
+export interface SecretListResponse {
+  secrets: SecretResponse[];
+}
+
+export interface SecretRequest {
+  id?: string;
+  name: string;
+  /** Required on create; leave empty on update to keep existing value. */
+  value: string;
+}
+
 // Tool types
 export interface Tool {
   id: string;

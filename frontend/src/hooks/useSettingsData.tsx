@@ -25,7 +25,13 @@ import {
   deleteSkill as deleteSkillApi,
   getSkills,
   saveSkill as saveSkillApi,
-} from "@/lib/api/skills";import {
+} from "@/lib/api/skills";
+import {
+  deleteSecret as deleteSecretApi,
+  getSecrets,
+  saveSecret as saveSecretApi,
+} from "@/lib/api/secrets";
+import {
   getSettings,
   updateSetting,
   updateSystemPrompt,
@@ -37,6 +43,8 @@ import {
   Model,
   ProviderRequest,
   ProviderResponse,
+  SecretRequest,
+  SecretResponse,
   SkillRequest,
   SkillResponse,
   Tool,
@@ -49,6 +57,7 @@ interface SettingsData {
   mcpServers: MCPServerResponse[];
   tools: Tool[];
   skills: SkillResponse[];
+  secrets: SecretResponse[];
   settings: Record<string, string>;
   systemPrompt: string;
 }
@@ -84,6 +93,11 @@ interface SettingsDataContext {
   updateSkill: (data: SkillRequest) => Promise<void>;
   deleteSkill: (id: string) => Promise<void>;
 
+  // Secrets
+  addSecret: (data: SecretRequest) => Promise<void>;
+  updateSecret: (data: SecretRequest) => Promise<void>;
+  deleteSecret: (id: string) => Promise<void>;
+
   // Models - delegates to global context
   updateModelsLocal: (models: Model[]) => void;
   saveModels: (models: Model[]) => Promise<void>;
@@ -112,6 +126,7 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
     mcpServers: [],
     tools: [],
     skills: [],
+    secrets: [],
     settings: {},
     systemPrompt: "",
   });
@@ -125,12 +140,13 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
 
     try {
-      const [providersRes, mcpRes, toolsRes, skillsRes, settingsRes] =
+      const [providersRes, mcpRes, toolsRes, skillsRes, secretsRes, settingsRes] =
         await Promise.all([
           getProviders(),
           getMCPServers(),
           getAllTools(),
           getSkills(),
+          getSecrets(),
           getSettings(),
         ]);
 
@@ -147,6 +163,7 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
           require_approval: t.require_approval ?? false,
         })),
         skills: skillsRes,
+        secrets: secretsRes,
         settings: settingsRes.settings,
         systemPrompt: settingsRes.settings.systemPrompt || "",
       });
@@ -314,6 +331,36 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
     [],
   );
 
+  // Secrets
+  const refreshSecrets = useCallback(async () => {
+    const secretsRes = await getSecrets();
+    setData((d) => ({ ...d, secrets: secretsRes }));
+  }, []);
+
+  const addSecret = useCallback(
+    async (secretData: SecretRequest) => {
+      await saveSecretApi(secretData);
+      await refreshSecrets();
+    },
+    [refreshSecrets],
+  );
+
+  const updateSecret = useCallback(
+    async (secretData: SecretRequest) => {
+      await saveSecretApi(secretData);
+      await refreshSecrets();
+    },
+    [refreshSecrets],
+  );
+
+  const deleteSecret = useCallback(async (id: string) => {
+    await deleteSecretApi(id);
+    setData((d) => ({
+      ...d,
+      secrets: d.secrets.filter((s) => s.id !== id),
+    }));
+  }, []);
+
   // Settings
   const updateSettingsLocal = useCallback((key: string, value: string) => {
     pendingSettings.current[key] = value;
@@ -358,6 +405,9 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
         addSkill,
         updateSkill,
         deleteSkill,
+        addSecret,
+        updateSecret,
+        deleteSecret,
         updateModelsLocal: globalUpdateModels,
         saveModels: globalSaveModels,
         getModelsByProvider,

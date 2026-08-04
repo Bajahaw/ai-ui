@@ -350,5 +350,28 @@ func RunMigrations(db *sql.DB) error {
 		}
 	}
 
+	if userVersion < 9 {
+		schemaV9 := `
+		CREATE TABLE IF NOT EXISTS UserSecrets (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			value TEXT NOT NULL,
+			user TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(user, name),
+			FOREIGN KEY (user) REFERENCES Users(username) ON DELETE CASCADE
+		);
+		`
+		_, err = db.Exec(schemaV9)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec("PRAGMA user_version = 9;")
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

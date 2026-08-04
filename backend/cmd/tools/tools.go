@@ -137,7 +137,7 @@ func ExecuteMCPTool(ctx context.Context, toolCall providers.ToolCall, user, conv
 		case "generate_image":
 			return generateImageTool(toolCall.Args, user, convID)
 		case "http_request":
-			return httpRequestTool(toolCall.Args)
+			return httpRequestTool(toolCall.Args, user)
 		}
 	}
 
@@ -274,8 +274,8 @@ func GetBuiltInTools() []*Tool {
 		{
 			ID:              uuid.New().String(),
 			Name:            "http_request",
-			Description:     "Make an HTTPS request to a public API. DNS hostnames only (no IPs). Private/loopback/link-local/metadata blocked. Request body max 1MiB. Text responses included (capped); binary responses return metadata + SHA256 only (no raw bytes). Prefer JSON/text APIs.",
-			InputSchema:     `{"type":"object","properties":{"url":{"type":"string","description":"Full https URL with a DNS hostname (not an IP)"},"method":{"type":"string","description":"HTTP method: GET, HEAD, POST, PUT, PATCH, or DELETE","default":"GET"},"headers":{"type":"object","additionalProperties":{"type":"string"},"description":"Optional request headers (Host, Transfer-Encoding, etc. are rejected)"},"body":{"type":"string","description":"Optional request body for POST/PUT/PATCH/DELETE (max 1MiB)"}},"required":["url"]}`,
+			Description:     "Make an HTTPS request to a public API. DNS hostnames only (no IPs). Private/loopback/link-local/metadata blocked. Request body max 1MiB. Text responses capped; binary omitted (metadata+SHA256). Prefer JSON/text APIs. Credentials: only when the user gave a secret name, use $secrets.NAME$ in headers (incl. Cookie) or URL query — not in path or body.",
+			InputSchema:     `{"type":"object","properties":{"url":{"type":"string","description":"Full https URL with a DNS hostname (not an IP). $secrets.NAME$ allowed in the query string only."},"method":{"type":"string","description":"HTTP method: GET, HEAD, POST, PUT, PATCH, or DELETE","default":"GET"},"headers":{"type":"object","additionalProperties":{"type":"string"},"description":"Optional headers (Authorization, Cookie, etc.). $secrets.NAME$ allowed in values when the user specified the name. Host/Transfer-Encoding etc. are rejected."},"body":{"type":"string","description":"Optional body for POST/PUT/PATCH/DELETE (max 1MiB). Secret placeholders not allowed."}},"required":["url"]}`,
 			RequireApproval: true,
 			IsEnabled:       true,
 		},

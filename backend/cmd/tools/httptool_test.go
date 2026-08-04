@@ -211,7 +211,7 @@ func TestCheckRedirect_BlocksPrivateTarget(t *testing.T) {
 }
 
 func TestHTTPRequestTool_ParseError(t *testing.T) {
-	out := httpRequestTool(`{not-json`)
+	out := httpRequestTool(`{not-json`, "user")
 	if !strings.Contains(out.Content, "error decoding") {
 		t.Fatalf("got %q", out.Content)
 	}
@@ -229,13 +229,43 @@ func TestHTTPRequestTool_BlocksSSRFVectors(t *testing.T) {
 		`{"url":"https://user:pass@example.com/"}`,
 	}
 	for _, args := range vectors {
-		out := httpRequestTool(args)
+		out := httpRequestTool(args, "user")
 		if !strings.Contains(out.Content, "failed") && !strings.Contains(out.Content, "error") {
 			t.Errorf("vector %s got success-like output: %s", args, out.Content)
 		}
 		if strings.Contains(out.Content, "Status: 200") {
 			t.Errorf("vector %s must not succeed: %s", args, out.Content)
 		}
+	}
+}
+
+func TestInjectHTTPRequestSecrets(t *testing.T) {
+	// Unit-test expansion rules without DB: empty map => unknown secret errors.
+	params := &httpRequestParams{
+		URL:     "https://api.example.com/v1?token=$secrets.API_KEY$",
+		Headers: map[string]string{"Authorization": "Bearer $secrets.API_KEY$", "Cookie": "sid=$secrets.API_KEY$"},
+		Body:    `{"ok":true}`,
+	}
+	err := injectHTTPRequestSecrets(params, "nobody")
+	if err == nil {
+		t.Fatal("expected unknown secret without store")
+	}
+
+	// Body rejected
+	params2 := &httpRequestParams{
+		URL:  "https://api.example.com/",
+		Body: `$secrets.API_KEY$`,
+	}
+	if err := injectHTTPRequestSecrets(params2, "nobody"); err == nil || !strings.Contains(err.Error(), "body") {
+		t.Fatalf("expected body rejection, got %v", err)
+	}
+
+	// Path rejected
+	params3 := &httpRequestParams{
+		URL: "https://api.example.com/$secrets.API_KEY$/x",
+	}
+	if err := injectHTTPRequestSecrets(params3, "nobody"); err == nil || !strings.Contains(err.Error(), "path") {
+		t.Fatalf("expected path rejection, got %v", err)
 	}
 }
 

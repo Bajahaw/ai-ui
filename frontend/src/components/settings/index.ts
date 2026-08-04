@@ -10,3 +10,4 @@ export { MCPServerForm } from "./MCPServerForm";
 export { ToolsSection } from "./ToolsSection";
 export { DocumentsSection } from "./DocumentsSection";
 export { AuthSection } from "./AuthSection";
+export { SecretsSection } from "./SecretsSection";

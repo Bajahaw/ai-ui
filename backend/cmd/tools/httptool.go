@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Bajahaw/ai-ui/cmd/providers"
+	"github.com/Bajahaw/ai-ui/cmd/secrets"
 )
 
 const (
@@ -75,10 +76,14 @@ type httpRequestParams struct {
 	Body    string            `json:"body"`
 }
 
-func httpRequestTool(args string) providers.ToolOutput {
+func httpRequestTool(args, user string) providers.ToolOutput {
 	var params httpRequestParams
 	if err := json.Unmarshal([]byte(args), &params); err != nil {
 		return providers.ToolOutput{Content: fmt.Sprintf("error decoding arguments: %v", err)}
+	}
+
+	if err := injectHTTPRequestSecrets(&params, user); err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("http_request failed: %v", err)}
 	}
 
 	result, err := doSafeHTTPRequest(params)
@@ -86,6 +91,62 @@ func httpRequestTool(args string) providers.ToolOutput {
 		return providers.ToolOutput{Content: fmt.Sprintf("http_request failed: %v", err)}
 	}
 	return providers.ToolOutput{Content: result}
+}
+
+// injectHTTPRequestSecrets expands $secrets.NAME$ only in header values and URL query.
+// Body, path, host, and userinfo are rejected if they contain placeholders.
+func injectHTTPRequestSecrets(params *httpRequestParams, user string) error {
+	const marker = "$secrets."
+
+	if strings.Contains(params.Body, marker) {
+		return errors.New("secret placeholders are only allowed in headers and URL query, not body")
+	}
+
+	byName := secrets.GetValueMap(user)
+
+	if params.Headers != nil {
+		for k, v := range params.Headers {
+			if strings.Contains(k, marker) {
+				return errors.New("secret placeholders are not allowed in header names")
+			}
+			if !strings.Contains(v, marker) {
+				continue
+			}
+			expanded, err := secrets.Expand(v, byName)
+			if err != nil {
+				return err
+			}
+			params.Headers[k] = expanded
+		}
+	}
+
+	if !strings.Contains(params.URL, marker) {
+		return nil
+	}
+
+	u, err := url.Parse(params.URL)
+	if err != nil {
+		return fmt.Errorf("invalid url: %w", err)
+	}
+	for _, part := range []string{u.Scheme, u.Host, u.Path, u.Fragment, u.Opaque} {
+		if strings.Contains(part, marker) {
+			return errors.New("secret placeholders are only allowed in headers and URL query, not path/host")
+		}
+	}
+	if u.User != nil && strings.Contains(u.User.String(), marker) {
+		return errors.New("secret placeholders are only allowed in headers and URL query, not userinfo")
+	}
+	if !strings.Contains(u.RawQuery, marker) {
+		// Placeholder somewhere odd (e.g. malformed); refuse.
+		return errors.New("secret placeholders are only allowed in headers and URL query")
+	}
+	expandedQuery, err := secrets.Expand(u.RawQuery, byName)
+	if err != nil {
+		return err
+	}
+	u.RawQuery = expandedQuery
+	params.URL = u.String()
+	return nil
 }
 
 func doSafeHTTPRequest(params httpRequestParams) (string, error) {

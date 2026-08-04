@@ -18,6 +18,7 @@ import {
   Lock,
   BookOpen,
   ImageIcon,
+  KeyRound,
 } from "lucide-react";
 import { ProvidersSection } from "./ProvidersSection";
 import { GlobalSettingsSection } from "./GlobalSettingsSection";
@@ -28,6 +29,7 @@ import { ToolsSection } from "./ToolsSection";
 import { DocumentsSection } from "./DocumentsSection";
 import { AuthSection } from "./AuthSection";
 import { SkillsSection } from "./SkillsSection";
+import { SecretsSection } from "./SecretsSection";
 import { useSettingsData } from "@/hooks/useSettingsData";
 
 interface SettingsDialogProps {
@@ -43,6 +45,7 @@ type SettingsTab =
   | "mcp"
   | "tools"
   | "skills"
+  | "secrets"
   | "documents"
   | "auth";
 
@@ -89,6 +92,11 @@ const SettingsDialogContent = () => {
       icon: BookOpen,
     },
     {
+      id: "secrets" as const,
+      label: "Secrets",
+      icon: KeyRound,
+    },
+    {
       id: "documents" as const,
       label: "Documents",
       icon: FileText,
@@ -121,6 +129,8 @@ const SettingsDialogContent = () => {
         return <ToolsSection />;
       case "skills":
         return <SkillsSection />;
+      case "secrets":
+        return <SecretsSection />;
       case "documents":
         return <DocumentsSection />;
       case "auth":
