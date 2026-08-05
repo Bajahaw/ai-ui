@@ -18,11 +18,14 @@ WORKDIR /app
 RUN apk add --no-cache gcc musl-dev
 
 COPY backend/go.mod backend/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 COPY backend .
 
-RUN CGO_ENABLED=1 go build -tags musl -ldflags="-s -w" -o ai-ui ./cmd
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 go build -tags musl -ldflags="-s -w" -o ai-ui ./cmd
 
 FROM alpine AS prod
 
