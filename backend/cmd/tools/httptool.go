@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -11,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -18,17 +20,27 @@ import (
 
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/Bajahaw/ai-ui/cmd/secrets"
+	nethtml "golang.org/x/net/html"
 )
 
 const (
-	httpRequestTimeout      = 30 * time.Second
-	httpRequestMaxRedirect  = 3
-	httpRequestMaxBody      = 1 << 20 // 1 MiB request body
-	httpRequestMaxRespRead  = 1 << 20 // 1 MiB max bytes read from response
-	httpRequestMaxTextOut   = 256 << 10 // 256 KiB max text body in tool output
-	httpRequestMaxURLLen    = 2048
-	httpRequestMaxHeaderSz  = 8 << 10 // 8 KiB total custom headers
-	httpRequestMaxHeaderOut = 4 << 10 // 4 KiB response headers in output
+	httpRequestTimeout           = 30 * time.Second
+	httpRequestMaxRedirect       = 3
+	httpRequestMaxBody           = 1 << 20      // 1 MiB request body
+	httpRequestMaxRespRead = 1 << 20  // 1 MiB max bytes read from response
+	httpRequestMaxTextOut  = 256 << 10 // 256 KiB max text body in tool output
+	httpRequestMaxURLLen   = 2048
+	httpRequestMaxHeaderSz       = 8 << 10 // 8 KiB total custom headers
+	httpRequestMaxHeaderOut      = 4 << 10 // 4 KiB response headers in output
+	httpRequestBase64MinLen = 256 // min length to treat as base64 payload
+)
+
+var (
+	reDataURI = regexp.MustCompile(
+		`(?i)data:([a-z0-9!#$&.+^_/-]+/[a-z0-9!#$&.+^_/-]+)?(?:;[a-z0-9!#$&.+^_=+/-]+)*;base64,([A-Za-z0-9+/=\r\n]{64,})`,
+	)
+	// Keep in sync with httpRequestBase64MinLen (256).
+	reLongBase64 = regexp.MustCompile(`[A-Za-z0-9+/]{256,}={0,2}`)
 )
 
 var allowedHTTPMethods = map[string]struct{}{
@@ -74,6 +86,12 @@ type httpRequestParams struct {
 	Method  string            `json:"method"`
 	Headers map[string]string `json:"headers"`
 	Body    string            `json:"body"`
+	Verbose bool              `json:"verbose"`
+}
+
+type httpBodyFormatOpts struct {
+	Verbose       bool
+	ReadTruncated bool
 }
 
 func httpRequestTool(args, user string) providers.ToolOutput {
@@ -225,7 +243,7 @@ func doSafeHTTPRequest(params httpRequestParams) (string, error) {
 		return "", fmt.Errorf("reading response: %w", err)
 	}
 
-	return formatHTTPResponse(resp, respBody, truncated), nil
+	return formatHTTPResponse(resp, respBody, truncated, httpBodyFormatOpts{Verbose: params.Verbose}), nil
 }
 
 func readLimitedBody(r io.Reader, max int) (data []byte, truncated bool, err error) {
@@ -243,10 +261,11 @@ func readLimitedBody(r io.Reader, max int) (data []byte, truncated bool, err err
 	return data, truncated, nil
 }
 
-func formatHTTPResponse(resp *http.Response, body []byte, truncated bool) string {
+func formatHTTPResponse(resp *http.Response, body []byte, truncated bool, opts httpBodyFormatOpts) string {
 	ct := resp.Header.Get("Content-Type")
 	mediaType := contentMediaType(ct)
 	declaredLen := resp.ContentLength
+	opts.ReadTruncated = truncated
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "Status: %d %s\n", resp.StatusCode, http.StatusText(resp.StatusCode))
@@ -260,6 +279,11 @@ func formatHTTPResponse(resp *http.Response, body []byte, truncated bool) string
 	}
 	if truncated {
 		fmt.Fprintf(&b, "Truncated: true (read cap %d bytes)\n", httpRequestMaxRespRead)
+	}
+	if opts.Verbose {
+		b.WriteString("Body-Mode: verbose\n")
+	} else {
+		b.WriteString("Body-Mode: reduced\n")
 	}
 
 	b.WriteString("Response-Headers:\n")
@@ -297,7 +321,7 @@ func formatHTTPResponse(resp *http.Response, body []byte, truncated bool) string
 	fmt.Fprintf(&b, "Body-SHA256: %s\n", hex.EncodeToString(sum[:]))
 
 	b.WriteString("Body:\n")
-	b.WriteString(formatResponseBody(body, mediaType, truncated))
+	b.WriteString(formatResponseBody(body, mediaType, opts))
 	return b.String()
 }
 
@@ -319,7 +343,7 @@ func emptyAs(s, fallback string) string {
 	return s
 }
 
-func formatResponseBody(body []byte, mediaType string, readTruncated bool) string {
+func formatResponseBody(body []byte, mediaType string, opts httpBodyFormatOpts) string {
 	if len(body) == 0 {
 		return "(empty)"
 	}
@@ -337,13 +361,19 @@ func formatResponseBody(body []byte, mediaType string, readTruncated bool) strin
 			len(body),
 			hex.EncodeToString(body[:preview]),
 		)
-		if readTruncated {
+		if opts.ReadTruncated {
 			b.WriteString("\nNote: response was truncated by read cap; full remote size may be larger.")
 		}
 		return b.String()
 	}
 
-	text := body
+	var notes []string
+	textBody := body
+	if !opts.Verbose {
+		textBody, notes = reduceTextBody(body, mediaType)
+	}
+
+	text := textBody
 	outTruncated := false
 	if len(text) > httpRequestMaxTextOut {
 		text = text[:httpRequestMaxTextOut]
@@ -359,20 +389,237 @@ func formatResponseBody(body []byte, mediaType string, readTruncated bool) strin
 
 	var b strings.Builder
 	b.WriteString(s)
-	if outTruncated || readTruncated {
+	if len(notes) > 0 || outTruncated || opts.ReadTruncated {
 		b.WriteString("\n\n[")
+		parts := make([]string, 0, 4)
+		if len(notes) > 0 {
+			parts = append(parts, strings.Join(notes, "; "))
+		}
 		if outTruncated {
-			fmt.Fprintf(&b, "text output truncated to %d bytes", httpRequestMaxTextOut)
+			parts = append(parts, fmt.Sprintf("text output truncated to %d bytes", httpRequestMaxTextOut))
 		}
-		if readTruncated {
-			if outTruncated {
-				b.WriteString("; ")
-			}
-			fmt.Fprintf(&b, "wire read capped at %d bytes", httpRequestMaxRespRead)
+		if opts.ReadTruncated {
+			parts = append(parts, fmt.Sprintf("wire read capped at %d bytes", httpRequestMaxRespRead))
 		}
+		b.WriteString(strings.Join(parts, "; "))
 		b.WriteString("]")
 	}
 	return b.String()
+}
+
+func reduceTextBody(body []byte, mediaType string) ([]byte, []string) {
+	var notes []string
+	switch {
+	case mediaType == "text/html" || mediaType == "application/xhtml+xml":
+		cleaned, n := scrubHTML(string(body))
+		if n > 0 {
+			notes = append(notes, fmt.Sprintf("html scrub removed %d node(s)", n))
+		}
+		stripped, c := stripHeavyPayloads(cleaned)
+		if c > 0 {
+			notes = append(notes, fmt.Sprintf("omitted %d embedded binary payload(s)", c))
+		}
+		return []byte(stripped), notes
+	case isJSONMediaType(mediaType) || (mediaType == "" && json.Valid(body)):
+		out, n, err := reduceJSONBody(body)
+		if err == nil {
+			return out, n
+		}
+		stripped, c := stripHeavyPayloads(string(body))
+		if c > 0 {
+			notes = append(notes, fmt.Sprintf("omitted %d embedded binary payload(s)", c))
+		}
+		return []byte(stripped), notes
+	default:
+		stripped, c := stripHeavyPayloads(string(body))
+		if c > 0 {
+			notes = append(notes, fmt.Sprintf("omitted %d embedded binary payload(s)", c))
+		}
+		return []byte(stripped), notes
+	}
+}
+
+func isJSONMediaType(mediaType string) bool {
+	if mediaType == "application/json" || mediaType == "application/ld+json" ||
+		mediaType == "application/problem+json" || mediaType == "application/graphql+json" ||
+		mediaType == "application/manifest+json" || mediaType == "application/vnd.api+json" ||
+		mediaType == "application/feed+json" {
+		return true
+	}
+	return strings.HasSuffix(mediaType, "+json")
+}
+
+func scrubHTML(input string) (string, int) {
+	doc, err := nethtml.Parse(strings.NewReader(input))
+	if err != nil {
+		return input, 0
+	}
+	removed := scrubHTMLNode(doc)
+	if removed == 0 {
+		return input, 0
+	}
+	var buf bytes.Buffer
+	if err := nethtml.Render(&buf, doc); err != nil {
+		return input, 0
+	}
+	return buf.String(), removed
+}
+
+func scrubHTMLNode(n *nethtml.Node) int {
+	removed := 0
+	for c := n.FirstChild; c != nil; {
+		next := c.NextSibling
+		switch c.Type {
+		case nethtml.CommentNode:
+			n.RemoveChild(c)
+			removed++
+		case nethtml.ElementNode:
+			switch strings.ToLower(c.Data) {
+			case "script", "style", "svg", "noscript", "template":
+				n.RemoveChild(c)
+				removed++
+			default:
+				removed += scrubHTMLNode(c)
+			}
+		default:
+			removed += scrubHTMLNode(c)
+		}
+		c = next
+	}
+	return removed
+}
+
+func stripHeavyPayloads(s string) (string, int) {
+	n := 0
+	s = reDataURI.ReplaceAllStringFunc(s, func(m string) string {
+		n++
+		sub := reDataURI.FindStringSubmatch(m)
+		mime := "unknown"
+		payload := m
+		if len(sub) >= 3 {
+			if sub[1] != "" {
+				mime = sub[1]
+			}
+			payload = sub[2]
+		}
+		return fmt.Sprintf("[data-uri omitted mime=%s decoded≈%dB]", mime, approxBase64DecodedLen(payload))
+	})
+	s = reLongBase64.ReplaceAllStringFunc(s, func(m string) string {
+		if !isProbableBase64(m) {
+			return m
+		}
+		n++
+		return fmt.Sprintf("[base64 omitted chars=%d decoded≈%dB]", len(m), approxBase64DecodedLen(m))
+	})
+	return s, n
+}
+
+func approxBase64DecodedLen(s string) int {
+	clean := strings.Map(func(r rune) rune {
+		switch r {
+		case '\n', '\r', ' ', '\t':
+			return -1
+		default:
+			return r
+		}
+	}, s)
+	pad := 0
+	if strings.HasSuffix(clean, "==") {
+		pad = 2
+	} else if strings.HasSuffix(clean, "=") {
+		pad = 1
+	}
+	if len(clean) < pad {
+		return 0
+	}
+	return (len(clean)*3)/4 - pad
+}
+
+func isProbableBase64(s string) bool {
+	if len(s) < httpRequestBase64MinLen {
+		return false
+	}
+	if len(s)%4 != 0 {
+		return false
+	}
+	// Only base64 alphabet (+ optional whitespace already stripped by callers for JSON).
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= 'A' && c <= 'Z', c >= 'a' && c <= 'z', c >= '0' && c <= '9', c == '+', c == '/':
+		case c == '=':
+			// padding only at end
+			if i < len(s)-2 {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	// Padding is a strong signal at this length.
+	if strings.HasSuffix(s, "=") {
+		return true
+	}
+	// Otherwise require digit or +/ so long plain words aren't stripped.
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c >= '0' && c <= '9') || c == '+' || c == '/' {
+			return true
+		}
+	}
+	return false
+}
+
+func reduceJSONBody(body []byte) ([]byte, []string, error) {
+	var v any
+	if err := json.Unmarshal(body, &v); err != nil {
+		return nil, nil, err
+	}
+	payloads := 0
+	omitJSONPayloads(&v, &payloads)
+	out, err := json.Marshal(v)
+	if err != nil {
+		return nil, nil, err
+	}
+	var notes []string
+	if payloads > 0 {
+		notes = append(notes, fmt.Sprintf("json omitted %d binary payload(s)", payloads))
+	}
+	return out, notes, nil
+}
+
+func omitJSONPayloads(v *any, payloads *int) {
+	switch t := (*v).(type) {
+	case string:
+		if reduced, ok := omitJSONStringPayload(t); ok {
+			*v = reduced
+			*payloads++
+		}
+	case []any:
+		for i := range t {
+			omitJSONPayloads(&t[i], payloads)
+		}
+	case map[string]any:
+		for k, child := range t {
+			c := child
+			omitJSONPayloads(&c, payloads)
+			t[k] = c
+		}
+	}
+}
+
+func omitJSONStringPayload(s string) (string, bool) {
+	lower := strings.ToLower(strings.TrimSpace(s))
+	if strings.HasPrefix(lower, "data:") && strings.Contains(lower, ";base64,") {
+		stripped, n := stripHeavyPayloads(s)
+		if n > 0 {
+			return stripped, true
+		}
+	}
+	if len(s) >= httpRequestBase64MinLen && isProbableBase64(s) {
+		return fmt.Sprintf("[base64 omitted chars=%d decoded≈%dB]", len(s), approxBase64DecodedLen(s)), true
+	}
+	return s, false
 }
 
 func isTextualMediaType(mediaType string) bool {

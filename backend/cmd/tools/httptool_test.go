@@ -2,6 +2,7 @@ package tools
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -438,13 +439,14 @@ func TestIsObfuscatedIPHost(t *testing.T) {
 }
 
 func TestFormatResponseBody_TextAndBinary(t *testing.T) {
-	textOut := formatResponseBody([]byte(`{"ok":true}`), "application/json", false)
+	opts := httpBodyFormatOpts{}
+	textOut := formatResponseBody([]byte(`{"ok":true}`), "application/json", opts)
 	if !strings.Contains(textOut, `{"ok":true}`) {
 		t.Fatalf("json body should be included: %s", textOut)
 	}
 
 	png := []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01}
-	binOut := formatResponseBody(png, "image/png", false)
+	binOut := formatResponseBody(png, "image/png", opts)
 	if strings.Contains(binOut, string(png)) {
 		t.Fatal("raw binary must not appear in output")
 	}
@@ -457,14 +459,85 @@ func TestFormatResponseBody_TextAndBinary(t *testing.T) {
 
 	// Large text truncated in output
 	big := []byte(strings.Repeat("x", httpRequestMaxTextOut+100))
-	bigOut := formatResponseBody(big, "text/plain", false)
+	bigOut := formatResponseBody(big, "text/plain", opts)
 	if !strings.Contains(bigOut, "text output truncated") {
 		t.Fatalf("expected text truncation note: %s", bigOut[len(bigOut)-80:])
 	}
-	// Body content itself should not include full payload in the sense of untruncated —
-	// the returned string length should be bounded roughly by max text + metadata.
 	if len(bigOut) > httpRequestMaxTextOut+200 {
 		t.Fatalf("output too large: %d", len(bigOut))
+	}
+}
+
+func testBase64Blob(n int) string {
+	// Mixed alphabet + padding; length multiple of 4.
+	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+	var b strings.Builder
+	b.Grow(n)
+	for i := 0; i < n-2; i++ {
+		b.WriteByte(alphabet[i%len(alphabet)])
+	}
+	b.WriteString("==")
+	return b.String()
+}
+
+func TestFormatResponseBody_ReducesBase64AndHTML(t *testing.T) {
+	opts := httpBodyFormatOpts{}
+	b64 := testBase64Blob(300)
+	html := `<html><head><style>.x{color:red}</style><script>alert(1)</script></head>` +
+		`<body><p>hi</p><img src="data:image/png;base64,` + b64 + `"/></body></html>`
+	out := formatResponseBody([]byte(html), "text/html", opts)
+	if strings.Contains(out, "alert(1)") || strings.Contains(out, ".x{color") {
+		t.Fatalf("script/style should be scrubbed: %s", out)
+	}
+	if strings.Contains(out, b64) {
+		t.Fatalf("base64 payload should be omitted: %s", out[:min(200, len(out))])
+	}
+	if !strings.Contains(out, "hi") {
+		t.Fatalf("visible text should remain: %s", out)
+	}
+	if !strings.Contains(out, "html scrub") && !strings.Contains(out, "omitted") {
+		t.Fatalf("expected reduction notes: %s", out[max(0, len(out)-120):])
+	}
+}
+
+func TestFormatResponseBody_ReducesJSON(t *testing.T) {
+	opts := httpBodyFormatOpts{}
+	b64 := testBase64Blob(300)
+	longNote := strings.Repeat("n", 600)
+	payload := map[string]any{
+		"ok":    true,
+		"blob":  b64,
+		"note":  longNote,
+		"items": []any{1, 2, 3, 4, 5},
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := formatResponseBody(raw, "application/json", opts)
+	if strings.Contains(out, b64) {
+		t.Fatal("json base64 should be omitted")
+	}
+	if !strings.Contains(out, longNote) {
+		t.Fatal("long non-base64 strings should be kept")
+	}
+	if !strings.Contains(out, `"ok":true`) {
+		t.Fatalf("structure should remain: %s", out)
+	}
+	if !strings.Contains(out, `[1,2,3,4,5]`) {
+		t.Fatalf("arrays should be kept: %s", out)
+	}
+}
+
+func TestFormatResponseBody_VerboseKeepsPayload(t *testing.T) {
+	b64 := testBase64Blob(300)
+	html := `<html><body><script>keepme()</script><p>` + b64 + `</p></body></html>`
+	out := formatResponseBody([]byte(html), "text/html", httpBodyFormatOpts{Verbose: true})
+	if !strings.Contains(out, "keepme()") {
+		t.Fatalf("verbose should keep script: %s", out)
+	}
+	if !strings.Contains(out, b64) {
+		t.Fatalf("verbose should keep base64: %s", out[:min(200, len(out))])
 	}
 }
 
@@ -514,7 +587,7 @@ func TestFormatHTTPResponse_BinaryOmitsBody(t *testing.T) {
 		Request:    httptest.NewRequest(http.MethodGet, "https://example.com/file.pdf", nil),
 	}
 	body := []byte("%PDF-1.4 binary stuff \x00\x01\x02")
-	out := formatHTTPResponse(resp, body, false)
+	out := formatHTTPResponse(resp, body, false, httpBodyFormatOpts{})
 	if strings.Contains(out, "%PDF") && strings.Contains(out, "\x00") {
 		// PDF magic may appear in hex prefix only — ensure raw NUL body not dumped as text dump after Body:
 		idx := strings.Index(out, "Body:\n")
@@ -531,6 +604,9 @@ func TestFormatHTTPResponse_BinaryOmitsBody(t *testing.T) {
 	}
 	if !strings.Contains(out, "Body-SHA256:") {
 		t.Fatal("expected sha256")
+	}
+	if !strings.Contains(out, "Body-Mode: reduced") {
+		t.Fatal("expected reduced body mode")
 	}
 }
 
