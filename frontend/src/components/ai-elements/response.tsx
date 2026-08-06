@@ -516,7 +516,7 @@ export const Response = memo(
           remarkPlugins={[
             remarkBreaks,
             remarkGfm,
-            remarkMath,
+            [remarkMath, { singleDollarTextMath: false }],
             remarkLinkCitations,
           ]}
           {...options}

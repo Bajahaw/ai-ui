@@ -34,15 +34,12 @@ const platformInstructions = `
 >[number]: https://source.link/article "Discription or snippet"
 >[number++]: https://source.link/another-article "Discription or snippet"
 
-- In case the user is asking math question, for latex to render correctly, use $inline syntax$ or $$$ for blocks of latex. e.g. as the following:
->The equation $e=mc...$
+- To render latex, wrap math in $$ ... $$. Inside a paragraph it renders inline, on its own lines it renders as a block. e.g. as the following:
+>The equation $$e=mc^2$$
 >the explanation:
->$$$
+>$$
 >latex
->$$$
-
-- Because the symbol ` + "`$`" + ` is reserved for latex, when it is used in chat, it must be escaped or wrapped. e.g.: 
->I bought this for only 20\$ or ` + "`20$`" + `!
+>$$
 
 - To render rich widgets using HTML, CSS, and JS, use a code block tag with "widget" like this: (` + "```widget" + `).
 - Widgets can be used for visuals, functional utilities, generating files (e.g. docx, and pdfs), and execute scripts including WASM (e.g. Python).
