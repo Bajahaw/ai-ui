@@ -551,11 +551,10 @@ export const ConversationSidebar = ({
                                     onConversationSelect?.(item.data.id)
                                   }
                                   className={cn(
-                                    "flex-1 justify-start h-auto p-2 text-left hover:!bg-transparent max-w-[210px] transition-all !duration-100 ease-in-out",
-                                    // Extra title width only when the ⋯ is hover-hidden (desktop).
-                                    "[@media(hover:hover)_and_(pointer:fine)]:max-w-[240px]",
-                                    "[@media(hover:hover)_and_(pointer:fine)]:group-hover/item:max-w-[210px]",
-                                    "[@media(hover:hover)_and_(pointer:fine)]:group-focus-within/item:max-w-[210px]",
+                                    "flex-1 justify-start h-auto p-2 text-left hover:!bg-transparent max-w-[240px] transition-all !duration-100 ease-in-out",
+                                    "group-hover/item:max-w-[210px] group-focus-within/item:max-w-[210px]",
+                                    activeConversationId === item.data.id &&
+                                      "max-w-[210px]",
                                   )}
                                 >
                                   <div className="flex flex-col gap-0.5 w-full min-w-0">
@@ -576,15 +575,12 @@ export const ConversationSidebar = ({
                                       size="sm"
                                       className={cn(
                                         "h-8 w-8 p-0 shrink-0 absolute right-2 top-1/2 -translate-y-1/2 hover:!bg-secondary",
-                                        // Touch / coarse pointer: always visible and tappable.
-                                        "opacity-100 pointer-events-auto",
-                                        // Fine pointer + hover: show on row hover / keyboard focus only.
-                                        "[@media(hover:hover)_and_(pointer:fine)]:opacity-0",
-                                        "[@media(hover:hover)_and_(pointer:fine)]:pointer-events-none",
-                                        "[@media(hover:hover)_and_(pointer:fine)]:group-hover/item:opacity-100",
-                                        "[@media(hover:hover)_and_(pointer:fine)]:group-hover/item:pointer-events-auto",
-                                        "[@media(hover:hover)_and_(pointer:fine)]:group-focus-within/item:opacity-100",
-                                        "[@media(hover:hover)_and_(pointer:fine)]:group-focus-within/item:pointer-events-auto",
+                                        "opacity-0 pointer-events-none",
+                                        "group-hover/item:opacity-100 group-hover/item:pointer-events-auto",
+                                        "group-focus-within/item:opacity-100 group-focus-within/item:pointer-events-auto",
+                                        // Always show for the open conversation (touch-friendly).
+                                        activeConversationId === item.data.id &&
+                                          "opacity-100 pointer-events-auto",
                                       )}
                                     >
                                       <MoreHorizontalIcon className="size-4" />
