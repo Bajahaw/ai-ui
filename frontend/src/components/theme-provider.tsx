@@ -39,6 +39,28 @@ export function ThemeProvider({
 
     root.classList.remove("light", "dark");
     root.classList.add(theme);
+    root.style.colorScheme = theme;
+
+    // Mobile browser / PWA chrome (status + nav bars) follow theme-color, not CSS.
+    const applyChromeColor = () => {
+      const bg = getComputedStyle(document.body).backgroundColor;
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta && bg) meta.setAttribute("content", bg);
+
+      const apple = document.querySelector(
+        'meta[name="apple-mobile-web-app-status-bar-style"]',
+      );
+      if (apple) {
+        apple.setAttribute(
+          "content",
+          theme === "dark" ? "black-translucent" : "default",
+        );
+      }
+    };
+
+    // Wait a frame so theme CSS variables are applied before reading background.
+    const id = requestAnimationFrame(applyChromeColor);
+    return () => cancelAnimationFrame(id);
   }, [theme]);
 
   const value = {

@@ -49,8 +49,27 @@
     <script>
       (function () {
         const stored = localStorage.getItem("ai-ui-theme");
-        document.documentElement.className =
+        const theme =
           stored === "light" || stored === "dark" ? stored : "dark";
+        document.documentElement.className = theme;
+        document.documentElement.style.colorScheme = theme;
+        // Keep status/nav bar in sync before React hydrates.
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) {
+          meta.setAttribute(
+            "content",
+            theme === "light" ? "hsl(0 10% 98%)" : "#19191a",
+          );
+        }
+        const apple = document.querySelector(
+          'meta[name="apple-mobile-web-app-status-bar-style"]',
+        );
+        if (apple) {
+          apple.setAttribute(
+            "content",
+            theme === "dark" ? "black-translucent" : "default",
+          );
+        }
       })();
     </script>
     <style>
