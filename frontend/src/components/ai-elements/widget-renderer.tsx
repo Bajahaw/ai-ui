@@ -237,6 +237,7 @@ export function WidgetRenderer({
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (!e.data || typeof e.data !== "object") return;
+      if (e.source !== iframeRef.current?.contentWindow) return;
 
       if (
         e.data.type === "__widget_resize" &&
