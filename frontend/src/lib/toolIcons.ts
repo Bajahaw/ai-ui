@@ -4,7 +4,6 @@ import {
   ImageIcon,
   type LucideIcon,
   BookIcon,
-  CloudIcon,
   Scan,
   GlobeIcon,
 } from "lucide-react";
@@ -14,8 +13,6 @@ import {
  * Falls back to WrenchIcon for unknown / MCP tools.
  */
 const BUILT_IN_TOOL_ICONS: Record<string, LucideIcon> = {
-  search_ddgs: SearchIcon,
-  get_weather: CloudIcon,
   search_document: SearchIcon,
   read_document_page: BookIcon,
   view_document_page: Scan,

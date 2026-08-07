@@ -4,7 +4,6 @@ go 1.25.5
 
 require (
 	github.com/charmbracelet/log v1.0.0
-	github.com/evgensoft/ddgo v0.0.0-20260728150309-195645c75ee0
 	github.com/gabriel-vasile/mimetype v1.4.15
 	github.com/gen2brain/go-fitz v1.28.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -16,8 +15,6 @@ require (
 )
 
 require (
-	github.com/PuerkitoBio/goquery v1.12.0 // indirect
-	github.com/andybalholm/cascadia v1.3.4 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect

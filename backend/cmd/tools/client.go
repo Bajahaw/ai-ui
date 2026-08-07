@@ -34,14 +34,6 @@ func SetUpTools(l *logger.Logger, database *sql.DB) {
 	files = fs.NewRepository(db)
 	settings = stngs.NewRepository(db)
 	providerRepo = providers.NewRepository(db)
-
-	// // might get unique constraint error but that's fine
-	// _ = mcpRepo.SaveMCPServer(MCPServer{
-	// 	ID:    "default",
-	// 	Name:  "Default Server",
-	// 	Tools: GetBuiltInTools(),
-	// 	User:  "admin",
-	// })
 }
 
 func SaveDefaultMCPServer(user string) {

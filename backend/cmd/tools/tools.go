@@ -14,7 +14,6 @@ import (
 	"github.com/Bajahaw/ai-ui/cmd/skills"
 	"github.com/google/uuid"
 
-	"github.com/evgensoft/ddgo"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -122,10 +121,6 @@ func ExecuteMCPTool(ctx context.Context, toolCall providers.ToolCall, user, conv
 
 	if strings.HasPrefix(server.ID, "default") {
 		switch tool.Name {
-		case "search_ddgs":
-			return ddgsTool(toolCall.Args)
-		case "get_weather":
-			return weatherTool()
 		case "read_skill":
 			return readSkillTool(toolCall.Args, user)
 		case "search_document":
@@ -224,20 +219,6 @@ func GetBuiltInTools() []*Tool {
 	return []*Tool{
 		{
 			ID:          uuid.New().String(),
-			Name:        "search_ddgs",
-			Description: "Search the web using DuckDuckGo",
-			InputSchema: `{"type": "object","properties": {"query": {"type": "string","description": "The search query to look up on DuckDuckGo"}},"required": ["query"]}`,
-			IsEnabled:   true,
-		},
-		{
-			ID:          uuid.New().String(),
-			Name:        "get_weather",
-			Description: "Get the current weather",
-			InputSchema: `{"type": "object","properties": {"location": {"type": "string","description": "The location to get weather for"}},"required": ["location"]}`,
-			IsEnabled:   true,
-		},
-		{
-			ID:          uuid.New().String(),
 			Name:        "search_document",
 			Description: "Search a specific attached document for a keyword or phrase constraint. Returns best matching pages.",
 			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"query":{"type":"string","description":"The keyword or phrase to search for"}},"required":["file_id","query"]}`,
@@ -280,47 +261,6 @@ func GetBuiltInTools() []*Tool {
 			IsEnabled:       true,
 		},
 	}
-}
-
-func ddgsTool(q string) providers.ToolOutput {
-	var m map[string]any
-	err := json.Unmarshal([]byte(q), &m)
-	if err != nil {
-		return providers.ToolOutput{Content: "Error parsing tool arguments."}
-	}
-
-	queryVal, ok := m["query"]
-	if !ok || queryVal == nil {
-		return providers.ToolOutput{Content: "Error: 'query' parameter is required."}
-	}
-
-	query, ok := queryVal.(string)
-	if !ok {
-		return providers.ToolOutput{Content: "Error: 'query' parameter must be a string."}
-	}
-
-	result, err := ddgo.Query(query, 5)
-	if err != nil {
-		return providers.ToolOutput{Content: "Error occurred while searching DuckDuckGo."}
-	}
-
-	// combine results into a single string
-	output := "Search Success!\n Search Results:\n"
-	for i, res := range result {
-		output += fmt.Sprintf("%d. %s\n%s\n%s\n\n", i+1, res.Title, res.Info, res.URL)
-	}
-
-	if len(result) == 0 {
-		output = "Search failed! Probably bot detection triggered."
-	}
-
-	return providers.ToolOutput{Content: output}
-}
-
-func weatherTool() providers.ToolOutput {
-	// simulate delay
-	time.Sleep(2 * time.Second)
-	return providers.ToolOutput{Content: "Temperature: 22°C, Condition: Sunny"}
 }
 
 func searchDocumentTool(args string) providers.ToolOutput {
