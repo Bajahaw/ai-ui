@@ -200,10 +200,64 @@ func TestDoSafeHTTPRequest_MethodAndBody(t *testing.T) {
 	_, err = doSafeHTTPRequest(httpRequestParams{
 		URL:    "https://example.com/",
 		Method: "POST",
-		Body:   big,
+		Body:   httpRequestBody{Raw: big, Set: true},
 	})
 	if err == nil || !strings.Contains(err.Error(), "body exceeds") {
 		t.Fatalf("oversized body should be rejected: %v", err)
+	}
+}
+
+func TestHTTPRequestBody_Unmarshal(t *testing.T) {
+	// String body stays raw
+	var p1 httpRequestParams
+	if err := json.Unmarshal([]byte(`{"url":"https://example.com","body":"plain text"}`), &p1); err != nil {
+		t.Fatal(err)
+	}
+	if p1.Body.Raw != "plain text" || p1.Body.FromJSON {
+		t.Fatalf("string body: %+v", p1.Body)
+	}
+
+	// Object body marshaled to JSON
+	var p2 httpRequestParams
+	if err := json.Unmarshal([]byte(`{"url":"https://example.com","body":{"name":"Alice","n":1}}`), &p2); err != nil {
+		t.Fatal(err)
+	}
+	if !p2.Body.FromJSON {
+		t.Fatal("expected FromJSON")
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(p2.Body.Raw), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["name"] != "Alice" || got["n"].(float64) != 1 {
+		t.Fatalf("object body: %s", p2.Body.Raw)
+	}
+
+	// Array body
+	var p3 httpRequestParams
+	if err := json.Unmarshal([]byte(`{"url":"https://example.com","body":[1,2]}`), &p3); err != nil {
+		t.Fatal(err)
+	}
+	if !p3.Body.FromJSON || p3.Body.Raw != "[1,2]" {
+		t.Fatalf("array body: %+v", p3.Body)
+	}
+
+	// Already-serialized JSON string must not be double-encoded
+	var p4 httpRequestParams
+	if err := json.Unmarshal([]byte(`{"url":"https://example.com","body":"{\"name\":\"Bob\"}"}`), &p4); err != nil {
+		t.Fatal(err)
+	}
+	if p4.Body.FromJSON || p4.Body.Raw != `{"name":"Bob"}` {
+		t.Fatalf("json string body: %+v", p4.Body)
+	}
+
+	// Omitted body
+	var p5 httpRequestParams
+	if err := json.Unmarshal([]byte(`{"url":"https://example.com"}`), &p5); err != nil {
+		t.Fatal(err)
+	}
+	if p5.Body.Set || p5.Body.Raw != "" {
+		t.Fatalf("omitted body: %+v", p5.Body)
 	}
 }
 
@@ -278,7 +332,7 @@ func TestInjectHTTPRequestSecrets(t *testing.T) {
 	params := &httpRequestParams{
 		URL:     "https://api.example.com/v1?token=$secrets.API_KEY$",
 		Headers: map[string]string{"Authorization": "Bearer $secrets.API_KEY$", "Cookie": "sid=$secrets.API_KEY$"},
-		Body:    `{"ok":true}`,
+		Body:    httpRequestBody{Raw: `{"ok":true}`, Set: true},
 	}
 	err := injectHTTPRequestSecrets(params, "nobody")
 	if err == nil {
@@ -288,7 +342,7 @@ func TestInjectHTTPRequestSecrets(t *testing.T) {
 	// Body rejected
 	params2 := &httpRequestParams{
 		URL:  "https://api.example.com/",
-		Body: `$secrets.API_KEY$`,
+		Body: httpRequestBody{Raw: `$secrets.API_KEY$`, Set: true},
 	}
 	if err := injectHTTPRequestSecrets(params2, "nobody"); err == nil || !strings.Contains(err.Error(), "body") {
 		t.Fatalf("expected body rejection, got %v", err)
@@ -391,7 +445,7 @@ func TestInjectHTTPRequestSecrets_ExpandsPathQueryHeaders(t *testing.T) {
 	}{
 		{"host", &httpRequestParams{URL: "https://$secrets.API_KEY$.example.com/"}, "host"},
 		{"userinfo", &httpRequestParams{URL: "https://$secrets.TOKEN$@api.example.com/"}, "userinfo"},
-		{"body", &httpRequestParams{URL: "https://api.example.com/", Body: `$secrets.TOKEN$`}, "body"},
+		{"body", &httpRequestParams{URL: "https://api.example.com/", Body: httpRequestBody{Raw: `$secrets.TOKEN$`, Set: true}}, "body"},
 		{"header name", &httpRequestParams{
 			URL:     "https://api.example.com/",
 			Headers: map[string]string{"X-$secrets.TOKEN$": "v"},

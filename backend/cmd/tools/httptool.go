@@ -85,11 +85,49 @@ var blockedHostnames = map[string]struct{}{
 	"kubernetes.default.svc.cluster.local": {},
 }
 
+// httpRequestBody accepts a string (raw wire body) or any JSON value (object/array/…),
+// which is marshaled to compact JSON for the request body.
+type httpRequestBody struct {
+	Raw      string // final bytes to send (may be empty)
+	FromJSON bool   // true when caller passed a non-string JSON value
+	Set      bool   // true when "body" was present (including null/empty string)
+}
+
+func (b *httpRequestBody) UnmarshalJSON(data []byte) error {
+	b.Set = true
+	b.Raw = ""
+	b.FromJSON = false
+	if string(data) == "null" {
+		return nil
+	}
+	// Prefer string: raw body (text, form, already-serialized JSON, etc.).
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		b.Raw = s
+		return nil
+	}
+	// Structured JSON value — re-encode compactly for the wire.
+	if !json.Valid(data) {
+		return fmt.Errorf("body must be a string or JSON value")
+	}
+	var v any
+	if err := json.Unmarshal(data, &v); err != nil {
+		return fmt.Errorf("invalid body: %w", err)
+	}
+	out, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Errorf("encoding body: %w", err)
+	}
+	b.Raw = string(out)
+	b.FromJSON = true
+	return nil
+}
+
 type httpRequestParams struct {
 	URL          string            `json:"url"`
 	Method       string            `json:"method"`
 	Headers      map[string]string `json:"headers"`
-	Body         string            `json:"body"`
+	Body         httpRequestBody   `json:"body"`
 	Verbose      bool              `json:"verbose"`
 	JSONPointers []string          `json:"json_pointers"`
 }
@@ -125,7 +163,7 @@ func httpRequestTool(args, user string) providers.ToolOutput {
 func injectHTTPRequestSecrets(params *httpRequestParams, user string) error {
 	const marker = "$secrets."
 
-	if strings.Contains(params.Body, marker) {
+	if strings.Contains(params.Body.Raw, marker) {
 		return errors.New("secret placeholders are only allowed in headers and URL path/query, not body")
 	}
 
@@ -217,12 +255,12 @@ func doSafeHTTPRequest(params httpRequestParams) (string, error) {
 
 	var bodyReader io.Reader
 	reqBodyLen := 0
-	if params.Body != "" && method != http.MethodGet && method != http.MethodHead {
-		reqBodyLen = len(params.Body)
+	if params.Body.Raw != "" && method != http.MethodGet && method != http.MethodHead {
+		reqBodyLen = len(params.Body.Raw)
 		if reqBodyLen > httpRequestMaxBody {
 			return "", fmt.Errorf("request body exceeds maximum size of %d bytes (%d given)", httpRequestMaxBody, reqBodyLen)
 		}
-		bodyReader = strings.NewReader(params.Body)
+		bodyReader = strings.NewReader(params.Body.Raw)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), httpRequestTimeout)
@@ -238,6 +276,10 @@ func doSafeHTTPRequest(params httpRequestParams) (string, error) {
 
 	if err := applySafeHeaders(req, params.Headers); err != nil {
 		return "", err
+	}
+	// Structured JSON body: default Content-Type when the model omitted it.
+	if params.Body.FromJSON && reqBodyLen > 0 && req.Header.Get("Content-Type") == "" {
+		req.Header.Set("Content-Type", "application/json")
 	}
 
 	client := newSafeHTTPClient()
