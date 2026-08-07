@@ -1,6 +1,5 @@
 import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
-import { getTextAlignment, getTextDirection } from "@/lib/rtl-utils";
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: "system" | "user" | "assistant" | string;
@@ -36,7 +35,7 @@ export type MessageContentProps = HTMLAttributes<HTMLDivElement> & {
 export const MessageContent = ({
   children,
   className,
-  content = "",
+  content: _content,
   ...props
 }: MessageContentProps) => (
   <div
@@ -46,8 +45,6 @@ export const MessageContent = ({
       "group-[.is-user]:bg-secondary/80 group-[.is-user]:text-secondary-foreground group-[.is-user]:rounded-2xl group-[.is-user]:px-3 group-[.is-user]:py-2 sm:group-[.is-user]:px-4 sm:group-[.is-user]:py-3 group-[.is-user]:w-fit group-[.is-user]:min-w-0",
       "group-[.is-assistant]:bg-transparent group-[.is-assistant]:text-foreground group-[.is-assistant]:px-0 group-[.is-assistant]:py-0 group-[.is-assistant]:w-full group-[.is-assistant]:min-w-0",
       "group-[.is-error]:bg-destructive/10 group-[.is-error]:border group-[.is-error]:border-destructive/20 group-[.is-error]:rounded-lg group-[.is-error]:px-3 group-[.is-error]:py-2 sm:group-[.is-error]:px-4 sm:group-[.is-error]:py-3 group-[.is-error]:w-fit group-[.is-error]:min-w-0",
-      getTextAlignment(content),
-      getTextDirection(content),
       className,
     )}
     {...props}

@@ -14,6 +14,12 @@ import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { cn } from "@/lib/utils";
+import {
+  getChildrenText,
+  getNodeText,
+  isPrimarilyRtl,
+  renderDirectionalLines,
+} from "@/lib/rtl-utils";
 import "katex/dist/katex.min.css";
 
 /**
@@ -233,11 +239,23 @@ const components: Options["components"] = {
       {children}
     </ol>
   ),
-  li: ({ node, children, className, ...props }) => (
-    <li className={cn("pl-2 leading-relaxed", className)} {...props}>
-      {children}
-    </li>
-  ),
+  li: ({ node, children, className, ...props }) => {
+    // Native markers + original indent. RTL uses list-inside so the
+    // marker flips to the right without sitting outside overflow:hidden.
+    const rtl = isPrimarilyRtl(getChildrenText(children));
+    return (
+      <li
+        className={cn(
+          "pl-2 leading-relaxed",
+          rtl && "rtl list-inside",
+          className,
+        )}
+        {...props}
+      >
+        {renderDirectionalLines(children, { besideMarker: rtl })}
+      </li>
+    );
+  },
   ul: ({ node, children, className, ...props }) => (
     <ul
       className={cn(
@@ -271,19 +289,41 @@ const components: Options["components"] = {
     // Check if it's a file link
     let isFile = false;
     let isExternal = false;
-    
+
     if (href && !isCitation) {
       try {
-        const url = new URL(href, typeof window !== "undefined" ? window.location.origin : "http://localhost");
+        const url = new URL(
+          href,
+          typeof window !== "undefined"
+            ? window.location.origin
+            : "http://localhost",
+        );
         const pathname = url.pathname.toLowerCase();
-        
-        const fileExtensions = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".txt", ".zip", ".tar", ".gz", ".go", ".json"];
-        isFile = pathname.startsWith("/data/resources/") || fileExtensions.some(ext => pathname.endsWith(ext));
-        
+
+        const fileExtensions = [
+          ".pdf",
+          ".doc",
+          ".docx",
+          ".xls",
+          ".xlsx",
+          ".csv",
+          ".txt",
+          ".zip",
+          ".tar",
+          ".gz",
+          ".go",
+          ".json",
+        ];
+        isFile =
+          pathname.startsWith("/data/resources/") ||
+          fileExtensions.some((ext) => pathname.endsWith(ext));
+
         // If it's a valid absolute URL, check if domain differs
         if (href.startsWith("http")) {
           const absoluteUrl = new URL(href);
-          isExternal = typeof window !== "undefined" && absoluteUrl.origin !== window.location.origin;
+          isExternal =
+            typeof window !== "undefined" &&
+            absoluteUrl.origin !== window.location.origin;
         }
       } catch (e) {
         // Ignore parse errors
@@ -291,7 +331,9 @@ const components: Options["components"] = {
     }
 
     if (isFile) {
-      return <FileCard href={href} filename={children} isExternal={isExternal} />;
+      return (
+        <FileCard href={href} filename={children} isExternal={isExternal} />
+      );
     }
 
     return (
@@ -312,37 +354,39 @@ const components: Options["components"] = {
     );
   },
 
-  blockquote: ({ node, children, className, ...props }) => (
-    <blockquote
-      className={cn(
-        "my-4 border-l-4 border-muted-foreground/30 pl-4 text-muted-foreground",
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </blockquote>
-  ),
+  blockquote: ({ node, children, className, ...props }) => {
+    const rtl = isPrimarilyRtl(
+      getChildrenText(children) || getNodeText(node),
+    );
+    return (
+      <blockquote
+        className={cn(
+          "my-4 border-muted-foreground/30 text-foreground",
+          rtl
+            ? "rtl border-r-4 pr-4"
+            : "ltr border-l-4 pl-4",
+          className,
+        )}
+        {...props}
+      >
+        {renderDirectionalLines(children)}
+      </blockquote>
+    );
+  },
   h1: ({ node, children, className, ...props }) => (
     <h1
-      className={cn(
-        "mt-8 mb-4 font-semibold text-3xl leading-tight",
-        className,
-      )}
+      className={cn("mt-8 mb-4 font-semibold text-3xl leading-tight", className)}
       {...props}
     >
-      {children}
+      {renderDirectionalLines(children)}
     </h1>
   ),
   h2: ({ node, children, className, ...props }) => (
     <h2
-      className={cn(
-        "mt-8 mb-4 font-semibold text-2xl leading-tight",
-        className,
-      )}
+      className={cn("mt-8 mb-4 font-semibold text-2xl leading-tight", className)}
       {...props}
     >
-      {children}
+      {renderDirectionalLines(children)}
     </h2>
   ),
   h3: ({ node, children, className, ...props }) => (
@@ -350,7 +394,7 @@ const components: Options["components"] = {
       className={cn("mt-6 mb-3 font-semibold text-xl leading-tight", className)}
       {...props}
     >
-      {children}
+      {renderDirectionalLines(children)}
     </h3>
   ),
   h4: ({ node, children, className, ...props }) => (
@@ -358,7 +402,7 @@ const components: Options["components"] = {
       className={cn("mt-6 mb-3 font-semibold text-lg leading-tight", className)}
       {...props}
     >
-      {children}
+      {renderDirectionalLines(children)}
     </h4>
   ),
   h5: ({ node, children, className, ...props }) => (
@@ -369,7 +413,7 @@ const components: Options["components"] = {
       )}
       {...props}
     >
-      {children}
+      {renderDirectionalLines(children)}
     </h5>
   ),
   h6: ({ node, children, className, ...props }) => (
@@ -377,7 +421,7 @@ const components: Options["components"] = {
       className={cn("mt-6 mb-3 font-semibold text-sm leading-tight", className)}
       {...props}
     >
-      {children}
+      {renderDirectionalLines(children)}
     </h6>
   ),
   p: ({ node, children, className, ...props }) => (
@@ -385,7 +429,7 @@ const components: Options["components"] = {
       className={cn("mb-4 break-words [line-height:1.75rem]", className)}
       {...props}
     >
-      {children}
+      {renderDirectionalLines(children)}
     </p>
   ),
   pre: ({ node, className, children }) => {
