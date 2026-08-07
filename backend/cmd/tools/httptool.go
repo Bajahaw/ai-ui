@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -27,12 +28,15 @@ const (
 	httpRequestTimeout           = 30 * time.Second
 	httpRequestMaxRedirect       = 3
 	httpRequestMaxBody           = 1 << 20      // 1 MiB request body
-	httpRequestMaxRespRead = 1 << 20  // 1 MiB max bytes read from response
-	httpRequestMaxTextOut  = 256 << 10 // 256 KiB max text body in tool output
-	httpRequestMaxURLLen   = 2048
+	httpRequestMaxRespRead       = 1 << 20   // 1 MiB max bytes read from response
+	httpRequestMaxTextOut        = 32 << 10  // 32 KiB max text body in tool output (default/reduced)
+	httpRequestMaxTextOutVerbose = 256 << 10 // 256 KiB max text body when verbose
+	httpRequestMaxURLLen         = 2048
 	httpRequestMaxHeaderSz       = 8 << 10 // 8 KiB total custom headers
 	httpRequestMaxHeaderOut      = 4 << 10 // 4 KiB response headers in output
-	httpRequestBase64MinLen = 256 // min length to treat as base64 payload
+	httpRequestBase64MinLen      = 256     // min length to treat as base64 payload
+	httpRequestMaxJSONPointers   = 32
+	httpRequestMaxJSONPointerLen = 512
 )
 
 var (
@@ -82,16 +86,19 @@ var blockedHostnames = map[string]struct{}{
 }
 
 type httpRequestParams struct {
-	URL     string            `json:"url"`
-	Method  string            `json:"method"`
-	Headers map[string]string `json:"headers"`
-	Body    string            `json:"body"`
-	Verbose bool              `json:"verbose"`
+	URL          string            `json:"url"`
+	Method       string            `json:"method"`
+	Headers      map[string]string `json:"headers"`
+	Body         string            `json:"body"`
+	Verbose      bool              `json:"verbose"`
+	JSONPointers []string          `json:"json_pointers"`
 }
 
 type httpBodyFormatOpts struct {
 	Verbose       bool
 	ReadTruncated bool
+	JSONPointers  []string
+	WireBytes     int // when > 0, reported as Bytes-Read (wire size before filter)
 }
 
 func httpRequestTool(args, user string) providers.ToolOutput {
@@ -199,6 +206,9 @@ func doSafeHTTPRequest(params httpRequestParams) (string, error) {
 	if len(params.URL) > httpRequestMaxURLLen {
 		return "", fmt.Errorf("url exceeds maximum length of %d", httpRequestMaxURLLen)
 	}
+	if err := validateJSONPointers(params.JSONPointers); err != nil {
+		return "", err
+	}
 
 	parsed, err := validatePublicHTTPSURL(params.URL)
 	if err != nil {
@@ -243,7 +253,123 @@ func doSafeHTTPRequest(params httpRequestParams) (string, error) {
 		return "", fmt.Errorf("reading response: %w", err)
 	}
 
-	return formatHTTPResponse(resp, respBody, truncated, httpBodyFormatOpts{Verbose: params.Verbose}), nil
+	opts := httpBodyFormatOpts{Verbose: params.Verbose}
+	if len(params.JSONPointers) > 0 {
+		filtered, err := filterJSONBodyByPointers(respBody, params.JSONPointers)
+		if err != nil {
+			return "", err
+		}
+		opts.JSONPointers = params.JSONPointers
+		opts.WireBytes = len(respBody)
+		respBody = filtered
+	}
+
+	return formatHTTPResponse(resp, respBody, truncated, opts), nil
+}
+
+func validateJSONPointers(pointers []string) error {
+	if len(pointers) > httpRequestMaxJSONPointers {
+		return fmt.Errorf("at most %d json_pointers allowed (%d given)", httpRequestMaxJSONPointers, len(pointers))
+	}
+	seen := make(map[string]struct{}, len(pointers))
+	for _, p := range pointers {
+		if len(p) > httpRequestMaxJSONPointerLen {
+			return fmt.Errorf("json_pointer exceeds maximum length of %d", httpRequestMaxJSONPointerLen)
+		}
+		if p != "" && !strings.HasPrefix(p, "/") {
+			return fmt.Errorf("json_pointer %q must be empty (root) or start with /", p)
+		}
+		if _, dup := seen[p]; dup {
+			return fmt.Errorf("duplicate json_pointer %q", p)
+		}
+		seen[p] = struct{}{}
+	}
+	return nil
+}
+
+// filterJSONBodyByPointers extracts values at RFC 6901 JSON Pointers from a JSON body.
+// Result is a compact JSON object keyed by each pointer string.
+func filterJSONBodyByPointers(body []byte, pointers []string) ([]byte, error) {
+	var root any
+	if err := json.Unmarshal(body, &root); err != nil {
+		return nil, fmt.Errorf("json_pointers require a JSON response body: %w", err)
+	}
+	out := make(map[string]any, len(pointers))
+	for _, p := range pointers {
+		v, err := evalJSONPointer(root, p)
+		if err != nil {
+			return nil, err
+		}
+		out[p] = v
+	}
+	filtered, err := json.Marshal(out)
+	if err != nil {
+		return nil, fmt.Errorf("encoding filtered JSON: %w", err)
+	}
+	return filtered, nil
+}
+
+// evalJSONPointer resolves an RFC 6901 JSON Pointer against a decoded JSON value.
+func evalJSONPointer(root any, pointer string) (any, error) {
+	if pointer == "" {
+		return root, nil
+	}
+	if !strings.HasPrefix(pointer, "/") {
+		return nil, fmt.Errorf("json_pointer %q must be empty (root) or start with /", pointer)
+	}
+	cur := root
+	for _, raw := range strings.Split(pointer, "/")[1:] {
+		token := decodeJSONPointerToken(raw)
+		switch node := cur.(type) {
+		case map[string]any:
+			v, ok := node[token]
+			if !ok {
+				return nil, fmt.Errorf("json_pointer %q: key %q not found", pointer, token)
+			}
+			cur = v
+		case []any:
+			if token == "-" {
+				return nil, fmt.Errorf("json_pointer %q: '-' array index is not supported", pointer)
+			}
+			idx, err := strconv.Atoi(token)
+			if err != nil {
+				return nil, fmt.Errorf("json_pointer %q: invalid array index %q", pointer, token)
+			}
+			if idx < 0 || idx >= len(node) {
+				return nil, fmt.Errorf("json_pointer %q: array index %d out of range (len %d)", pointer, idx, len(node))
+			}
+			cur = node[idx]
+		default:
+			return nil, fmt.Errorf("json_pointer %q: cannot traverse into %s", pointer, jsonTypeName(cur))
+		}
+	}
+	return cur, nil
+}
+
+func decodeJSONPointerToken(s string) string {
+	// RFC 6901: ~1 => /, then ~0 => ~
+	s = strings.ReplaceAll(s, "~1", "/")
+	s = strings.ReplaceAll(s, "~0", "~")
+	return s
+}
+
+func jsonTypeName(v any) string {
+	switch v.(type) {
+	case nil:
+		return "null"
+	case bool:
+		return "boolean"
+	case float64:
+		return "number"
+	case string:
+		return "string"
+	case map[string]any:
+		return "object"
+	case []any:
+		return "array"
+	default:
+		return fmt.Sprintf("%T", v)
+	}
 }
 
 func readLimitedBody(r io.Reader, max int) (data []byte, truncated bool, err error) {
@@ -264,8 +390,16 @@ func readLimitedBody(r io.Reader, max int) (data []byte, truncated bool, err err
 func formatHTTPResponse(resp *http.Response, body []byte, truncated bool, opts httpBodyFormatOpts) string {
 	ct := resp.Header.Get("Content-Type")
 	mediaType := contentMediaType(ct)
+	if len(opts.JSONPointers) > 0 {
+		// Filtered output is always a JSON object keyed by pointers.
+		mediaType = "application/json"
+	}
 	declaredLen := resp.ContentLength
 	opts.ReadTruncated = truncated
+	bytesRead := len(body)
+	if opts.WireBytes > 0 {
+		bytesRead = opts.WireBytes
+	}
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "Status: %d %s\n", resp.StatusCode, http.StatusText(resp.StatusCode))
@@ -273,12 +407,15 @@ func formatHTTPResponse(resp *http.Response, body []byte, truncated bool, opts h
 		fmt.Fprintf(&b, "Final-URL: %s\n", resp.Request.URL.String())
 	}
 	fmt.Fprintf(&b, "Content-Type: %s\n", emptyAs(ct, "(none)"))
-	fmt.Fprintf(&b, "Bytes-Read: %d\n", len(body))
+	fmt.Fprintf(&b, "Bytes-Read: %d\n", bytesRead)
 	if declaredLen >= 0 {
 		fmt.Fprintf(&b, "Content-Length: %d\n", declaredLen)
 	}
 	if truncated {
 		fmt.Fprintf(&b, "Truncated: true (read cap %d bytes)\n", httpRequestMaxRespRead)
+	}
+	if len(opts.JSONPointers) > 0 {
+		fmt.Fprintf(&b, "JSON-Pointers: %s\n", strings.Join(opts.JSONPointers, ", "))
 	}
 	if opts.Verbose {
 		b.WriteString("Body-Mode: verbose\n")
@@ -373,10 +510,15 @@ func formatResponseBody(body []byte, mediaType string, opts httpBodyFormatOpts) 
 		textBody, notes = reduceTextBody(body, mediaType)
 	}
 
+	maxTextOut := httpRequestMaxTextOut
+	if opts.Verbose {
+		maxTextOut = httpRequestMaxTextOutVerbose
+	}
+
 	text := textBody
 	outTruncated := false
-	if len(text) > httpRequestMaxTextOut {
-		text = text[:httpRequestMaxTextOut]
+	if len(text) > maxTextOut {
+		text = text[:maxTextOut]
 		outTruncated = true
 		// Avoid cutting mid-rune.
 		for len(text) > 0 && !utf8.Valid(text) {
@@ -396,7 +538,7 @@ func formatResponseBody(body []byte, mediaType string, opts httpBodyFormatOpts) 
 			parts = append(parts, strings.Join(notes, "; "))
 		}
 		if outTruncated {
-			parts = append(parts, fmt.Sprintf("text output truncated to %d bytes", httpRequestMaxTextOut))
+			parts = append(parts, fmt.Sprintf("text output truncated to %d bytes", maxTextOut))
 		}
 		if opts.ReadTruncated {
 			parts = append(parts, fmt.Sprintf("wire read capped at %d bytes", httpRequestMaxRespRead))

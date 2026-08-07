@@ -457,7 +457,7 @@ func TestFormatResponseBody_TextAndBinary(t *testing.T) {
 		t.Fatalf("expected media type: %s", binOut)
 	}
 
-	// Large text truncated in output
+	// Large text truncated in output (default/reduced = 32 KiB)
 	big := []byte(strings.Repeat("x", httpRequestMaxTextOut+100))
 	bigOut := formatResponseBody(big, "text/plain", opts)
 	if !strings.Contains(bigOut, "text output truncated") {
@@ -465,6 +465,21 @@ func TestFormatResponseBody_TextAndBinary(t *testing.T) {
 	}
 	if len(bigOut) > httpRequestMaxTextOut+200 {
 		t.Fatalf("output too large: %d", len(bigOut))
+	}
+
+	// Verbose allows up to 256 KiB before truncating
+	mid := []byte(strings.Repeat("y", httpRequestMaxTextOut+100))
+	midOut := formatResponseBody(mid, "text/plain", httpBodyFormatOpts{Verbose: true})
+	if strings.Contains(midOut, "text output truncated") {
+		t.Fatalf("verbose should not truncate at reduced cap: %s", midOut[len(midOut)-80:])
+	}
+	huge := []byte(strings.Repeat("z", httpRequestMaxTextOutVerbose+100))
+	hugeOut := formatResponseBody(huge, "text/plain", httpBodyFormatOpts{Verbose: true})
+	if !strings.Contains(hugeOut, "text output truncated") {
+		t.Fatalf("verbose should truncate at verbose cap: %s", hugeOut[len(hugeOut)-80:])
+	}
+	if len(hugeOut) > httpRequestMaxTextOutVerbose+200 {
+		t.Fatalf("verbose output too large: %d", len(hugeOut))
 	}
 }
 
@@ -576,6 +591,152 @@ func TestLooksLikeUTF8Text(t *testing.T) {
 	}
 	if looksLikeUTF8Text([]byte{0x00, 0x01, 0x02, 0xff, 0xfe, 0x00, 0x00}) {
 		t.Fatal("binary should not look like text")
+	}
+}
+
+func TestValidateJSONPointers(t *testing.T) {
+	if err := validateJSONPointers(nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateJSONPointers([]string{"/a", "/b/0"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateJSONPointers([]string{""}); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateJSONPointers([]string{"a"}); err == nil {
+		t.Fatal("expected missing leading slash")
+	}
+	if err := validateJSONPointers([]string{"/a", "/a"}); err == nil {
+		t.Fatal("expected duplicate rejection")
+	}
+	tooMany := make([]string, httpRequestMaxJSONPointers+1)
+	for i := range tooMany {
+		tooMany[i] = fmt.Sprintf("/%d", i)
+	}
+	if err := validateJSONPointers(tooMany); err == nil {
+		t.Fatal("expected too many pointers")
+	}
+	long := "/" + strings.Repeat("x", httpRequestMaxJSONPointerLen)
+	if err := validateJSONPointers([]string{long}); err == nil {
+		t.Fatal("expected pointer too long")
+	}
+}
+
+func TestEvalJSONPointer(t *testing.T) {
+	var root any
+	raw := []byte(`{"a":{"b":[10,{"c":"x","d/e":1,"t~t":2}]},"n":null}`)
+	if err := json.Unmarshal(raw, &root); err != nil {
+		t.Fatal(err)
+	}
+
+	v, err := evalJSONPointer(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := v.(map[string]any); !ok {
+		t.Fatalf("root want object, got %T", v)
+	}
+
+	v, err = evalJSONPointer(root, "/a/b/0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.(float64) != 10 {
+		t.Fatalf("got %v", v)
+	}
+
+	v, err = evalJSONPointer(root, "/a/b/1/c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != "x" {
+		t.Fatalf("got %v", v)
+	}
+
+	v, err = evalJSONPointer(root, "/a/b/1/d~1e")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.(float64) != 1 {
+		t.Fatalf("escaped slash key: %v", v)
+	}
+
+	v, err = evalJSONPointer(root, "/a/b/1/t~0t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.(float64) != 2 {
+		t.Fatalf("escaped tilde key: %v", v)
+	}
+
+	if _, err := evalJSONPointer(root, "/missing"); err == nil {
+		t.Fatal("expected missing key")
+	}
+	if _, err := evalJSONPointer(root, "/a/b/99"); err == nil {
+		t.Fatal("expected OOB index")
+	}
+	if _, err := evalJSONPointer(root, "/a/b/1/c/extra"); err == nil {
+		t.Fatal("expected traverse into string fail")
+	}
+}
+
+func TestFilterJSONBodyByPointers(t *testing.T) {
+	body := []byte(`{"ok":true,"data":{"items":[{"id":1},{"id":2}]},"meta":{"total":2}}`)
+	out, err := filterJSONBodyByPointers(body, []string{"/data/items/0/id", "/meta/total"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["/data/items/0/id"].(float64) != 1 {
+		t.Fatalf("id: %v", got["/data/items/0/id"])
+	}
+	if got["/meta/total"].(float64) != 2 {
+		t.Fatalf("total: %v", got["/meta/total"])
+	}
+
+	if _, err := filterJSONBodyByPointers([]byte("not-json"), []string{"/a"}); err == nil {
+		t.Fatal("expected non-JSON error")
+	}
+	if _, err := filterJSONBodyByPointers(body, []string{"/nope"}); err == nil {
+		t.Fatal("expected missing path error")
+	}
+}
+
+func TestFormatHTTPResponse_JSONPointers(t *testing.T) {
+	resp := &http.Response{
+		StatusCode:    200,
+		Status:        "200 OK",
+		ContentLength: 100,
+		Header:        http.Header{"Content-Type": []string{"application/json"}},
+		Request:       httptest.NewRequest(http.MethodGet, "https://example.com/api", nil),
+	}
+	filtered := []byte(`{"/a":1}`)
+	out := formatHTTPResponse(resp, filtered, false, httpBodyFormatOpts{
+		JSONPointers: []string{"/a"},
+		WireBytes:    100,
+	})
+	if !strings.Contains(out, "JSON-Pointers: /a\n") {
+		t.Fatalf("missing pointers line: %s", out)
+	}
+	if !strings.Contains(out, "Bytes-Read: 100\n") {
+		t.Fatalf("want wire bytes: %s", out)
+	}
+	if !strings.Contains(out, `{"/a":1}`) {
+		t.Fatalf("want filtered body: %s", out)
+	}
+}
+
+func TestDoSafeHTTPRequest_JSONPointersValidatedEarly(t *testing.T) {
+	_, err := doSafeHTTPRequest(httpRequestParams{
+		URL:          "https://example.com/",
+		JSONPointers: []string{"no-slash"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "json_pointer") {
+		t.Fatalf("expected pointer validation error, got %v", err)
 	}
 }
 
