@@ -794,6 +794,99 @@ func TestDoSafeHTTPRequest_JSONPointersValidatedEarly(t *testing.T) {
 	}
 }
 
+func TestValidateCSSSelectors(t *testing.T) {
+	if err := validateCSSSelectors(nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateCSSSelectors([]string{"a.result-link", ".result__snippet"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateCSSSelectors([]string{""}); err == nil {
+		t.Fatal("expected empty rejection")
+	}
+	if err := validateCSSSelectors([]string{"a", "a"}); err == nil {
+		t.Fatal("expected duplicate rejection")
+	}
+	if err := validateCSSSelectors([]string{"a[href="}); err == nil {
+		t.Fatal("expected invalid selector rejection")
+	}
+	tooMany := make([]string, httpRequestMaxCSSSelectors+1)
+	for i := range tooMany {
+		tooMany[i] = fmt.Sprintf(".c%d", i)
+	}
+	if err := validateCSSSelectors(tooMany); err == nil {
+		t.Fatal("expected too many")
+	}
+}
+
+func TestFilterHTMLBodyBySelectors(t *testing.T) {
+	html := []byte(`<!doctype html><html><body>
+		<div class="result"><a class="result-link" href="https://example.com/a">Alpha Title</a><span class="snippet">Alpha blurb</span></div>
+		<div class="result"><a class="result-link" href="https://example.com/b">Beta Title</a><span class="snippet">Beta blurb</span></div>
+		<script>evil()</script>
+	</body></html>`)
+
+	out, err := filterHTMLBodyBySelectors(html, []string{"a.result-link", ".snippet", ".missing"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatal(err)
+	}
+	links, ok := got["a.result-link"].([]any)
+	if !ok || len(links) != 2 {
+		t.Fatalf("links: %#v", got["a.result-link"])
+	}
+	first := links[0].(map[string]any)
+	if first["text"] != "Alpha Title" || first["href"] != "https://example.com/a" {
+		t.Fatalf("first link: %#v", first)
+	}
+	snips := got[".snippet"].([]any)
+	if len(snips) != 2 {
+		t.Fatalf("snippets: %#v", snips)
+	}
+	missing := got[".missing"].([]any)
+	if len(missing) != 0 {
+		t.Fatalf("missing should be empty: %#v", missing)
+	}
+}
+
+func TestFormatHTTPResponse_CSSSelectors(t *testing.T) {
+	resp := &http.Response{
+		StatusCode:    200,
+		Status:        "200 OK",
+		ContentLength: 5000,
+		Header:        http.Header{"Content-Type": []string{"text/html"}},
+		Request:       httptest.NewRequest(http.MethodGet, "https://example.com/search?q=go", nil),
+	}
+	filtered := []byte(`{"a.main-link":[{"text":"Go","href":"https://go.dev"}]}`)
+	out := formatHTTPResponse(resp, filtered, false, httpBodyFormatOpts{
+		CSSSelectors: []string{"a.main-link"},
+		WireBytes:    5000,
+	})
+	if !strings.Contains(out, "CSS-Selectors: a.main-link\n") {
+		t.Fatalf("missing selectors line: %s", out)
+	}
+	if !strings.Contains(out, "Bytes-Read: 5000\n") {
+		t.Fatalf("want wire bytes: %s", out)
+	}
+	if !strings.Contains(out, `"href":"https://go.dev"`) {
+		t.Fatalf("want filtered body: %s", out)
+	}
+}
+
+func TestDoSafeHTTPRequest_CSSAndJSONPointersExclusive(t *testing.T) {
+	_, err := doSafeHTTPRequest(httpRequestParams{
+		URL:          "https://example.com/",
+		JSONPointers: []string{"/a"},
+		CSSSelectors: []string{"a"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("expected mutual exclusion error, got %v", err)
+	}
+}
+
 func TestFormatHTTPResponse_BinaryOmitsBody(t *testing.T) {
 	resp := &http.Response{
 		StatusCode: 200,

@@ -21,6 +21,8 @@ import (
 
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/Bajahaw/ai-ui/cmd/secrets"
+	"github.com/PuerkitoBio/goquery"
+	"github.com/andybalholm/cascadia"
 	nethtml "golang.org/x/net/html"
 )
 
@@ -37,6 +39,9 @@ const (
 	httpRequestBase64MinLen      = 256     // min length to treat as base64 payload
 	httpRequestMaxJSONPointers   = 32
 	httpRequestMaxJSONPointerLen = 512
+	httpRequestMaxCSSSelectors   = 16
+	httpRequestMaxCSSSelectorLen = 256
+	httpRequestMaxCSSMatches     = 40 // per selector
 )
 
 var (
@@ -130,12 +135,14 @@ type httpRequestParams struct {
 	Body         httpRequestBody   `json:"body"`
 	Verbose      bool              `json:"verbose"`
 	JSONPointers []string          `json:"json_pointers"`
+	CSSSelectors []string          `json:"css_selectors"`
 }
 
 type httpBodyFormatOpts struct {
 	Verbose       bool
 	ReadTruncated bool
 	JSONPointers  []string
+	CSSSelectors  []string
 	WireBytes     int // when > 0, reported as Bytes-Read (wire size before filter)
 }
 
@@ -247,6 +254,12 @@ func doSafeHTTPRequest(params httpRequestParams) (string, error) {
 	if err := validateJSONPointers(params.JSONPointers); err != nil {
 		return "", err
 	}
+	if err := validateCSSSelectors(params.CSSSelectors); err != nil {
+		return "", err
+	}
+	if len(params.JSONPointers) > 0 && len(params.CSSSelectors) > 0 {
+		return "", errors.New("json_pointers and css_selectors are mutually exclusive")
+	}
 
 	parsed, err := validatePublicHTTPSURL(params.URL)
 	if err != nil {
@@ -304,6 +317,14 @@ func doSafeHTTPRequest(params httpRequestParams) (string, error) {
 		opts.JSONPointers = params.JSONPointers
 		opts.WireBytes = len(respBody)
 		respBody = filtered
+	} else if len(params.CSSSelectors) > 0 {
+		filtered, err := filterHTMLBodyBySelectors(respBody, params.CSSSelectors)
+		if err != nil {
+			return "", err
+		}
+		opts.CSSSelectors = params.CSSSelectors
+		opts.WireBytes = len(respBody)
+		respBody = filtered
 	}
 
 	return formatHTTPResponse(resp, respBody, truncated, opts), nil
@@ -327,6 +348,80 @@ func validateJSONPointers(pointers []string) error {
 		seen[p] = struct{}{}
 	}
 	return nil
+}
+
+func validateCSSSelectors(selectors []string) error {
+	if len(selectors) > httpRequestMaxCSSSelectors {
+		return fmt.Errorf("at most %d css_selectors allowed (%d given)", httpRequestMaxCSSSelectors, len(selectors))
+	}
+	seen := make(map[string]struct{}, len(selectors))
+	for _, s := range selectors {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return errors.New("css_selector must not be empty")
+		}
+		if len(s) > httpRequestMaxCSSSelectorLen {
+			return fmt.Errorf("css_selector exceeds maximum length of %d", httpRequestMaxCSSSelectorLen)
+		}
+		if _, err := cascadia.Compile(s); err != nil {
+			return fmt.Errorf("invalid css_selector %q: %w", s, err)
+		}
+		if _, dup := seen[s]; dup {
+			return fmt.Errorf("duplicate css_selector %q", s)
+		}
+		seen[s] = struct{}{}
+	}
+	return nil
+}
+
+// filterHTMLBodyBySelectors extracts matches for each CSS selector from an HTML body.
+// Result is a compact JSON object keyed by selector → array of {text, href?, ...}.
+func filterHTMLBodyBySelectors(body []byte, selectors []string) ([]byte, error) {
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("css_selectors require an HTML response body: %w", err)
+	}
+	out := make(map[string]any, len(selectors))
+	for _, sel := range selectors {
+		sel = strings.TrimSpace(sel)
+		compiled, err := cascadia.Compile(sel)
+		if err != nil {
+			return nil, fmt.Errorf("invalid css_selector %q: %w", sel, err)
+		}
+		matches := make([]map[string]string, 0)
+		doc.FindMatcher(compiled).Each(func(i int, s *goquery.Selection) {
+			if i >= httpRequestMaxCSSMatches {
+				return
+			}
+			m := htmlMatchFields(s)
+			if len(m) > 0 {
+				matches = append(matches, m)
+			}
+		})
+		out[sel] = matches
+	}
+	filtered, err := json.Marshal(out)
+	if err != nil {
+		return nil, fmt.Errorf("encoding filtered HTML matches: %w", err)
+	}
+	return filtered, nil
+}
+
+func htmlMatchFields(s *goquery.Selection) map[string]string {
+	m := make(map[string]string, 4)
+	text := strings.Join(strings.Fields(s.Text()), " ")
+	if text != "" {
+		m["text"] = text
+	}
+	for _, attr := range []string{"href", "src", "alt", "title", "aria-label"} {
+		if v, ok := s.Attr(attr); ok {
+			v = strings.TrimSpace(v)
+			if v != "" {
+				m[attr] = v
+			}
+		}
+	}
+	return m
 }
 
 // filterJSONBodyByPointers extracts values at RFC 6901 JSON Pointers from a JSON body.
@@ -432,8 +527,8 @@ func readLimitedBody(r io.Reader, max int) (data []byte, truncated bool, err err
 func formatHTTPResponse(resp *http.Response, body []byte, truncated bool, opts httpBodyFormatOpts) string {
 	ct := resp.Header.Get("Content-Type")
 	mediaType := contentMediaType(ct)
-	if len(opts.JSONPointers) > 0 {
-		// Filtered output is always a JSON object keyed by pointers.
+	if len(opts.JSONPointers) > 0 || len(opts.CSSSelectors) > 0 {
+		// Filtered output is always a JSON object keyed by pointers/selectors.
 		mediaType = "application/json"
 	}
 	declaredLen := resp.ContentLength
@@ -458,6 +553,9 @@ func formatHTTPResponse(resp *http.Response, body []byte, truncated bool, opts h
 	}
 	if len(opts.JSONPointers) > 0 {
 		fmt.Fprintf(&b, "JSON-Pointers: %s\n", strings.Join(opts.JSONPointers, ", "))
+	}
+	if len(opts.CSSSelectors) > 0 {
+		fmt.Fprintf(&b, "CSS-Selectors: %s\n", strings.Join(opts.CSSSelectors, ", "))
 	}
 	if opts.Verbose {
 		b.WriteString("Body-Mode: verbose\n")

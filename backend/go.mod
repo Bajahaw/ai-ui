@@ -3,6 +3,8 @@ module github.com/Bajahaw/ai-ui
 go 1.25.5
 
 require (
+	github.com/PuerkitoBio/goquery v1.12.0
+	github.com/andybalholm/cascadia v1.3.3
 	github.com/charmbracelet/log v1.0.0
 	github.com/gabriel-vasile/mimetype v1.4.15
 	github.com/gen2brain/go-fitz v1.28.2
