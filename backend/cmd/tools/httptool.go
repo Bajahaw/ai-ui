@@ -139,11 +139,12 @@ type httpRequestParams struct {
 }
 
 type httpBodyFormatOpts struct {
-	Verbose       bool
-	ReadTruncated bool
-	JSONPointers  []string
-	CSSSelectors  []string
-	WireBytes     int // when > 0, reported as Bytes-Read (wire size before filter)
+	Verbose            bool
+	ReadTruncated      bool
+	JSONPointers       []string
+	JSONPointerErrors  []string // soft-fail notes for unresolved pointers (missing key, OOB, etc.)
+	CSSSelectors       []string
+	WireBytes          int // when > 0, reported as Bytes-Read (wire size before filter)
 }
 
 func httpRequestTool(args, user string) providers.ToolOutput {
@@ -310,11 +311,12 @@ func doSafeHTTPRequest(params httpRequestParams) (string, error) {
 
 	opts := httpBodyFormatOpts{Verbose: params.Verbose}
 	if len(params.JSONPointers) > 0 {
-		filtered, err := filterJSONBodyByPointers(respBody, params.JSONPointers)
+		filtered, ptrErrs, err := filterJSONBodyByPointers(respBody, params.JSONPointers)
 		if err != nil {
 			return "", err
 		}
 		opts.JSONPointers = params.JSONPointers
+		opts.JSONPointerErrors = ptrErrs
 		opts.WireBytes = len(respBody)
 		respBody = filtered
 	} else if len(params.CSSSelectors) > 0 {
@@ -426,24 +428,30 @@ func htmlMatchFields(s *goquery.Selection) map[string]string {
 
 // filterJSONBodyByPointers extracts values at RFC 6901 JSON Pointers from a JSON body.
 // Result is a compact JSON object keyed by each pointer string.
-func filterJSONBodyByPointers(body []byte, pointers []string) ([]byte, error) {
+// Path resolution failures (missing key, OOB index, wrong type) soft-fail: the pointer
+// is set to null and a short error note is returned so other pointers still succeed.
+// Hard errors only for non-JSON bodies (and encoding failures).
+func filterJSONBodyByPointers(body []byte, pointers []string) ([]byte, []string, error) {
 	var root any
 	if err := json.Unmarshal(body, &root); err != nil {
-		return nil, fmt.Errorf("json_pointers require a JSON response body: %w", err)
+		return nil, nil, fmt.Errorf("json_pointers require a JSON response body: %w", err)
 	}
 	out := make(map[string]any, len(pointers))
+	var softErrs []string
 	for _, p := range pointers {
 		v, err := evalJSONPointer(root, p)
 		if err != nil {
-			return nil, err
+			out[p] = nil
+			softErrs = append(softErrs, err.Error())
+			continue
 		}
 		out[p] = v
 	}
 	filtered, err := json.Marshal(out)
 	if err != nil {
-		return nil, fmt.Errorf("encoding filtered JSON: %w", err)
+		return nil, nil, fmt.Errorf("encoding filtered JSON: %w", err)
 	}
-	return filtered, nil
+	return filtered, softErrs, nil
 }
 
 // evalJSONPointer resolves an RFC 6901 JSON Pointer against a decoded JSON value.
@@ -553,6 +561,9 @@ func formatHTTPResponse(resp *http.Response, body []byte, truncated bool, opts h
 	}
 	if len(opts.JSONPointers) > 0 {
 		fmt.Fprintf(&b, "JSON-Pointers: %s\n", strings.Join(opts.JSONPointers, ", "))
+	}
+	if len(opts.JSONPointerErrors) > 0 {
+		fmt.Fprintf(&b, "JSON-Pointer-Errors: %s\n", strings.Join(opts.JSONPointerErrors, "; "))
 	}
 	if len(opts.CSSSelectors) > 0 {
 		fmt.Fprintf(&b, "CSS-Selectors: %s\n", strings.Join(opts.CSSSelectors, ", "))

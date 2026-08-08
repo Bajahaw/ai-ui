@@ -736,10 +736,13 @@ func TestEvalJSONPointer(t *testing.T) {
 }
 
 func TestFilterJSONBodyByPointers(t *testing.T) {
-	body := []byte(`{"ok":true,"data":{"items":[{"id":1},{"id":2}]},"meta":{"total":2}}`)
-	out, err := filterJSONBodyByPointers(body, []string{"/data/items/0/id", "/meta/total"})
+	body := []byte(`{"ok":true,"data":{"items":[{"id":1},{"id":2}]},"meta":{"total":2},"n":null}`)
+	out, softErrs, err := filterJSONBodyByPointers(body, []string{"/data/items/0/id", "/meta/total"})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(softErrs) != 0 {
+		t.Fatalf("unexpected soft errs: %v", softErrs)
 	}
 	var got map[string]any
 	if err := json.Unmarshal(out, &got); err != nil {
@@ -752,11 +755,41 @@ func TestFilterJSONBodyByPointers(t *testing.T) {
 		t.Fatalf("total: %v", got["/meta/total"])
 	}
 
-	if _, err := filterJSONBodyByPointers([]byte("not-json"), []string{"/a"}); err == nil {
+	if _, _, err := filterJSONBodyByPointers([]byte("not-json"), []string{"/a"}); err == nil {
 		t.Fatal("expected non-JSON error")
 	}
-	if _, err := filterJSONBodyByPointers(body, []string{"/nope"}); err == nil {
-		t.Fatal("expected missing path error")
+
+	// Missing paths soft-fail: null value + error note; other pointers still return.
+	out, softErrs, err = filterJSONBodyByPointers(body, []string{"/meta/total", "/nope", "/pull_request", "/n", "/data/items/99"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(out, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["/meta/total"].(float64) != 2 {
+		t.Fatalf("total: %v", got["/meta/total"])
+	}
+	if got["/nope"] != nil {
+		t.Fatalf("missing key want null, got %v", got["/nope"])
+	}
+	if got["/pull_request"] != nil {
+		t.Fatalf("missing key want null, got %v", got["/pull_request"])
+	}
+	if _, ok := got["/n"]; !ok || got["/n"] != nil {
+		t.Fatalf("explicit null want present null, got %#v ok=%v", got["/n"], ok)
+	}
+	if got["/data/items/99"] != nil {
+		t.Fatalf("OOB want null, got %v", got["/data/items/99"])
+	}
+	if len(softErrs) != 3 {
+		t.Fatalf("want 3 soft errs, got %v", softErrs)
+	}
+	joined := strings.Join(softErrs, " | ")
+	for _, want := range []string{`"/nope"`, `"/pull_request"`, `"/data/items/99"`} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("soft errs missing %s: %v", want, softErrs)
+		}
 	}
 }
 
@@ -781,6 +814,18 @@ func TestFormatHTTPResponse_JSONPointers(t *testing.T) {
 	}
 	if !strings.Contains(out, `{"/a":1}`) {
 		t.Fatalf("want filtered body: %s", out)
+	}
+	if strings.Contains(out, "JSON-Pointer-Errors:") {
+		t.Fatalf("unexpected pointer errors line: %s", out)
+	}
+
+	out = formatHTTPResponse(resp, []byte(`{"/a":1,"/nope":null}`), false, httpBodyFormatOpts{
+		JSONPointers:      []string{"/a", "/nope"},
+		JSONPointerErrors: []string{`json_pointer "/nope": key "nope" not found`},
+		WireBytes:         100,
+	})
+	if !strings.Contains(out, `JSON-Pointer-Errors: json_pointer "/nope": key "nope" not found`) {
+		t.Fatalf("missing pointer errors line: %s", out)
 	}
 }
 
