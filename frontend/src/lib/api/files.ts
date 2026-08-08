@@ -106,6 +106,33 @@ export const isImageFile = (filename: string): boolean => {
   return imageExtensions.includes(extension);
 };
 
+/** Types the backend can thumbnail: raster images + PDF first page (not SVG). */
+export const isThumbnailable = (filename: string, mimeType?: string): boolean => {
+  const mt = (mimeType || "").toLowerCase();
+  if (mt === "application/pdf") return true;
+  if (mt.startsWith("image/") && mt !== "image/svg+xml") return true;
+  const extension = getFileExtension(filename);
+  return ["jpg", "jpeg", "png", "gif", "webp", "bmp", "pdf"].includes(extension);
+};
+
+export const fileResourceUrl = (filePath: string): string => {
+  if (!filePath) return "";
+  return filePath.startsWith("/") ? filePath : `/${filePath}`;
+};
+
+/**
+ * Convention: data/resources/{stem}.ext -> /data/resources/thumbs/{stem}.jpg
+ * Backend generates on demand when missing.
+ */
+export const fileThumbnailUrl = (filePath: string): string => {
+  const url = fileResourceUrl(filePath);
+  const filename = url.split("/").pop() || "";
+  const dot = filename.lastIndexOf(".");
+  const stem = dot > 0 ? filename.slice(0, dot) : filename;
+  if (!stem) return "";
+  return `/data/resources/thumbs/${stem}.jpg`;
+};
+
 export const formatFileSize = (bytes: number): string => {
   if (bytes === 0) return "0 Bytes";
 

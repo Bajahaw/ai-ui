@@ -180,7 +180,7 @@ func startServer() {
 	mux.Handle("/data/resources/",
 		http.StripPrefix(
 			"/data/resources/",
-			auth.Authenticated(files.UserBasedAccess(dataFs)),
+			auth.Authenticated(files.ResourcesHandler(dataFs)),
 		))
 
 	mux.Handle("/api/chat/", chat.Handler())

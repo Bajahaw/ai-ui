@@ -76,6 +76,12 @@ func saveUploadedFile(file multipart.File, handler *multipart.FileHeader, user s
 		return File{}, fmt.Errorf("written bytes mismatch: wrote %d of %d", n, len(data))
 	}
 
+	// Eager thumbnail so library open is cheap; failures are non-fatal
+	// (on-demand generation still covers the miss).
+	if err := writeEagerThumbnail(filePath, fileType, data); err != nil && log != nil {
+		log.Debug("eager thumbnail failed", "path", filePath, "type", fileType, "err", err)
+	}
+
 	uploadedAt := time.Now()
 
 	fileData := File{
@@ -117,6 +123,7 @@ func saveUploadedFile(file multipart.File, handler *multipart.FileHeader, user s
 	err = repo.Save(fileData)
 	if err != nil {
 		_ = os.Remove(filePath)
+		RemoveThumbnail(filePath)
 		return File{}, err
 	}
 
@@ -130,6 +137,7 @@ func saveUploadedFile(file multipart.File, handler *multipart.FileHeader, user s
 		if err != nil {
 			_ = repo.DeleteByID(fileData.ID, user)
 			_ = os.Remove(filePath)
+			RemoveThumbnail(filePath)
 			return File{}, err
 		}
 		fileData.Content = fileContent
@@ -137,6 +145,7 @@ func saveUploadedFile(file multipart.File, handler *multipart.FileHeader, user s
 		if err := repo.UpdateContent(fileData.ID, user, fileContent); err != nil {
 			_ = repo.DeleteByID(fileData.ID, user)
 			_ = os.Remove(filePath)
+			RemoveThumbnail(filePath)
 			return File{}, err
 		}
 	}
@@ -265,6 +274,18 @@ func extractFileContent(file File, model string) (string, error) {
 	}
 
 	return "", fmt.Errorf("unsupported file type for content extraction: %s", file.Type)
+}
+
+func writeEagerThumbnail(filePath, fileType string, data []byte) error {
+	switch {
+	case isImageMIME(fileType):
+		return WriteThumbnailFromBytes(data, filePath)
+	case isPDFMIME(fileType):
+		// PDF needs the on-disk file for fitz.
+		return WritePDFThumbnail(filePath)
+	default:
+		return nil
+	}
 }
 
 // IsRetrievableDoc returns true for document types supported by go-fitz

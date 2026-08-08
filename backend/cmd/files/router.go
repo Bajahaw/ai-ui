@@ -21,12 +21,26 @@ func FileHandler() http.Handler {
 	return http.StripPrefix("/api/files", auth.Authenticated(mux))
 }
 
+// ResourcesHandler serves user resource files and on-demand thumbnails.
+// Mounted under /data/resources/ after StripPrefix.
+func ResourcesHandler(fileServer http.Handler) http.Handler {
+	originals := UserBasedAccess(fileServer)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rel := strings.TrimPrefix(r.URL.Path, "/")
+		if strings.HasPrefix(rel, thumbSubdir+"/") {
+			serveThumbnail(w, r, rel)
+			return
+		}
+		originals.ServeHTTP(w, r)
+	})
+}
+
 func UserBasedAccess(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user := utils.ExtractContextUser(r)
 
 		filename := strings.TrimPrefix(r.URL.Path, "/")
-		if filename == "" {
+		if filename == "" || strings.Contains(filename, "..") {
 			http.NotFound(w, r)
 			return
 		}
@@ -47,6 +61,61 @@ func UserBasedAccess(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func serveThumbnail(w http.ResponseWriter, r *http.Request, rel string) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	stem, ok := parseThumbRequestPath(rel)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	user := utils.ExtractContextUser(r)
+
+	var originalPath, fileType, originalName string
+	err := db.QueryRow(
+		`SELECT path, type, name FROM Files
+		 WHERE user = ? AND path LIKE ? ESCAPE '\'
+		 LIMIT 1`,
+		user,
+		escapeLike("data/resources/"+stem+".")+"%",
+	).Scan(&originalPath, &fileType, &originalName)
+	if err != nil || originalPath == "" || strings.Count(originalPath, "/") != 2 {
+		// path must be exactly data/resources/{file} (no nested dirs)
+		http.NotFound(w, r)
+		return
+	}
+
+	if resourceStem(originalPath) != stem {
+		http.NotFound(w, r)
+		return
+	}
+
+	if !isThumbnailableMIME(fileType) {
+		http.NotFound(w, r)
+		return
+	}
+
+	thumbPath, err := EnsureThumbnail(originalPath, fileType)
+	if err != nil {
+		if log != nil {
+			log.Debug("thumbnail generation failed", "path", originalPath, "err", err)
+		}
+		http.NotFound(w, r)
+		return
+	}
+
+	// Thumb paths are content-addressed by source UUID; safe to cache privately.
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
+	safeName := strings.ReplaceAll(originalName, `"`, "")
+	w.Header().Set("Content-Disposition", `inline; filename="thumb-`+safeName+`.jpg"`)
+	http.ServeFile(w, r, thumbPath)
 }
 
 func upload(w http.ResponseWriter, r *http.Request) {
@@ -108,11 +177,12 @@ func deleteFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = os.Remove(files[0].Path)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		log.Error("Error deleting physical file", "err", err)
 		http.Error(w, "Error deleting file: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	RemoveThumbnail(files[0].Path)
 
 	err = repo.DeleteByID(id, user)
 	if err != nil {

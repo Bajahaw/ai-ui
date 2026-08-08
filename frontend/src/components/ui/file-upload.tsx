@@ -8,10 +8,14 @@ import { cn } from "@/lib/utils";
 import {
   uploadFile,
   isImageFile,
+  isThumbnailable,
+  fileResourceUrl,
+  fileThumbnailUrl,
   formatFileSize,
   FileUploadError,
 } from "@/lib/api/files";
 import type { File as APIFile } from "@/lib/api/types";
+import { FileThumb } from "@/components/ui/file-thumb";
 
 
 export interface FileUploadProps {
@@ -113,7 +117,10 @@ export const FilePreview = ({
   onRemove,
   className,
 }: FilePreviewProps) => {
-  const isImage = isImageFile(file.file.name);
+  const showThumb = isThumbnailable(
+    file.file.name,
+    file.fileData.type || file.file.type,
+  );
 
   return (
     <div
@@ -124,12 +131,13 @@ export const FilePreview = ({
       )}
     >
       <div className="flex-shrink-0">
-        {isImage ? (
-          <div className="size-10 rounded overflow-hidden border bg-background">
-            <img
-              src={file.fileData.path.startsWith("/") ? file.fileData.path : `/${file.fileData.path}`}
+        {showThumb ? (
+          <div className="size-10 rounded overflow-hidden border bg-background flex items-center justify-center">
+            <FileThumb
+              src={fileThumbnailUrl(file.fileData.path)}
               alt={file.file.name}
               className="size-full object-cover"
+              iconClassName="size-4 text-gray-500"
             />
           </div>
         ) : (
@@ -244,13 +252,13 @@ export const AttachmentMessage = ({
       )}
     >
       {items.map((att, index) => {
-        const isImage =
-          isImageFile(att.file.name) || att.file.type.startsWith("image/");
+        const showThumb = isThumbnailable(att.file.name, att.file.type);
+        const originalUrl = fileResourceUrl(att.file.path);
 
         return (
           <a
             key={att.id || index}
-            href={att.file.path.startsWith("/") ? att.file.path : `/${att.file.path}`}
+            href={originalUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="relative flex flex-col overflow-hidden rounded-xl border bg-card w-40 sm:w-48 aspect-video shrink-0 shadow-sm"
@@ -258,11 +266,12 @@ export const AttachmentMessage = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="size-full overflow-hidden flex items-center justify-center bg-muted/10">
-              {isImage ? (
-                <img
-                  src={att.file.path.startsWith("/") ? att.file.path : `/${att.file.path}`}
+              {showThumb ? (
+                <FileThumb
+                  src={fileThumbnailUrl(att.file.path)}
                   alt={att.file.name}
                   className="size-full object-cover"
+                  iconClassName="h-8 w-8 text-muted-foreground/40"
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center p-4">

@@ -25,12 +25,15 @@ import {
   getFiles,
   uploadFile,
   formatFileSize,
-  isImageFile,
+  isThumbnailable,
+  fileResourceUrl,
+  fileThumbnailUrl,
   deleteFile,
   extractContent,
 } from "@/lib/api/files";
 import { File as ApiFile } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import { FileThumb } from "@/components/ui/file-thumb";
 
 
 interface FileManagerDialogProps {
@@ -184,7 +187,7 @@ export function FileManagerDialog({
     const selectedFiles = files.filter((f) => selectedFileIds.has(f.id));
     selectedFiles.forEach((file) => {
       const link = document.createElement("a");
-      link.href = file.path.startsWith("/") ? file.path : `/${file.path}`;
+      link.href = fileResourceUrl(file.path);
       link.download = file.name;
       document.body.appendChild(link);
       link.click();
@@ -360,7 +363,7 @@ export function FileManagerDialog({
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
               {filteredFiles.map((file) => {
                 const isSelected = selectedFileIds.has(file.id);
-                const isImage = isImageFile(file.name);
+                const showThumb = isThumbnailable(file.name, file.type);
 
                 return (
                   <div
@@ -372,12 +375,11 @@ export function FileManagerDialog({
                     )}
                   >
                     <div className="aspect-square w-full bg-background flex items-center justify-center overflow-hidden relative border-b">
-                      {isImage ? (
-                        <img
-                          src={file.path.startsWith("/") ? file.path : `/${file.path}`}
+                      {showThumb ? (
+                        <FileThumb
+                          src={fileThumbnailUrl(file.path)}
                           alt={file.name}
                           className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                          loading="lazy"
                         />
                       ) : (
                         <FileIcon className="h-8 w-8 text-muted-foreground/50" />
