@@ -25,12 +25,22 @@ const (
 	thumbSubdir      = "thumbs"
 	thumbExt         = ".jpg"
 	maxThumbSrcBytes = 50 << 20 // match upload limit
+	// Cap decoded pixel count to avoid multi‑hundred‑MB RGBA buffers.
+	maxThumbPixels = 16 << 20 // 16 megapixels
+	// Render PDF page directly near thumb size (not native ~300 DPI).
+	pdfThumbDPI = 72
+	// Bound concurrent thumb work (scroll can request dozens at once).
+	maxConcurrentThumbs = 2
 )
 
 var (
 	thumbFlight singleflight.Group
 	// serialize writers targeting the same path across flight misses
 	thumbPathMu sync.Map // string -> *sync.Mutex
+	// Global limit for CPU/RAM heavy generation.
+	thumbSem = make(chan struct{}, maxConcurrentThumbs)
+	// MuPDF / go-fitz is not safe for concurrent use across documents.
+	fitzMu sync.Mutex
 )
 
 // ThumbnailPath returns the on-disk path for an original resource path.
@@ -83,7 +93,9 @@ func EnsureThumbnail(originalPath, mimeType string) (string, error) {
 		if thumbExists(dst) {
 			return dst, nil
 		}
-		if err := generateThumbnailFile(originalPath, dst, mimeType); err != nil {
+		if err := withThumbSlot(func() error {
+			return generateThumbnailFile(originalPath, dst, mimeType)
+		}); err != nil {
 			return "", err
 		}
 		return dst, nil
@@ -108,19 +120,16 @@ func WriteThumbnailFromBytes(data []byte, originalPath string) error {
 		return fmt.Errorf("image too large for thumbnail")
 	}
 
-	mu := mutexFor(dst)
-	mu.Lock()
-	defer mu.Unlock()
+	return withThumbSlot(func() error {
+		mu := mutexFor(dst)
+		mu.Lock()
+		defer mu.Unlock()
 
-	if thumbExists(dst) {
-		return nil
-	}
-
-	img, _, err := image.Decode(bytes.NewReader(data))
-	if err != nil {
-		return err
-	}
-	return writeThumbnailImage(img, dst)
+		if thumbExists(dst) {
+			return nil
+		}
+		return decodeAndWriteThumb(data, dst)
+	})
 }
 
 // WritePDFThumbnail renders page 1 of a PDF on disk into the thumb path.
@@ -130,14 +139,22 @@ func WritePDFThumbnail(originalPath string) error {
 		return fmt.Errorf("invalid original path")
 	}
 
-	mu := mutexFor(dst)
-	mu.Lock()
-	defer mu.Unlock()
+	return withThumbSlot(func() error {
+		mu := mutexFor(dst)
+		mu.Lock()
+		defer mu.Unlock()
 
-	if thumbExists(dst) {
-		return nil
-	}
-	return writePDFThumbnail(originalPath, dst)
+		if thumbExists(dst) {
+			return nil
+		}
+		return writePDFThumbnail(originalPath, dst)
+	})
+}
+
+func withThumbSlot(fn func() error) error {
+	thumbSem <- struct{}{}
+	defer func() { <-thumbSem }()
+	return fn()
 }
 
 func generateThumbnailFile(srcPath, dstPath, mimeType string) error {
@@ -170,6 +187,17 @@ func generateThumbnailFile(srcPath, dstPath, mimeType string) error {
 	if len(data) > maxThumbSrcBytes {
 		return fmt.Errorf("image too large for thumbnail")
 	}
+	return decodeAndWriteThumb(data, dstPath)
+}
+
+func decodeAndWriteThumb(data []byte, dstPath string) error {
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	if err := checkThumbDimensions(cfg.Width, cfg.Height); err != nil {
+		return err
+	}
 
 	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
@@ -179,6 +207,10 @@ func generateThumbnailFile(srcPath, dstPath, mimeType string) error {
 }
 
 func writePDFThumbnail(srcPath, dstPath string) error {
+	// MuPDF is process-global unsafe under concurrent document use.
+	fitzMu.Lock()
+	defer fitzMu.Unlock()
+
 	doc, err := fitz.New(srcPath)
 	if err != nil {
 		return err
@@ -189,9 +221,12 @@ func writePDFThumbnail(srcPath, dstPath string) error {
 		return fmt.Errorf("pdf has no pages")
 	}
 
-	// First page (0-based). Matrix scales render; we still downscale to thumbMaxEdge.
-	img, err := doc.Image(0)
+	// Low DPI: page-sized raster near thumb resolution (Image() is ~300 DPI).
+	img, err := doc.ImageDPI(0, pdfThumbDPI)
 	if err != nil {
+		return err
+	}
+	if err := checkThumbDimensions(img.Bounds().Dx(), img.Bounds().Dy()); err != nil {
 		return err
 	}
 	return writeThumbnailImage(img, dstPath)
@@ -208,7 +243,8 @@ func writeThumbnailImage(img image.Image, dstPath string) error {
 	out := img
 	if tw != w || th != h {
 		dst := image.NewRGBA(image.Rect(0, 0, tw, th))
-		draw.CatmullRom.Scale(dst, dst.Bounds(), img, bounds, draw.Over, nil)
+		// ApproxBiLinear is much cheaper than CatmullRom for small thumbs.
+		draw.ApproxBiLinear.Scale(dst, dst.Bounds(), img, bounds, draw.Src, nil)
 		out = dst
 	}
 
@@ -236,6 +272,17 @@ func writeThumbnailImage(img image.Image, dstPath string) error {
 	if err := os.Rename(tmp, dstPath); err != nil {
 		_ = os.Remove(tmp)
 		return err
+	}
+	return nil
+}
+
+func checkThumbDimensions(w, h int) error {
+	if w <= 0 || h <= 0 {
+		return fmt.Errorf("invalid image dimensions: %dx%d", w, h)
+	}
+	// Guard overflow: w*h in int64
+	if int64(w)*int64(h) > maxThumbPixels {
+		return fmt.Errorf("image too many pixels for thumbnail: %dx%d", w, h)
 	}
 	return nil
 }

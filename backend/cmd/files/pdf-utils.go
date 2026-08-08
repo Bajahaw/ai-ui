@@ -24,6 +24,10 @@ var (
 )
 
 func readDocPages(path string, fileID string) ([]FilePage, error) {
+	// MuPDF is not safe for concurrent document use process-wide.
+	fitzMu.Lock()
+	defer fitzMu.Unlock()
+
 	doc, err := fitz.New(path)
 	if err != nil {
 		return nil, err
@@ -67,20 +71,24 @@ func (v *virtualFile) Close() error {
 }
 
 func RenderDocPageAsImage(path string, pageNumber int, user string) (File, error) {
-	doc, err := fitz.New(path)
-	if err != nil {
-		return File{}, err
-	}
-	defer doc.Close()
-
-	// Convert from 1-based (agent-facing) to 0-based (fitz library)
-	img, err := doc.Image(pageNumber - 1)
-	if err != nil {
-		return File{}, err
-	}
-
 	var buf bytes.Buffer
-	err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90})
+	err := func() error {
+		fitzMu.Lock()
+		defer fitzMu.Unlock()
+
+		doc, err := fitz.New(path)
+		if err != nil {
+			return err
+		}
+		defer doc.Close()
+
+		// Convert from 1-based (agent-facing) to 0-based (fitz library)
+		img, err := doc.ImageDPI(pageNumber-1, 144)
+		if err != nil {
+			return err
+		}
+		return jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90})
+	}()
 	if err != nil {
 		return File{}, err
 	}
