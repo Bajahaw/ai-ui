@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 
 export const AuthSection = () => {
+  const [currentPassword, setCurrentPassword] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -22,8 +23,26 @@ export const AuthSection = () => {
   } | null>(null);
   const [open, setOpen] = useState(false);
 
+  const resetForm = () => {
+    setCurrentPassword("");
+    setPassword("");
+    setConfirmPassword("");
+    setMessage(null);
+  };
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) {
+      resetForm();
+    }
+  };
+
   const handleSave = async () => {
     setMessage(null);
+    if (!currentPassword) {
+      setMessage({ text: "Current password is required", type: "error" });
+      return;
+    }
     if (password !== confirmPassword) {
       setMessage({ text: "Passwords do not match", type: "error" });
       return;
@@ -39,8 +58,9 @@ export const AuthSection = () => {
 
     setIsSaving(true);
     try {
-      await authAPI.changePassword(password);
+      await authAPI.changePassword(currentPassword, password);
       setMessage({ text: "Password changed successfully", type: "success" });
+      setCurrentPassword("");
       setPassword("");
       setConfirmPassword("");
       setTimeout(() => {
@@ -73,7 +93,7 @@ export const AuthSection = () => {
               Change your account password
             </p>
           </div>
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm">
                 <Lock className="mr-2 h-4 w-4" />
@@ -86,6 +106,17 @@ export const AuthSection = () => {
               </DialogHeader>
               <div className="space-y-4 pt-4">
                 <div className="space-y-2">
+                  <Label htmlFor="current-password">Current Password</Label>
+                  <Input
+                    id="current-password"
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Enter current password"
+                    autoComplete="current-password"
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="password">New Password</Label>
                   <Input
                     id="password"
@@ -93,6 +124,7 @@ export const AuthSection = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter new password"
+                    autoComplete="new-password"
                   />
                 </div>
                 <div className="space-y-2">
@@ -103,6 +135,7 @@ export const AuthSection = () => {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Confirm new password"
+                    autoComplete="new-password"
                   />
                 </div>
 
@@ -117,7 +150,12 @@ export const AuthSection = () => {
                 <div className="flex justify-end pt-2">
                   <Button
                     onClick={handleSave}
-                    disabled={isSaving || !password || !confirmPassword}
+                    disabled={
+                      isSaving ||
+                      !currentPassword ||
+                      !password ||
+                      !confirmPassword
+                    }
                   >
                     {isSaving ? "Saving..." : "Change Password"}
                   </Button>

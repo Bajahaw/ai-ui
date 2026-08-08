@@ -227,24 +227,51 @@ func TestChangePassword(t *testing.T) {
 			name:     "Valid Password Change",
 			username: "testuser",
 			payload: map[string]string{
-				"password": "newpassword123",
+				"current_password": "oldpass123",
+				"password":         "newpassword123",
 			},
 			expectedStatus: http.StatusNoContent,
 			checkHash:      true,
 		},
 		{
+			name:     "Wrong Current Password",
+			username: "testuser",
+			payload: map[string]string{
+				"current_password": "wrongpass",
+				"password":         "newpassword123",
+			},
+			expectedStatus: http.StatusUnauthorized,
+			checkHash:      false,
+		},
+		{
+			name:     "Missing Current Password",
+			username: "testuser",
+			payload: map[string]string{
+				"password": "newpassword123",
+			},
+			expectedStatus: http.StatusBadRequest,
+			checkHash:      false,
+		},
+		{
 			name:     "Short Password",
 			username: "testuser",
 			payload: map[string]string{
-				"password": "short",
+				"current_password": "oldpass123",
+				"password":         "short",
 			},
-			expectedStatus: http.StatusInternalServerError, // hashPassword returns error which we map to 500
+			expectedStatus: http.StatusBadRequest,
 			checkHash:      false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			// Reset password so cases are independent.
+			repo.users["testuser"] = &User{
+				Username: "testuser",
+				passHash: string(oldHash),
+			}
+
 			body, _ := json.Marshal(tc.payload)
 			req := httptest.NewRequest("POST", "/change-pass", bytes.NewBuffer(body))
 

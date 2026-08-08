@@ -80,8 +80,14 @@ export class AuthAPI {
     }, "login");
   }
 
-  // POST /api/auth/change-pass - Change user password
-  async changePassword(password: string): Promise<void> {
+  // POST /api/auth/change-pass - Change user password (requires current password)
+  async changePassword(
+    currentPassword: string,
+    password: string,
+  ): Promise<void> {
+    if (!currentPassword) {
+      throw new Error("Current password is required");
+    }
     if (!password) {
       throw new Error("Password is required");
     }
@@ -92,7 +98,10 @@ export class AuthAPI {
         headers: getHeaders({
           "Content-Type": "application/json",
         }),
-        body: JSON.stringify({ password: password }),
+        body: JSON.stringify({
+          current_password: currentPassword,
+          password,
+        }),
         credentials: "include",
       });
 

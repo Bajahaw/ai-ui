@@ -97,15 +97,30 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Password string `json:"password"`
+		CurrentPassword string `json:"current_password"`
+		Password        string `json:"password"`
 	}
 	if err := utils.ExtractJSONBody(r, &req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
+	if req.CurrentPassword == "" {
+		http.Error(w, "Current password is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := verifyUserCredentials(username, req.CurrentPassword); err != nil {
+		http.Error(w, "Invalid current password", http.StatusUnauthorized)
+		return
+	}
+
 	hash, err := hashPassword(req.Password)
 	if err != nil {
+		if err.Error() == "Invalid password length" {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "Failed to hash password", http.StatusInternalServerError)
 		return
 	}
