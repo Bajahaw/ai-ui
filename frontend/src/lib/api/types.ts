@@ -2,6 +2,7 @@
 
 export interface AuthStatus {
   authenticated: boolean;
+  registration_enabled: boolean;
 }
 
 // File types

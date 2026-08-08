@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -26,14 +26,27 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const { login, register, loginWithChatGPT, isLoading, error, clearError } =
-    useAuth();
+  const {
+    login,
+    register,
+    loginWithChatGPT,
+    isLoading,
+    error,
+    clearError,
+    registrationEnabled,
+  } = useAuth();
   const [validationError, setValidationError] = useState<string | null>(null);
   const [chatgptLoading, setChatgptLoading] = useState(false);
 
   const isControlled = open !== undefined && onOpenChange !== undefined;
   const dialogOpen = isControlled ? open : isDialogOpen;
   const setDialogOpen = isControlled ? onOpenChange : setIsDialogOpen;
+
+  useEffect(() => {
+    if (!registrationEnabled) {
+      setIsLoginMode(true);
+    }
+  }, [registrationEnabled]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -339,18 +352,20 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
               chatting right away.
             </p>
 
-            <div className="pt-2 text-center">
-              <button
-                type="button"
-                onClick={toggleMode}
-                className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors"
-                disabled={isLoading || chatgptLoading}
-              >
-                {isLoginMode
-                  ? "Don't have an account? Register"
-                  : "Already have an account? Login"}
-              </button>
-            </div>
+            {registrationEnabled && (
+              <div className="pt-2 text-center">
+                <button
+                  type="button"
+                  onClick={toggleMode}
+                  className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors"
+                  disabled={isLoading || chatgptLoading}
+                >
+                  {isLoginMode
+                    ? "Don't have an account? Register"
+                    : "Already have an account? Login"}
+                </button>
+              </div>
+            )}
           </form>
         </div>
       </DialogContent>

@@ -126,6 +126,15 @@ func pollChatGPTLogin(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Sign-in mode: map ChatGPT account to a local user (account-id based).
 		username = chatgptoauth.UsernameFromAccount(pending.Tokens.AccountID, "")
+		if !allowRegistration {
+			if _, err := users.GetByUsername(username); err != nil {
+				utils.RespondWithJSON(w, chatgptStatusResponse{
+					Status: "error",
+					Error:  "Registration is disabled",
+				}, http.StatusOK)
+				return
+			}
+		}
 		var err error
 		username, created, err = EnsureOAuthUser(username)
 		if err != nil {

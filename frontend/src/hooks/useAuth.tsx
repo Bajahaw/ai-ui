@@ -12,6 +12,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isCheckingAuth: boolean;
   isLoading: boolean;
+  /** Whether new account creation is allowed (password register + new ChatGPT users). */
+  registrationEnabled: boolean;
   /** True while waiting for ChatGPT OAuth (popup or manual paste). */
   chatgptOAuthPending: boolean;
   login: (username: string, password: string) => Promise<void>;
@@ -36,6 +38,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [registrationEnabled, setRegistrationEnabled] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [chatgptOAuthPending, setChatgptOAuthPending] = useState(false);
   const oauthAbortRef = useRef<AbortController | null>(null);
@@ -46,6 +49,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         const status = await authAPI.getAuthStatus();
         setIsAuthenticated(status.authenticated);
+        setRegistrationEnabled(status.registration_enabled !== false);
       } catch (err) {
         console.error("Error checking auth status:", err);
         setIsAuthenticated(false);
@@ -254,6 +258,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated,
     isCheckingAuth,
     isLoading,
+    registrationEnabled,
     chatgptOAuthPending,
     login,
     loginWithChatGPT,

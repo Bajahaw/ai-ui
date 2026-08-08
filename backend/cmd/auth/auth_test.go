@@ -61,6 +61,7 @@ func setupTest() *MockUserRepository {
 	users = repo
 
 	JWT_SECRET = "test-secret-key"
+	allowRegistration = true
 
 	return repo
 }
@@ -111,6 +112,20 @@ func TestRegister(t *testing.T) {
 				t.Errorf("Expected status %d, got %d", tc.expectedStatus, w.Code)
 			}
 		})
+	}
+}
+
+func TestRegisterDisabled(t *testing.T) {
+	setupTest()
+	allowRegistration = false
+
+	body, _ := json.Marshal(RegisterRequest{Username: "newuser", Password: "password123"})
+	req := httptest.NewRequest("POST", "/register", bytes.NewBuffer(body))
+	w := httptest.NewRecorder()
+	Register().ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("Expected status %d, got %d", http.StatusForbidden, w.Code)
 	}
 }
 
@@ -313,7 +328,25 @@ func TestAuthStatus(t *testing.T) {
 			if status.Authenticated != tc.authenticated {
 				t.Errorf("Expected authenticated=%v, got %v", tc.authenticated, status.Authenticated)
 			}
+			if !status.RegistrationEnabled {
+				t.Errorf("Expected registration_enabled=true by default")
+			}
 		})
+	}
+}
+
+func TestAuthStatusRegistrationDisabled(t *testing.T) {
+	setupTest()
+	allowRegistration = false
+
+	req := httptest.NewRequest("GET", "/status", nil)
+	w := httptest.NewRecorder()
+	GetAuthStatus().ServeHTTP(w, req)
+
+	var status AuthStatus
+	json.NewDecoder(w.Body).Decode(&status)
+	if status.RegistrationEnabled {
+		t.Error("Expected registration_enabled=false")
 	}
 }
 

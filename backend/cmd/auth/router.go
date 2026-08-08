@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/Bajahaw/ai-ui/cmd/utils"
 
@@ -14,7 +15,8 @@ import (
 )
 
 type AuthStatus struct {
-	Authenticated bool `json:"authenticated"`
+	Authenticated       bool `json:"authenticated"`
+	RegistrationEnabled bool `json:"registration_enabled"`
 }
 
 type RegisterRequest struct {
@@ -32,6 +34,10 @@ var db *sql.DB
 var users UserRepository
 var JWT_SECRET string
 
+// allowRegistration gates POST /register and new ChatGPT OAuth user creation.
+// Default true when unset so existing deploys keep open signup.
+var allowRegistration = true
+
 const AUTH_COOKIE = "auth_token"
 
 func Setup(l *logger.Logger, d *sql.DB) {
@@ -42,6 +48,30 @@ func Setup(l *logger.Logger, d *sql.DB) {
 	if JWT_SECRET == "" {
 		JWT_SECRET = rand.Text()
 		log.Warn("JWT_SECRET not set in environment; using random secret for this session")
+	}
+	allowRegistration = parseBoolEnv("ALLOW_REGISTRATION", true)
+	if !allowRegistration {
+		log.Info("Registration is disabled (ALLOW_REGISTRATION=false)")
+	}
+}
+
+// RegistrationAllowed reports whether new account creation is permitted.
+func RegistrationAllowed() bool {
+	return allowRegistration
+}
+
+func parseBoolEnv(key string, defaultVal bool) bool {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return defaultVal
+	}
+	switch strings.ToLower(v) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return defaultVal
 	}
 }
 
@@ -95,6 +125,11 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 
 func Register() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !allowRegistration {
+			http.Error(w, "Registration is disabled", http.StatusForbidden)
+			return
+		}
+
 		var req RegisterRequest
 		if err := utils.ExtractJSONBody(r, &req); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -181,7 +216,10 @@ func Authenticated(next http.Handler) http.Handler {
 
 func GetAuthStatus() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		status := AuthStatus{Authenticated: false}
+		status := AuthStatus{
+			Authenticated:       false,
+			RegistrationEnabled: allowRegistration,
+		}
 
 		cookie, err := r.Cookie(AUTH_COOKIE)
 		if err != nil {
