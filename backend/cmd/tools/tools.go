@@ -189,13 +189,9 @@ func ExecuteMCPTool(ctx context.Context, toolCall providers.ToolCall, user, conv
 		return providers.ToolOutput{Content: "Tool execution failed!"}
 	}
 
-	output := result.Content
-	// output is an array of mcp.Content objects
-	log.Debug(len(output))
-	log.Debug(output)
-
-	rawJSON, _ := json.Marshal(output)
-	return providers.ToolOutput{Content: string(rawJSON)}
+	out := parseMCPToolResult(result, user)
+	log.Debug("Parsed MCP tool result", "tool", tool.Name, "contentLen", len(out.Content), "fileID", out.FileID, "isError", result.IsError)
+	return out
 }
 
 func GetAvailableTools(user string) []*Tool {
