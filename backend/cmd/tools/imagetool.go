@@ -107,6 +107,7 @@ func generateImageTool(args string, user string, convID string) providers.ToolOu
 	}
 
 	return providers.ToolOutput{
+		FileID: fileData.ID,
 		Content: fmt.Sprintf("Image generated successfully. File ID: %s Name: %s Path: %s",
 			fileData.ID, fileData.Name, fileData.Path,
 		),

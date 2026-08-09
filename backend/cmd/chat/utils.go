@@ -149,14 +149,12 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 				}
 				messages = append(messages, assistantMsg)
 
-				// TODO: remove this temp hack
-				// swap to base64 instead of file id
-				tool.File = convertToolCallFileIDToBase64(tool.File, user)
-
-				messages = append(messages, providers.SimpleMessage{
+				toolMsg := providers.SimpleMessage{
 					Role:     "tool",
-					ToolCall: *tool,
-				})
+					ToolCall: *tool, // FileID stays an id
+				}
+				toolMsg.Images, toolMsg.Files = resolveToolFileMedia(tool.FileID, user)
+				messages = append(messages, toolMsg)
 			}
 			continue
 		}
@@ -207,26 +205,32 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 	return messages
 }
 
-func convertToolCallFileIDToBase64(f, user string) string {
-	if f != "" {
-		file, err := files.GetByIDs([]string{f}, user)
-		if err != nil {
-			log.Error("Error fetching tool call file", "err", err)
-		}
-
-		if len(file) > 0 {
-			data, err := os.ReadFile(file[0].Path)
-			if err != nil {
-				log.Error("Error reading tool call file", "err", err)
-			} else {
-				mimeType := strings.Split(file[0].Type, ";")[0]
-				f = "data:" + strings.ReplaceAll(mimeType, " ", "") + ";base64," + toBase64(data)
-			}
-		}
+// resolveToolFileMedia loads a tool-produced file by id and returns data URLs
+// for the provider request. ToolCall.FileID is never mutated.
+func resolveToolFileMedia(fileID, user string) (images, fileDataURLs []string) {
+	if fileID == "" {
+		return nil, nil
 	}
-
-	return f
-
+	found, err := files.GetByIDs([]string{fileID}, user)
+	if err != nil {
+		log.Error("Error fetching tool call file", "err", err)
+		return nil, nil
+	}
+	if len(found) == 0 {
+		return nil, nil
+	}
+	data, err := os.ReadFile(found[0].Path)
+	if err != nil {
+		log.Error("Error reading tool call file", "err", err)
+		return nil, nil
+	}
+	mimeType := strings.Split(found[0].Type, ";")[0]
+	mimeType = strings.ReplaceAll(mimeType, " ", "")
+	dataURL := "data:" + mimeType + ";base64," + toBase64(data)
+	if strings.HasPrefix(mimeType, "image/") {
+		return []string{dataURL}, nil
+	}
+	return nil, []string{dataURL}
 }
 
 func enterAgentLoop(
@@ -269,7 +273,7 @@ func enterAgentLoop(
 		}
 
 		toolCall.Output = result.Content
-		toolCall.File = result.File
+		toolCall.FileID = result.FileID
 
 		utils.SendStreamChunk(sc, utils.StreamChunk{
 			Type:    utils.TOOL_CALL,
@@ -281,19 +285,21 @@ func enterAgentLoop(
 			log.Error("Error saving tool call output", "err", err)
 		}
 
-		// Append tool result message to context for continued completion
-		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
+		// Append tool result; resolve file id to media on the message only.
+		toolMsg := providers.SimpleMessage{
 			Role: "tool",
 			ToolCall: providers.ToolCall{
 				ID:          toolCall.ID,
 				ReferenceID: toolCall.ReferenceID,
 				Name:        toolCall.Name,
 				Output:      toolCall.Output,
-				File:        convertToolCallFileIDToBase64(toolCall.File, user),
+				FileID:      toolCall.FileID,
 				TokenCount:  toolCall.TokenCount,
 				ContextSize: toolCall.ContextSize,
 			},
-		})
+		}
+		toolMsg.Images, toolMsg.Files = resolveToolFileMedia(toolCall.FileID, user)
+		providerParams.Messages = append(providerParams.Messages, toolMsg)
 
 	}
 

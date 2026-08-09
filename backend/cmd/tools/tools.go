@@ -343,7 +343,7 @@ func viewDocumentPageTool(args, user, convID string) providers.ToolOutput {
 		return providers.ToolOutput{Content: fmt.Sprintf("error rendering document page: %v", err)}
 	}
 
-	return providers.ToolOutput{File: imgData.ID, Content: fmt.Sprintf("Rendered page %d of document %s as image. Screenshot ID: %s Path: /%s", params.PageNumber, docs[0].Name, imgData.ID, imgData.Path)}
+	return providers.ToolOutput{FileID: imgData.ID, Content: fmt.Sprintf("Rendered page %d of document %s as image. Screenshot ID: %s Path: /%s", params.PageNumber, docs[0].Name, imgData.ID, imgData.Path)}
 }
 
 func readSkillTool(args, user string) providers.ToolOutput {

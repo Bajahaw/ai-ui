@@ -57,14 +57,14 @@ type ToolCall struct {
 	Name        string `json:"name"`
 	Args        string `json:"args,omitempty"`
 	Output      string `json:"tool_output,omitempty"`
-	File        string `json:"files,omitempty"`
+	FileID      string `json:"file_id,omitempty"` // persisted file id only; never a data URL
 	TokenCount  int    `json:"tokenCount,omitempty"`
 	ContextSize int    `json:"contextSize,omitempty"`
 }
 
 type ToolOutput struct {
 	Content string `json:"content"`
-	File    string `json:"file_ids,omitempty"`
+	FileID  string `json:"file_id,omitempty"` // persisted file id only; never a data URL
 }
 
 func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompletionMessage, error) {

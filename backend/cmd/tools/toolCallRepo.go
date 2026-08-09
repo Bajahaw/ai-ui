@@ -22,8 +22,8 @@ func NewToolCallsRepository(db *sql.DB) ToolCallsRepository {
 
 func (repo *ToolCallsRepositoryImpl) Save(toolCall *providers.ToolCall) error {
 	var fileID any
-	if toolCall.File != "" {
-		fileID = toolCall.File
+	if toolCall.FileID != "" {
+		fileID = toolCall.FileID
 	} else {
 		fileID = nil
 	}
@@ -61,7 +61,7 @@ func (repo *ToolCallsRepositoryImpl) GetAllByMessageID(messageID int) []*provide
 			return toolCalls
 		}
 		if fileID.Valid {
-			toolCall.File = fileID.String
+			toolCall.FileID = fileID.String
 		}
 
 		toolCalls = append(toolCalls, &toolCall)
@@ -98,7 +98,7 @@ func (repo *ToolCallsRepositoryImpl) GetAllByConvID(convID string) []*providers.
 			return toolCalls
 		}
 		if fileID.Valid {
-			toolCall.File = fileID.String
+			toolCall.FileID = fileID.String
 		}
 
 		toolCalls = append(toolCalls, &toolCall)

@@ -95,31 +95,41 @@ func OpenAIMessageParams(params *openai.ChatCompletionNewParams, messages []Simp
 			)
 			openaiMessages = append(openaiMessages, toolMsg)
 
-			// If the tool produced an attachment, append a follow-up user message
-			// with the file/image content. This keeps role:"tool" intact while
-			// still letting the model see the attachment.
-			if msg.ToolCall.File != "" {
-				attachmentMsg := openai.ChatCompletionMessageParamUnion{
-					OfUser: &openai.ChatCompletionUserMessageParam{
-						Content: openai.ChatCompletionUserMessageParamContentUnion{
-							OfArrayOfContentParts: []openai.ChatCompletionContentPartUnionParam{
-								{
-									OfText: &openai.ChatCompletionContentPartTextParam{
-										Text: "Here is the result from tool '" + msg.ToolCall.Name + "':",
-									},
-								},
-								{
-									OfImageURL: &openai.ChatCompletionContentPartImageParam{
-										ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
-											URL: msg.ToolCall.File,
-										},
-									},
-								},
-							},
+			// Media for tool results is resolved in chat onto SimpleMessage.Images/Files
+			// (data URLs). FileID on ToolCall stays a persisted id only.
+			if len(msg.Images) > 0 || len(msg.Files) > 0 {
+				parts := []openai.ChatCompletionContentPartUnionParam{
+					{
+						OfText: &openai.ChatCompletionContentPartTextParam{
+							Text: "Here is the result from tool '" + msg.ToolCall.Name + "':",
 						},
 					},
 				}
-				openaiMessages = append(openaiMessages, attachmentMsg)
+				for _, imageURL := range msg.Images {
+					parts = append(parts, openai.ChatCompletionContentPartUnionParam{
+						OfImageURL: &openai.ChatCompletionContentPartImageParam{
+							ImageURL: openai.ChatCompletionContentPartImageImageURLParam{
+								URL: imageURL,
+							},
+						},
+					})
+				}
+				for _, fileData := range msg.Files {
+					parts = append(parts, openai.ChatCompletionContentPartUnionParam{
+						OfFile: &openai.ChatCompletionContentPartFileParam{
+							File: openai.ChatCompletionContentPartFileFileParam{
+								FileData: param.Opt[string]{Value: fileData},
+							},
+						},
+					})
+				}
+				openaiMessages = append(openaiMessages, openai.ChatCompletionMessageParamUnion{
+					OfUser: &openai.ChatCompletionUserMessageParam{
+						Content: openai.ChatCompletionUserMessageParamContentUnion{
+							OfArrayOfContentParts: parts,
+						},
+					},
+				})
 			}
 
 		default:
