@@ -9,7 +9,7 @@ import {
   Attachment,
   WelcomeStats,
 } from "@/lib/api";
-import { getSessionId } from "@/lib/api/headers";
+import { getSessionId, rotateSessionId } from "@/lib/api/headers";
 import { ApiErrorHandler } from "@/lib/api/errorHandler";
 import {
   ClientConversation,
@@ -82,8 +82,10 @@ function createStreamingHandlers(
   assistantPlaceholderRef: { current: string },
   streamingState: StreamingState,
   syncConversations: () => void,
+  isCurrent: () => boolean = () => true,
 ) {
   const onChunk = (chunk: string) => {
+    if (!isCurrent()) return;
     streamingState.addContent(chunk);
 
     // Update content immediately (no sync yet)
@@ -97,6 +99,7 @@ function createStreamingHandlers(
   };
 
   const onReasoning = (reasoning: string) => {
+    if (!isCurrent()) return;
     streamingState.addReasoning(reasoning);
 
     // Update reasoning immediately (no sync yet)
@@ -114,6 +117,7 @@ function createStreamingHandlers(
   };
 
   const onToolCall = (toolCall: ToolCall) => {
+    if (!isCurrent()) return;
     manager.addToolCall(
       conversationId,
       assistantPlaceholderRef.current,
@@ -373,6 +377,12 @@ export const useConversations = () => {
   const activeStreamAssistantMessageIdRef = useRef<number | null>(null);
   const needsFocusRefreshRef = useRef(false);
   const focusRefreshInFlightRef = useRef(false);
+  const [sseEpoch, setSseEpoch] = useState(0);
+  const sseRef = useRef<EventSource | null>(null);
+  const streamAbortRef = useRef<AbortController | null>(null);
+  const connectionEpochRef = useRef(0);
+  const lastRecoverAtRef = useRef(0);
+  const recoverDeadConnectionRef = useRef<() => void>(() => {});
 
   const managerRef = useRef(new ClientConversationManager());
   const manager = managerRef.current;
@@ -392,6 +402,7 @@ export const useConversations = () => {
     const sessionId = getSessionId();
 
     const es = conversationsAPI.createSyncEventSource(sessionId);
+    sseRef.current = es;
 
     es.onmessage = (e) => {
       try {
@@ -422,22 +433,31 @@ export const useConversations = () => {
 
     es.onerror = () => {
       needsFocusRefreshRef.current = true;
-      console.warn("SSE sync connection error, browser will auto-reconnect...");
+      if (es.readyState === EventSource.CLOSED) {
+        recoverDeadConnectionRef.current();
+      } else {
+        console.warn("SSE sync connection error, browser will auto-reconnect...");
+      }
     };
 
     return () => {
       es.close();
+      if (sseRef.current === es) {
+        sseRef.current = null;
+      }
     };
-  }, [isAuthenticated, manager, syncConversations]);
+  }, [isAuthenticated, manager, syncConversations, sseEpoch]);
 
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (opts?: { silent?: boolean }) => {
     // Skip if not authenticated to prevent 401 errors
     if (!isAuthenticated) {
       return;
     }
 
     try {
-      setIsLoading(true);
+      if (!opts?.silent) {
+        setIsLoading(true);
+      }
       setError(null);
 
       const backendConversations = await conversationsAPI.fetchConversations();
@@ -471,43 +491,134 @@ export const useConversations = () => {
     }
   }, [isAuthenticated, manager, syncConversations]);
 
+  const refreshLoadedMessages = useCallback(async () => {
+    const loadedIds: string[] = [];
+    for (const c of manager.getAllConversations()) {
+      if (manager.hasLoadedMessages(c.id)) {
+        loadedIds.push(c.id);
+      }
+    }
+
+    await Promise.all(
+      loadedIds.map(async (id) => {
+        try {
+          const msgs = await conversationsAPI.fetchConversationMessages(id);
+          manager.updateWithChatResponse(id, msgs);
+        } catch (err) {
+          console.error("Failed to refresh conversation messages:", err);
+        }
+      }),
+    );
+    syncConversations();
+  }, [manager, syncConversations]);
+
+  const recoverDeadConnection = useCallback(async () => {
+    if (!isAuthenticated) {
+      return;
+    }
+    if (focusRefreshInFlightRef.current) {
+      return;
+    }
+    if (Date.now() - lastRecoverAtRef.current < 3000) {
+      return;
+    }
+
+    lastRecoverAtRef.current = Date.now();
+    focusRefreshInFlightRef.current = true;
+    try {
+      connectionEpochRef.current += 1;
+      activeStreamAssistantMessageIdRef.current = null;
+      streamAbortRef.current?.abort();
+      streamAbortRef.current = null;
+      manager.abandonInFlightStreams();
+      rotateSessionId();
+      setSseEpoch((n) => n + 1);
+      await loadConversations({ silent: true });
+      await refreshLoadedMessages();
+    } finally {
+      needsFocusRefreshRef.current = false;
+      focusRefreshInFlightRef.current = false;
+    }
+  }, [isAuthenticated, manager, loadConversations, refreshLoadedMessages]);
+
+  useEffect(() => {
+    recoverDeadConnectionRef.current = () => {
+      void recoverDeadConnection();
+    };
+  }, [recoverDeadConnection]);
+
   useEffect(() => {
     if (!isAuthenticated) {
       return;
     }
 
-    const refreshIfNeeded = async () => {
+    const sseIsDead = () => {
+      const es = sseRef.current;
+      return !!es && es.readyState === EventSource.CLOSED;
+    };
+
+    const refreshListIfNeeded = async () => {
       if (!needsFocusRefreshRef.current || focusRefreshInFlightRef.current) {
         return;
       }
 
       focusRefreshInFlightRef.current = true;
       try {
-        await loadConversations();
+        await loadConversations({ silent: true });
       } finally {
         needsFocusRefreshRef.current = false;
         focusRefreshInFlightRef.current = false;
       }
     };
 
+    const onVisible = () => {
+      if (sseIsDead()) {
+        void recoverDeadConnection();
+        return;
+      }
+      void refreshListIfNeeded();
+    };
+
     const onFocus = () => {
-      void refreshIfNeeded();
+      onVisible();
     };
 
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        void refreshIfNeeded();
+        onVisible();
       }
     };
 
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted || sseIsDead()) {
+        void recoverDeadConnection();
+      }
+    };
+
+    const onOnline = () => {
+      if (sseIsDead()) {
+        void recoverDeadConnection();
+      }
+    };
+
+    const onResume = () => {
+      onVisible();
+    };
+
     window.addEventListener("focus", onFocus);
+    window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("resume", onResume);
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("resume", onResume);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [isAuthenticated, loadConversations]);
+  }, [isAuthenticated, loadConversations, recoverDeadConnection]);
 
   // Only load conversations when authenticated
   useEffect(() => {
@@ -803,6 +914,7 @@ export const useConversations = () => {
       let tempMessageId: string | undefined;
       let assistantPlaceholderId: string | undefined;
       let clientConversationId = conversationId;
+      const streamEpoch = connectionEpochRef.current;
 
       try {
         setError(null);
@@ -913,9 +1025,13 @@ export const useConversations = () => {
           assistantPlaceholderRef,
           streamingState,
           syncConversations,
+          () => connectionEpochRef.current === streamEpoch,
         );
 
         let streamError: string | undefined;
+        streamAbortRef.current?.abort();
+        const streamAbort = new AbortController();
+        streamAbortRef.current = streamAbort;
 
         // Extract file IDs for API call
         const attachedFileIds = attachments?.map((a) => a.file.id);
@@ -934,6 +1050,9 @@ export const useConversations = () => {
           handlers.onToolCall,
           // onMetadata - Update user message immediately
           (metadata) => {
+            if (connectionEpochRef.current !== streamEpoch) {
+              return;
+            }
             // Save user message first so it's in the backend tree with correct
             // activeMessageId before the assistant swap runs.
             if (tempMessageId) {
@@ -966,6 +1085,9 @@ export const useConversations = () => {
           },
           // onComplete - Update IDs (called even after errors!)
           (data) => {
+            if (connectionEpochRef.current !== streamEpoch) {
+              return;
+            }
             activeStreamAssistantMessageIdRef.current = null;
             if (assistantPlaceholderRef.current) {
               updateAssistantMessageAfterComplete(
@@ -984,18 +1106,26 @@ export const useConversations = () => {
           },
           // onError - Just capture the error, onComplete will handle it
           (error) => {
+            if (connectionEpochRef.current !== streamEpoch) {
+              return;
+            }
             console.error("Stream error:", error);
             activeStreamAssistantMessageIdRef.current = null;
             streamingState.cancelPendingSync();
             streamError = error;
           },
           sessionId,
+          streamAbort.signal,
         );
         return conversationId;
       } catch (err) {
         console.error("Failed to send message:", err);
 
-        if (assistantPlaceholderId && clientConversationId) {
+        if (
+          connectionEpochRef.current === streamEpoch &&
+          assistantPlaceholderId &&
+          clientConversationId
+        ) {
           const errorMsg = ApiErrorHandler.getUserFriendlyMessage(err);
           manager.markAssistantFailed(
             clientConversationId,
@@ -1063,6 +1193,7 @@ export const useConversations = () => {
         syncConversations();
 
         // Initialize streaming state and handlers
+        const streamEpoch = connectionEpochRef.current;
         const streamingState = new StreamingState();
         const assistantPlaceholderRef = { current: assistantPlaceholderId };
         const handlers = createStreamingHandlers(
@@ -1071,9 +1202,13 @@ export const useConversations = () => {
           assistantPlaceholderRef,
           streamingState,
           syncConversations,
+          () => connectionEpochRef.current === streamEpoch,
         );
 
         let streamError: string | undefined;
+        streamAbortRef.current?.abort();
+        const streamAbort = new AbortController();
+        streamAbortRef.current = streamAbort;
         const sessionId = getSessionId();
 
         await chatAPI.retryMessageStream(
@@ -1085,6 +1220,9 @@ export const useConversations = () => {
           handlers.onToolCall,
           // onMetadata (not strictly needed here)
           (metadata) => {
+            if (connectionEpochRef.current !== streamEpoch) {
+              return;
+            }
             if (metadata.assistantMessageId) {
               activeStreamAssistantMessageIdRef.current =
                 metadata.assistantMessageId;
@@ -1103,6 +1241,9 @@ export const useConversations = () => {
           },
           // onComplete - Update IDs (called even after errors!)
           (data) => {
+            if (connectionEpochRef.current !== streamEpoch) {
+              return;
+            }
             activeStreamAssistantMessageIdRef.current = null;
             updateAssistantMessageAfterComplete(
               manager,
@@ -1119,12 +1260,16 @@ export const useConversations = () => {
           },
           // onError - Just capture the error, onComplete will handle it
           (err) => {
+            if (connectionEpochRef.current !== streamEpoch) {
+              return;
+            }
             console.error("Retry stream error:", err);
             activeStreamAssistantMessageIdRef.current = null;
             streamingState.cancelPendingSync();
             streamError = err;
           },
           sessionId,
+          streamAbort.signal,
         );
       } catch (err) {
         console.error("Failed to retry message (stream):", err);

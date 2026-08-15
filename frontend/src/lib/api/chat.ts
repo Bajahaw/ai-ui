@@ -32,6 +32,7 @@ export class ChatAPI {
     onComplete?: (data: StreamComplete) => void,
     onError?: (error: string) => void,
     sessionId?: string,
+    signal?: AbortSignal,
   ): Promise<void> {
     if (!model) {
       throw new Error("Valid model is required");
@@ -53,6 +54,15 @@ export class ChatAPI {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30 * 60 * 1000); // 30 minutes timeout
+      if (signal) {
+        if (signal.aborted) {
+          controller.abort();
+        } else {
+          signal.addEventListener("abort", () => controller.abort(), {
+            once: true,
+          });
+        }
+      }
       const response = await fetch("/api/chat/stream", {
         method: "POST",
         headers: getHeaders({
@@ -182,6 +192,7 @@ export class ChatAPI {
     onComplete?: (data: StreamComplete) => void,
     onError?: (error: string) => void,
     sessionId?: string,
+    signal?: AbortSignal,
   ): Promise<void> {
     if (!conversationId) {
       throw new Error("Valid conversation ID is required");
@@ -199,6 +210,15 @@ export class ChatAPI {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30 * 60 * 1000); // 30 minutes timeout
+      if (signal) {
+        if (signal.aborted) {
+          controller.abort();
+        } else {
+          signal.addEventListener("abort", () => controller.abort(), {
+            once: true,
+          });
+        }
+      }
       const response = await fetch("/api/chat/retry/stream", {
         method: "POST",
         headers: getHeaders({

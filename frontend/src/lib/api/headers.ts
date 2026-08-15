@@ -9,6 +9,12 @@ export function getSessionId(): string {
   return sessionId;
 }
 
+export function rotateSessionId(): string {
+  const sessionId = crypto.randomUUID();
+  sessionStorage.setItem(SESSION_ID_KEY, sessionId);
+  return sessionId;
+}
+
 export function getHeaders(init?: HeadersInit): Headers {
   const headers = new Headers(init);
   headers.set("X-Session-ID", getSessionId());

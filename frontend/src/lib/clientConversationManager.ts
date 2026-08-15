@@ -426,6 +426,15 @@ export class ClientConversationManager {
     }
   }
 
+  abandonInFlightStreams(): void {
+    for (const conversation of this.conversations.values()) {
+      conversation.pendingMessageIds.clear();
+      conversation.messages = conversation.messages.filter(
+        (m) => !isNaN(parseInt(m.id, 10)),
+      );
+    }
+  }
+
   markAssistantFailed(
     conversationId: string,
     assistantMessageId: string,
