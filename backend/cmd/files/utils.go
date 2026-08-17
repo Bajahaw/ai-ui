@@ -93,18 +93,6 @@ func saveUploadedFile(file multipart.File, handler *multipart.FileHeader, user s
 		UploadedAt: uploadedAt.Format(time.RFC3339),
 	}
 
-	urlPath := strings.TrimPrefix(fileData.Path, ".")
-
-	if !strings.HasPrefix(urlPath, "/") {
-		urlPath = "/" + urlPath
-	}
-
-	if !strings.HasPrefix(urlPath, "/data/resources/") {
-		urlPath = "/data/resources/" + strings.TrimPrefix(urlPath, "/")
-	}
-
-	// fileUrl := utils.GetServerURL(r) + urlPath
-
 	createdAt := time.Now()
 	lastModifiedStr := handler.Header.Get("Last-Modified")
 	if lastModifiedStr != "" {
@@ -114,7 +102,6 @@ func saveUploadedFile(file multipart.File, handler *multipart.FileHeader, user s
 	}
 
 	fileData.User = user
-	// fileData.URL = fileUrl
 	fileData.CreatedAt = createdAt.Format(time.RFC3339)
 
 	log.Debug("Uploaded file data", "file", fileData)
@@ -210,6 +197,21 @@ func compressImage(r io.Reader) (*bytes.Buffer, error) {
 	}
 
 	return buf, nil
+}
+
+// ResourcePath is the markdown-safe internal path (e.g. /data/resources/{id}.ext).
+func ResourcePath(f File) string {
+	p := strings.ReplaceAll(strings.TrimSpace(f.Path), "\\", "/")
+	p = strings.TrimPrefix(p, ".")
+	p = strings.TrimPrefix(p, "/")
+	if i := strings.Index(p, "data/resources/"); i >= 0 {
+		return "/" + p[i:]
+	}
+	base := path.Base(p)
+	if base != "" && base != "." && base != "/" {
+		return "/data/resources/" + base
+	}
+	return ""
 }
 
 // extractFileContent extracts text content from the file at the given URL.

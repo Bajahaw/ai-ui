@@ -80,6 +80,24 @@ func multipartPDF(t *testing.T, name string, data []byte) (multipart.File, *mult
 	return &virtualFile{Reader: bytes.NewReader(data)}, header
 }
 
+func TestResourcePath(t *testing.T) {
+	if got := ResourcePath(File{Path: "./data/resources/abc.xlsx"}); got != "/data/resources/abc.xlsx" {
+		t.Fatalf("dot path: %q", got)
+	}
+	if got := ResourcePath(File{Path: `data\resources\abc.xlsx`}); got != "/data/resources/abc.xlsx" {
+		t.Fatalf("windows path: %q", got)
+	}
+	if got := ResourcePath(File{Path: "/tmp/shot.png"}); got != "/data/resources/shot.png" {
+		t.Fatalf("basename fallback: %q", got)
+	}
+	if got := ResourcePath(File{URL: "/data/resources/abc.xlsx"}); got != "" {
+		t.Fatalf("must ignore deprecated URL: %q", got)
+	}
+	if got := ResourcePath(File{}); got != "" {
+		t.Fatalf("empty: %q", got)
+	}
+}
+
 func TestSavePages_RequiresParentFile(t *testing.T) {
 	repo, _ := setupTestDB(t)
 
@@ -203,6 +221,9 @@ func TestSaveUploadedFile_TextNoExtraction_E2E(t *testing.T) {
 	}
 	if !strings.HasPrefix(got.Type, "text/") {
 		t.Fatalf("type = %q, want text/*", got.Type)
+	}
+	if got.URL != "" {
+		t.Fatalf("URL must stay empty, got %q", got.URL)
 	}
 
 	files, err := repo.GetByIDs([]string{got.ID}, "testuser")

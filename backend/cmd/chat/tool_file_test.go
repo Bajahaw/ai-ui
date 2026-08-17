@@ -12,6 +12,28 @@ import (
 	"github.com/Bajahaw/ai-ui/cmd/tools"
 )
 
+func TestEmbeddedMetadataIncludesPublicPath(t *testing.T) {
+	got := embeddedMetadata(fs.Attachment{
+		File: fs.File{
+			ID:   "fid",
+			Name: "report.xlsx",
+			Type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+			Size: 12,
+			Path: "./data/resources/fid.xlsx",
+		},
+	})
+	for _, want := range []string{
+		"[user attachment:",
+		"id: fid",
+		"name: report.xlsx",
+		"path: /data/resources/fid.xlsx",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in %q", want, got)
+		}
+	}
+}
+
 func TestResolveToolFileMedia_Image(t *testing.T) {
 	teardown := setupTest(t, &mockProviderSuccess{})
 	defer teardown()

@@ -367,7 +367,8 @@ func embeddedMetadata(att fs.Attachment) string {
 		"id: " + att.File.ID + "\n" +
 		"name: " + att.File.Name + "\n" +
 		"type: " + att.File.Type + "\n" +
-		"size: " + strconv.FormatInt(att.File.Size, 10) + "\n"
+		"size: " + strconv.FormatInt(att.File.Size, 10) + "\n" +
+		"path: " + fs.ResourcePath(att.File) + "\n"
 }
 
 func embeddedContent(content string) string {

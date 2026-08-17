@@ -70,6 +70,12 @@ func TestParseMCPToolResult_ImageSetsFileID(t *testing.T) {
 	if got[0].Type != "image/png" {
 		t.Fatalf("mime: got %q", got[0].Type)
 	}
+	if !strings.Contains(out.Content, "[tool attachment:") {
+		t.Fatalf("missing tool attachment block: %q", out.Content)
+	}
+	if !strings.Contains(out.Content, "path: /data/resources/") {
+		t.Fatalf("missing resource path in tool attachment: %q", out.Content)
+	}
 	data, err := os.ReadFile(got[0].Path)
 	if err != nil {
 		t.Fatal(err)
@@ -92,8 +98,8 @@ func TestParseMCPToolResult_MultipleBinariesKeepsFirstFileID(t *testing.T) {
 	if out.FileID == "" {
 		t.Fatal("expected FileID")
 	}
-	if !strings.Contains(out.Content, "Saved file id=") {
-		t.Fatalf("expected note about extra file, got %q", out.Content)
+	if strings.Count(out.Content, "[tool attachment:") != 2 {
+		t.Fatalf("expected 2 tool attachment blocks, got %q", out.Content)
 	}
 	// First image should be the FileID; content should mention a second save.
 	first, _ := files.GetByIDs([]string{out.FileID}, "u1")

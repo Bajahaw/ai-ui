@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"strconv"
 	"strings"
 
+	fs "github.com/Bajahaw/ai-ui/cmd/files"
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -103,11 +105,11 @@ func parseMCPToolResult(result *mcp.CallToolResult, user string) providers.ToolO
 }
 
 func takeFileID(currentID, newID, note string, extras []string) (string, []string) {
+	extras = append(extras, note)
 	if currentID == "" {
 		return newID, extras
 	}
-	// Single FileID slot: keep the first binary, mention the rest in text.
-	return currentID, append(extras, note)
+	return currentID, extras
 }
 
 func persistMCPBinary(data []byte, mimeType, baseName, user string) (id, note string, err error) {
@@ -123,8 +125,17 @@ func persistMCPBinary(data []byte, mimeType, baseName, user string) (id, note st
 	if err != nil {
 		return "", "", err
 	}
-	note = fmt.Sprintf("Saved file id=%s name=%s type=%s path=/%s", f.ID, f.Name, f.Type, f.Path)
+	note = formatToolAttachment(f)
 	return f.ID, note, nil
+}
+
+func formatToolAttachment(f fs.File) string {
+	return "[tool attachment: \n" +
+		"id: " + f.ID + "\n" +
+		"name: " + f.Name + "\n" +
+		"type: " + f.Type + "\n" +
+		"size: " + strconv.FormatInt(f.Size, 10) + "\n" +
+		"path: " + fs.ResourcePath(f) + "\n]"
 }
 
 func resourceFileName(uri, mimeType, fallback string) string {

@@ -48,7 +48,6 @@ func saveBinaryFile(data []byte, mimeType, fileName, user string) (fs.File, erro
 		Type:       mimeType,
 		Size:       int64(len(data)),
 		Path:       filePath,
-		URL:        "/data/resources/" + diskName,
 		User:       user,
 		CreatedAt:  now,
 		UploadedAt: now,
