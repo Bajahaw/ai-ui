@@ -153,7 +153,7 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 					Role:     "tool",
 					ToolCall: *tool, // FileID stays an id
 				}
-				toolMsg.Images, toolMsg.Files = resolveToolFileMedia(tool.FileID, user)
+				attachToolFile(&toolMsg, tool.FileID, user)
 				messages = append(messages, toolMsg)
 			}
 			continue
@@ -205,32 +205,43 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 	return messages
 }
 
+// attachToolFile resolves a tool-produced file onto the provider message only.
+// Metadata is not persisted on the tool output.
+func attachToolFile(msg *providers.SimpleMessage, fileID, user string) {
+	f, images, fileDataURLs := resolveToolFileMedia(fileID, user)
+	msg.Images = images
+	msg.Files = fileDataURLs
+	if f.ID != "" {
+		msg.Content = embeddedFileMetadata("tool", f) + "]\n"
+	}
+}
+
 // resolveToolFileMedia loads a tool-produced file by id and returns data URLs
 // for the provider request. ToolCall.FileID is never mutated.
-func resolveToolFileMedia(fileID, user string) (images, fileDataURLs []string) {
+func resolveToolFileMedia(fileID, user string) (f fs.File, images, fileDataURLs []string) {
 	if fileID == "" {
-		return nil, nil
+		return fs.File{}, nil, nil
 	}
 	found, err := files.GetByIDs([]string{fileID}, user)
 	if err != nil {
 		log.Error("Error fetching tool call file", "err", err)
-		return nil, nil
+		return fs.File{}, nil, nil
 	}
 	if len(found) == 0 {
-		return nil, nil
+		return fs.File{}, nil, nil
 	}
 	data, err := os.ReadFile(found[0].Path)
 	if err != nil {
 		log.Error("Error reading tool call file", "err", err)
-		return nil, nil
+		return fs.File{}, nil, nil
 	}
 	mimeType := strings.Split(found[0].Type, ";")[0]
 	mimeType = strings.ReplaceAll(mimeType, " ", "")
 	dataURL := "data:" + mimeType + ";base64," + toBase64(data)
 	if strings.HasPrefix(mimeType, "image/") {
-		return []string{dataURL}, nil
+		return found[0], []string{dataURL}, nil
 	}
-	return nil, []string{dataURL}
+	return found[0], nil, []string{dataURL}
 }
 
 func enterAgentLoop(
@@ -298,7 +309,7 @@ func enterAgentLoop(
 				ContextSize: toolCall.ContextSize,
 			},
 		}
-		toolMsg.Images, toolMsg.Files = resolveToolFileMedia(toolCall.FileID, user)
+		attachToolFile(&toolMsg, toolCall.FileID, user)
 		providerParams.Messages = append(providerParams.Messages, toolMsg)
 
 	}
@@ -362,13 +373,16 @@ func toBase64(data []byte) string {
 }
 
 func embeddedMetadata(att fs.Attachment) string {
-	return "\n\n" +
-		"[user attachment: \n" +
-		"id: " + att.File.ID + "\n" +
-		"name: " + att.File.Name + "\n" +
-		"type: " + att.File.Type + "\n" +
-		"size: " + strconv.FormatInt(att.File.Size, 10) + "\n" +
-		"path: " + fs.ResourcePath(att.File) + "\n"
+	return "\n\n" + embeddedFileMetadata("user", att.File)
+}
+
+func embeddedFileMetadata(kind string, f fs.File) string {
+	return "[" + kind + " attachment: \n" +
+		"id: " + f.ID + "\n" +
+		"name: " + f.Name + "\n" +
+		"type: " + f.Type + "\n" +
+		"size: " + strconv.FormatInt(f.Size, 10) + "\n" +
+		"path: " + fs.ResourcePath(f) + "\n"
 }
 
 func embeddedContent(content string) string {

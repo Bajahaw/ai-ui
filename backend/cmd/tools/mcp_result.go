@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
-	"strconv"
 	"strings"
 
-	fs "github.com/Bajahaw/ai-ui/cmd/files"
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -22,7 +20,6 @@ func parseMCPToolResult(result *mcp.CallToolResult, user string) providers.ToolO
 
 	var textParts []string
 	var fileID string
-	var extraFileNotes []string
 
 	if result.StructuredContent != nil {
 		if b, err := json.Marshal(result.StructuredContent); err == nil && string(b) != "null" {
@@ -38,22 +35,22 @@ func parseMCPToolResult(result *mcp.CallToolResult, user string) providers.ToolO
 			}
 
 		case *mcp.ImageContent:
-			id, note, err := persistMCPBinary(v.Data, v.MIMEType, "mcp-image", user)
+			id, err := persistMCPBinary(v.Data, v.MIMEType, "mcp-image", user)
 			if err != nil {
 				log.Error("Error saving MCP image content", "err", err)
 				textParts = append(textParts, "[failed to save image from tool]")
 				continue
 			}
-			fileID, extraFileNotes = takeFileID(fileID, id, note, extraFileNotes)
+			fileID = takeFileID(fileID, id)
 
 		case *mcp.AudioContent:
-			id, note, err := persistMCPBinary(v.Data, v.MIMEType, "mcp-audio", user)
+			id, err := persistMCPBinary(v.Data, v.MIMEType, "mcp-audio", user)
 			if err != nil {
 				log.Error("Error saving MCP audio content", "err", err)
 				textParts = append(textParts, "[failed to save audio from tool]")
 				continue
 			}
-			fileID, extraFileNotes = takeFileID(fileID, id, note, extraFileNotes)
+			fileID = takeFileID(fileID, id)
 
 		case *mcp.EmbeddedResource:
 			if v.Resource == nil {
@@ -65,13 +62,13 @@ func parseMCPToolResult(result *mcp.CallToolResult, user string) providers.ToolO
 			}
 			if len(res.Blob) > 0 {
 				name := resourceFileName(res.URI, res.MIMEType, "mcp-resource")
-				id, note, err := persistMCPBinary(res.Blob, res.MIMEType, name, user)
+				id, err := persistMCPBinary(res.Blob, res.MIMEType, name, user)
 				if err != nil {
 					log.Error("Error saving MCP embedded resource", "err", err, "uri", res.URI)
 					textParts = append(textParts, "[failed to save embedded resource from tool]")
 					continue
 				}
-				fileID, extraFileNotes = takeFileID(fileID, id, note, extraFileNotes)
+				fileID = takeFileID(fileID, id)
 			} else if strings.TrimSpace(res.Text) == "" && res.URI != "" {
 				textParts = append(textParts, formatResourceLink(res.URI, "", res.MIMEType, ""))
 			}
@@ -89,10 +86,9 @@ func parseMCPToolResult(result *mcp.CallToolResult, user string) providers.ToolO
 		}
 	}
 
-	textParts = append(textParts, extraFileNotes...)
 	content := strings.TrimSpace(strings.Join(textParts, "\n"))
 	if content == "" && fileID != "" {
-		content = fmt.Sprintf("Tool returned a file (id: %s).", fileID)
+		content = "Tool returned a file."
 	}
 	if content == "" {
 		content = "Tool returned no content."
@@ -104,17 +100,16 @@ func parseMCPToolResult(result *mcp.CallToolResult, user string) providers.ToolO
 	return providers.ToolOutput{Content: content, FileID: fileID}
 }
 
-func takeFileID(currentID, newID, note string, extras []string) (string, []string) {
-	extras = append(extras, note)
+func takeFileID(currentID, newID string) string {
 	if currentID == "" {
-		return newID, extras
+		return newID
 	}
-	return currentID, extras
+	return currentID
 }
 
-func persistMCPBinary(data []byte, mimeType, baseName, user string) (id, note string, err error) {
+func persistMCPBinary(data []byte, mimeType, baseName, user string) (id string, err error) {
 	if len(data) == 0 {
-		return "", "", fmt.Errorf("empty binary content")
+		return "", fmt.Errorf("empty binary content")
 	}
 	mimeType = strings.TrimSpace(strings.Split(mimeType, ";")[0])
 	name := baseName
@@ -123,19 +118,9 @@ func persistMCPBinary(data []byte, mimeType, baseName, user string) (id, note st
 	}
 	f, err := saveBinaryFile(data, mimeType, name, user)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
-	note = formatToolAttachment(f)
-	return f.ID, note, nil
-}
-
-func formatToolAttachment(f fs.File) string {
-	return "[tool attachment: \n" +
-		"id: " + f.ID + "\n" +
-		"name: " + f.Name + "\n" +
-		"type: " + f.Type + "\n" +
-		"size: " + strconv.FormatInt(f.Size, 10) + "\n" +
-		"path: " + fs.ResourcePath(f) + "\n]"
+	return f.ID, nil
 }
 
 func resourceFileName(uri, mimeType, fallback string) string {

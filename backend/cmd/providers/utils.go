@@ -1,6 +1,8 @@
 package providers
 
 import (
+	"strings"
+
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/packages/param"
 )
@@ -101,7 +103,7 @@ func OpenAIMessageParams(params *openai.ChatCompletionNewParams, messages []Simp
 				parts := []openai.ChatCompletionContentPartUnionParam{
 					{
 						OfText: &openai.ChatCompletionContentPartTextParam{
-							Text: "Here is the result from tool '" + msg.ToolCall.Name + "':",
+							Text: toolMediaFollowUpText(msg),
 						},
 					},
 				}
@@ -138,6 +140,13 @@ func OpenAIMessageParams(params *openai.ChatCompletionNewParams, messages []Simp
 		}
 	}
 	params.Messages = openaiMessages
+}
+
+func toolMediaFollowUpText(msg SimpleMessage) string {
+	if strings.TrimSpace(msg.Content) != "" {
+		return msg.Content
+	}
+	return "Here is the result from tool '" + msg.ToolCall.Name + "':"
 }
 
 func ReasoningEffort(level string) openai.ReasoningEffort {

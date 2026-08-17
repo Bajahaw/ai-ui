@@ -57,7 +57,10 @@ func TestResolveToolFileMedia_Image(t *testing.T) {
 		t.Fatalf("save file: %v", err)
 	}
 
-	images, nonImages := resolveToolFileMedia(fileID, "test-user")
+	got, images, nonImages := resolveToolFileMedia(fileID, "test-user")
+	if got.ID != fileID {
+		t.Fatalf("file id: got %q", got.ID)
+	}
 	if len(nonImages) != 0 {
 		t.Fatalf("expected no non-image media, got %v", nonImages)
 	}
@@ -92,7 +95,7 @@ func TestResolveToolFileMedia_NonImage(t *testing.T) {
 		t.Fatalf("save file: %v", err)
 	}
 
-	images, nonImages := resolveToolFileMedia(fileID, "test-user")
+	_, images, nonImages := resolveToolFileMedia(fileID, "test-user")
 	if len(images) != 0 {
 		t.Fatalf("expected no images, got %v", images)
 	}
@@ -105,13 +108,13 @@ func TestResolveToolFileMedia_EmptyAndMissing(t *testing.T) {
 	teardown := setupTest(t, &mockProviderSuccess{})
 	defer teardown()
 
-	imgs, filesOut := resolveToolFileMedia("", "test-user")
-	if imgs != nil || filesOut != nil {
-		t.Fatalf("empty id should return nils")
+	f, imgs, filesOut := resolveToolFileMedia("", "test-user")
+	if f.ID != "" || imgs != nil || filesOut != nil {
+		t.Fatalf("empty id should return empty")
 	}
-	imgs, filesOut = resolveToolFileMedia("missing", "test-user")
-	if imgs != nil || filesOut != nil {
-		t.Fatalf("missing id should return nils")
+	f, imgs, filesOut = resolveToolFileMedia("missing", "test-user")
+	if f.ID != "" || imgs != nil || filesOut != nil {
+		t.Fatalf("missing id should return empty")
 	}
 }
 
@@ -187,6 +190,15 @@ func TestBuildContext_ToolFileIDNotMutatedToDataURL(t *testing.T) {
 	}
 	if len(toolMsg.Images) != 1 || !strings.HasPrefix(toolMsg.Images[0], "data:image/png;base64,") {
 		t.Fatalf("expected resolved image on SimpleMessage.Images, got %v", toolMsg.Images)
+	}
+	if toolMsg.ToolCall.Output != "rendered" {
+		t.Fatalf("stored tool output must stay unchanged, got %q", toolMsg.ToolCall.Output)
+	}
+	if !strings.Contains(toolMsg.Content, "[tool attachment:") {
+		t.Fatalf("request metadata missing: %q", toolMsg.Content)
+	}
+	if !strings.Contains(toolMsg.Content, "path: /data/resources/shot.png") {
+		t.Fatalf("request path missing: %q", toolMsg.Content)
 	}
 }
 

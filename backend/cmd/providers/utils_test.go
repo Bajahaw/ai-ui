@@ -150,3 +150,29 @@ func TestToChatGPTMessages_ToolImagesBecomeUserFollowUp(t *testing.T) {
 		t.Fatalf("user follow-up: %+v", out[1])
 	}
 }
+
+func TestOpenAIMessageParams_ToolFollowUpUsesRequestMetadata(t *testing.T) {
+	params := &openai.ChatCompletionNewParams{}
+	OpenAIMessageParams(params, []SimpleMessage{
+		{
+			Role:    "tool",
+			Content: "[tool attachment: \npath: /data/resources/a.xlsx\n]\n",
+			ToolCall: ToolCall{
+				ReferenceID: "call_4",
+				Name:        "officecli",
+				Output:      "created",
+			},
+			Files: []string{"data:application/octet-stream;base64,xx"},
+		},
+	})
+	if len(params.Messages) != 2 {
+		t.Fatalf("expected tool + user follow-up, got %d", len(params.Messages))
+	}
+	parts := params.Messages[1].OfUser.Content.OfArrayOfContentParts
+	if parts[0].OfText == nil || !strings.Contains(parts[0].OfText.Text, "path: /data/resources/a.xlsx") {
+		t.Fatalf("follow-up text: %+v", parts[0])
+	}
+	if strings.Contains(params.Messages[0].OfTool.Content.OfString.Value, "[tool attachment:") {
+		t.Fatal("stored tool output leaked attachment metadata")
+	}
+}

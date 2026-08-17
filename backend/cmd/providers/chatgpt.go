@@ -198,7 +198,7 @@ func toChatGPTMessages(messages []SimpleMessage) []chatgptoauth.ChatMessage {
 			if len(m.Images) > 0 {
 				out = append(out, chatgptoauth.ChatMessage{
 					Role:    "user",
-					Content: "Here is the result from tool '" + m.ToolCall.Name + "':",
+					Content: toolMediaFollowUpText(m),
 					Images:  m.Images,
 				})
 			}
