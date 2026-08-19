@@ -91,6 +91,25 @@ func TestCacheControlMiddleware_Resources(t *testing.T) {
 	}
 }
 
+func TestCacheControlMiddleware_ServiceWorker(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("/* sw */"))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/sw.js", nil)
+	rr := httptest.NewRecorder()
+
+	cacheControlMiddleware(handler).ServeHTTP(rr, req)
+
+	if rr.Header().Get("Cache-Control") != "no-cache, no-store, must-revalidate" {
+		t.Errorf("unexpected Cache-Control %q", rr.Header().Get("Cache-Control"))
+	}
+	if rr.Header().Get("Service-Worker-Allowed") != "/" {
+		t.Errorf("expected Service-Worker-Allowed /, got %q", rr.Header().Get("Service-Worker-Allowed"))
+	}
+}
+
 func TestCacheControlMiddleware_StaticAssets(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

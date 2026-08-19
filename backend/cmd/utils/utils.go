@@ -107,12 +107,23 @@ func (r *statusRecorder) Flush() {
 	}
 }
 
+func isServiceWorkerAsset(path string) bool {
+	switch path {
+	case "/sw.js", "/registerSW.js", "/dev-sw.js":
+		return true
+	}
+	return strings.HasPrefix(path, "/workbox-")
+}
+
 func cacheControlMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasPrefix(r.URL.Path, "/api/tts/"):
 			// TTS audio sets its own ETag / Cache-Control in the handler.
 			// Do not force no-store here so browsers can revalidate and reuse clips.
+		case isServiceWorkerAsset(r.URL.Path):
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			w.Header().Set("Service-Worker-Allowed", "/")
 		case strings.HasPrefix(r.URL.Path, "/api/"):
 			// API responses are user-specific and dynamic; never cache them.
 			w.Header().Set("Cache-Control", "private, no-store, no-cache, must-revalidate")

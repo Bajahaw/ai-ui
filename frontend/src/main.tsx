@@ -8,6 +8,9 @@ import { ModelsProvider } from "./hooks/useModelsContext.tsx";
 import { SettingsDataProvider } from "./hooks/useSettingsData.tsx";
 import { ChatGPTOAuthWaitingDialog } from "./components/auth/ChatGPTOAuthWaitingDialog.tsx";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { registerSW } from "virtual:pwa-register";
+
+registerSW({ immediate: true });
 /**
  * AuthGuard - Keeps the application shell mounted at all times.
  * Auth-aware hooks decide when to fetch data, and login is opened explicitly

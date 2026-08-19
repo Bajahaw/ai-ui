@@ -6,6 +6,7 @@ frontend/tsconfig.tsbuildinfo
 backend/static
 backend/data
 *.exe
+**/*.exe
 data
 static
 vendor
