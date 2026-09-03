@@ -4,7 +4,7 @@ description: Use when asked to create docx, pptx, xlsx, or pdf files.
 ---
 # File Generation Skill
 
-Generate `.pptx`, `.docx`, and `.xlsx` files entirely client-side using browser-based libraries.
+Generate `.pptx`, `.docx`, `.xlsx`, and `.pdf` files entirely client-side using browser-based libraries.
 
 ---
 
@@ -227,9 +227,76 @@ Packer.toBlob(doc).then(blob => saveAs(blob, 'doc.docx'));
 
 ---
 
-## 4. General Rules
+## 4. PDF Generation with jsPDF
+
+Generate PDFs client-side with jsPDF.
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+```
+
+```javascript
+function createPdf() {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF("p", "pt", "a4");
+
+  pdf.setFontSize(18);
+  pdf.text("Document title", 48, 60);
+
+  pdf.setFontSize(11);
+  pdf.text("Document content goes here.", 48, 90);
+
+  const blob = pdf.output("blob");
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "document.pdf";
+  link.textContent = "Download PDF";
+  document.body.appendChild(link);
+}
+```
+
+Rules:
+
+- Generate only after a user clicks a button.
+- Track the current vertical position when adding content.
+- Add new pages when content reaches the page bottom.
+- Use a clickable download link or button.
+- Never auto-generate or auto-download files.
+
+### Mermaid Diagrams in PDFs
+
+Mermaid diagrams can be rendered as SVG and embedded directly into jsPDF.
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.7.0/dist/svg2pdf.umd.min.js"></script>
+```
+
+```javascript
+const result = await mermaid.render("diagram" + Date.now(), mermaidCode);
+
+const svg = new DOMParser()
+  .parseFromString(result.svg, "image/svg+xml")
+  .documentElement;
+
+await pdf.svg(svg, {
+  x: 48,
+  y: 120,
+  width: 495,
+  height: 280
+});
+```
+
+Use `pdf.svg()` for Mermaid diagrams. Avoid canvas, `toDataURL()`, and `window.svg2pdf()`. Mermaid IDs must not contain periods or other invalid CSS-selector characters.
+
+---
+
+## 5. General Rules
 
 - Use Pyodide version `https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js` exactly.
 - Use MIME type `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` for `.xlsx`.
 - For widget styling, the outer widget root must have `width:100%; padding:0; margin:0; border:none;`. Internal elements handle their own spacing.
 - Always provide a manual download trigger — never auto-generate or auto-download.
+- If a widget errors or the user requests an update, rewrite the widget. Do not ask the user to fix or update it themselves.

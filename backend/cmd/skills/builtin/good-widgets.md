@@ -30,5 +30,8 @@ Widgets must feel like a native extension of the chat, not a floating card.
 - `min-height: 100vh` with vertically centered content.
 - Transparent body background.
 
+## Updates
+If a widget errors or the user requests an update, rewrite the widget. Do not ask the user to fix or update it themselves.
+
 ## Final Check
 Before returning, confirm the root has zero padding/margin/border and the content touches the full width.
