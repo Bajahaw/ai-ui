@@ -1368,7 +1368,7 @@ export const ChatInterface = ({
         onSend={handleSend}
         placeholder={
           !isOnline
-            ? "You're offline. Reconnect to send messages."
+            ? "App is offline :("
             : "Ask anything here ..."
         }
         isDisabled={isComposerDisabled}
