@@ -543,11 +543,10 @@ export const useConversations = () => {
       return;
     }
 
-    if (manager.getAllConversations().length === 0) {
-      await hydrateFromCache();
-    }
-
     if (isBrowserOffline()) {
+      if (manager.getAllConversations().length === 0) {
+        await hydrateFromCache();
+      }
       setHasHydrated(true);
       setIsLoading(false);
       return;
@@ -563,6 +562,9 @@ export const useConversations = () => {
 
       if (!backendConversations || !Array.isArray(backendConversations)) {
         console.warn("Backend returned null or invalid conversations data");
+        if (manager.getAllConversations().length === 0) {
+          await hydrateFromCache();
+        }
         syncConversations();
         setHasHydrated(true);
         return;

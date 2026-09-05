@@ -109,8 +109,8 @@ function App() {
     }
   }, [convId]);
 
-  useEffect(() => {
-    if (!isAuthenticated || isCheckingAuth) {
+  useLayoutEffect(() => {
+    if (!isAuthenticated) {
       return;
     }
 
@@ -128,10 +128,8 @@ function App() {
     convId,
     activeConversationId,
     isAuthenticated,
-    isCheckingAuth,
     selectConversation,
     startNewChat,
-    navigate,
   ]);
 
   useEffect(() => {
@@ -286,20 +284,18 @@ function App() {
   // Use convId (URL) as the source of truth for what to display.
   // This prevents the old conversation from briefly flashing during navigation
   // when activeConversationId hasn't been cleared yet by React's state flush.
-  const displayedConversation = convId ? currentConversation : undefined;
+  const displayedConversation = convId
+    ? conversations.find((conversation) => conversation.id === convId)
+    : undefined;
 
-  // Get current messages for display
   const currentMessages = displayedConversation
     ? getCurrentMessages(displayedConversation)
     : [];
 
-  // Treat the conversation as still loading when the URL has a convId but the
-  // conversation or its messages haven't been resolved yet.  This suppresses the
-  // Welcome/stats placeholder during the transient window on hard reload.
   const isConvPendingRoute =
     !!convId &&
-    (conversationsLoading || isConversationLoading) &&
-    (!displayedConversation || currentMessages.length === 0);
+    (!displayedConversation || currentMessages.length === 0) &&
+    (isCheckingAuth || conversationsLoading || isConversationLoading || !hasHydrated);
 
   // Use the ordering provided by the conversation manager directly.
   // The manager tracks createdAt/updatedAt and maintains the intended order,
