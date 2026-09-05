@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { useModels } from "@/hooks/useModels";
 import { useSettings } from "@/hooks/useSettings";
 import { useSettingsData } from "@/hooks/useSettingsData";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
 import {
   Message as MessageComponent,
@@ -218,6 +219,7 @@ const PromptArea = memo(
     const handleSubmit = useCallback(
       (e: React.FormEvent) => {
         e.preventDefault();
+        if (isDisabled) return;
         if (!promptInputRef.current?.value.trim() && uploadedFiles.length === 0)
           return;
         if (!isModelValid) return;
@@ -237,7 +239,7 @@ const PromptArea = memo(
         setUploadError(null);
         onSend(message, attachments);
       },
-      [isModelValid, uploadedFiles, onSend],
+      [isDisabled, isModelValid, uploadedFiles, onSend],
     );
 
     return (
@@ -364,7 +366,8 @@ export const ChatInterface = ({
   onUpdateMessage,
   onCancelStream,
 }: ChatInterfaceProps) => {
-  const isComposerDisabled = isAuthChecking || !isAuthenticated;
+  const isOnline = useOnlineStatus();
+  const isComposerDisabled = isAuthChecking || !isAuthenticated || !isOnline;
   const [isDragOver, setIsDragOver] = useState(false);
   const [replySelection, setReplySelection] = useState<{
     text: string;
@@ -910,8 +913,7 @@ export const ChatInterface = ({
   );
 
   const handleRetryMessage = async (messageId: string) => {
-    // Prevent retry when model is invalid
-    if (!isModelValid) {
+    if (!isOnline || !isModelValid) {
       return;
     }
 
@@ -1004,8 +1006,11 @@ export const ChatInterface = ({
               editingMessageId !== message.id && (
                 <Action
                   tooltip="Edit message"
-                  onClick={() => setEditingMessageId(message.id)}
-                  disabled={updatingMessageId === message.id}
+                  onClick={() => {
+                    if (!isOnline) return;
+                    setEditingMessageId(message.id);
+                  }}
+                  disabled={!isOnline || updatingMessageId === message.id}
                 >
                   <EditIcon className="size-4" />
                 </Action>
@@ -1092,6 +1097,7 @@ export const ChatInterface = ({
                 }
                 onClick={() => handleRetryMessage(message.id)}
                 disabled={
+                  !isOnline ||
                   retryingMessageId === message.id ||
                   !isModelValid ||
                   models.length === 0
@@ -1146,6 +1152,7 @@ export const ChatInterface = ({
       );
     },
     [
+      isOnline,
       branchInfoCache,
       editingMessageId,
       updatingMessageId,
@@ -1359,7 +1366,11 @@ export const ChatInterface = ({
       <PromptArea
         ref={promptAreaRef}
         onSend={handleSend}
-        placeholder={"Ask anything here ..."}
+        placeholder={
+          !isOnline
+            ? "You're offline. Reconnect to send messages."
+            : "Ask anything here ..."
+        }
         isDisabled={isComposerDisabled}
         models={models}
         modelsLoading={modelsLoading}

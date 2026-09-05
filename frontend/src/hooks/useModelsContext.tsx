@@ -10,6 +10,7 @@ import {
 import { getAllModels, saveAllModels } from "@/lib/api/models";
 import { Model } from "@/lib/api/types";
 import { useAuth } from "@/hooks/useAuth";
+import { isOfflineError } from "@/lib/offline";
 
 interface ModelsContextValue {
   models: Model[];
@@ -46,9 +47,13 @@ export const ModelsProvider = ({ children }: { children: ReactNode }) => {
       const response = await getAllModels();
       setModels(response.models);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to load models";
-      setError(msg);
-      console.error("Error loading models:", err);
+      if (isOfflineError(err)) {
+        console.warn("Models unavailable offline");
+      } else {
+        const msg = err instanceof Error ? err.message : "Failed to load models";
+        setError(msg);
+        console.error("Error loading models:", err);
+      }
     } finally {
       setIsLoading(false);
     }

@@ -368,4 +368,38 @@ describe("optimistic send / id swap", () => {
     expect(assistant.error).toBe("network down");
     expect(conv.pendingMessageIds.has(assistant.id)).toBe(false);
   });
+
+  it("hydrated messages stay stale until a network fetch marks them fresh", () => {
+    const manager = new ClientConversationManager();
+    seedConversation(manager, "conv-1", priorTurn());
+
+    expect(manager.hasLoadedMessages("conv-1")).toBe(true);
+    expect(manager.hasFreshMessages("conv-1")).toBe(false);
+
+    manager.markMessagesFresh("conv-1");
+    expect(manager.hasFreshMessages("conv-1")).toBe(true);
+
+    manager.markMessagesStale("conv-1");
+    expect(manager.hasFreshMessages("conv-1")).toBe(false);
+  });
+
+  it("persistable snapshot omits temp ids and client-only fields", () => {
+    const manager = new ClientConversationManager();
+    seedConversation(manager, "conv-1", priorTurn());
+    manager.createConversation("unsaved");
+
+    const snapshot = manager.getPersistableSnapshot();
+    expect(snapshot.userId).toBe("user-1");
+    expect(snapshot.conversations.map((c) => c.id)).toEqual(["conv-1"]);
+    expect(snapshot.conversations[0].messages).toEqual({});
+    expect(snapshot.messagesById["conv-1"][1].content).toBe("hi");
+  });
+
+  it("clear and delete drop freshness so SSE cannot patch a stale tree", () => {
+    const manager = new ClientConversationManager();
+    seedConversation(manager, "conv-1", priorTurn());
+    manager.markMessagesFresh("conv-1");
+    manager.handleExternalDelete("conv-1");
+    expect(manager.hasFreshMessages("conv-1")).toBe(false);
+  });
 });

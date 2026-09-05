@@ -7,6 +7,7 @@ import {
 } from "@/lib/api/settings";
 import { Settings } from "@/lib/api/types";
 import { useAuth } from "@/hooks/useAuth";
+import { isOfflineError } from "@/lib/offline";
 
 interface UseSettingsReturn {
   settings: Record<string, string>;
@@ -41,10 +42,14 @@ export const useSettings = (): UseSettingsReturn => {
       setSettings(settingsResponse.settings);
       setSystemPrompt(settingsResponse.settings.systemPrompt || "");
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to load settings";
-      setError(errorMessage);
-      console.error("Error loading settings:", err);
+      if (isOfflineError(err)) {
+        console.warn("Settings unavailable offline");
+      } else {
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to load settings";
+        setError(errorMessage);
+        console.error("Error loading settings:", err);
+      }
     } finally {
       setIsLoading(false);
     }

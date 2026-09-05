@@ -27,9 +27,11 @@ export interface ClientConversation {
 
 export class ClientConversationManager {
   private conversations: Map<string, ClientConversation> = new Map();
+  private freshMessageIds = new Set<string>();
 
   clear(): void {
     this.conversations.clear();
+    this.freshMessageIds.clear();
   }
 
   generateTempId(): string {
@@ -468,6 +470,52 @@ export class ClientConversationManager {
     );
   }
 
+  hasFreshMessages(conversationId: string): boolean {
+    return this.freshMessageIds.has(conversationId);
+  }
+
+  markMessagesFresh(conversationId: string): void {
+    this.freshMessageIds.add(conversationId);
+  }
+
+  markMessagesStale(conversationId: string): void {
+    this.freshMessageIds.delete(conversationId);
+  }
+
+  getPersistableSnapshot(): {
+    userId: string | null;
+    conversations: Conversation[];
+    messagesById: Record<string, Record<number, Message>>;
+  } {
+    const conversations: Conversation[] = [];
+    const messagesById: Record<string, Record<number, Message>> = {};
+    let userId: string | null = null;
+
+    for (const conv of this.getAllConversations()) {
+      if (conv.isPhantom || !conv.backendConversation) {
+        continue;
+      }
+      const backend = conv.backendConversation;
+      if (backend.userId && !userId) {
+        userId = backend.userId;
+      }
+      conversations.push({
+        id: backend.id,
+        userId: backend.userId,
+        title: backend.title,
+        createdAt: backend.createdAt,
+        updatedAt: backend.updatedAt,
+        messages: {},
+      });
+      const msgs = backend.messages;
+      if (msgs && Object.keys(msgs).length > 0) {
+        messagesById[conv.id] = msgs;
+      }
+    }
+
+    return { userId, conversations, messagesById };
+  }
+
   getAllConversations(): ClientConversation[] {
     const list = Array.from(this.conversations.values()).filter(
       (c) => !c.isPhantom,
@@ -497,6 +545,7 @@ export class ClientConversationManager {
         !this.hasPendingMessages(conversationId)
       ) {
         this.conversations.delete(conversationId);
+        this.freshMessageIds.delete(conversationId);
       }
     }
 
@@ -764,6 +813,7 @@ export class ClientConversationManager {
 
   removeConversation(conversationId: string): void {
     this.conversations.delete(conversationId);
+    this.freshMessageIds.delete(conversationId);
   }
 
   updateConversationTitle(conversationId: string, newTitle: string): void {
@@ -836,6 +886,10 @@ export class ClientConversationManager {
     this.conversations.delete(oldId);
     conversation.id = newId;
     this.conversations.set(newId, conversation);
+    if (this.freshMessageIds.has(oldId)) {
+      this.freshMessageIds.delete(oldId);
+      this.freshMessageIds.add(newId);
+    }
   }
 
   handleExternalCreate(conversation: Conversation): void {
@@ -892,5 +946,6 @@ export class ClientConversationManager {
 
   handleExternalDelete(conversationId: string): void {
     this.conversations.delete(conversationId);
+    this.freshMessageIds.delete(conversationId);
   }
 }

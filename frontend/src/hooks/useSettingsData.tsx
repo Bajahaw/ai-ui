@@ -51,6 +51,7 @@ import {
 } from "@/lib/api/types";
 import { useModelsContext } from "./useModelsContext";
 import { useAuth } from "./useAuth";
+import { isOfflineError } from "@/lib/offline";
 
 interface SettingsData {
   providers: FrontendProvider[];
@@ -169,6 +170,10 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
       });
 
       setLoaded(true);
+    } catch (err) {
+      if (!isOfflineError(err)) {
+        throw err;
+      }
     } finally {
       setLoading(false);
     }

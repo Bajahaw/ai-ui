@@ -264,7 +264,9 @@ function App() {
   // conversation or its messages haven't been resolved yet.  This suppresses the
   // Welcome/stats placeholder during the transient window on hard reload.
   const isConvPendingRoute =
-    !!convId && (!displayedConversation || currentMessages.length === 0);
+    !!convId &&
+    (conversationsLoading || isConversationLoading) &&
+    (!displayedConversation || currentMessages.length === 0);
 
   // Use the ordering provided by the conversation manager directly.
   // The manager tracks createdAt/updatedAt and maintains the intended order,

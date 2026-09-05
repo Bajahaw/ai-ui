@@ -7,6 +7,8 @@ import React, {
   ReactNode,
 } from "react";
 import { authAPI } from "@/lib/api/auth.ts";
+import { clearAuthCache, readAuthCache, writeAuthCache } from "@/lib/authCache";
+import { conversationCache } from "@/lib/conversationCache";
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -35,7 +37,9 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    () => readAuthCache()?.authenticated === true,
+  );
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
@@ -43,22 +47,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [chatgptOAuthPending, setChatgptOAuthPending] = useState(false);
   const oauthAbortRef = useRef<AbortController | null>(null);
 
-  // Check authentication status on mount
   useEffect(() => {
+    const applySignedOut = async () => {
+      setIsAuthenticated(false);
+      clearAuthCache();
+      await conversationCache.clear();
+    };
+
     const checkAuth = async () => {
       try {
         const status = await authAPI.getAuthStatus();
-        setIsAuthenticated(status.authenticated);
         setRegistrationEnabled(status.registration_enabled !== false);
+        if (status.authenticated) {
+          setIsAuthenticated(true);
+          writeAuthCache({ authenticated: true });
+        } else {
+          await applySignedOut();
+        }
       } catch (err) {
-        console.error("Error checking auth status:", err);
-        setIsAuthenticated(false);
+        if (readAuthCache()?.authenticated) {
+          console.warn("Auth check did not confirm sign-out; keeping session", err);
+          setIsAuthenticated(true);
+        } else {
+          console.error("Error checking auth status:", err);
+          await applySignedOut();
+        }
       } finally {
         setIsCheckingAuth(false);
       }
     };
 
-    checkAuth();
+    void checkAuth();
+    window.addEventListener("online", checkAuth);
+    return () => window.removeEventListener("online", checkAuth);
   }, []);
 
   const register = async (
@@ -93,6 +114,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         );
       }
       setIsAuthenticated(true);
+      writeAuthCache({ authenticated: true });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Login failed";
       setError(errorMessage);
@@ -116,6 +138,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       );
     } finally {
       setIsAuthenticated(false);
+      clearAuthCache();
+      void conversationCache.clear();
       setIsLoading(false);
     }
   };
@@ -199,6 +223,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const authStatus = await authAPI.getAuthStatus();
         if (authStatus.authenticated) {
           setIsAuthenticated(true);
+          writeAuthCache({ authenticated: true });
         } else if (!isAuthenticated) {
           throw new Error(
             "ChatGPT sign-in succeeded but session cookie was not set. Use HTTPS or access via localhost.",

@@ -16,6 +16,10 @@ import {
   ClientConversationManager,
 } from "@/lib/clientConversationManager";
 import { useAuth } from "@/hooks/useAuth";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { readAuthCache, writeAuthCache } from "@/lib/authCache";
+import { conversationCache } from "@/lib/conversationCache";
+import { isBrowserOffline, isOfflineError, shouldSurfaceConversationsError } from "@/lib/offline";
 
 // ============================================================================
 // Streaming Utilities - Extracted to reduce duplication
@@ -360,6 +364,7 @@ function updateAssistantMessageAfterComplete(
 
 export const useConversations = () => {
   const { isAuthenticated } = useAuth();
+  const isOnline = useOnlineStatus();
   const [conversations, setConversations] = useState<ClientConversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<
     string | null
@@ -386,6 +391,16 @@ export const useConversations = () => {
 
   const managerRef = useRef(new ClientConversationManager());
   const manager = managerRef.current;
+  const statsRef = useRef(stats);
+  const hasHydratedRef = useRef(hasHydrated);
+
+  useEffect(() => {
+    statsRef.current = stats;
+  }, [stats]);
+
+  useEffect(() => {
+    hasHydratedRef.current = hasHydrated;
+  }, [hasHydrated]);
 
   const currentConversation = conversations.find(
     (conv) => conv.id === activeConversationId,
@@ -395,9 +410,67 @@ export const useConversations = () => {
     setConversations([...manager.getAllConversations()]);
   }, [manager]);
 
+  const resolveUserId = useCallback(() => {
+    return manager.getPersistableSnapshot().userId || readAuthCache()?.userId;
+  }, [manager]);
+
+  const persistSnapshot = useCallback(
+    (statsOverride?: WelcomeStats, opts?: { allowEmpty?: boolean }) => {
+      const snapshot = manager.getPersistableSnapshot();
+      const userId = snapshot.userId || readAuthCache()?.userId;
+      if (!userId) {
+        return;
+      }
+      if (snapshot.conversations.length === 0 && !opts?.allowEmpty) {
+        return;
+      }
+      writeAuthCache({ authenticated: true, userId });
+      void conversationCache.replaceAll({
+        userId,
+        conversations: snapshot.conversations,
+        messagesById: snapshot.messagesById,
+        stats: statsOverride ?? statsRef.current,
+      });
+    },
+    [manager],
+  );
+
+  const persistMessages = useCallback(
+    (conversationId: string) => {
+      const userId = resolveUserId();
+      const conv = manager.getConversation(conversationId);
+      const messages = conv?.backendConversation?.messages;
+      if (!userId || !messages || Object.keys(messages).length === 0) {
+        return;
+      }
+      void conversationCache.saveMessages(userId, conversationId, messages);
+    },
+    [manager, resolveUserId],
+  );
+
+  const hydrateFromCache = useCallback(async (): Promise<boolean> => {
+    const snapshot = await conversationCache.load(readAuthCache()?.userId);
+    if (!snapshot) {
+      return false;
+    }
+    manager.loadBackendConversations(snapshot.conversations);
+    for (const [id, messages] of Object.entries(snapshot.messagesById)) {
+      if (messages && Object.keys(messages).length > 0) {
+        manager.updateWithChatResponse(id, messages);
+        manager.markMessagesStale(id);
+      }
+    }
+    if (snapshot.stats) {
+      setStats(snapshot.stats);
+    }
+    syncConversations();
+    setHasHydrated(true);
+    return snapshot.conversations.length > 0;
+  }, [manager, syncConversations]);
+
   // Real-time sync over SSE
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !isOnline) return;
 
     const sessionId = getSessionId();
 
@@ -419,11 +492,15 @@ export const useConversations = () => {
         ) {
           // Skip if this conversation's messages haven't been fetched yet —
           // opening the conversation will load a fresh copy from the server.
-          if (manager.hasLoadedMessages(event.conversationId)) {
+          if (manager.hasFreshMessages(event.conversationId)) {
             manager.updateWithChatResponse(event.conversationId, {
               [event.message.id]: event.message,
             });
+            persistMessages(event.conversationId);
           }
+        }
+        if (hasHydratedRef.current) {
+          persistSnapshot(undefined, { allowEmpty: true });
         }
         syncConversations();
       } catch (err) {
@@ -446,11 +523,29 @@ export const useConversations = () => {
         sseRef.current = null;
       }
     };
-  }, [isAuthenticated, manager, syncConversations, sseEpoch]);
+  }, [
+    isAuthenticated,
+    isOnline,
+    manager,
+    persistMessages,
+    persistSnapshot,
+    syncConversations,
+    sseEpoch,
+  ]);
 
   const loadConversations = useCallback(async (opts?: { silent?: boolean }) => {
     // Skip if not authenticated to prevent 401 errors
     if (!isAuthenticated) {
+      return;
+    }
+
+    if (manager.getAllConversations().length === 0) {
+      await hydrateFromCache();
+    }
+
+    if (isBrowserOffline()) {
+      setHasHydrated(true);
+      setIsLoading(false);
       return;
     }
 
@@ -473,23 +568,31 @@ export const useConversations = () => {
       syncConversations();
       setHasHydrated(true);
 
-      // Fetch all-time stats from the backend
+      let nextStats: WelcomeStats | undefined;
       try {
-        const fetchedStats = await conversationsAPI.fetchStats();
-        setStats(fetchedStats);
+        nextStats = await conversationsAPI.fetchStats();
+        setStats(nextStats);
       } catch {
         // Stats are non-critical; swallow the error silently
       }
+      persistSnapshot(nextStats, { allowEmpty: true });
     } catch (err) {
-      const errorMessage = ApiErrorHandler.getUserFriendlyMessage(err);
-      setError(errorMessage);
-      console.error("Failed to load conversations:", err);
+      if (manager.getAllConversations().length === 0) {
+        await hydrateFromCache();
+      }
+      if (shouldSurfaceConversationsError(err, manager.getAllConversations().length > 0)) {
+        setError(ApiErrorHandler.getUserFriendlyMessage(err));
+        console.error("Failed to load conversations:", err);
+      } else {
+        console.warn("Using cached conversations after load failure:", err);
+        setError(null);
+      }
       syncConversations();
       setHasHydrated(true);
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, manager, syncConversations]);
+  }, [isAuthenticated, manager, hydrateFromCache, persistSnapshot, syncConversations]);
 
   const refreshLoadedMessages = useCallback(async () => {
     const loadedIds: string[] = [];
@@ -504,16 +607,20 @@ export const useConversations = () => {
         try {
           const msgs = await conversationsAPI.fetchConversationMessages(id);
           manager.updateWithChatResponse(id, msgs);
+          manager.markMessagesFresh(id);
+          persistMessages(id);
         } catch (err) {
-          console.error("Failed to refresh conversation messages:", err);
+          if (!isOfflineError(err)) {
+            console.error("Failed to refresh conversation messages:", err);
+          }
         }
       }),
     );
     syncConversations();
-  }, [manager, syncConversations]);
+  }, [manager, persistMessages, syncConversations]);
 
   const recoverDeadConnection = useCallback(async () => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || isBrowserOffline()) {
       return;
     }
     if (focusRefreshInFlightRef.current) {
@@ -662,25 +769,33 @@ export const useConversations = () => {
     (conversationId: string) => {
       setActiveConversationId(conversationId);
 
-      // Only lazy-load messages if they haven't been loaded yet
-      if (!manager.hasLoadedMessages(conversationId)) {
-        setIsConversationLoading(true);
-        (async () => {
-          try {
-            const msgs =
-              await conversationsAPI.fetchConversationMessages(conversationId);
-            manager.updateWithChatResponse(conversationId, msgs);
-            // Sync conversations to update UI with loaded messages (but timestamps won't be updated)
-            syncConversations();
-          } catch (err) {
-            console.error("Failed to load conversation messages:", err);
-          } finally {
-            setIsConversationLoading(false);
-          }
-        })();
+      const hasCached = manager.hasLoadedMessages(conversationId);
+      const needsNetwork = !hasCached || !manager.hasFreshMessages(conversationId);
+      if (!needsNetwork || isBrowserOffline()) {
+        return;
       }
+
+      if (!hasCached) {
+        setIsConversationLoading(true);
+      }
+      (async () => {
+        try {
+          const msgs =
+            await conversationsAPI.fetchConversationMessages(conversationId);
+          manager.updateWithChatResponse(conversationId, msgs);
+          manager.markMessagesFresh(conversationId);
+          persistMessages(conversationId);
+          syncConversations();
+        } catch (err) {
+          if (!hasCached && !isOfflineError(err)) {
+            console.error("Failed to load conversation messages:", err);
+          }
+        } finally {
+          setIsConversationLoading(false);
+        }
+      })();
     },
-    [manager, syncConversations],
+    [manager, persistMessages, syncConversations],
   );
 
   const startNewChat = useCallback(() => {
@@ -720,15 +835,20 @@ export const useConversations = () => {
 
         // Call backend API
         await conversationsAPI.deleteConversation(conversationId);
+        const userId = resolveUserId();
+        if (userId) {
+          void conversationCache.deleteConversation(userId, conversationId);
+        }
       } catch (err) {
-        // On error, reload conversations to restore state
         await loadConversations();
-        const errorMessage = ApiErrorHandler.getUserFriendlyMessage(err);
-        setError(errorMessage);
-        throw err;
+        if (shouldSurfaceConversationsError(err, true)) {
+          setError(ApiErrorHandler.getUserFriendlyMessage(err));
+          throw err;
+        }
+        console.warn("Could not delete conversation while offline:", err);
       }
     },
-    [manager, activeConversationId, syncConversations, loadConversations],
+    [manager, activeConversationId, resolveUserId, syncConversations, loadConversations],
   );
 
   const renameConversation = useCallback(
@@ -756,17 +876,19 @@ export const useConversations = () => {
           conversationId,
           newTitle.trim(),
         );
+        persistSnapshot();
       } catch (err) {
-        // On error, revert the title change
         manager.updateConversationTitle(conversationId, originalTitle);
         syncConversations();
 
-        const errorMessage = ApiErrorHandler.getUserFriendlyMessage(err);
-        setError(errorMessage);
-        throw err;
+        if (shouldSurfaceConversationsError(err, true)) {
+          setError(ApiErrorHandler.getUserFriendlyMessage(err));
+          throw err;
+        }
+        console.warn("Could not rename conversation while offline:", err);
       }
     },
-    [manager, syncConversations],
+    [manager, persistSnapshot, syncConversations],
   );
 
   /**
@@ -880,9 +1002,13 @@ export const useConversations = () => {
           }
         }
 
+        persistMessages(activeConversationId);
+        persistSnapshot();
         syncConversations();
       } catch (err) {
-        console.error("Failed to update message:", err);
+        if (!isOfflineError(err)) {
+          console.error("Failed to update message:", err);
+        }
 
         // On error, revert the changes
         backendMessage.content = originalContent;
@@ -894,12 +1020,13 @@ export const useConversations = () => {
         }
         syncConversations();
 
-        const errorMessage = ApiErrorHandler.getUserFriendlyMessage(err);
-        setError(errorMessage);
-        throw err;
+        if (shouldSurfaceConversationsError(err, true)) {
+          setError(ApiErrorHandler.getUserFriendlyMessage(err));
+          throw err;
+        }
       }
     },
-    [manager, activeConversationId, syncConversations],
+    [manager, activeConversationId, persistMessages, persistSnapshot, syncConversations],
   );
 
   const sendMessageStream = useCallback(
@@ -911,6 +1038,10 @@ export const useConversations = () => {
       attachments?: Attachment[],
       onConversationCreated?: (conversationId: string) => void,
     ): Promise<string> => {
+      if (isBrowserOffline()) {
+        return conversationId ?? "";
+      }
+
       let tempMessageId: string | undefined;
       let assistantPlaceholderId: string | undefined;
       let clientConversationId = conversationId;
@@ -949,6 +1080,7 @@ export const useConversations = () => {
 
           setActiveConversationId(createdConv.id);
           syncConversations();
+          persistSnapshot();
           onConversationCreated?.(createdConv.id);
 
           conversationId = createdConv.id;
@@ -1102,6 +1234,9 @@ export const useConversations = () => {
                 data.streamStats,
                 model,
               );
+              manager.markMessagesFresh(conversationId!);
+              persistMessages(conversationId!);
+              persistSnapshot();
             }
           },
           // onError - Just capture the error, onComplete will handle it
@@ -1138,13 +1273,13 @@ export const useConversations = () => {
         throw err;
       }
     },
-    [manager, syncConversations],
+    [manager, persistMessages, persistSnapshot, syncConversations],
   );
 
   const retryMessageStream = useCallback(
     async (messageId: string, model: string): Promise<void> => {
-      if (!activeConversationId) {
-        throw new Error("No active conversation");
+      if (isBrowserOffline() || !activeConversationId) {
+        return;
       }
 
       const conversation = manager.getConversation(activeConversationId);
@@ -1257,6 +1392,9 @@ export const useConversations = () => {
               data.streamStats,
               model,
             );
+            manager.markMessagesFresh(activeConversationId);
+            persistMessages(activeConversationId);
+            persistSnapshot();
           },
           // onError - Just capture the error, onComplete will handle it
           (err) => {
@@ -1272,13 +1410,14 @@ export const useConversations = () => {
           streamAbort.signal,
         );
       } catch (err) {
-        console.error("Failed to retry message (stream):", err);
-        const errorMessage = ApiErrorHandler.getUserFriendlyMessage(err);
-        setError(errorMessage);
-        throw err;
+        if (shouldSurfaceConversationsError(err, true)) {
+          console.error("Failed to retry message (stream):", err);
+          setError(ApiErrorHandler.getUserFriendlyMessage(err));
+          throw err;
+        }
       }
     },
-    [manager, activeConversationId, syncConversations],
+    [manager, activeConversationId, persistMessages, persistSnapshot, syncConversations],
   );
 
   const cancelStream = useCallback(async () => {

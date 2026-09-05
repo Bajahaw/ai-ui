@@ -170,8 +170,12 @@ export const ConversationSidebar = ({
         if (controller.signal.aborted) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
         if (err instanceof Error && err.name === "AbortError") return;
-        console.error("Conversation search failed:", err);
-        setFtsHits([]);
+        if (typeof navigator !== "undefined" && navigator.onLine === false) {
+          setFtsHits([]);
+        } else {
+          console.error("Conversation search failed:", err);
+          setFtsHits([]);
+        }
       } finally {
         if (!controller.signal.aborted) {
           setFtsLoading(false);
