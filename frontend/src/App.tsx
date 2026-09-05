@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState, useRef } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { ConversationSidebar } from "@/components/ai-elements/conversation-sidebar";
@@ -7,9 +7,32 @@ import { useConversations } from "@/hooks/useConversations";
 import { useAuth } from "@/hooks/useAuth";
 import { SettingsDialog } from "@/components/settings";
 import { Attachment } from "@/lib/api/types";
-import { useNavigate, useParams } from "react-router-dom";
+import { NavigateFunction, useNavigate, useParams } from "react-router-dom";
 
 import { MessageSquareIcon, SettingsIcon } from "lucide-react";
+
+function historyIdx(): number {
+  return typeof window.history.state?.idx === "number"
+    ? window.history.state.idx
+    : 0;
+}
+
+function goToNewChat(navigate: NavigateFunction) {
+  if (historyIdx() > 0) {
+    navigate(-1);
+    return;
+  }
+  navigate("/", { replace: true });
+}
+
+function seedHomeUnderConversation(convId: string) {
+  if (historyIdx() > 0) {
+    return;
+  }
+  const state = window.history.state ?? {};
+  window.history.replaceState({ ...state, idx: 0 }, "", "/");
+  window.history.pushState({ ...state, idx: 1 }, "", `/c/${convId}`);
+}
 
 function App() {
   const { isAuthenticated, isCheckingAuth } = useAuth();
@@ -80,6 +103,12 @@ function App() {
     stats,
   } = useConversations();
 
+  useLayoutEffect(() => {
+    if (convId) {
+      seedHomeUnderConversation(convId);
+    }
+  }, [convId]);
+
   useEffect(() => {
     if (!isAuthenticated || isCheckingAuth) {
       return;
@@ -120,7 +149,7 @@ function App() {
       (conversation) => conversation.id === convId,
     );
     if (!exists) {
-      navigate("/", { replace: true });
+      goToNewChat(navigate);
     }
   }, [
     convId,
@@ -165,7 +194,8 @@ function App() {
         model,
         webSearchEnabled,
         attachments,
-        (newConvId) => navigate(`/c/${newConvId}`, { replace: true }),
+        (newConvId) =>
+          navigate(`/c/${newConvId}`, { replace: Boolean(convId) }),
       );
     } finally {
       setIsProcessing(false);
@@ -209,15 +239,18 @@ function App() {
   };
 
   const handleNewChat = () => {
-    navigate("/");
+    if (convId) {
+      goToNewChat(navigate);
+    }
     setWebSearch(false);
     clearError();
   };
 
   const handleConversationSelect = (conversationId: string) => {
-    if (conversationId !== convId) {
-      navigate(`/c/${conversationId}`);
+    if (conversationId === convId) {
+      return;
     }
+    navigate(`/c/${conversationId}`, { replace: Boolean(convId) });
   };
 
   const handleToggleSidebar = () => {
@@ -232,7 +265,7 @@ function App() {
     try {
       await deleteConversation(conversationId);
       if (convId === conversationId) {
-        navigate("/", { replace: true });
+        goToNewChat(navigate);
       }
     } catch (error) {
       console.error("Failed to delete conversation:", error);
