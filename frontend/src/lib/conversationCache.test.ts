@@ -70,6 +70,12 @@ describe("conversationCache", () => {
     expect(snapshot?.messagesById.a[1].content).toBe("m1");
   });
 
+  it("refuses to load without an explicit userId", async () => {
+    await conversationCache.replaceList("user-1", [conv("a", "user-1")]);
+    expect(await conversationCache.load()).toBeNull();
+    expect(await conversationCache.load("")).toBeNull();
+  });
+
   it("does not leak another user's conversations", async () => {
     await conversationCache.replaceList("user-1", [conv("a", "user-1")]);
     await conversationCache.replaceList("user-2", [conv("z", "user-2")]);

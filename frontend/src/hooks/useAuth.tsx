@@ -113,8 +113,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           "Login succeeded but user is not authenticated, this is usually happen due to using secure cookie in a non-secure context. Please use HTTPS or access the app via localhost.",
         );
       }
-      setIsAuthenticated(true);
+      await conversationCache.clear();
+      clearAuthCache();
       writeAuthCache({ authenticated: true });
+      setIsAuthenticated(true);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Login failed";
       setError(errorMessage);
@@ -139,7 +141,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setIsAuthenticated(false);
       clearAuthCache();
-      void conversationCache.clear();
+      await conversationCache.clear();
       setIsLoading(false);
     }
   };
@@ -222,6 +224,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // connect mode (already logged in) keeps the existing session.
         const authStatus = await authAPI.getAuthStatus();
         if (authStatus.authenticated) {
+          if (!isAuthenticated) {
+            await conversationCache.clear();
+            clearAuthCache();
+          }
           setIsAuthenticated(true);
           writeAuthCache({ authenticated: true });
         } else if (!isAuthenticated) {

@@ -449,7 +449,11 @@ export const useConversations = () => {
   );
 
   const hydrateFromCache = useCallback(async (): Promise<boolean> => {
-    const snapshot = await conversationCache.load(readAuthCache()?.userId);
+    const userId = readAuthCache()?.userId;
+    if (!userId) {
+      return false;
+    }
+    const snapshot = await conversationCache.load(userId);
     if (!snapshot) {
       return false;
     }

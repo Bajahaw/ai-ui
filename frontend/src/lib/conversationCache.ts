@@ -81,11 +81,9 @@ function createMemoryBackend(): CacheBackend {
   let messages = new Map<string, MsgRecord>();
   let meta: MetaRecord | null = null;
 
-  const resolveUserId = (userId?: string) => userId || meta?.userId;
-
   return {
     async load(userId) {
-      const uid = resolveUserId(userId);
+      const uid = userId;
       if (!uid) {
         return null;
       }
@@ -242,7 +240,7 @@ function createIdbBackend(): CacheBackend | null {
     async load(userId) {
       const db = await open();
       const meta = await readMeta(db);
-      const uid = userId || meta?.userId;
+      const uid = userId;
       if (!uid) {
         return null;
       }
