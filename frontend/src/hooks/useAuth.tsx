@@ -7,6 +7,10 @@ import React, {
   ReactNode,
 } from "react";
 import { authAPI } from "@/lib/api/auth.ts";
+import {
+  ACTIVE_PROFILE_KEY,
+  setAccessToken,
+} from "@/lib/api/headers.ts";
 import { clearAuthCache, readAuthCache, writeAuthCache } from "@/lib/authCache";
 import { conversationCache } from "@/lib/conversationCache";
 
@@ -16,6 +20,13 @@ interface AuthContextType {
   isLoading: boolean;
   /** Whether new account creation is allowed (password register + new ChatGPT users). */
   registrationEnabled: boolean;
+  /** "password" (server) or "profiles" (passwordless local mode). */
+  authMode: string;
+  isProfilesMode: boolean;
+  /** Local profiles (profiles mode only). */
+  profiles: string[];
+  /** Currently selected profile (profiles mode only). */
+  activeProfile: string | null;
   /** True while waiting for ChatGPT OAuth (popup or manual paste). */
   chatgptOAuthPending: boolean;
   login: (username: string, password: string) => Promise<void>;
@@ -26,6 +37,12 @@ interface AuthContextType {
   cancelChatGPTOAuth: () => void;
   logout: () => Promise<void>;
   register: (username: string, password: string) => Promise<void>;
+  /** Select a local profile (profiles mode only). */
+  selectProfile: (username: string) => Promise<void>;
+  /** Create a local profile and select it (profiles mode only). */
+  createProfile: (username: string) => Promise<void>;
+  /** Delete a local profile and its data (profiles mode only). */
+  deleteProfile: (username: string) => Promise<void>;
   error: string | null;
   clearError: () => void;
 }
@@ -43,13 +60,74 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [registrationEnabled, setRegistrationEnabled] = useState(true);
+  const [authMode, setAuthMode] = useState("password");
+  const [profiles, setProfiles] = useState<string[]>([]);
+  const [activeProfile, setActiveProfile] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(ACTIVE_PROFILE_KEY);
+    } catch {
+      return null;
+    }
+  });
+  const isProfilesMode = authMode === "profiles";
   const [error, setError] = useState<string | null>(null);
   const [chatgptOAuthPending, setChatgptOAuthPending] = useState(false);
   const oauthAbortRef = useRef<AbortController | null>(null);
 
+  const applyProfileSession = async (username: string) => {
+    const res = await authAPI.selectProfile(username);
+    setAccessToken(res.access_token);
+    try {
+      localStorage.setItem(ACTIVE_PROFILE_KEY, res.username);
+    } catch {
+      // storage unavailable — session still works for this tab
+    }
+    setActiveProfile(res.username);
+    setProfiles((prev) =>
+      prev.includes(res.username) ? prev : [...prev, res.username],
+    );
+    await conversationCache.clear();
+    clearAuthCache();
+    writeAuthCache({ authenticated: true });
+    setIsAuthenticated(true);
+  };
+
+  const ensureProfileSession = async () => {
+    const list = await authAPI.listProfiles();
+    const names = list.map((p) => p.username);
+    setProfiles(names);
+    let stored: string | null = null;
+    try {
+      stored = localStorage.getItem(ACTIVE_PROFILE_KEY);
+    } catch {
+      stored = null;
+    }
+    const pick =
+      stored && names.includes(stored) ? stored : names.length > 0 ? names[0] : null;
+    if (pick) {
+      await applyProfileSession(pick);
+      return;
+    }
+    // First run: create the default profile (hooks seed settings + MCP).
+    const created = await authAPI.createProfile("Default");
+    setProfiles([created.username]);
+    setAccessToken(created.access_token);
+    try {
+      localStorage.setItem(ACTIVE_PROFILE_KEY, created.username);
+    } catch {
+      // ignore
+    }
+    setActiveProfile(created.username);
+    await conversationCache.clear();
+    clearAuthCache();
+    writeAuthCache({ authenticated: true });
+    setIsAuthenticated(true);
+  };
+
   useEffect(() => {
     const applySignedOut = async () => {
       setIsAuthenticated(false);
+      setAccessToken(null);
       clearAuthCache();
       await conversationCache.clear();
     };
@@ -57,7 +135,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const checkAuth = async () => {
       try {
         const status = await authAPI.getAuthStatus();
+        const mode = status.auth_mode || "password";
+        setAuthMode(mode);
         setRegistrationEnabled(status.registration_enabled !== false);
+        if (mode === "profiles") {
+          // Passwordless mode: silently (re)select a profile — no login UI.
+          await ensureProfileSession();
+          return;
+        }
         if (status.authenticated) {
           setIsAuthenticated(true);
           writeAuthCache({ authenticated: true });
@@ -140,6 +225,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       );
     } finally {
       setIsAuthenticated(false);
+      setAccessToken(null);
       clearAuthCache();
       await conversationCache.clear();
       setIsLoading(false);
@@ -277,6 +363,76 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const selectProfile = async (username: string): Promise<void> => {
+    try {
+      setError(null);
+      setIsLoading(true);
+      await applyProfileSession(username);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Could not switch profile";
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const createProfile = async (username: string): Promise<void> => {
+    try {
+      setError(null);
+      setIsLoading(true);
+      const created = await authAPI.createProfile(username);
+      setProfiles((prev) =>
+        prev.includes(created.username)
+          ? prev
+          : [...prev, created.username],
+      );
+      await applyProfileSession(created.username);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Could not create profile";
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteProfile = async (username: string): Promise<void> => {
+    try {
+      setError(null);
+      setIsLoading(true);
+      await authAPI.deleteProfile(username);
+      setProfiles((prev) => prev.filter((p) => p !== username));
+      if (activeProfile === username) {
+        // Fall back to another profile, or sign out to the picker.
+        const remaining = profiles.filter((p) => p !== username);
+        if (remaining.length > 0) {
+          await applyProfileSession(remaining[0]);
+        } else {
+          try {
+            localStorage.removeItem(ACTIVE_PROFILE_KEY);
+          } catch {
+            // ignore
+          }
+          setActiveProfile(null);
+          setIsAuthenticated(false);
+          setAccessToken(null);
+          clearAuthCache();
+          await conversationCache.clear();
+        }
+      }
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Could not delete profile";
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const cancelChatGPTOAuth = () => {
     oauthAbortRef.current?.abort();
   };
@@ -290,6 +446,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isCheckingAuth,
     isLoading,
     registrationEnabled,
+    authMode,
+    isProfilesMode,
+    profiles,
+    activeProfile,
     chatgptOAuthPending,
     login,
     loginWithChatGPT,
@@ -297,6 +457,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     cancelChatGPTOAuth,
     logout,
     register,
+    selectProfile,
+    createProfile,
+    deleteProfile,
     error,
     clearError,
   };

@@ -1,6 +1,6 @@
 import { ApiErrorHandler } from "./errorHandler.ts";
 
-import { AuthStatus } from "./types.ts";
+import { AuthStatus, ProfileInfo, SelectProfileResponse } from "./types.ts";
 import { getHeaders } from "./headers.ts";
 
 // Authentication API client
@@ -178,8 +178,7 @@ export class AuthAPI {
   }
 
   // POST /api/auth/chatgpt/callback - manual paste of localhost redirect URL
-  async submitChatGPTCallback(url: string): Promise<void> {
-    if (!url?.trim()) {
+  async submitChatGPTCallback(url: string): Promise<void> {    if (!url?.trim()) {
       throw new Error("Callback URL is required");
     }
 
@@ -200,6 +199,95 @@ export class AuthAPI {
         );
       }
     }, "submitChatGPTCallback");
+  }
+
+  // ---- Passwordless profiles (auth_mode === "profiles") ----
+
+  // GET /api/auth/profiles - list local profiles
+  async listProfiles(): Promise<ProfileInfo[]> {
+    return ApiErrorHandler.handleApiCall(async () => {
+      const response = await fetch("/api/auth/profiles", {
+        method: "GET",
+        headers: getHeaders({
+          "Content-Type": "application/json",
+        }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(response, "List Profiles");
+      }
+
+      return response.json();
+    }, "listProfiles");
+  }
+
+  // POST /api/auth/profiles/select - start a session for a profile
+  async selectProfile(username: string): Promise<SelectProfileResponse> {
+    if (!username) {
+      throw new Error("Profile name is required");
+    }
+
+    return ApiErrorHandler.handleApiCall(async () => {
+      const response = await fetch("/api/auth/profiles/select", {
+        method: "POST",
+        headers: getHeaders({
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify({ username }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(response, "Select Profile");
+      }
+
+      return response.json();
+    }, "selectProfile");
+  }
+
+  // POST /api/auth/profiles/create - create a profile and select it
+  async createProfile(username: string): Promise<SelectProfileResponse> {
+    if (!username?.trim()) {
+      throw new Error("Profile name is required");
+    }
+
+    return ApiErrorHandler.handleApiCall(async () => {
+      const response = await fetch("/api/auth/profiles/create", {
+        method: "POST",
+        headers: getHeaders({
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify({ username: username.trim() }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(response, "Create Profile");
+      }
+
+      return response.json();
+    }, "createProfile");
+  }
+
+  // DELETE /api/auth/profiles/{username} - delete a profile and its data
+  async deleteProfile(username: string): Promise<void> {
+    return ApiErrorHandler.handleApiCall(async () => {
+      const response = await fetch(
+        `/api/auth/profiles/${encodeURIComponent(username)}`,
+        {
+          method: "DELETE",
+          headers: getHeaders({
+            "Content-Type": "application/json",
+          }),
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        await ApiErrorHandler.handleFetchError(response, "Delete Profile");
+      }
+    }, "deleteProfile");
   }
 }
 

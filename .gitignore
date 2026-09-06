@@ -11,7 +11,27 @@ node_modules
 
 # Production build
 dist/
-build/
+bin/
+.task
+
+# Wails generated (per-machine; overlays hold absolute paths)
+build/android/overlay.json
+build/android/gen/
+build/ios/xcode/overlay.json
+build/ios/xcode/gen/
+frontend/bindings
+
+# Android/Gradle generated outputs (local only, never commit)
+build/android/build/
+build/android/app/build/
+build/android/app/.cxx/
+build/android/app/.gradle/
+build/android/.gradle/
+build/android/app/src/main/jniLibs/
+*.apk
+*.aab
+*.keystore
+*.jks
 
 # temporary
 backend/tests

@@ -1,4 +1,5 @@
 import React from "react";
+import "./lib/wails-loopback.ts";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./globals.css";

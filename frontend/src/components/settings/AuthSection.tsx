@@ -2,8 +2,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Lock, User } from "lucide-react";
+import { Lock, User, UserRoundIcon } from "lucide-react";
 import { authAPI } from "@/lib/api/auth";
+import { useAuth } from "@/hooks/useAuth";
+import { ProfilePickerDialog } from "@/components/auth/ProfilePickerDialog";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 
 export const AuthSection = () => {
+  const { isProfilesMode, activeProfile } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -85,6 +88,26 @@ export const AuthSection = () => {
         Account Settings
       </h3>
 
+      {isProfilesMode ? (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center pb-2">
+            <div className="space-y-1">
+              <Label className="text-base">Profile</Label>
+              <p className="text-sm text-muted-foreground">
+                {activeProfile
+                  ? `Signed in as ${activeProfile} (no password needed)`
+                  : "Passwordless local profiles"}
+              </p>
+            </div>
+            <ProfilePickerDialog>
+              <Button variant="outline" size="sm">
+                <UserRoundIcon className="mr-2 h-4 w-4" />
+                Switch Profile
+              </Button>
+            </ProfilePickerDialog>
+          </div>
+        </div>
+      ) : (
       <div className="space-y-4">
         <div className="flex justify-between items-center pb-2">
           <div className="space-y-1">
@@ -165,6 +188,7 @@ export const AuthSection = () => {
           </Dialog>
         </div>
       </div>
+      )}
     </div>
   );
 };

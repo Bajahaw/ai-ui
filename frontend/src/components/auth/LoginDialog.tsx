@@ -7,6 +7,7 @@ import {
 import { Button } from "@/components/ui/button.tsx";
 import { LogInIcon } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth.tsx";
+import { ProfilePickerDialog } from "@/components/auth/ProfilePickerDialog.tsx";
 import { cn } from "@/lib/utils.ts";
 
 interface LoginDialogProps {
@@ -34,6 +35,7 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
     error,
     clearError,
     registrationEnabled,
+    isProfilesMode,
   } = useAuth();
   const [validationError, setValidationError] = useState<string | null>(null);
   const [chatgptLoading, setChatgptLoading] = useState(false);
@@ -133,6 +135,13 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
       setChatgptLoading(false);
     }
   };
+
+  // Passwordless profiles mode: this dialog becomes the profile picker.
+  if (isProfilesMode) {
+    return (
+      <ProfilePickerDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+    );
+  }
 
   return (
     <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>

@@ -14,6 +14,7 @@ import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { cn } from "@/lib/utils";
+import { withAccessToken } from "@/lib/api/headers";
 import {
   getChildrenText,
   getNodeText,
@@ -278,6 +279,11 @@ const components: Options["components"] = {
       alt={alt ?? ""}
       className={cn("my-4 block max-w-full rounded-xl", className)}
       {...props}
+      src={
+        typeof props.src === "string"
+          ? withAccessToken(props.src)
+          : props.src
+      }
     />
   ),
 
@@ -332,7 +338,11 @@ const components: Options["components"] = {
 
     if (isFile) {
       return (
-        <FileCard href={href} filename={children} isExternal={isExternal} />
+        <FileCard
+          href={withAccessToken(href)}
+          filename={children}
+          isExternal={isExternal}
+        />
       );
     }
 

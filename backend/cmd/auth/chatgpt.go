@@ -150,7 +150,7 @@ func pollChatGPTLogin(w http.ResponseWriter, r *http.Request) {
 				hook(username)
 			}
 		}
-		if err := IssueSession(w, username); err != nil {
+		if err := IssueSession(w, r, username); err != nil {
 			log.Error("Failed to issue session", "err", err)
 			utils.RespondWithJSON(w, chatgptStatusResponse{
 				Status: "error",

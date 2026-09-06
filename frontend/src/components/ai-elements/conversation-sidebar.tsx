@@ -17,6 +17,7 @@ import {
   TrashIcon,
   LogInIcon,
   LogOutIcon,
+  UserRoundIcon,
   SidebarIcon,
   SearchIcon,
   Loader2Icon,
@@ -34,6 +35,7 @@ import {
 import { ClientConversation } from "@/lib/clientConversationManager";
 import { useAuth } from "@/hooks/useAuth";
 import { LoginDialog } from "@/components/auth/LoginDialog";
+import { ProfilePickerDialog } from "@/components/auth/ProfilePickerDialog";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { conversationsAPI } from "@/lib/api/conversations";
 import type { ConversationSearchHit } from "@/lib/api/types";
@@ -634,7 +636,8 @@ export const ConversationSidebar = ({
 };
 
 const AuthButton = () => {
-  const { isAuthenticated, isCheckingAuth, logout, isLoading } = useAuth();
+  const { isAuthenticated, isCheckingAuth, logout, isLoading, isProfilesMode, activeProfile } =
+    useAuth();
   const [loginOpen, setLoginOpen] = useState(false);
 
   useEffect(() => {
@@ -654,6 +657,19 @@ const AuthButton = () => {
   if (isCheckingAuth) return null;
 
   if (isAuthenticated) {
+    if (isProfilesMode) {
+      return (
+        <ProfilePickerDialog>
+          <Button
+            variant="outline"
+            className="w-full justify-start rounded-lg gap-2"
+          >
+            <UserRoundIcon className="size-4" />
+            <span className="truncate">{activeProfile ?? "Switch profile"}</span>
+          </Button>
+        </ProfilePickerDialog>
+      );
+    }
     return (
       <Button
         variant="outline"

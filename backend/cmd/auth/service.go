@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -13,6 +14,11 @@ import (
 // TokenTTL is how long a session remains valid without activity.
 // Active use re-issues a fresh token (sliding session).
 const TokenTTL = 72 * time.Hour
+
+// accessTokenTTL is the lifetime of bearer access tokens minted for media
+// URLs and profile selection. Long-lived: profiles mode has no passwords, so
+// re-auth friction is worse than the token exposure risk on a local device.
+const accessTokenTTL = 365 * 24 * time.Hour
 
 // refreshIfRemainingBelow re-issues the auth cookie when less than this much
 // lifetime remains, so daily use extends the session without minting a JWT
@@ -43,43 +49,100 @@ func generateJWTWithTTL(username string, ttl time.Duration) (string, error) {
 	return signedToken, nil
 }
 
-func setAuthCookie(w http.ResponseWriter, token string) {
+func setAuthCookie(w http.ResponseWriter, r *http.Request, token string) {
+	secure, sameSite := cookieAttributes(r)
 	http.SetCookie(w, &http.Cookie{
 		Name:     AUTH_COOKIE,
 		Value:    token,
 		Path:     "/",
 		Expires:  time.Now().Add(TokenTTL),
 		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		Secure:   secure,
+		SameSite: sameSite,
 	})
 }
 
-func clearAuthCookie(w http.ResponseWriter) {
+func clearAuthCookie(w http.ResponseWriter, r *http.Request) {
+	secure, sameSite := cookieAttributes(r)
 	http.SetCookie(w, &http.Cookie{
 		Name:     AUTH_COOKIE,
 		Value:    "",
 		Path:     "/",
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		Secure:   secure,
+		SameSite: sameSite,
 	})
 }
 
+// cookieAttributes adapts the session cookie to the transport so auth keeps
+// working outside HTTPS deployments:
+//
+//   - HTTPS or loopback (127.0.0.1/localhost, incl. the in-app API server):
+//     Secure + SameSite=None. None is required because the mobile/desktop
+//     WebView (wails.localhost) calls the loopback API cross-site; Secure is
+//     still honoured there because loopback is a secure context.
+//   - Plain HTTP (LAN IP / hostname): Secure=false + SameSite=Lax, otherwise
+//     browsers reject the cookie and sign-in is silently broken.
+func cookieAttributes(r *http.Request) (secure bool, sameSite http.SameSite) {
+	if requestIsSecure(r) {
+		return true, http.SameSiteNoneMode
+	}
+	return false, http.SameSiteLaxMode
+}
+
+func requestIsSecure(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	if r.TLS != nil {
+		return true
+	}
+	if isLoopbackHost(r.Host) {
+		return true
+	}
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		return proto == "https"
+	}
+	return false
+}
+
+func isLoopbackHost(host string) bool {
+	h := host
+	if i := strings.LastIndex(h, ":"); i >= 0 && !strings.Contains(h[i+1:], "]") {
+		// Strip :port (careful with bracketed IPv6 like [::1]:8080).
+		if strings.HasPrefix(h, "[") {
+			if end := strings.Index(h, "]"); end >= 0 {
+				h = h[1:end]
+			}
+		} else if strings.Count(h, ":") == 1 {
+			h = h[:i]
+		}
+	} else {
+		h = strings.Trim(h, "[]")
+	}
+	return h == "127.0.0.1" || h == "::1" || strings.EqualFold(h, "localhost")
+}
+
 // issueAuthCookie mints a new JWT and sets the auth cookie.
-func issueAuthCookie(w http.ResponseWriter, username string) error {
+func issueAuthCookie(w http.ResponseWriter, r *http.Request, username string) error {
 	token, err := generateJWT(username)
 	if err != nil {
 		return err
 	}
-	setAuthCookie(w, token)
+	setAuthCookie(w, r, token)
 	return nil
+}
+
+// generateAccessToken mints a long-lived bearer token for media URLs and
+// profile selection responses.
+func generateAccessToken(username string) (string, error) {
+	return generateJWTWithTTL(username, accessTokenTTL)
 }
 
 // maybeRefreshAuthCookie re-issues the session cookie when the current token
 // is past the halfway point of its lifetime (sliding reactivation).
-func maybeRefreshAuthCookie(w http.ResponseWriter, username string, claims map[string]any) {
+func maybeRefreshAuthCookie(w http.ResponseWriter, r *http.Request, username string, claims map[string]any) {
 	exp, ok := claims["exp"].(float64)
 	if !ok {
 		return
@@ -88,7 +151,7 @@ func maybeRefreshAuthCookie(w http.ResponseWriter, username string, claims map[s
 	if remaining > refreshIfRemainingBelow {
 		return
 	}
-	if err := issueAuthCookie(w, username); err != nil {
+	if err := issueAuthCookie(w, r, username); err != nil {
 		log.Warn("Failed to refresh auth cookie", "username", username, "error", err)
 	}
 }
@@ -169,8 +232,8 @@ func hashPassword(password string) ([]byte, error) {
 
 
 // IssueSession mints an auth cookie for the given username (used by OAuth sign-in).
-func IssueSession(w http.ResponseWriter, username string) error {
-	return issueAuthCookie(w, username)
+func IssueSession(w http.ResponseWriter, r *http.Request, username string) error {
+	return issueAuthCookie(w, r, username)
 }
 
 // EnsureOAuthUser creates a local user for ChatGPT sign-in if missing.

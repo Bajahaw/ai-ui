@@ -1,6 +1,6 @@
 import { FileUploadResponse, File as ApiFile } from "./types";
 
-import { getHeaders } from "./headers";
+import { getHeaders, withAccessToken } from "./headers";
 
 export class FileUploadError extends Error {
   constructor(
@@ -117,7 +117,8 @@ export const isThumbnailable = (filename: string, mimeType?: string): boolean =>
 
 export const fileResourceUrl = (filePath: string): string => {
   if (!filePath) return "";
-  return filePath.startsWith("/") ? filePath : `/${filePath}`;
+  const url = filePath.startsWith("/") ? filePath : `/${filePath}`;
+  return withAccessToken(url);
 };
 
 /**
@@ -125,12 +126,12 @@ export const fileResourceUrl = (filePath: string): string => {
  * Backend generates on demand when missing.
  */
 export const fileThumbnailUrl = (filePath: string): string => {
-  const url = fileResourceUrl(filePath);
+  const url = filePath.startsWith("/") ? filePath : `/${filePath}`;
   const filename = url.split("/").pop() || "";
   const dot = filename.lastIndexOf(".");
   const stem = dot > 0 ? filename.slice(0, dot) : filename;
   if (!stem) return "";
-  return `/data/resources/thumbs/${stem}.jpg`;
+  return withAccessToken(`/data/resources/thumbs/${stem}.jpg`);
 };
 
 export const formatFileSize = (bytes: number): string => {

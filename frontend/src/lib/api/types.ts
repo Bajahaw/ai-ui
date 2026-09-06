@@ -3,6 +3,17 @@
 export interface AuthStatus {
   authenticated: boolean;
   registration_enabled: boolean;
+  /** "password" (default server mode) or "profiles" (passwordless local mode). */
+  auth_mode?: string;
+}
+
+export interface ProfileInfo {
+  username: string;
+}
+
+export interface SelectProfileResponse {
+  username: string;
+  access_token: string;
 }
 
 // File types
