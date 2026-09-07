@@ -8,6 +8,33 @@ import (
 	"time"
 )
 
+func TestBuiltInToolsRegistry(t *testing.T) {
+	// Regression guard: every built-in must stay registered with a schema.
+	// (execute_python once accidentally replaced http_request here.)
+	want := map[string]bool{
+		"search_document":    false,
+		"read_document_page": false,
+		"view_document_page": false,
+		"generate_image":     false,
+		"read_skill":         false,
+		"http_request":       false,
+		"execute_python":      false,
+	}
+	for _, tool := range GetBuiltInTools() {
+		if _, ok := want[tool.Name]; ok {
+			want[tool.Name] = true
+		}
+		if tool.Name == "" || tool.InputSchema == "" {
+			t.Fatalf("built-in tool missing name/schema: %+v", tool)
+		}
+	}
+	for name, found := range want {
+		if !found {
+			t.Fatalf("built-in tool %q missing from GetBuiltInTools()", name)
+		}
+	}
+}
+
 func TestParseExecutePythonArgs(t *testing.T) {
 	p, timeout, err := parseExecutePythonArgs(`{"code":"print(1)"}`)
 	if err != nil {
@@ -70,14 +97,14 @@ func TestFormatPythonResult(t *testing.T) {
 func TestExecutePythonToolCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	out := executePythonTool(ctx, `{"code":"print(1)"}`)
+	out := executePythonTool(ctx, `{"code":"print(1)"}`, "u1")
 	if !strings.Contains(out.Content, "cancelled") {
 		t.Fatalf("expected cancellation message, got: %q", out.Content)
 	}
 }
 
 func TestExecutePythonToolBadArgs(t *testing.T) {
-	out := executePythonTool(context.Background(), `{"code":""}`)
+	out := executePythonTool(context.Background(), `{"code":""}`, "u1")
 	if !strings.Contains(out.Content, "error") {
 		t.Fatalf("expected error message, got: %q", out.Content)
 	}
@@ -91,23 +118,23 @@ func TestExecutePythonToolLive(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	out := executePythonTool(ctx, `{"code":"print(2 + 3 * 4)\nfor i in range(3):\n    print('i=', i)"}`)
+	out := executePythonTool(ctx, `{"code":"print(2 + 3 * 4)\nfor i in range(3):\n    print('i=', i)"}`, "u1")
 	t.Logf("basic output:\n%s", out.Content)
 	if !strings.Contains(out.Content, "Exit-Code: 0") || !strings.Contains(out.Content, "14") {
 		t.Fatalf("basic execution failed:\n%s", out.Content)
 	}
 
-	out = executePythonTool(ctx, `{"code":"import json, math\nprint(json.dumps({'pi': round(math.pi, 4)}))"}`)
+	out = executePythonTool(ctx, `{"code":"import json, math\nprint(json.dumps({'pi': round(math.pi, 4)}))"}`, "u1")
 	if !strings.Contains(out.Content, "3.1416") {
 		t.Fatalf("stdlib execution failed:\n%s", out.Content)
 	}
 
-	out = executePythonTool(ctx, `{"code":"raise ValueError('boom-test')"}`)
+	out = executePythonTool(ctx, `{"code":"raise ValueError('boom-test')"}`, "u1")
 	if !strings.Contains(out.Content, "Exit-Code: 1") || !strings.Contains(out.Content, "boom-test") {
 		t.Fatalf("expected traceback with exit 1, got:\n%s", out.Content)
 	}
 
-	out = executePythonTool(ctx, `{"code":"print(input() + '!')","stdin":"hello"}`)
+	out = executePythonTool(ctx, `{"code":"print(input() + '!')","stdin":"hello"}`, "u1")
 	if !strings.Contains(out.Content, "hello!") {
 		t.Fatalf("stdin execution failed:\n%s", out.Content)
 	}

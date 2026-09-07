@@ -134,7 +134,7 @@ func ExecuteMCPTool(ctx context.Context, toolCall providers.ToolCall, user, conv
 		case "http_request":
 			return httpRequestTool(toolCall.Args, user)
 		case "execute_python":
-			return executePythonTool(ctx, toolCall.Args)
+			return executePythonTool(ctx, toolCall.Args, user)
 		}
 	}
 
@@ -252,9 +252,17 @@ func GetBuiltInTools() []*Tool {
 		},
 		{
 			ID:              uuid.New().String(),
+			Name:            "http_request",
+			Description:     "HTTPS request to a public host (no IPs/private/loopback). Prefer json_pointers or css_selectors to extract fields. Response bodies are reduced by default; verbose for raw/larger. Secrets: $secrets.NAME$ in headers or URL path/query only.",
+			InputSchema:     `{"type":"object","properties":{"url":{"type":"string","description":"https URL (DNS hostname). $secrets.NAME$ in path/query."},"method":{"type":"string","description":"GET, HEAD, POST, PUT, PATCH, or DELETE","default":"GET"},"headers":{"type":"object","additionalProperties":{"type":"string"},"description":"Optional headers. $secrets.NAME$ allowed."},"body":{"description":"Optional body for POST/PUT/PATCH/DELETE. Prefer JSON object/array."},"verbose":{"type":"boolean","description":"Raw/larger response body.","default":false},"json_pointers":{"type":"array","items":{"type":"string"},"description":"RFC 6901 pointers into JSON body (e.g. \"/data/0/id\"). Missing paths → null. Exclusive with css_selectors."},"css_selectors":{"type":"array","items":{"type":"string"},"description":"CSS selectors into HTML (e.g. \"a.result\"). Exclusive with json_pointers."}},"required":["url"]}`,
+			RequireApproval: true,
+			IsEnabled:       true,
+		},
+		{
+			ID:              uuid.New().String(),
 			Name:            "execute_python",
-			Description:     "Execute Python 3.11 code in an isolated WebAssembly sandbox (no network, no persistent filesystem, stdlib only). Use for calculations, data transformation, or verifying code. Use print() for output; stdout/stderr and exit code are returned. Code max 32 KiB, wall-clock timeout 1-60s.",
-			InputSchema:     `{"type":"object","properties":{"code":{"type":"string","description":"Python 3 source code to execute. Use print() for output."},"timeout_ms":{"type":"integer","description":"Wall-clock limit in milliseconds, 1000-60000.","default":15000},"stdin":{"type":"string","description":"Optional text fed to the program on stdin."}},"required":["code"]}`,
+			Description:     "Execute Python 3.11 code in an isolated WebAssembly sandbox (no network, no persistent filesystem outside the session box). Use for calculations, data transformation, or editing files. Use print() for output; stdout/stderr and exit code are returned. Code max 32 KiB, wall-clock timeout 1-60s. Sessions: omit session_id for a one-shot box, or reuse the returned Session-ID across rounds to keep files in /work. mount_files (attachment file_ids) are copied read-only-ish into /mnt. Anything saved under /out is delivered back as chat attachments. 'packages' installs pure-Python PyPI only (no numpy/pandas, no runtime network); pin versions and list transitive deps.",
+			InputSchema:     `{"type":"object","properties":{"code":{"type":"string","description":"Python 3 source code to execute. Use print() for output; save deliverables under /out/; session files live in /work/."},"timeout_ms":{"type":"integer","description":"Wall-clock limit in milliseconds for mount+fetch+execution, 1000-60000.","default":15000},"stdin":{"type":"string","description":"Optional text fed to the program on stdin."},"packages":{"type":"array","items":{"type":"string"},"description":"Optional pure-Python PyPI packages, \"name\" or \"name==version\" (max 8). No C extensions, no dependency resolution — list transitive deps too."},"session_id":{"type":"string","description":"Optional sandbox session to continue (returned as Session-ID). Omit for a fresh one-shot box."},"mount_files":{"type":"array","items":{"type":"string"},"description":"Optional attachment file_ids to copy into /mnt for this session."}},"required":["code"]}`,
 			RequireApproval: true,
 			IsEnabled:       true,
 		},
