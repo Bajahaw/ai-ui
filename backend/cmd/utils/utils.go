@@ -134,6 +134,9 @@ func cacheControlMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Cache-Control", "private, no-cache, must-revalidate")
 			w.Header().Set("Pragma", "no-cache")
 			w.Header().Set("Expires", "0")
+		case r.URL.Path == "/" || r.URL.Path == "/index.html" || r.URL.Path == "/manifest.json" || !strings.Contains(r.URL.Path, "."):
+			// SPA shell + navigations (e.g. /c/:id fallback to index.html): never serve stale.
+			w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 		}
 		next.ServeHTTP(w, r)
 	})

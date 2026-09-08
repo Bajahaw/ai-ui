@@ -10,7 +10,38 @@ import { ChatGPTOAuthWaitingDialog } from "./components/auth/ChatGPTOAuthWaiting
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { registerSW } from "virtual:pwa-register";
 
-registerSW({ immediate: true });
+let refreshing = false;
+const reloadForUpdate = () => {
+  if (refreshing) return;
+  refreshing = true;
+  window.location.reload();
+};
+// Fires when the new precached SW takes control (covers autoUpdate).
+navigator.serviceWorker?.addEventListener("controllerchange", reloadForUpdate);
+
+registerSW({
+  immediate: true,
+  onNeedRefresh: reloadForUpdate,
+  onRegisteredSW(_url, r) {
+    if (!r) return;
+    const poll = () => r.update().catch(() => {});
+    const id = setInterval(poll, 60 * 60 * 1000);
+    const onVisible = () => {
+      if (!document.hidden) poll();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", poll);
+    window.addEventListener("online", poll);
+    if (import.meta.hot) {
+      import.meta.hot.dispose(() => {
+        clearInterval(id);
+        document.removeEventListener("visibilitychange", onVisible);
+        window.removeEventListener("focus", poll);
+        window.removeEventListener("online", poll);
+      });
+    }
+  },
+});
 /**
  * AuthGuard - Keeps the application shell mounted at all times.
  * Auth-aware hooks decide when to fetch data, and login is opened explicitly
