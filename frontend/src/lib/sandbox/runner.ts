@@ -1,7 +1,11 @@
 import { getHeaders } from "@/lib/api/headers";
 import { fileResourceUrl, getFile } from "@/lib/api/files";
 import type { ToolCall } from "@/lib/api/types";
-import { filesObjectLiteral, wrapSandboxCode } from "./wrap";
+import {
+  filesObjectLiteral,
+  wrapSandboxCode,
+  type SandboxInputFile,
+} from "./wrap";
 
 const SANDBOX_TIMEOUT_MS = 90_000;
 const RETRY_BUDGET_MS = 30_000;
@@ -105,9 +109,11 @@ function parseArgs(raw?: string): {
 async function loadInputFiles(
   ids: string[],
   signal?: AbortSignal,
-): Promise<{ name: string; data: string }[]> {
-  const out: { name: string; data: string }[] = [];
-  for (const id of ids.slice(0, MAX_INPUT_FILES)) {
+): Promise<SandboxInputFile[]> {
+  const out: SandboxInputFile[] = [];
+  for (const rawId of ids.slice(0, MAX_INPUT_FILES)) {
+    const id = (rawId || "").trim();
+    if (!id) continue;
     if (signal?.aborted) break;
     try {
       const meta = await getFile(id);
@@ -119,6 +125,7 @@ async function loadInputFiles(
       if (!buf.byteLength || buf.byteLength > MAX_FILE_BYTES) continue;
       out.push({
         name: (meta.name || id).slice(0, MAX_NAME_CHARS),
+        id: id.slice(0, MAX_NAME_CHARS),
         data: arrayBufferToBase64(buf),
       });
     } catch {
@@ -131,7 +138,7 @@ async function loadInputFiles(
 
 function executeInIframe(
   code: string,
-  files: { name: string; data: string }[],
+  files: SandboxInputFile[],
   signal?: AbortSignal,
 ): Promise<SandboxRunResult> {
   return new Promise((resolve) => {
@@ -205,10 +212,7 @@ function executeInIframe(
   });
 }
 
-function buildSrcdoc(
-  code: string,
-  files: { name: string; data: string }[],
-): string {
+function buildSrcdoc(code: string, files: SandboxInputFile[]): string {
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -229,8 +233,10 @@ function buildSrcdoc(
   window.sandbox = {
     _done: false,
     readFile: function(name){
-      if (!__files[name]) throw new Error('file not found: ' + name);
-      return __files[name];
+      var key = String(name == null ? '' : name);
+      if (__files[key]) return __files[key];
+      var avail = Object.keys(__files).join(', ');
+      throw new Error('file not found: ' + key + (avail ? ' (available: ' + avail.slice(0, 1000) + ')' : ' (no files mounted; check file_ids)'));
     },
     writeFile: function(name, data, mime){
       var p = (typeof Blob !== 'undefined' && data instanceof Blob)
