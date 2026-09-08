@@ -16,6 +16,7 @@ import {
   ClientConversationManager,
 } from "@/lib/clientConversationManager";
 import { useAuth } from "@/hooks/useAuth";
+import { runBrowserSandbox } from "@/lib/sandbox/runner";
 
 // ============================================================================
 // Streaming Utilities - Extracted to reduce duplication
@@ -83,6 +84,7 @@ function createStreamingHandlers(
   streamingState: StreamingState,
   syncConversations: () => void,
   isCurrent: () => boolean = () => true,
+  signal?: AbortSignal,
 ) {
   const onChunk = (chunk: string) => {
     if (!isCurrent()) return;
@@ -140,6 +142,7 @@ function createStreamingHandlers(
     }
 
     streamingState.scheduleSync(syncConversations);
+    void runBrowserSandbox(toolCall, signal);
   };
 
   return { onChunk, onReasoning, onToolCall };
@@ -1019,6 +1022,9 @@ export const useConversations = () => {
         // Initialize streaming state and handlers
         const streamingState = new StreamingState();
         const assistantPlaceholderRef = { current: assistantPlaceholderId! };
+        streamAbortRef.current?.abort();
+        const streamAbort = new AbortController();
+        streamAbortRef.current = streamAbort;
         const handlers = createStreamingHandlers(
           manager,
           conversationId,
@@ -1026,12 +1032,10 @@ export const useConversations = () => {
           streamingState,
           syncConversations,
           () => connectionEpochRef.current === streamEpoch,
+          streamAbort.signal,
         );
 
         let streamError: string | undefined;
-        streamAbortRef.current?.abort();
-        const streamAbort = new AbortController();
-        streamAbortRef.current = streamAbort;
 
         // Extract file IDs for API call
         const attachedFileIds = attachments?.map((a) => a.file.id);
@@ -1196,6 +1200,9 @@ export const useConversations = () => {
         const streamEpoch = connectionEpochRef.current;
         const streamingState = new StreamingState();
         const assistantPlaceholderRef = { current: assistantPlaceholderId };
+        streamAbortRef.current?.abort();
+        const streamAbort = new AbortController();
+        streamAbortRef.current = streamAbort;
         const handlers = createStreamingHandlers(
           manager,
           activeConversationId,
@@ -1203,12 +1210,10 @@ export const useConversations = () => {
           streamingState,
           syncConversations,
           () => connectionEpochRef.current === streamEpoch,
+          streamAbort.signal,
         );
 
         let streamError: string | undefined;
-        streamAbortRef.current?.abort();
-        const streamAbort = new AbortController();
-        streamAbortRef.current = streamAbort;
         const sessionId = getSessionId();
 
         await chatAPI.retryMessageStream(

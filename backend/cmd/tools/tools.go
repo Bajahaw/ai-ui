@@ -133,6 +133,8 @@ func ExecuteMCPTool(ctx context.Context, toolCall providers.ToolCall, user, conv
 			return generateImageTool(toolCall.Args, user, convID)
 		case "http_request":
 			return httpRequestTool(toolCall.Args, user)
+		case "browser_sandbox":
+			return browserSandboxTool(ctx, toolCall.ID, toolCall.Args, user)
 		}
 	}
 
@@ -246,6 +248,13 @@ func GetBuiltInTools() []*Tool {
 			Name:        "read_skill",
 			Description: "Read the full content of a specific skill by its name. Choose the skill that best matches the user's task from the <available_skills> section in the system prompt, then read its full instructions using this tool.",
 			InputSchema: `{"type":"object","properties":{"name":{"type":"string","description":"The exact name of the skill to read"}},"required":["name"]}`,
+			IsEnabled:   true,
+		},
+		{
+			ID:          uuid.New().String(),
+			Name:        "browser_sandbox",
+			Description: "Execute HTML or JavaScript in an isolated client sandbox. Returns logs and errors. Injected API: sandbox.readFile(name), sandbox.writeFile(name, data), sandbox.done(error?). Bare JS is awaited; HTML must call sandbox.done().",
+			InputSchema: `{"type":"object","properties":{"code":{"type":"string","description":"HTML or JavaScript to run. CDN script tags are allowed."},"file_ids":{"type":"array","items":{"type":"string"},"description":"Optional file ids mounted for sandbox.readFile."}},"required":["code"]}`,
 			IsEnabled:   true,
 		},
 		{

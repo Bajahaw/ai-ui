@@ -4,7 +4,7 @@ description: Use when asked to create docx, pptx, xlsx, or pdf files.
 ---
 # File Generation Skill
 
-Generate `.pptx`, `.docx`, `.xlsx`, and `.pdf` files entirely client-side using browser-based libraries.
+Generate `.pptx`, `.docx`, `.xlsx`, and `.pdf` files in `browser_sandbox` using browser-based libraries. Call `sandbox.writeFile(name, data)` then `sandbox.done()`. Do not use widgets or auto-download for the file itself.
 
 ---
 
@@ -37,10 +37,10 @@ The Pyodide CDN must load **before** any script that calls `loadPyodide()`.
 <script src="https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js"></script>
 ```
 
-### Critical: Never Auto-Generate or Auto-Download
-- Do **not** call generation on page load.
-- Do **not** trigger `a.click()` automatically.
-- Always present a clickable file card or button and let the user initiate generation/download.
+### Critical: Write the file through the sandbox
+- Do **not** trigger `a.click()` or auto-download.
+- Call `await sandbox.writeFile('report.xlsx', bytes, mime)` then `sandbox.done()`.
+- Bare JS is awaited automatically. HTML snippets must call `sandbox.done()`.
 
 ### Basic Pattern
 ```javascript
@@ -64,16 +64,8 @@ wb.save('report.xlsx')
   `);
 
   const bytes = pyodide.FS.readFile('report.xlsx');
-  const blob = new Blob([bytes], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'report.xlsx';
-  a.click();
-  URL.revokeObjectURL(url);
+  await sandbox.writeFile('report.xlsx', bytes, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  sandbox.done();
 }
 ```
 
@@ -156,20 +148,7 @@ ws['A1'].fill = PatternFill('solid', fgColor='1F2937')
 ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
 ```
 
-### File Card
-Always use a clickable card/button. Never auto-download.
-
-```html
-<button id="generate-btn" style="width:100%; padding:1rem; border:1px solid var(--border); border-radius:0.75rem; background:var(--background); color:var(--foreground); cursor:pointer;">
-  Generate monthly_report.xlsx
-</button>
-```
-
-```javascript
-document.getElementById('generate-btn').addEventListener('click', async () => {
-  // run generation and download here
-});
-```
+After the sandbox returns a file id, send the user a markdown file link: `[monthly_report.xlsx](/data/resources/{file_id}.xlsx)`.
 
 ### Best Practice: Preview First
 For complex layouts, build a frontend preview first, agree on it with the user, then replicate the exact cell positions and dimensions in openpyxl.
@@ -192,7 +171,9 @@ slide.addText('Hello', { x: 1, y: 2, w: '80%', fontSize: 36, align: 'center' });
 slide.addChart(ppt.charts.BAR, [...], { x: 0.5, y: 1.5, w: 9, h: 5 });
 slide.addTable([['A','B'], ['1','2']], { x: 0.5, y: 1, w: 9 });
 
-ppt.writeFile({ fileName: 'slides.pptx' });
+const blob = await ppt.write('blob');
+await sandbox.writeFile('slides.pptx', blob);
+sandbox.done();
 ```
 
 ---
@@ -201,7 +182,6 @@ ppt.writeFile({ fileName: 'slides.pptx' });
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/docx/dist/index.iife.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 ```
 
 ```javascript
@@ -222,7 +202,9 @@ const doc = new Document({
   }]
 });
 
-Packer.toBlob(doc).then(blob => saveAs(blob, 'doc.docx'));
+const blob = await Packer.toBlob(doc);
+await sandbox.writeFile('doc.docx', blob);
+sandbox.done();
 ```
 
 ---
@@ -236,7 +218,7 @@ Generate PDFs client-side with jsPDF.
 ```
 
 ```javascript
-function createPdf() {
+async function createPdf() {
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF("p", "pt", "a4");
 
@@ -246,24 +228,15 @@ function createPdf() {
   pdf.setFontSize(11);
   pdf.text("Document content goes here.", 48, 90);
 
-  const blob = pdf.output("blob");
-  const url = URL.createObjectURL(blob);
-
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "document.pdf";
-  link.textContent = "Download PDF";
-  document.body.appendChild(link);
+  await sandbox.writeFile("document.pdf", pdf.output("blob"), "application/pdf");
+  sandbox.done();
 }
 ```
 
 Rules:
 
-- Generate only after a user clicks a button.
 - Track the current vertical position when adding content.
 - Add new pages when content reaches the page bottom.
-- Use a clickable download link or button.
-- Never auto-generate or auto-download files.
 
 ### Mermaid Diagrams in PDFs
 
@@ -297,6 +270,5 @@ Use `pdf.svg()` for Mermaid diagrams. Avoid canvas, `toDataURL()`, and `window.s
 
 - Use Pyodide version `https://cdn.jsdelivr.net/pyodide/v0.27.2/full/pyodide.js` exactly.
 - Use MIME type `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` for `.xlsx`.
-- For widget styling, the outer widget root must have `width:100%; padding:0; margin:0; border:none;`. Internal elements handle their own spacing.
-- Always provide a manual download trigger — never auto-generate or auto-download.
-- If a widget errors or the user requests an update, rewrite the widget. Do not ask the user to fix or update it themselves.
+- Always emit files with `sandbox.writeFile` and finish with `sandbox.done()`.
+- If the sandbox errors, fix the code and run `browser_sandbox` again. Do not ask the user to fix it.

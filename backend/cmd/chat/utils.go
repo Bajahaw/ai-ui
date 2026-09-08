@@ -41,8 +41,9 @@ const platformInstructions = `
 >latex
 >$$
 
+- To execute HTML or JavaScript in an isolated browser sandbox, use the browser_sandbox tool.
 - To render rich widgets using HTML, CSS, and JS, use a code block tag with "widget" like this: (` + "```widget" + `).
-- Widgets can be used for visuals, functional utilities, generating files (e.g. docx, and pdfs), and execute scripts including WASM (e.g. Python).
+- Widgets are for interactive UI in chat. Use browser_sandbox to run code and inspect results.
 
 - To render Mermaid diagrams, use a code block with "mermaid" as the language tag.
 - To render svg shapes and visuals, use the svg code block with "svg" language tag.
@@ -218,6 +219,9 @@ func attachToolFile(msg *providers.SimpleMessage, fileID, user string) {
 
 // resolveToolFileMedia loads a tool-produced file by id and returns data URLs
 // for the provider request. ToolCall.FileID is never mutated.
+// Large non-image binaries (e.g. office docs from browser_sandbox) resolve to
+// metadata only so they don't blow up provider context; the model can still
+// reference them by id/path and mount them via file_ids on the next call.
 func resolveToolFileMedia(fileID, user string) (f fs.File, images, fileDataURLs []string) {
 	if fileID == "" {
 		return fs.File{}, nil, nil
@@ -237,11 +241,14 @@ func resolveToolFileMedia(fileID, user string) (f fs.File, images, fileDataURLs 
 	}
 	mimeType := strings.Split(found[0].Type, ";")[0]
 	mimeType = strings.ReplaceAll(mimeType, " ", "")
-	dataURL := "data:" + mimeType + ";base64," + toBase64(data)
 	if strings.HasPrefix(mimeType, "image/") {
-		return found[0], []string{dataURL}, nil
+		return found[0], []string{"data:" + mimeType + ";base64," + toBase64(data)}, nil
 	}
-	return found[0], nil, []string{dataURL}
+	const maxInlineNonImageBytes = 256 << 10
+	if len(data) > maxInlineNonImageBytes {
+		return found[0], nil, nil
+	}
+	return found[0], nil, []string{"data:" + mimeType + ";base64," + toBase64(data)}
 }
 
 func enterAgentLoop(

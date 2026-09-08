@@ -26,6 +26,20 @@ export const getFiles = async (): Promise<ApiFile[]> => {
   return response.json();
 };
 
+export const getFile = async (id: string): Promise<ApiFile> => {
+  const response = await fetch(`/api/files/${id}`, {
+    method: "GET",
+    headers: getHeaders(),
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch file");
+  }
+
+  return response.json();
+};
+
 export const uploadFile = async (file: File): Promise<FileUploadResponse> => {
   if (!file) {
     throw new FileUploadError("No file provided");
