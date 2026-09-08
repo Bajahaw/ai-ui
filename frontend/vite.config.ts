@@ -22,6 +22,7 @@ export default defineConfig({
         "favicon.svg",
       ],
       workbox: {
+        cleanupOutdatedCaches: true,
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2,ttf}"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//, /^\/data\//],
