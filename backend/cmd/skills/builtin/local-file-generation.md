@@ -272,3 +272,4 @@ Use `pdf.svg()` for Mermaid diagrams. Avoid canvas, `toDataURL()`, and `window.s
 - Use MIME type `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` for `.xlsx`.
 - Always emit files with `sandbox.writeFile` and finish with `sandbox.done()`.
 - If the sandbox errors, fix the code and run `browser_sandbox` again. Do not ask the user to fix it.
+- The sandbox ships disabled and approval-gated: if the tool is unavailable or a run stalls, ask the user to enable it under Settings → Tools and approve the run.

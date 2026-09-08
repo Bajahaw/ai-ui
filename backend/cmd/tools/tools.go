@@ -251,11 +251,13 @@ func GetBuiltInTools() []*Tool {
 			IsEnabled:   true,
 		},
 		{
-			ID:          uuid.New().String(),
-			Name:        "browser_sandbox",
-			Description: "Execute HTML or JavaScript in an isolated client sandbox. Returns logs and errors. Injected API: sandbox.readFile(name), sandbox.writeFile(name, data), sandbox.done(error?). Bare JS is awaited; HTML must call sandbox.done().",
-			InputSchema: `{"type":"object","properties":{"code":{"type":"string","description":"HTML or JavaScript to run. CDN script tags are allowed."},"file_ids":{"type":"array","items":{"type":"string"},"description":"Optional file ids mounted for sandbox.readFile."}},"required":["code"]}`,
-			IsEnabled:   true,
+			// Off by default and approval-gated: executing code should be an
+			// explicit user opt-in, not something that runs unnoticed.
+			ID:              uuid.New().String(),
+			Name:            "browser_sandbox",
+			Description:     "Execute HTML or JavaScript in an isolated client sandbox. Returns logs and errors. Injected API: sandbox.readFile(name), sandbox.writeFile(name, data), sandbox.done(error?). Bare JS is awaited; HTML must call sandbox.done().",
+			InputSchema:     `{"type":"object","properties":{"code":{"type":"string","description":"HTML or JavaScript to run. CDN script tags are allowed."},"file_ids":{"type":"array","items":{"type":"string"},"description":"Optional file ids mounted for sandbox.readFile."}},"required":["code"]}`,
+			RequireApproval: true,
 		},
 		{
 			ID:              uuid.New().String(),

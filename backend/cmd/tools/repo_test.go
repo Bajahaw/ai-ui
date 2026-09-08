@@ -285,6 +285,16 @@ func TestSaveDefaultMCPServer_AttachesBuiltInTools(t *testing.T) {
 		if tool.MCPServerID != serverID {
 			t.Errorf("tool %q has MCPServerID %q, want %q", tool.Name, tool.MCPServerID, serverID)
 		}
+		if tool.Name == "browser_sandbox" {
+			// Opt-in tool: off by default and approval-gated.
+			if tool.IsEnabled {
+				t.Errorf("tool %q should be disabled by default", tool.Name)
+			}
+			if !tool.RequireApproval {
+				t.Errorf("tool %q should require approval", tool.Name)
+			}
+			continue
+		}
 		if !tool.IsEnabled {
 			t.Errorf("tool %q should be enabled by default", tool.Name)
 		}

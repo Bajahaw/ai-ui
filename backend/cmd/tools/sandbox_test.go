@@ -45,11 +45,11 @@ func TestGetBuiltInTools_IncludesSandbox(t *testing.T) {
 	if found == nil {
 		t.Fatal("missing browser_sandbox")
 	}
-	if found.RequireApproval {
-		t.Fatal("browser_sandbox must not require approval")
+	if !found.RequireApproval {
+		t.Fatal("browser_sandbox must require approval")
 	}
-	if !found.IsEnabled {
-		t.Fatal("browser_sandbox should be enabled")
+	if found.IsEnabled {
+		t.Fatal("browser_sandbox should be disabled by default")
 	}
 	if !strings.Contains(found.InputSchema, `"code"`) {
 		t.Fatalf("schema missing code: %s", found.InputSchema)

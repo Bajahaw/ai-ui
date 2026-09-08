@@ -16,7 +16,7 @@ import {
   ClientConversationManager,
 } from "@/lib/clientConversationManager";
 import { useAuth } from "@/hooks/useAuth";
-import { runBrowserSandbox } from "@/lib/sandbox/runner";
+import { maybeAutoRunBrowserSandbox } from "@/lib/sandbox/runner";
 
 // ============================================================================
 // Streaming Utilities - Extracted to reduce duplication
@@ -142,7 +142,7 @@ function createStreamingHandlers(
     }
 
     streamingState.scheduleSync(syncConversations);
-    void runBrowserSandbox(toolCall, signal);
+    void maybeAutoRunBrowserSandbox(toolCall, signal);
   };
 
   return { onChunk, onReasoning, onToolCall };
