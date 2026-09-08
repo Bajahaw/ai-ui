@@ -43,6 +43,9 @@ func generateJWTWithTTL(username string, ttl time.Duration) (string, error) {
 	return signedToken, nil
 }
 
+// cookieSecure is true in production. ENV=dev allows HTTP (e.g. phone on LAN IP).
+var cookieSecure = true
+
 func setAuthCookie(w http.ResponseWriter, token string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     AUTH_COOKIE,
@@ -50,7 +53,7 @@ func setAuthCookie(w http.ResponseWriter, token string) {
 		Path:     "/",
 		Expires:  time.Now().Add(TokenTTL),
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   cookieSecure,
 		SameSite: http.SameSiteStrictMode,
 	})
 }
@@ -62,7 +65,7 @@ func clearAuthCookie(w http.ResponseWriter) {
 		Path:     "/",
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   cookieSecure,
 		SameSite: http.SameSiteStrictMode,
 	})
 }

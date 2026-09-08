@@ -53,6 +53,10 @@ func Setup(l *logger.Logger, d *sql.DB) {
 	if !allowRegistration {
 		log.Info("Registration is disabled (ALLOW_REGISTRATION=false)")
 	}
+	cookieSecure = os.Getenv("ENV") != "dev"
+	if !cookieSecure {
+		log.Warn("Auth cookies are not Secure (ENV=dev); HTTP over LAN will work, but do not use this on an untrusted network")
+	}
 }
 
 // RegistrationAllowed reports whether new account creation is permitted.

@@ -62,6 +62,7 @@ func setupTest() *MockUserRepository {
 
 	JWT_SECRET = "test-secret-key"
 	allowRegistration = true
+	cookieSecure = true
 
 	return repo
 }
@@ -420,6 +421,35 @@ func TestLoginCookieTTL(t *testing.T) {
 	exp := time.Unix(int64(claims["exp"].(float64)), 0)
 	if time.Until(exp) < TokenTTL-time.Minute || time.Until(exp) > TokenTTL+time.Minute {
 		t.Errorf("expected JWT exp ~%v from now, got %v", TokenTTL, time.Until(exp))
+	}
+	if !cookie.Secure {
+		t.Error("expected Secure cookie when ENV is not dev")
+	}
+}
+
+func TestLoginCookieInsecureInDev(t *testing.T) {
+	repo := setupTest()
+	cookieSecure = false
+	hash, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	repo.users["testuser"] = &User{
+		Username: "testuser",
+		passHash: string(hash),
+	}
+
+	req := httptest.NewRequest("POST", "/login", nil)
+	req.ParseForm()
+	req.Form.Add("username", "testuser")
+	req.Form.Add("password", "password123")
+
+	w := httptest.NewRecorder()
+	Login().ServeHTTP(w, req)
+
+	cookie := authCookieFromResponse(w)
+	if cookie == nil {
+		t.Fatal("expected auth cookie")
+	}
+	if cookie.Secure {
+		t.Error("expected non-Secure cookie in dev")
 	}
 }
 
