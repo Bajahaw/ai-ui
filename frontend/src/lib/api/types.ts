@@ -109,6 +109,7 @@ export interface ToolCall {
   name: string;
   args?: string;
   tool_output?: string;
+  file_id?: string;
 }
 
 // Streaming types
