@@ -54,6 +54,12 @@ func TestGetBuiltInTools_IncludesSandbox(t *testing.T) {
 	if !strings.Contains(found.InputSchema, `"code"`) {
 		t.Fatalf("schema missing code: %s", found.InputSchema)
 	}
+	if strings.Contains(found.InputSchema, "file_ids") {
+		t.Fatalf("schema must not expose file_ids (auto-mount): %s", found.InputSchema)
+	}
+	if !strings.Contains(found.Description, "sandbox.listFiles()") {
+		t.Fatalf("description must document listFiles: %s", found.Description)
+	}
 }
 
 func TestBrowserSandboxTool_PersistsFiles(t *testing.T) {

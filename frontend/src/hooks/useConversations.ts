@@ -18,7 +18,10 @@ import {
 } from "@/lib/clientConversationManager";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettingsData } from "@/hooks/useSettingsData";
-import { runBrowserSandbox } from "@/lib/sandbox/runner";
+import {
+  collectConversationFileIds,
+  runBrowserSandbox,
+} from "@/lib/sandbox/runner";
 
 // ============================================================================
 // Streaming Utilities - Extracted to reduce duplication
@@ -162,7 +165,11 @@ function createStreamingHandlers(
     if (shouldAutoRunSandbox(toolsRef.current, toolCall)) {
       // Approval-gated sandboxes run from the ToolApproval UI instead,
       // after the backend has registered the pending call.
-      void runBrowserSandbox(toolCall, signal);
+      // Conversation files are auto-mounted; the model only sees a filesystem.
+      const convFiles = collectConversationFileIds(
+        manager.getConversation(conversationId)?.messages ?? [],
+      );
+      void runBrowserSandbox(toolCall, signal, convFiles);
     }
   };
 

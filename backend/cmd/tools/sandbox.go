@@ -114,9 +114,10 @@ func browserSandboxTool(ctx context.Context, callID, args, user string) provider
 		return providers.ToolOutput{Content: "Error: missing tool call id."}
 	}
 
-	// file_ids is accepted but intentionally ignored server-side: input
-	// files are fetched client-side over the authenticated session, so
-	// access control is enforced there. The server only relays the result.
+	// Conversation files are auto-mounted client-side, so the tool takes
+	// only code: input files are fetched over the authenticated session,
+	// and access control is enforced there. The server only relays the result.
+	// Any legacy file_ids in args are intentionally ignored.
 	var params struct {
 		Code string `json:"code"`
 		HTML string `json:"html"`

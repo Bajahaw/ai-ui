@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { collectConversationFileIds } from "./runner";
 import { filesObjectLiteral, isSandboxHtml, wrapSandboxCode } from "./wrap";
 
 describe("wrapSandboxCode", () => {
@@ -35,5 +36,28 @@ describe("filesObjectLiteral", () => {
     const out = filesObjectLiteral([{ name: "a.txt", data: "YQ==" }]);
     expect(out).toContain('"a.txt"');
     expect(out).toContain('"YQ=="');
+  });
+});
+
+describe("collectConversationFileIds", () => {
+  it("collects attachment and tool file ids, deduped", () => {
+    const msgs = [
+      {
+        attachments: [{ file: { id: " f1 " } }],
+        toolCalls: [{ file_id: "f2" }],
+      },
+      {
+        attachments: [{ file: { id: "f1" } }],
+        toolCalls: [{ file_id: "f2" }, { file_id: "" }],
+      },
+    ] as unknown as Parameters<typeof collectConversationFileIds>[0];
+    expect(collectConversationFileIds(msgs)).toEqual(["f1", "f2"]);
+  });
+
+  it("returns empty for no files", () => {
+    const msgs = [
+      { attachments: [], toolCalls: [] },
+    ] as unknown as Parameters<typeof collectConversationFileIds>[0];
+    expect(collectConversationFileIds(msgs)).toEqual([]);
   });
 });

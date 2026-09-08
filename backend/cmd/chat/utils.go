@@ -220,7 +220,8 @@ func attachToolFile(msg *providers.SimpleMessage, fileID, user string) {
 // for the provider request. ToolCall.FileID is never mutated.
 // Large non-image binaries (e.g. office docs from browser_sandbox) resolve to
 // metadata only so they don't blow up provider context; the model can still
-// reference them by id/path and mount them via file_ids on the next call.
+// reference them by name and read them via sandbox.listFiles()/readFile on the next call
+// (conversation files are auto-mounted client-side).
 func resolveToolFileMedia(fileID, user string) (f fs.File, images, fileDataURLs []string) {
 	if fileID == "" {
 		return fs.File{}, nil, nil

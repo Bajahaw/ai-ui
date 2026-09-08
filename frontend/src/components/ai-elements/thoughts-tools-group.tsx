@@ -46,6 +46,7 @@ type ThoughtsToolsGroupProps = {
   message: FrontendMessage;
   settingsData: SettingsDataLike;
   className?: string;
+  conversationFileIds?: string[];
 };
 
 const MAX_VISIBLE_TOOL_ICONS = 3;
@@ -66,9 +67,11 @@ const safeParseJSON = (jsonString: string | undefined) => {
 const ToolCallItem = ({
   toolCall,
   settingsData,
+  conversationFileIds,
 }: {
   toolCall: ToolCall;
   settingsData: SettingsDataLike;
+  conversationFileIds?: string[];
 }) => {
   const tool = settingsData.tools.find(
     (candidate) => candidate.name === toolCall.name,
@@ -107,8 +110,9 @@ const ToolCallItem = ({
                 setLocalState("input-available");
                 // browser_sandbox executes client-side: approval is the
                 // trigger to run, now that the backend is waiting for us.
+                // Conversation files are auto-mounted; the model only sees a filesystem.
                 if (toolCall.name === "browser_sandbox") {
-                  void runBrowserSandbox(toolCall);
+                  void runBrowserSandbox(toolCall, undefined, conversationFileIds);
                 }
               }
             }}
@@ -185,6 +189,7 @@ export const ThoughtsToolsGroup = ({
   message,
   settingsData,
   className,
+  conversationFileIds,
 }: ThoughtsToolsGroupProps) => {
   const toolCalls = message.toolCalls ?? [];
   const hasReasoning = Boolean(message.reasoning?.trim());
@@ -323,6 +328,7 @@ export const ThoughtsToolsGroup = ({
             key={toolCall.id}
             toolCall={toolCall}
             settingsData={settingsData}
+            conversationFileIds={conversationFileIds}
           />
         ))}
       </CollapsibleContent>

@@ -1,6 +1,6 @@
 import { getHeaders } from "@/lib/api/headers";
 import { fileResourceUrl, getFile } from "@/lib/api/files";
-import type { ToolCall } from "@/lib/api/types";
+import type { FrontendMessage, ToolCall } from "@/lib/api/types";
 import {
   filesObjectLiteral,
   wrapSandboxCode,
@@ -12,7 +12,8 @@ const RETRY_BUDGET_MS = 30_000;
 const MAX_FILES = 3;
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const MAX_CODE_BYTES = 500 * 1024;
-const MAX_INPUT_FILES = 3;
+const MAX_INPUT_FILES = 10;
+const MAX_TOTAL_INPUT_BYTES = 30 * 1024 * 1024;
 const MAX_LOG_LINES = 200;
 const MAX_LOG_LINE_CHARS = 2000;
 const MAX_ERROR_CHARS = 4000;
@@ -34,9 +35,29 @@ type SandboxRunResult = {
 /** Guards against duplicate runs from streaming updates + approval clicks. */
 const running = new Set<string>();
 
+/** Collects auto-mount file ids from conversation messages: user attachments + tool-produced files. */
+export function collectConversationFileIds(
+  messages: Pick<FrontendMessage, "attachments" | "toolCalls">[],
+): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const push = (id: string | undefined) => {
+    const trimmed = (id || "").trim();
+    if (!trimmed || seen.has(trimmed)) return;
+    seen.add(trimmed);
+    ids.push(trimmed);
+  };
+  for (const m of messages) {
+    for (const a of m.attachments ?? []) push(a?.file?.id);
+    for (const t of m.toolCalls ?? []) push(t?.file_id);
+  }
+  return ids.slice(0, MAX_INPUT_FILES);
+}
+
 export async function runBrowserSandbox(
   toolCall: ToolCall,
   signal?: AbortSignal,
+  conversationFileIds?: string[],
 ): Promise<void> {
   if (toolCall.name !== "browser_sandbox" || toolCall.tool_output) return;
   if (!toolCall.id || running.has(toolCall.id)) return;
@@ -60,7 +81,10 @@ export async function runBrowserSandbox(
       );
       return;
     }
-    const inputs = await loadInputFiles(args.file_ids ?? [], signal);
+    const inputs = await loadInputFiles(
+      conversationFileIds ?? args.file_ids ?? [],
+      signal,
+    );
     const result = await executeInIframe(code, inputs, signal);
     await postResultWithRetry(toolCall.id, result, signal);
   } catch (err) {
@@ -111,9 +135,12 @@ async function loadInputFiles(
   signal?: AbortSignal,
 ): Promise<SandboxInputFile[]> {
   const out: SandboxInputFile[] = [];
+  const seen = new Set<string>();
+  let totalBytes = 0;
   for (const rawId of ids.slice(0, MAX_INPUT_FILES)) {
     const id = (rawId || "").trim();
-    if (!id) continue;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
     if (signal?.aborted) break;
     try {
       const meta = await getFile(id);
@@ -123,6 +150,8 @@ async function loadInputFiles(
       if (!res.ok) continue;
       const buf = await res.arrayBuffer();
       if (!buf.byteLength || buf.byteLength > MAX_FILE_BYTES) continue;
+      if (totalBytes + buf.byteLength > MAX_TOTAL_INPUT_BYTES) continue;
+      totalBytes += buf.byteLength;
       out.push({
         name: (meta.name || id).slice(0, MAX_NAME_CHARS),
         id: id.slice(0, MAX_NAME_CHARS),
@@ -213,6 +242,7 @@ function executeInIframe(
 }
 
 function buildSrcdoc(code: string, files: SandboxInputFile[]): string {
+  const fileList = JSON.stringify(files.map((f) => f.name));
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -223,6 +253,7 @@ function buildSrcdoc(code: string, files: SandboxInputFile[]): string {
 <script>
 (function(){
   var __files = ${filesObjectLiteral(files)};
+  var __fileList = ${fileList};
   function send(msg){ window.parent.postMessage(msg,'*'); }
   function toBuf(data){
     if (data instanceof ArrayBuffer) return data;
@@ -232,11 +263,14 @@ function buildSrcdoc(code: string, files: SandboxInputFile[]): string {
   }
   window.sandbox = {
     _done: false,
+    listFiles: function(){
+      return __fileList.slice();
+    },
     readFile: function(name){
       var key = String(name == null ? '' : name);
       if (__files[key]) return __files[key];
-      var avail = Object.keys(__files).join(', ');
-      throw new Error('file not found: ' + key + (avail ? ' (available: ' + avail.slice(0, 1000) + ')' : ' (no files mounted; check file_ids)'));
+      var avail = __fileList.join(', ');
+      throw new Error('file not found: ' + key + (avail ? ' (available files: ' + avail.slice(0, 1000) + '; use sandbox.listFiles())' : ' (no files available; use sandbox.listFiles())'));
     },
     writeFile: function(name, data, mime){
       var p = (typeof Blob !== 'undefined' && data instanceof Blob)

@@ -68,6 +68,7 @@ import {
   UploadedFile,
 } from "@/components/ui/file-upload";
 import { ThoughtsToolsGroup } from "@/components/ai-elements/thoughts-tools-group";
+import { collectConversationFileIds } from "@/lib/sandbox/runner";
 import { uploadFile, FileUploadError } from "@/lib/api/files";
 import { synthesizeMessageSpeech } from "@/lib/api/tts";
 import { FileManagerDialog } from "@/components/file-manager/FileManagerDialog";
@@ -914,6 +915,12 @@ export const ChatInterface = ({
     setTtsErrorMessageId(null);
   }, [currentConversation?.id, stopReadAloud]);
 
+  // Auto-mounted conversation files for browser_sandbox: the model only sees a filesystem.
+  const conversationFileIds = useMemo(
+    () => collectConversationFileIds(messages),
+    [messages],
+  );
+
   const handleReadAloud = useCallback(
     async (message: FrontendMessage) => {
       if (message.role !== "assistant") return;
@@ -1307,6 +1314,7 @@ export const ChatInterface = ({
                     <ThoughtsToolsGroup
                       message={message}
                       settingsData={settingsData}
+                      conversationFileIds={conversationFileIds}
                     />
                   )}
                   {renderMessageContent(message)}
