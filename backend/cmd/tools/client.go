@@ -34,7 +34,6 @@ func SetUpTools(l *logger.Logger, database *sql.DB) {
 	files = fs.NewRepository(db)
 	settings = stngs.NewRepository(db)
 	providerRepo = providers.NewRepository(db)
-	EnsureBuiltInTools()
 }
 
 func SaveDefaultMCPServer(user string) {

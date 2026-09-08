@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filesObjectLiteral, wrapSandboxCode } from "./wrap";
+import { filesObjectLiteral, isSandboxHtml, wrapSandboxCode } from "./wrap";
 
 describe("wrapSandboxCode", () => {
   it("returns empty for blank input", () => {
@@ -16,6 +16,13 @@ describe("wrapSandboxCode", () => {
     expect(out.startsWith("<script>")).toBe(true);
     expect(out).toContain("console.log(1)");
     expect(out).toContain("sandbox.done()");
+  });
+
+  it("wraps JS starting with `<` instead of hanging without done()", () => {
+    expect(isSandboxHtml("if (a < b) { console.log(1) }")).toBe(false);
+    expect(wrapSandboxCode("if (a < b) { console.log(1) }")).toContain(
+      "sandbox.done()",
+    );
   });
 });
 

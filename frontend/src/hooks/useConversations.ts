@@ -77,6 +77,20 @@ class StreamingState {
 }
 
 /**
+ * Fail-closed gate for client-side sandbox execution: only auto-run when the
+ * tool is explicitly known and does not require approval. Unknown tools
+ * (settings not loaded yet) must not auto-run.
+ */
+export function shouldAutoRunSandbox(
+  tools: Tool[],
+  toolCall: ToolCall,
+): boolean {
+  if (toolCall.name !== "browser_sandbox" || toolCall.tool_output) return false;
+  const def = tools.find((t) => t.name === "browser_sandbox");
+  return !!def && def.require_approval !== true;
+}
+
+/**
  * Creates streaming callback handlers with shared logic
  */
 function createStreamingHandlers(
@@ -145,13 +159,7 @@ function createStreamingHandlers(
     }
 
     streamingState.scheduleSync(syncConversations);
-    if (
-      toolCall.name === "browser_sandbox" &&
-      !toolCall.tool_output &&
-      !toolsRef.current.some(
-        (t) => t.name === "browser_sandbox" && t.require_approval,
-      )
-    ) {
+    if (shouldAutoRunSandbox(toolsRef.current, toolCall)) {
       // Approval-gated sandboxes run from the ToolApproval UI instead,
       // after the backend has registered the pending call.
       void runBrowserSandbox(toolCall, signal);
