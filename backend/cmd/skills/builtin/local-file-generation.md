@@ -6,6 +6,11 @@ description: Use when asked to create docx, pptx, xlsx, or pdf files.
 
 Generate `.pptx`, `.docx`, `.xlsx`, and `.pdf` files in `browser_sandbox` using browser-based libraries. Call `sandbox.writeFile(name, data)` then `sandbox.done()`. Do not use widgets or auto-download for the file itself.
 
+### CDN version + no-timeout rules
+- Use the exact CDN URLs below verbatim. Never invent a version or path.
+- Never assume a `<script src>` is ready. Await `onload` before using the lib.
+- Always wire `onerror` + a timeout fallback that calls `sandbox.done()` with the error, so a blocked CDN fails fast instead of `sandbox timed out` with no log.
+
 ---
 
 ## 1. XLSX Generation with Pyodide + openpyxl

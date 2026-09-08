@@ -21,8 +21,9 @@ import (
 
 const (
 	sandboxMaxFiles = 3
-	sandboxMaxFileBytes = 15 << 20
-	sandboxMaxBodyBytes = 22 << 20
+	sandboxMaxFileBytes = 50 << 20 // match server upload limit (files/utils.go maxUploadSize)
+	// Base64 inflates ~4/3: 50MiB -> ~67MiB + JSON overhead; sized for one max file like before.
+	sandboxMaxBodyBytes = 70 << 20
 	// Total log output echoed back to the model.
 	sandboxMaxLogs = 8 << 10
 	// Per-result caps enforced at the HTTP boundary so a misbehaving

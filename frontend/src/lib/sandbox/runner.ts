@@ -10,10 +10,10 @@ import {
 const SANDBOX_TIMEOUT_MS = 90_000;
 const RETRY_BUDGET_MS = 30_000;
 const MAX_FILES = 3;
-const MAX_FILE_BYTES = 15 * 1024 * 1024;
+const MAX_FILE_BYTES = 50 * 1024 * 1024; // match server 50MB upload limit
 const MAX_CODE_BYTES = 500 * 1024;
 const MAX_INPUT_FILES = 10;
-const MAX_TOTAL_INPUT_BYTES = 30 * 1024 * 1024;
+const MAX_TOTAL_INPUT_BYTES = 100 * 1024 * 1024; // 2x per-file, preserves prior ratio
 const MAX_LOG_LINES = 200;
 const MAX_LOG_LINE_CHARS = 2000;
 const MAX_ERROR_CHARS = 4000;
