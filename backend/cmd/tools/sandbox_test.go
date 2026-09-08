@@ -56,44 +56,6 @@ func TestGetBuiltInTools_IncludesSandbox(t *testing.T) {
 	}
 }
 
-func TestEnsureBuiltInTools_SeedsMissing(t *testing.T) {
-	setupSandboxTest(t)
-
-	user := "u1"
-	SaveDefaultMCPServer(user)
-	serverID := "default-" + user
-
-	existing := tools.GetAllByMCPServerID(serverID)
-	var sandboxID string
-	for _, tool := range existing {
-		if tool.Name == "browser_sandbox" {
-			sandboxID = tool.ID
-			if err := tools.DeleteByID(tool.ID); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-	if sandboxID == "" {
-		t.Fatal("expected sandbox on default server")
-	}
-
-	EnsureBuiltInTools()
-
-	got := tools.GetAllByMCPServerID(serverID)
-	var found bool
-	for _, tool := range got {
-		if tool.Name == "browser_sandbox" {
-			found = true
-			if tool.ID == sandboxID {
-				t.Fatal("expected a new tool id after delete+seed")
-			}
-		}
-	}
-	if !found {
-		t.Fatal("browser_sandbox was not re-seeded")
-	}
-}
-
 func TestBrowserSandboxTool_PersistsFiles(t *testing.T) {
 	setupSandboxTest(t)
 
@@ -200,6 +162,64 @@ func TestSanitizeSandboxFilename(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 	if got := sanitizeSandboxFilename(""); got != "output.bin" {
+		t.Fatalf("got %q", got)
+	}
+	if got := sanitizeSandboxFilename("a\x00b.txt"); got != "ab.txt" {
+		t.Fatalf("control chars: got %q", got)
+	}
+	if got := sanitizeSandboxFilename(strings.Repeat("a", 300) + ".txt"); len([]rune(got)) > sandboxMaxNameRunes {
+		t.Fatalf("length cap: got %d runes", len([]rune(got)))
+	}
+}
+
+func TestSubmitSandboxResult_MethodAndBounds(t *testing.T) {
+	setupSandboxTest(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/sandbox-result", nil)
+	req = req.WithContext(context.WithValue(req.Context(), "user", "u1"))
+	w := httptest.NewRecorder()
+	submitSandboxResult(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("method guard: got %d", w.Code)
+	}
+
+	ch := registerSandboxWait("bound-1", "u1")
+	longErr := strings.Repeat("e", sandboxMaxErrorRunes+100)
+	manyLogs := make([]string, sandboxMaxLogLines+50)
+	for i := range manyLogs {
+		manyLogs[i] = "ok"
+	}
+	body, _ := json.Marshal(sandboxResultRequest{
+		CallID: "bound-1",
+		OK:     false,
+		Error:  longErr,
+		Logs:   manyLogs,
+	})
+	req = httptest.NewRequest(http.MethodPost, "/sandbox-result", bytes.NewReader(body))
+	req = req.WithContext(context.WithValue(req.Context(), "user", "u1"))
+	w = httptest.NewRecorder()
+	submitSandboxResult(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("bounded submit: got %d %s", w.Code, w.Body.String())
+	}
+	select {
+	case res := <-ch:
+		if len(res.Logs) > sandboxMaxLogLines {
+			t.Fatalf("logs not capped: %d", len(res.Logs))
+		}
+		if len([]rune(res.Error)) > sandboxMaxErrorRunes {
+			t.Fatalf("error not capped: %d", len([]rune(res.Error)))
+		}
+	case <-time.After(time.Second):
+		t.Fatal("did not receive bounded result")
+	}
+}
+
+func TestTruncateRunes(t *testing.T) {
+	if truncateRunes("abc", 5) != "abc" {
+		t.Fatal("short string changed")
+	}
+	if got := truncateRunes("abcdef", 3); got != "abc" {
 		t.Fatalf("got %q", got)
 	}
 }

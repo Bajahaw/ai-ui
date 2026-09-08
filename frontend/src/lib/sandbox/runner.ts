@@ -7,6 +7,12 @@ const SANDBOX_TIMEOUT_MS = 90_000;
 const RETRY_BUDGET_MS = 30_000;
 const MAX_FILES = 3;
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
+const MAX_CODE_BYTES = 500 * 1024;
+const MAX_INPUT_FILES = 3;
+const MAX_LOG_LINES = 200;
+const MAX_LOG_LINE_CHARS = 2000;
+const MAX_ERROR_CHARS = 4000;
+const MAX_NAME_CHARS = 255;
 
 type SandboxFile = {
   name: string;
@@ -21,6 +27,7 @@ type SandboxRunResult = {
   files: SandboxFile[];
 };
 
+/** Guards against duplicate runs from streaming updates + approval clicks. */
 const running = new Set<string>();
 
 export async function runBrowserSandbox(
@@ -41,6 +48,14 @@ export async function runBrowserSandbox(
       );
       return;
     }
+    if (new TextEncoder().encode(code).length > MAX_CODE_BYTES) {
+      await postResultWithRetry(
+        toolCall.id,
+        { ok: false, error: "code exceeds 500KB limit", logs: [], files: [] },
+        signal,
+      );
+      return;
+    }
     const inputs = await loadInputFiles(args.file_ids ?? [], signal);
     const result = await executeInIframe(code, inputs, signal);
     await postResultWithRetry(toolCall.id, result, signal);
@@ -50,7 +65,7 @@ export async function runBrowserSandbox(
       toolCall.id,
       {
         ok: false,
-        error: err instanceof Error ? err.message : String(err),
+        error: truncate(err instanceof Error ? err.message : String(err)),
         logs: [],
         files: [],
       },
@@ -77,7 +92,9 @@ function parseArgs(raw?: string): {
       code: typeof parsed.code === "string" ? parsed.code : undefined,
       html: typeof parsed.html === "string" ? parsed.html : undefined,
       file_ids: Array.isArray(parsed.file_ids)
-        ? parsed.file_ids.filter((id): id is string => typeof id === "string")
+        ? parsed.file_ids
+            .filter((id): id is string => typeof id === "string")
+            .slice(0, MAX_INPUT_FILES)
         : undefined,
     };
   } catch {
@@ -90,14 +107,24 @@ async function loadInputFiles(
   signal?: AbortSignal,
 ): Promise<{ name: string; data: string }[]> {
   const out: { name: string; data: string }[] = [];
-  for (const id of ids) {
-    const meta = await getFile(id);
-    const url = fileResourceUrl(meta.path);
-    if (!url) continue;
-    const res = await fetch(url, { credentials: "include", signal });
-    if (!res.ok) continue;
-    const buf = await res.arrayBuffer();
-    out.push({ name: meta.name || id, data: arrayBufferToBase64(buf) });
+  for (const id of ids.slice(0, MAX_INPUT_FILES)) {
+    if (signal?.aborted) break;
+    try {
+      const meta = await getFile(id);
+      const url = fileResourceUrl(meta.path);
+      if (!url) continue;
+      const res = await fetch(url, { credentials: "include", signal });
+      if (!res.ok) continue;
+      const buf = await res.arrayBuffer();
+      if (!buf.byteLength || buf.byteLength > MAX_FILE_BYTES) continue;
+      out.push({
+        name: (meta.name || id).slice(0, MAX_NAME_CHARS),
+        data: arrayBufferToBase64(buf),
+      });
+    } catch {
+      // Skip unreadable inputs so one bad id doesn't fail the whole run.
+      continue;
+    }
   }
   return out;
 }
@@ -127,7 +154,7 @@ function executeInIframe(
       iframe.remove();
       resolve({
         ok: !error,
-        error,
+        error: truncate(error),
         logs,
         files: outFiles.slice(0, MAX_FILES),
       });
@@ -139,15 +166,21 @@ function executeInIframe(
       const data = event.data;
       if (!data || typeof data !== "object") return;
       if (data.type === "__sandbox_log" && typeof data.message === "string") {
-        logs.push(data.message);
+        if (logs.length < MAX_LOG_LINES) {
+          logs.push(data.message.slice(0, MAX_LOG_LINE_CHARS));
+        }
         return;
       }
       if (data.type === "__sandbox_file" && typeof data.name === "string") {
+        if (outFiles.length >= MAX_FILES) return;
         const raw = toArrayBuffer(data.data);
-        if (!raw || raw.byteLength > MAX_FILE_BYTES) return;
+        if (!raw || !raw.byteLength || raw.byteLength > MAX_FILE_BYTES) return;
         outFiles.push({
-          name: data.name,
-          mime: typeof data.mime === "string" ? data.mime : "",
+          name: String(data.name).slice(0, MAX_NAME_CHARS),
+          mime:
+            typeof data.mime === "string"
+              ? data.mime.slice(0, MAX_NAME_CHARS)
+              : "",
           data: raw,
         });
         return;
@@ -240,6 +273,10 @@ ${wrapSandboxCode(code)}
 </html>`;
 }
 
+function truncate(s: string, max = MAX_ERROR_CHARS): string {
+  return s.length > max ? s.slice(0, max) : s;
+}
+
 async function postResultWithRetry(
   callId: string,
   result: SandboxRunResult,
@@ -248,24 +285,35 @@ async function postResultWithRetry(
   const body = JSON.stringify({
     call_id: callId,
     ok: result.ok,
-    logs: result.logs.slice(0, 200),
-    error: result.error || "",
-    files: result.files.map((f) => ({
-      name: f.name,
-      mime: f.mime,
+    logs: result.logs.slice(0, MAX_LOG_LINES),
+    error: truncate(result.error),
+    files: result.files.slice(0, MAX_FILES).map((f) => ({
+      name: f.name.slice(0, MAX_NAME_CHARS),
+      mime: f.mime.slice(0, MAX_NAME_CHARS),
       data: arrayBufferToBase64(f.data),
     })),
   });
   const deadline = Date.now() + RETRY_BUDGET_MS;
   let delay = 200;
+  // Retry while the backend hasn't registered the pending call yet (404)
+  // or the network flaked; any other status is fatal.
   while (!signal?.aborted) {
-    const res = await fetch("/api/tools/sandbox-result", {
-      method: "POST",
-      credentials: "include",
-      headers: getHeaders({ "Content-Type": "application/json" }),
-      body,
-      signal,
-    });
+    let res: Response;
+    try {
+      res = await fetch("/api/tools/sandbox-result", {
+        method: "POST",
+        credentials: "include",
+        headers: getHeaders({ "Content-Type": "application/json" }),
+        body,
+        signal,
+      });
+    } catch (err) {
+      if (signal?.aborted) return;
+      if (Date.now() >= deadline) throw err;
+      await sleep(delay, signal);
+      delay = Math.min(delay * 2, 2000);
+      continue;
+    }
     if (res.ok) return;
     if (res.status !== 404 || Date.now() >= deadline) {
       throw new Error((await res.text()) || res.statusText);

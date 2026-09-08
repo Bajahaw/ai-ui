@@ -1,7 +1,16 @@
+const HTML_TAG_PATTERN =
+  /^<(?:!doctype|html|head|body|div|span|p|a|button|canvas|table|ul|ol|li|section|article|header|footer|main|form|input|img|svg|link|meta|style|script|h[1-6])[\s>/!]/i;
+
+export function isSandboxHtml(code: string): boolean {
+  return HTML_TAG_PATTERN.test(code.trim());
+}
+
 export function wrapSandboxCode(code: string): string {
   const trimmed = code.trim();
   if (!trimmed) return "";
-  if (trimmed.startsWith("<")) return trimmed;
+  // Bare JS starting with `<` (e.g. `a < b`) must not be mistaken for HTML;
+  // only real markup passes through unwrapped.
+  if (isSandboxHtml(trimmed)) return trimmed;
   const safe = trimmed.replace(/<\/script/gi, "<\\/script");
   return `<script>
 (async () => {

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	fs "github.com/Bajahaw/ai-ui/cmd/files"
@@ -19,11 +20,21 @@ import (
 )
 
 const (
-	sandboxMaxFiles     = 3
+	sandboxMaxFiles = 3
 	sandboxMaxFileBytes = 15 << 20
 	sandboxMaxBodyBytes = 22 << 20
-	sandboxMaxLogs      = 8 << 10
-	sandboxTimeout      = 90 * time.Second
+	// Total log output echoed back to the model.
+	sandboxMaxLogs = 8 << 10
+	// Per-result caps enforced at the HTTP boundary so a misbehaving
+	// client cannot force the server to buffer megabytes of strings.
+	sandboxMaxLogLines     = 500
+	sandboxMaxLogLineRunes = 2000
+	sandboxMaxErrorRunes   = 4000
+	sandboxMaxNameRunes    = 255
+	sandboxMaxMIMERunes    = 255
+	// Longer than the client's 90s iframe timeout so the client's own
+	// timeout report wins the race instead of being lost to a 404.
+	sandboxTimeout = 100 * time.Second
 )
 
 var (
@@ -51,6 +62,9 @@ type sandboxPending struct {
 	Result chan sandboxClientResult
 }
 
+// sandboxWait pairs a blocked browserSandboxTool call with the client's
+// POST /api/tools/sandbox-result. Entries are keyed by tool call ID and
+// scoped to the owning user; they live at most sandboxTimeout.
 var sandboxWait = struct {
 	mu      sync.Mutex
 	pending map[string]sandboxPending
@@ -100,10 +114,12 @@ func browserSandboxTool(ctx context.Context, callID, args, user string) provider
 		return providers.ToolOutput{Content: "Error: missing tool call id."}
 	}
 
+	// file_ids is accepted but intentionally ignored server-side: input
+	// files are fetched client-side over the authenticated session, so
+	// access control is enforced there. The server only relays the result.
 	var params struct {
-		Code    string   `json:"code"`
-		HTML    string   `json:"html"`
-		FileIDs []string `json:"file_ids"`
+		Code string `json:"code"`
+		HTML string `json:"html"`
 	}
 	if err := json.Unmarshal([]byte(args), &params); err != nil {
 		return providers.ToolOutput{Content: fmt.Sprintf("error decoding arguments: %v", err)}
@@ -137,9 +153,9 @@ func persistSandboxResult(res sandboxClientResult, user string) providers.ToolOu
 		b.WriteString("ok: true\n")
 	} else {
 		b.WriteString("ok: false\n")
-		if res.Error != "" {
+		if errMsg := truncateRunes(res.Error, sandboxMaxErrorRunes); errMsg != "" {
 			b.WriteString("error: ")
-			b.WriteString(res.Error)
+			b.WriteString(errMsg)
 			b.WriteByte('\n')
 		}
 	}
@@ -205,7 +221,27 @@ func sanitizeSandboxFilename(name string) string {
 	if name == "" || name == "." || name == ".." {
 		return "output.bin"
 	}
-	return name
+	// Drop control characters the filesystem/API layer should never see.
+	name = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, name)
+	if name == "" || name == "." || name == ".." {
+		return "output.bin"
+	}
+	return truncateRunes(name, sandboxMaxNameRunes)
+}
+
+func truncateRunes(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	if utf8.RuneCountInString(s) <= max {
+		return s
+	}
+	return string([]rune(s)[:max])
 }
 
 type sandboxResultRequest struct {
@@ -223,6 +259,10 @@ type sandboxResultFile struct {
 }
 
 func submitSandboxResult(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	user := utils.ExtractContextUser(r)
 	r.Body = http.MaxBytesReader(w, r.Body, sandboxMaxBodyBytes)
 
@@ -239,6 +279,13 @@ func submitSandboxResult(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errSandboxTooManyFiles.Error(), http.StatusRequestEntityTooLarge)
 		return
 	}
+	if len(req.Logs) > sandboxMaxLogLines {
+		req.Logs = req.Logs[:sandboxMaxLogLines]
+	}
+	logs := make([]string, 0, len(req.Logs))
+	for _, line := range req.Logs {
+		logs = append(logs, truncateRunes(line, sandboxMaxLogLineRunes))
+	}
 
 	files := make([]sandboxClientFile, 0, len(req.Files))
 	for _, f := range req.Files {
@@ -252,16 +299,16 @@ func submitSandboxResult(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		files = append(files, sandboxClientFile{
-			Name: f.Name,
-			MIME: f.MIME,
+			Name: truncateRunes(f.Name, sandboxMaxNameRunes),
+			MIME: truncateRunes(f.MIME, sandboxMaxMIMERunes),
 			Data: raw,
 		})
 	}
 
 	err := completeSandboxWait(req.CallID, user, sandboxClientResult{
 		OK:    req.OK,
-		Logs:  req.Logs,
-		Error: req.Error,
+		Logs:  logs,
+		Error: truncateRunes(req.Error, sandboxMaxErrorRunes),
 		Files: files,
 	})
 	if errors.Is(err, errSandboxNotPending) {
@@ -280,45 +327,4 @@ func submitSandboxResult(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, nil, http.StatusOK)
 }
 
-func EnsureBuiltInTools() {
-	if db == nil {
-		return
-	}
-	rows, err := db.Query(`SELECT id FROM MCPServers WHERE id LIKE 'default-%'`)
-	if err != nil {
-		log.Error("Error listing default MCP servers", "err", err)
-		return
-	}
-	defer rows.Close()
 
-	var serverIDs []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			continue
-		}
-		serverIDs = append(serverIDs, id)
-	}
-
-	for _, serverID := range serverIDs {
-		existing := tools.GetAllByMCPServerID(serverID)
-		have := make(map[string]struct{}, len(existing))
-		for _, t := range existing {
-			have[t.Name] = struct{}{}
-		}
-		var missing []*Tool
-		for _, t := range GetBuiltInTools() {
-			if _, ok := have[t.Name]; ok {
-				continue
-			}
-			t.MCPServerID = serverID
-			missing = append(missing, t)
-		}
-		if len(missing) == 0 {
-			continue
-		}
-		if err := tools.UpsertAll(missing); err != nil {
-			log.Error("Error seeding built-in tools", "err", err, "server", serverID)
-		}
-	}
-}
