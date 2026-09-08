@@ -41,9 +41,8 @@ const platformInstructions = `
 >latex
 >$$
 
-- To execute HTML or JavaScript in an isolated browser sandbox, use the browser_sandbox tool.
 - To render rich widgets using HTML, CSS, and JS, use a code block tag with "widget" like this: (` + "```widget" + `).
-- Widgets are for interactive UI in chat. Use browser_sandbox to run code and inspect results.
+- Widgets can be used for visuals and functional utilities.
 
 - To render Mermaid diagrams, use a code block with "mermaid" as the language tag.
 - To render svg shapes and visuals, use the svg code block with "svg" language tag.
