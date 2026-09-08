@@ -4,6 +4,7 @@ import {
   conversationsAPI,
   backendToFrontendMessage,
   FrontendMessage,
+  Tool,
   ToolCall,
   StreamStats,
   Attachment,
@@ -16,7 +17,8 @@ import {
   ClientConversationManager,
 } from "@/lib/clientConversationManager";
 import { useAuth } from "@/hooks/useAuth";
-import { maybeAutoRunBrowserSandbox } from "@/lib/sandbox/runner";
+import { useSettingsData } from "@/hooks/useSettingsData";
+import { runBrowserSandbox } from "@/lib/sandbox/runner";
 
 // ============================================================================
 // Streaming Utilities - Extracted to reduce duplication
@@ -85,6 +87,7 @@ function createStreamingHandlers(
   syncConversations: () => void,
   isCurrent: () => boolean = () => true,
   signal?: AbortSignal,
+  toolsRef: { current: Tool[] } = { current: [] },
 ) {
   const onChunk = (chunk: string) => {
     if (!isCurrent()) return;
@@ -142,7 +145,17 @@ function createStreamingHandlers(
     }
 
     streamingState.scheduleSync(syncConversations);
-    void maybeAutoRunBrowserSandbox(toolCall, signal);
+    if (
+      toolCall.name === "browser_sandbox" &&
+      !toolCall.tool_output &&
+      !toolsRef.current.some(
+        (t) => t.name === "browser_sandbox" && t.require_approval,
+      )
+    ) {
+      // Approval-gated sandboxes run from the ToolApproval UI instead,
+      // after the backend has registered the pending call.
+      void runBrowserSandbox(toolCall, signal);
+    }
   };
 
   return { onChunk, onReasoning, onToolCall };
@@ -363,6 +376,10 @@ function updateAssistantMessageAfterComplete(
 
 export const useConversations = () => {
   const { isAuthenticated } = useAuth();
+  // Settings-owned tools list, read live for sandbox approval gating.
+  const { data: settingsData } = useSettingsData();
+  const toolsRef = useRef<Tool[]>([]);
+  toolsRef.current = settingsData.tools;
   const [conversations, setConversations] = useState<ClientConversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<
     string | null
@@ -1033,6 +1050,7 @@ export const useConversations = () => {
           syncConversations,
           () => connectionEpochRef.current === streamEpoch,
           streamAbort.signal,
+          toolsRef,
         );
 
         let streamError: string | undefined;
@@ -1211,6 +1229,7 @@ export const useConversations = () => {
           syncConversations,
           () => connectionEpochRef.current === streamEpoch,
           streamAbort.signal,
+          toolsRef,
         );
 
         let streamError: string | undefined;
