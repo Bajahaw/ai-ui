@@ -46,6 +46,9 @@ import {
   XIcon,
   Plus,
   UploadIcon,
+  ImageIcon,
+  FileIcon,
+  FolderOpen,
   ReplyIcon,
   Volume2Icon,
   SquareIcon,
@@ -69,6 +72,12 @@ import { uploadFile, FileUploadError } from "@/lib/api/files";
 import { synthesizeMessageSpeech } from "@/lib/api/tts";
 import { FileManagerDialog } from "@/components/file-manager/FileManagerDialog";
 import { ModelOption } from "@/components/ai-elements/model-select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // Dynamic models are now loaded from providers via useModels hook
 
@@ -145,6 +154,8 @@ const PromptArea = memo(
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [fileManagerOpen, setFileManagerOpen] = useState(false);
     const promptInputRef = useRef<PromptInputTextareaHandle>(null);
+    const imageInputRef = useRef<HTMLInputElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleInputChange = useCallback(
       (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -197,6 +208,15 @@ const PromptArea = memo(
         }
       },
       [hasPendingMessages],
+    );
+
+    const handlePickLocalFiles = useCallback(
+      (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files ? Array.from(e.target.files) : [];
+        e.target.value = "";
+        if (files.length > 0) handleFilesPasted(files);
+      },
+      [handleFilesPasted],
     );
 
     useImperativeHandle(
@@ -296,16 +316,54 @@ const PromptArea = memo(
           />
           <PromptInputToolbar>
             <PromptInputTools>
-              <PromptInputButton
-                variant="ghost"
-                onClick={() => setFileManagerOpen(true)}
-                disabled={hasPendingMessages || isDisabled}
-                title={
-                  !isAuthenticated ? "Sign in to attach files" : "Attach files"
-                }
-              >
-                <Plus size={16} />
-              </PromptInputButton>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handlePickLocalFiles}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handlePickLocalFiles}
+              />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <PromptInputButton
+                    variant="ghost"
+                    disabled={hasPendingMessages || isDisabled}
+                    title={
+                      !isAuthenticated
+                        ? "Sign in to attach files"
+                        : "Attach files"
+                    }
+                  >
+                    <Plus size={16} />
+                  </PromptInputButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-44">
+                  <DropdownMenuItem
+                    onSelect={() => imageInputRef.current?.click()}
+                  >
+                    <ImageIcon className="h-4 w-4" />
+                    Photos
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => fileInputRef.current?.click()}
+                  >
+                    <FileIcon className="h-4 w-4" />
+                    Files
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setFileManagerOpen(true)}>
+                    <FolderOpen className="h-4 w-4" />
+                    Library
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <PromptInputModelSelect
                 models={models}
                 value={isModelValid ? model : undefined}

@@ -19,6 +19,10 @@ import { ModelSelect } from "@/components/ai-elements/model-select.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Textarea } from "@/components/ui/textarea.tsx";
 import { cn } from "@/lib/utils.ts";
+import {
+  filesFromClipboard,
+  readClipboardImageFiles,
+} from "@/lib/clipboard.ts";
 import { getTextDirection } from "@/lib/rtl-utils.ts";
 import { useSettings } from "@/hooks/useSettings";
 
@@ -77,22 +81,17 @@ export const PromptInputTextarea = forwardRef<
       const el = internalRef.current;
       if (!el) return;
 
-      // Record the current rendered height so we can animate pixel → pixel.
       const currentHeight = el.getBoundingClientRect().height;
 
-      // Temporarily disable transitions and collapse to "auto" to measure content.
       el.style.transition = "none";
       el.style.height = "auto";
       const scrollH = el.scrollHeight;
       const next = Math.min(Math.max(scrollH, minHeight), maxHeight);
 
-      // Restore the previous pixel height (no visible change yet).
       el.style.height = `${currentHeight}px`;
 
-      // Force a reflow so the browser registers the restored height.
       void el.offsetHeight;
 
-      // Re-enable the CSS transition, then set the target height to animate.
       el.style.transition = "";
       el.style.height = `${next}px`;
       el.style.overflowY = scrollH > maxHeight ? "auto" : "hidden";
@@ -109,13 +108,11 @@ export const PromptInputTextarea = forwardRef<
         clear: () => setInternalValue(""),
         insertText: (text: string) => {
           setInternalValue((prev) => prev + text);
-          // Trigger onChange so parent stays in sync, then scroll to end
           setTimeout(() => {
             const el = internalRef.current;
             if (el) {
               const event = new Event("input", { bubbles: true });
               el.dispatchEvent(event);
-              // Move cursor to end and scroll into view
               el.selectionStart = el.value.length;
               el.selectionEnd = el.value.length;
               el.scrollTop = el.scrollHeight;
@@ -139,20 +136,16 @@ export const PromptInputTextarea = forwardRef<
       useCallback(
         (e) => {
           if (e.key === "Enter") {
-            // Get the enter behavior setting (default: "send")
             const enterBehavior = settings?.enterBehavior || "send";
 
             if (e.shiftKey) {
-              // Always allow newline with Shift+Enter
               return;
             }
 
             if (enterBehavior === "newline") {
-              // Allow newline on plain Enter when setting is "newline"
               return;
             }
 
-            // Submit on Enter (without Shift) when setting is "send" (default)
             e.preventDefault();
             const form = e.currentTarget.form;
             if (form) {
@@ -164,14 +157,18 @@ export const PromptInputTextarea = forwardRef<
       );
 
     const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-      const clipboardData = e.clipboardData;
-      if (!clipboardData || !onFilesPasted) return;
+      if (!onFilesPasted) return;
 
-      const files = Array.from(clipboardData.files);
+      const files = filesFromClipboard(e.clipboardData);
       if (files.length > 0) {
         e.preventDefault();
         onFilesPasted(files);
+        return;
       }
+
+      void readClipboardImageFiles().then((asyncFiles) => {
+        if (asyncFiles.length > 0) onFilesPasted(asyncFiles);
+      });
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

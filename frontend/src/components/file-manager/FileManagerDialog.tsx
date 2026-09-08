@@ -33,6 +33,10 @@ import {
 } from "@/lib/api/files";
 import { File as ApiFile } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+import {
+  filesFromClipboard,
+  readClipboardImageFiles,
+} from "@/lib/clipboard";
 import { FileThumb } from "@/components/ui/file-thumb";
 
 
@@ -172,9 +176,15 @@ export function FileManagerDialog({
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
-    if (e.clipboardData.files && e.clipboardData.files.length > 0) {
-      handleUploadFiles(e.clipboardData.files);
+    const files = filesFromClipboard(e.clipboardData);
+    if (files.length > 0) {
+      handleUploadFiles(files);
+      return;
     }
+
+    void readClipboardImageFiles().then((asyncFiles) => {
+      if (asyncFiles.length > 0) handleUploadFiles(asyncFiles);
+    });
   };
 
   const handleAttach = () => {
