@@ -1,23 +1,29 @@
 import { getHeaders } from "@/lib/api/headers";
-import { fileResourceUrl, getFile } from "@/lib/api/files";
-import type { FrontendMessage, ToolCall } from "@/lib/api/types";
 import {
-  filesObjectLiteral,
-  wrapSandboxCode,
-  type SandboxInputFile,
-} from "./wrap";
+  getFileBytes,
+  resetFileBytesCache,
+  retainFileBytes,
+} from "@/lib/api/files";
+import type { FrontendMessage, ToolCall } from "@/lib/api/types";
+import { fileAliases, isSandboxHtml, wrapSandboxCode } from "./wrap";
 
 const SANDBOX_TIMEOUT_MS = 90_000;
 const RETRY_BUDGET_MS = 30_000;
 const MAX_FILES = 3;
-const MAX_FILE_BYTES = 50 * 1024 * 1024; // match server 50MB upload limit
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const MAX_CODE_BYTES = 500 * 1024;
 const MAX_INPUT_FILES = 10;
-const MAX_TOTAL_INPUT_BYTES = 100 * 1024 * 1024; // 2x per-file, preserves prior ratio
+const MAX_TOTAL_INPUT_BYTES = 100 * 1024 * 1024;
 const MAX_LOG_LINES = 200;
 const MAX_LOG_LINE_CHARS = 2000;
 const MAX_ERROR_CHARS = 4000;
 const MAX_NAME_CHARS = 255;
+
+type MountedInputFile = {
+  name: string;
+  id: string;
+  data: ArrayBuffer;
+};
 
 type SandboxFile = {
   name: string;
@@ -32,10 +38,129 @@ type SandboxRunResult = {
   files: SandboxFile[];
 };
 
-/** Guards against duplicate runs from streaming updates + approval clicks. */
 const running = new Set<string>();
 
-/** Collects auto-mount file ids from conversation messages: user attachments + tool-produced files. */
+let hostIframe: HTMLIFrameElement | null = null;
+let hostBusy = false;
+
+const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="script-src 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com blob:; object-src 'none'; base-uri 'none';">
+</head>
+<body>
+<script>
+(function(){
+  var __files = {};
+  var __fileList = [];
+  var __started = false;
+  function send(msg, transfer){ window.parent.postMessage(msg, '*', transfer || []); }
+  function toBuf(data){
+    if (data instanceof ArrayBuffer) return data;
+    if (ArrayBuffer.isView(data)) return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    if (typeof data === 'string') return new TextEncoder().encode(data).buffer;
+    throw new Error('writeFile: unsupported data type');
+  }
+  window.sandbox = {
+    _done: false,
+    listFiles: function(){
+      return __fileList.slice();
+    },
+    readFile: function(name){
+      var key = String(name == null ? '' : name);
+      if (__files[key]) return __files[key];
+      var avail = __fileList.join(', ');
+      throw new Error('file not found: ' + key + (avail ? ' (available files: ' + avail.slice(0, 1000) + '; use sandbox.listFiles())' : ' (no files available; use sandbox.listFiles())'));
+    },
+    writeFile: function(name, data, mime){
+      var p = (typeof Blob !== 'undefined' && data instanceof Blob)
+        ? data.arrayBuffer()
+        : Promise.resolve(toBuf(data));
+      return p.then(function(buf){
+        send({ type: '__sandbox_file', name: name, mime: mime || '', data: buf }, [buf]);
+      });
+    },
+    done: function(err){
+      if (window.sandbox._done) return;
+      window.sandbox._done = true;
+      send({ type: '__sandbox_done', error: err ? String(err) : '' });
+    }
+  };
+  function hook(fn, level){
+    return function(){
+      var msg = Array.prototype.map.call(arguments, function(a){
+        try { return typeof a === 'string' ? a : JSON.stringify(a); }
+        catch (e) { return String(a); }
+      }).join(' ');
+      send({ type: '__sandbox_log', level: level, message: msg });
+      return fn.apply(console, arguments);
+    };
+  }
+  console.log = hook(console.log, 'log');
+  console.info = hook(console.info, 'info');
+  console.warn = hook(console.warn, 'warn');
+  console.error = hook(console.error, 'error');
+  window.addEventListener('error', function(e){
+    send({ type: '__sandbox_log', level: 'error', message: e.message || 'Runtime error' });
+  });
+  window.addEventListener('unhandledrejection', function(e){
+    send({ type: '__sandbox_log', level: 'error', message: String(e.reason) });
+  });
+  function injectHtml(html){
+    var box = document.createElement('div');
+    box.innerHTML = html;
+    var olds = box.querySelectorAll('script');
+    for (var i = 0; i < olds.length; i++) {
+      var old = olds[i];
+      var s = document.createElement('script');
+      for (var j = 0; j < old.attributes.length; j++) {
+        s.setAttribute(old.attributes[j].name, old.attributes[j].value);
+      }
+      s.textContent = old.textContent;
+      old.parentNode.replaceChild(s, old);
+    }
+    while (box.firstChild) document.body.appendChild(box.firstChild);
+  }
+  function mountFiles(files){
+    __files = {};
+    __fileList = [];
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      var u8 = new Uint8Array(f.data);
+      __fileList.push(f.name);
+      var keys = f.keys && f.keys.length ? f.keys : [f.name];
+      for (var k = 0; k < keys.length; k++) __files[keys[k]] = u8;
+    }
+  }
+  function runJs(code){
+    (async function(){
+      try {
+        var run = new Function('return (async()=>{\\n' + code + '\\n})()');
+        await run();
+        await Promise.resolve();
+      } catch (e) {
+        sandbox.done(String(e && e.message ? e.message : e));
+        return;
+      }
+      if (!sandbox._done) sandbox.done();
+    })();
+  }
+  window.addEventListener('message', function(e){
+    if (e.source !== window.parent) return;
+    var data = e.data;
+    if (!data || data.type !== '__sandbox_init' || __started) return;
+    __started = true;
+    mountFiles(data.files || []);
+    if (data.html) injectHtml(data.html);
+    else runJs(data.code || '');
+  });
+  send({ type: '__sandbox_ready' });
+})();
+</script>
+</body>
+</html>`;
+
 export function collectConversationFileIds(
   messages: Pick<FrontendMessage, "attachments" | "toolCalls">[],
 ): string[] {
@@ -52,6 +177,49 @@ export function collectConversationFileIds(
     for (const t of m.toolCalls ?? []) push(t?.file_id);
   }
   return ids.slice(0, MAX_INPUT_FILES);
+}
+
+export function resetSandboxFileCache(): void {
+  resetFileBytesCache();
+  hostBusy = false;
+  if (hostIframe) {
+    hostIframe.remove();
+    hostIframe = null;
+  }
+}
+
+export async function loadSandboxInputFiles(
+  ids: string[],
+  signal?: AbortSignal,
+): Promise<MountedInputFile[]> {
+  const out: MountedInputFile[] = [];
+  const seen = new Set<string>();
+  const requested = new Set<string>();
+  let totalBytes = 0;
+  for (const rawId of ids.slice(0, MAX_INPUT_FILES)) {
+    const id = (rawId || "").trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    requested.add(id);
+    if (signal?.aborted) break;
+    try {
+      const file = await getFileBytes(id, signal);
+      if (!file.data.byteLength || file.data.byteLength > MAX_FILE_BYTES) {
+        continue;
+      }
+      if (totalBytes + file.data.byteLength > MAX_TOTAL_INPUT_BYTES) continue;
+      totalBytes += file.data.byteLength;
+      out.push({
+        name: file.name.slice(0, MAX_NAME_CHARS),
+        id: id.slice(0, MAX_NAME_CHARS),
+        data: file.data,
+      });
+    } catch {
+      continue;
+    }
+  }
+  if (!signal?.aborted) retainFileBytes(requested);
+  return out;
 }
 
 export async function runBrowserSandbox(
@@ -81,7 +249,7 @@ export async function runBrowserSandbox(
       );
       return;
     }
-    const inputs = await loadInputFiles(
+    const inputs = await loadSandboxInputFiles(
       conversationFileIds ?? args.file_ids ?? [],
       signal,
     );
@@ -130,56 +298,51 @@ function parseArgs(raw?: string): {
   }
 }
 
-async function loadInputFiles(
-  ids: string[],
-  signal?: AbortSignal,
-): Promise<SandboxInputFile[]> {
-  const out: SandboxInputFile[] = [];
-  const seen = new Set<string>();
-  let totalBytes = 0;
-  for (const rawId of ids.slice(0, MAX_INPUT_FILES)) {
-    const id = (rawId || "").trim();
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    if (signal?.aborted) break;
-    try {
-      const meta = await getFile(id);
-      const url = fileResourceUrl(meta.path);
-      if (!url) continue;
-      const res = await fetch(url, { credentials: "include", signal });
-      if (!res.ok) continue;
-      const buf = await res.arrayBuffer();
-      if (!buf.byteLength || buf.byteLength > MAX_FILE_BYTES) continue;
-      if (totalBytes + buf.byteLength > MAX_TOTAL_INPUT_BYTES) continue;
-      totalBytes += buf.byteLength;
-      out.push({
-        name: (meta.name || id).slice(0, MAX_NAME_CHARS),
-        id: id.slice(0, MAX_NAME_CHARS),
-        data: arrayBufferToBase64(buf),
-      });
-    } catch {
-      // Skip unreadable inputs so one bad id doesn't fail the whole run.
-      continue;
-    }
+function createIframe(): HTMLIFrameElement {
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("sandbox", "allow-scripts");
+  iframe.setAttribute("title", "browser sandbox");
+  iframe.style.cssText =
+    "position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0";
+  return iframe;
+}
+
+function acquireIframe(): { iframe: HTMLIFrameElement; shared: boolean } {
+  if (hostIframe && !hostBusy) {
+    if (!hostIframe.isConnected) document.body.appendChild(hostIframe);
+    hostBusy = true;
+    return { iframe: hostIframe, shared: true };
   }
-  return out;
+  const iframe = createIframe();
+  document.body.appendChild(iframe);
+  if (!hostIframe) {
+    hostIframe = iframe;
+    hostBusy = true;
+    return { iframe, shared: true };
+  }
+  return { iframe, shared: false };
+}
+
+function releaseIframe(iframe: HTMLIFrameElement, shared: boolean): void {
+  iframe.srcdoc = "";
+  if (shared) {
+    hostBusy = false;
+    return;
+  }
+  iframe.remove();
 }
 
 function executeInIframe(
   code: string,
-  files: SandboxInputFile[],
+  files: MountedInputFile[],
   signal?: AbortSignal,
 ): Promise<SandboxRunResult> {
   return new Promise((resolve) => {
-    const iframe = document.createElement("iframe");
-    iframe.setAttribute("sandbox", "allow-scripts");
-    iframe.setAttribute("title", "browser sandbox");
-    iframe.style.cssText =
-      "position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0";
-
+    const { iframe, shared } = acquireIframe();
     const logs: string[] = [];
     const outFiles: SandboxFile[] = [];
     let settled = false;
+    let started = false;
 
     const finish = (error = "") => {
       if (settled) return;
@@ -187,7 +350,7 @@ function executeInIframe(
       window.removeEventListener("message", onMessage);
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
-      iframe.remove();
+      releaseIframe(iframe, shared);
       resolve({
         ok: !error,
         error: truncate(error),
@@ -196,11 +359,41 @@ function executeInIframe(
       });
     };
 
+    const startRun = () => {
+      if (settled || started) return;
+      const win = iframe.contentWindow;
+      if (!win) {
+        finish("sandbox failed to start");
+        return;
+      }
+      started = true;
+      const copies = files.map((f) => f.data.slice(0));
+      const html = isSandboxHtml(code) ? wrapSandboxCode(code) : "";
+      win.postMessage(
+        {
+          type: "__sandbox_init",
+          html,
+          code: html ? "" : code.trim(),
+          files: files.map((f, i) => ({
+            name: f.name,
+            keys: fileAliases(f.name, f.id),
+            data: copies[i],
+          })),
+        },
+        "*",
+        copies,
+      );
+    };
+
     const onAbort = () => finish("cancelled");
     const onMessage = (event: MessageEvent) => {
       if (event.source !== iframe.contentWindow) return;
       const data = event.data;
       if (!data || typeof data !== "object") return;
+      if (data.type === "__sandbox_ready") {
+        startRun();
+        return;
+      }
       if (data.type === "__sandbox_log" && typeof data.message === "string") {
         if (logs.length < MAX_LOG_LINES) {
           logs.push(data.message.slice(0, MAX_LOG_LINE_CHARS));
@@ -236,81 +429,8 @@ function executeInIframe(
       finish("cancelled");
       return;
     }
-    iframe.srcdoc = buildSrcdoc(code, files);
-    document.body.appendChild(iframe);
+    iframe.srcdoc = BOOTSTRAP_SRCDOC;
   });
-}
-
-function buildSrcdoc(code: string, files: SandboxInputFile[]): string {
-  const fileList = JSON.stringify(files.map((f) => f.name));
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com blob:; object-src 'none'; base-uri 'none';">
-</head>
-<body>
-<script>
-(function(){
-  var __files = ${filesObjectLiteral(files)};
-  var __fileList = ${fileList};
-  function send(msg){ window.parent.postMessage(msg,'*'); }
-  function toBuf(data){
-    if (data instanceof ArrayBuffer) return data;
-    if (ArrayBuffer.isView(data)) return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-    if (typeof data === 'string') return new TextEncoder().encode(data).buffer;
-    throw new Error('writeFile: unsupported data type');
-  }
-  window.sandbox = {
-    _done: false,
-    listFiles: function(){
-      return __fileList.slice();
-    },
-    readFile: function(name){
-      var key = String(name == null ? '' : name);
-      if (__files[key]) return __files[key];
-      var avail = __fileList.join(', ');
-      throw new Error('file not found: ' + key + (avail ? ' (available files: ' + avail.slice(0, 1000) + '; use sandbox.listFiles())' : ' (no files available; use sandbox.listFiles())'));
-    },
-    writeFile: function(name, data, mime){
-      var p = (typeof Blob !== 'undefined' && data instanceof Blob)
-        ? data.arrayBuffer()
-        : Promise.resolve(toBuf(data));
-      return p.then(function(buf){
-        send({ type: '__sandbox_file', name: name, mime: mime || '', data: buf });
-      });
-    },
-    done: function(err){
-      if (window.sandbox._done) return;
-      window.sandbox._done = true;
-      send({ type: '__sandbox_done', error: err ? String(err) : '' });
-    }
-  };
-  function hook(fn, level){
-    return function(){
-      var msg = Array.prototype.map.call(arguments, function(a){
-        try { return typeof a === 'string' ? a : JSON.stringify(a); }
-        catch (e) { return String(a); }
-      }).join(' ');
-      send({ type: '__sandbox_log', level: level, message: msg });
-      return fn.apply(console, arguments);
-    };
-  }
-  console.log = hook(console.log, 'log');
-  console.info = hook(console.info, 'info');
-  console.warn = hook(console.warn, 'warn');
-  console.error = hook(console.error, 'error');
-  window.addEventListener('error', function(e){
-    send({ type: '__sandbox_log', level: 'error', message: e.message || 'Runtime error' });
-  });
-  window.addEventListener('unhandledrejection', function(e){
-    send({ type: '__sandbox_log', level: 'error', message: String(e.reason) });
-  });
-})();
-</script>
-${wrapSandboxCode(code)}
-</body>
-</html>`;
 }
 
 function truncate(s: string, max = MAX_ERROR_CHARS): string {
@@ -335,8 +455,6 @@ async function postResultWithRetry(
   });
   const deadline = Date.now() + RETRY_BUDGET_MS;
   let delay = 200;
-  // Retry while the backend hasn't registered the pending call yet (404)
-  // or the network flaked; any other status is fatal.
   while (!signal?.aborted) {
     let res: Response;
     try {

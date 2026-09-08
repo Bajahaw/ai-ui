@@ -2,6 +2,20 @@ import { FileUploadResponse, File as ApiFile } from "./types";
 
 import { getHeaders } from "./headers";
 
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
+
+type FileBytes = {
+  name: string;
+  data: ArrayBuffer;
+};
+
+const fileBytesCache = new Map<string, FileBytes>();
+
+export const fileResourceUrl = (filePath: string): string => {
+  if (!filePath) return "";
+  return filePath.startsWith("/") ? filePath : `/${filePath}`;
+};
+
 export class FileUploadError extends Error {
   constructor(
     message: string,
@@ -40,14 +54,41 @@ export const getFile = async (id: string): Promise<ApiFile> => {
   return response.json();
 };
 
+export const getFileBytes = async (
+  id: string,
+  signal?: AbortSignal,
+): Promise<FileBytes> => {
+  const cached = fileBytesCache.get(id);
+  if (cached) return cached;
+  const meta = await getFile(id);
+  const url = fileResourceUrl(meta.path);
+  if (!url) throw new Error("Failed to fetch file");
+  const res = await fetch(url, { credentials: "include", signal });
+  if (!res.ok) throw new Error("Failed to fetch file");
+  const data = await res.arrayBuffer();
+  if (!data.byteLength) throw new Error("Failed to fetch file");
+  const entry = { name: meta.name || id, data };
+  if (data.byteLength <= MAX_FILE_BYTES) fileBytesCache.set(id, entry);
+  return entry;
+};
+
+export const retainFileBytes = (ids: Iterable<string>): void => {
+  const keep = new Set(ids);
+  for (const key of [...fileBytesCache.keys()]) {
+    if (!keep.has(key)) fileBytesCache.delete(key);
+  }
+};
+
+export const resetFileBytesCache = (): void => {
+  fileBytesCache.clear();
+};
+
 export const uploadFile = async (file: File): Promise<FileUploadResponse> => {
   if (!file) {
     throw new FileUploadError("No file provided");
   }
 
-  // Check file size (50MB limit as per backend)
-  const maxSize = 50 * 1024 * 1024; // 50MB
-  if (file.size > maxSize) {
+  if (file.size > MAX_FILE_BYTES) {
     throw new FileUploadError("File size exceeds 50MB limit");
   }
 
@@ -69,6 +110,12 @@ export const uploadFile = async (file: File): Promise<FileUploadResponse> => {
     }
 
     const result: FileUploadResponse = await response.json();
+    if (result.id) {
+      fileBytesCache.set(result.id, {
+        name: result.name || file.name,
+        data: await file.arrayBuffer(),
+      });
+    }
     return result;
   } catch (error) {
     if (error instanceof FileUploadError) {
@@ -90,6 +137,7 @@ export const deleteFile = async (id: string): Promise<void> => {
   if (!response.ok) {
     throw new Error("Failed to delete file");
   }
+  fileBytesCache.delete(id);
 };
 
 export const extractContent = async (fileIds: string[]): Promise<ApiFile[]> => {
@@ -127,11 +175,6 @@ export const isThumbnailable = (filename: string, mimeType?: string): boolean =>
   if (mt.startsWith("image/") && mt !== "image/svg+xml") return true;
   const extension = getFileExtension(filename);
   return ["jpg", "jpeg", "png", "gif", "webp", "bmp", "pdf"].includes(extension);
-};
-
-export const fileResourceUrl = (filePath: string): string => {
-  if (!filePath) return "";
-  return filePath.startsWith("/") ? filePath : `/${filePath}`;
 };
 
 /**
