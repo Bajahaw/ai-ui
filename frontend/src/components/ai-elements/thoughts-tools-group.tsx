@@ -34,6 +34,7 @@ import {
   getToolCallDisplayState,
 } from "@/lib/toolCallState";
 import { cn } from "@/lib/utils";
+import { runBrowserSandbox } from "@/lib/sandbox/runner";
 import { Badge } from "../ui/badge";
 
 type SettingsDataLike = {
@@ -104,6 +105,11 @@ const ToolCallItem = ({
             onAction={(approved) => {
               if (approved) {
                 setLocalState("input-available");
+                // browser_sandbox executes client-side: approval is the
+                // trigger to run, now that the backend is waiting for us.
+                if (toolCall.name === "browser_sandbox") {
+                  void runBrowserSandbox(toolCall);
+                }
               }
             }}
           />

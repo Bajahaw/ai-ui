@@ -1,12 +1,60 @@
 import { getHeaders } from "@/lib/api/headers";
 import { fileResourceUrl, getFile } from "@/lib/api/files";
-import type { ToolCall } from "@/lib/api/types";
+import type { Tool, ToolCall } from "@/lib/api/types";
 import { filesObjectLiteral, wrapSandboxCode } from "./wrap";
 
 const SANDBOX_TIMEOUT_MS = 90_000;
 const RETRY_BUDGET_MS = 30_000;
 const MAX_FILES = 3;
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
+const APPROVAL_CACHE_TTL_MS = 30_000;
+
+let sandboxApprovalCache: { value: boolean; ts: number } | null = null;
+
+async function sandboxRequiresApproval(
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const now = Date.now();
+  if (
+    sandboxApprovalCache &&
+    now - sandboxApprovalCache.ts < APPROVAL_CACHE_TTL_MS
+  ) {
+    return sandboxApprovalCache.value;
+  }
+  try {
+    const res = await fetch("/api/tools/all", {
+      method: "GET",
+      credentials: "include",
+      headers: getHeaders(),
+      signal,
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { tools?: Tool[] };
+    const value =
+      data.tools?.some(
+        (t) => t.name === "browser_sandbox" && t.require_approval,
+      ) ?? false;
+    sandboxApprovalCache = { value, ts: now };
+    return value;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Streaming entry point: runs immediately, unless the sandbox is
+ * approval-gated — then the ToolApproval UI triggers runBrowserSandbox
+ * on click, after the backend has registered the pending call.
+ */
+export async function maybeAutoRunBrowserSandbox(
+  toolCall: ToolCall,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (toolCall.name !== "browser_sandbox" || toolCall.tool_output) return;
+  if (!toolCall.id || running.has(toolCall.id)) return;
+  if (await sandboxRequiresApproval(signal)) return;
+  await runBrowserSandbox(toolCall, signal);
+}
 
 type SandboxFile = {
   name: string;
