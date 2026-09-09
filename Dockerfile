@@ -9,7 +9,11 @@ RUN npm ci --include=optional --no-audit --no-fund
 
 COPY frontend/ ./frontend
 
-RUN cd frontend && npm run build
+ARG BUILD_ID
+RUN BUILD_ID="${BUILD_ID:-$(date -u +%y%m%d.%H%M%S)}" \
+    && printf '%s' "$BUILD_ID" > /build-id \
+    && cd frontend \
+    && VITE_BUILD_ID="$BUILD_ID" npm run build
 
 FROM golang:1.26.4-alpine AS backend-builder
 
@@ -22,10 +26,14 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
 COPY backend .
+COPY --from=frontend-builder /build-id /build-id
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=1 go build -tags musl -ldflags="-s -w" -o ai-ui ./cmd
+    BUILD_ID="$(cat /build-id)" \
+    && CGO_ENABLED=1 go build -tags musl \
+      -ldflags="-s -w -X github.com/Bajahaw/ai-ui/cmd/version.BuildID=${BUILD_ID}" \
+      -o ai-ui ./cmd
 
 FROM alpine AS prod
 

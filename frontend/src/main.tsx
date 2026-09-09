@@ -16,15 +16,30 @@ const reloadForUpdate = () => {
   refreshing = true;
   window.location.reload();
 };
-// Fires when the new precached SW takes control (covers autoUpdate).
+
+const checkBuild = async () => {
+  if (!__APP_BUILD__) return;
+  try {
+    const response = await fetch("/api/version", { cache: "no-store" });
+    if (!response.ok) return;
+    const data = (await response.json()) as { build?: string };
+    if (data.build && data.build !== __APP_BUILD__) {
+      reloadForUpdate();
+    }
+  } catch {}
+};
+
 navigator.serviceWorker?.addEventListener("controllerchange", reloadForUpdate);
 
 registerSW({
   immediate: true,
   onNeedRefresh: reloadForUpdate,
   onRegisteredSW(_url, r) {
-    if (!r) return;
-    const poll = () => r.update().catch(() => {});
+    const poll = () => {
+      r?.update().catch(() => {});
+      void checkBuild();
+    };
+    poll();
     const id = setInterval(poll, 60 * 60 * 1000);
     const onVisible = () => {
       if (!document.hidden) poll();

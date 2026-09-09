@@ -4,10 +4,10 @@ import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
 import packageJson from "./package.json";
 
-// https://vitejs.dev/config/
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(packageJson.version),
+    __APP_BUILD__: JSON.stringify(process.env.VITE_BUILD_ID?.trim() ?? ""),
   },
   plugins: [
     react(),
