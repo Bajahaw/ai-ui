@@ -257,6 +257,7 @@ const PromptArea = memo(
         setPendingFileNames([]);
         setUploadError(null);
         onSend(message, attachments);
+        promptInputRef.current?.focus({ preventScroll: true });
       },
       [isModelValid, uploadedFiles, onSend],
     );
