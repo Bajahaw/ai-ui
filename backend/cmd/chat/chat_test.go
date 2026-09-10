@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -917,5 +918,156 @@ func TestEnterAgentLoop_StopsWhenGenerationCancelled(t *testing.T) {
 	}
 	if genCtx.Err() == nil {
 		t.Fatal("expected generation context cancelled")
+	}
+}
+
+type mockProviderCaptureFollowUp struct {
+	mu       sync.Mutex
+	messages []providers.SimpleMessage
+}
+
+func (m *mockProviderCaptureFollowUp) SendChatCompletionRequest(params providers.RequestParams) (*providers.ChatCompletionMessage, error) {
+	return nil, nil
+}
+
+func (m *mockProviderCaptureFollowUp) SendChatCompletionStreamRequest(params providers.RequestParams, sc utils.StreamClient) (*providers.ChatCompletionMessage, error) {
+	m.mu.Lock()
+	m.messages = append([]providers.SimpleMessage(nil), params.Messages...)
+	m.mu.Unlock()
+	_ = utils.SendStreamChunk(sc, utils.StreamChunk{Type: utils.CONTENT, Payload: "after"})
+	return &providers.ChatCompletionMessage{
+		Content: "after",
+		Stats:   utils.StreamStats{PromptTokens: 1, CompletionTokens: 1, Speed: 1},
+	}, nil
+}
+
+func TestEnterAgentLoop_RunsToolsInParallelAndKeepsOrder(t *testing.T) {
+	mock := &mockProviderCaptureFollowUp{}
+	teardown := setupTest(t, mock)
+	defer teardown()
+
+	old := executeMCPTool
+	t.Cleanup(func() { executeMCPTool = old })
+
+	started := make(chan string, 2)
+	release := make(chan struct{})
+	bothStarted := make(chan struct{})
+	executeMCPTool = func(_ context.Context, toolCall providers.ToolCall, _, _ string) providers.ToolOutput {
+		started <- toolCall.Name
+		select {
+		case <-release:
+		case <-time.After(2 * time.Second):
+		}
+		return providers.ToolOutput{Content: "out-" + toolCall.Name}
+	}
+
+	_, err := data.DB.Exec(
+		`INSERT INTO Conversations (id, user, title) VALUES (?, ?, ?)`,
+		"conv-parallel-tools", "test-user", "t",
+	)
+	if err != nil {
+		t.Fatalf("insert conv: %v", err)
+	}
+	res, err := data.DB.Exec(
+		`INSERT INTO Messages (conv_id, role, model, parent_id, content, reasoning, error, status, speed, token_count, context_size, created_at, updated_at)
+		 VALUES (?, 'assistant', 'm', 0, 'before', '', '', 'pending', 0, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+		"conv-parallel-tools",
+	)
+	if err != nil {
+		t.Fatalf("insert message: %v", err)
+	}
+	id64, _ := res.LastInsertId()
+	msgID := int(id64)
+
+	genCtx := providers.StartGeneration(msgID, "test-user")
+	defer providers.EndGeneration(msgID)
+
+	go func() {
+		seen := map[string]bool{}
+		deadline := time.After(2 * time.Second)
+		for len(seen) < 2 {
+			select {
+			case name := <-started:
+				seen[name] = true
+			case <-deadline:
+				close(release)
+				return
+			}
+		}
+		close(bothStarted)
+		close(release)
+	}()
+
+	rr := &flushRecorder{httptest.NewRecorder()}
+	sc := utils.StreamClient{User: "test-user", MessageID: msgID, Writer: rr}
+	msg := &Message{ID: msgID, Content: "before", ConvID: "conv-parallel-tools"}
+	params := providers.RequestParams{
+		Model:     "provider-x/model",
+		User:      "test-user",
+		MessageID: msgID,
+		Context:   genCtx,
+	}
+
+	completion, err := enterAgentLoop(
+		[]providers.ToolCall{
+			{ID: "tc-a", ReferenceID: "r-a", Name: "tool_a", Args: `{}`},
+			{ID: "tc-b", ReferenceID: "r-b", Name: "tool_b", Args: `{}`},
+		},
+		params,
+		msg,
+		"conv-parallel-tools",
+		"test-user",
+		sc,
+	)
+	if err != nil {
+		t.Fatalf("enterAgentLoop: %v", err)
+	}
+	select {
+	case <-bothStarted:
+	default:
+		t.Fatal("expected both tools to start before either finished")
+	}
+	if completion == nil || completion.Content != "after" {
+		t.Fatalf("unexpected completion: %#v", completion)
+	}
+
+	mock.mu.Lock()
+	got := mock.messages
+	mock.mu.Unlock()
+	if len(got) != 4 {
+		t.Fatalf("expected 4 follow-up messages, got %d", len(got))
+	}
+	want := []struct {
+		role string
+		name string
+		out  string
+	}{
+		{"assistant", "tool_a", ""},
+		{"tool", "tool_a", "out-tool_a"},
+		{"assistant", "tool_b", ""},
+		{"tool", "tool_b", "out-tool_b"},
+	}
+	for i, w := range want {
+		if got[i].Role != w.role || got[i].ToolCall.Name != w.name || got[i].ToolCall.Output != w.out {
+			t.Fatalf("message %d: got role=%q name=%q out=%q", i, got[i].Role, got[i].ToolCall.Name, got[i].ToolCall.Output)
+		}
+	}
+
+	rows, err := data.DB.Query(`SELECT name, output FROM ToolCalls ORDER BY name`)
+	if err != nil {
+		t.Fatalf("query tool calls: %v", err)
+	}
+	defer rows.Close()
+	var names, outputs []string
+	for rows.Next() {
+		var name, output string
+		if err := rows.Scan(&name, &output); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		names = append(names, name)
+		outputs = append(outputs, output)
+	}
+	if strings.Join(names, ",") != "tool_a,tool_b" || strings.Join(outputs, ",") != "out-tool_a,out-tool_b" {
+		t.Fatalf("saved tools: names=%v outputs=%v", names, outputs)
 	}
 }

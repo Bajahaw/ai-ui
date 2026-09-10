@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	fs "github.com/Bajahaw/ai-ui/cmd/files"
@@ -21,7 +22,7 @@ const platformInstructions = `
 
 - To utilize the platform features, make sure to format and beautify your responses. make them clear to read and understand.
 - If the response is long, use paragraphs, or seperators --- to make it easier on the eyes.
-- Tool calls must be one at a time! parellal calling is not supported yet!
+- Independent tool calls may be issued together in one turn.
 
 - When search is used, you must site all your used sources inline and at the end of the response of each message. An inline citation badge is interactive reference for the source and written in the format of ([Source name][number]).
 - Every response that uses inline citation badges ([Text][N]) MUST end with a matching numbered reference block listing the full URL and a short description. Example:
@@ -251,6 +252,8 @@ func resolveToolFileMedia(fileID, user string) (f fs.File, images, fileDataURLs 
 	return found[0], nil, []string{"data:" + mimeType + ";base64," + toBase64(data)}
 }
 
+var executeMCPTool = tools.ExecuteMCPTool
+
 func enterAgentLoop(
 	calls []providers.ToolCall,
 	providerParams providers.RequestParams,
@@ -262,36 +265,46 @@ func enterAgentLoop(
 		return &providers.ChatCompletionMessage{Cancelled: true}, nil
 	}
 
+	type executedTool struct {
+		call   providers.ToolCall
+		output providers.ToolOutput
+	}
+	executed := make([]executedTool, len(calls))
+	var wg sync.WaitGroup
 	for i, toolCall := range calls {
-		if providers.IsGenerationCancelled(responseMessage.ID) {
-			log.Debug("Generation cancelled before tool execution", "tool", toolCall.Name)
-			return &providers.ChatCompletionMessage{Cancelled: true}, nil
-		}
+		toolCall.MessageID = responseMessage.ID
+		toolCall.ConvID = convID
+		executed[i].call = toolCall
+		wg.Add(1)
+		go func(i int, tc providers.ToolCall) {
+			defer wg.Done()
+			if providers.IsGenerationCancelled(responseMessage.ID) {
+				return
+			}
+			executed[i].output = executeMCPTool(providerParams.Context, tc, user, convID)
+		}(i, toolCall)
+	}
+	wg.Wait()
 
+	if providers.IsGenerationCancelled(responseMessage.ID) {
+		log.Debug("Generation cancelled during tool execution")
+		return &providers.ChatCompletionMessage{Cancelled: true}, nil
+	}
+
+	for i, item := range executed {
+		toolCall := item.call
 		assistantMsg := providers.SimpleMessage{
 			Role:     "assistant",
 			ToolCall: toolCall,
 		}
-		// Include content + reasoning on the first tool-call message so the
-		// model can continue thinking across tool calls via reasoning_content.
 		if i == 0 {
 			assistantMsg.Content = responseMessage.Content
 			assistantMsg.Reasoning = responseMessage.Reasoning
 		}
 		providerParams.Messages = append(providerParams.Messages, assistantMsg)
 
-		toolCall.MessageID = responseMessage.ID
-		toolCall.ConvID = convID
-
-		result := tools.ExecuteMCPTool(providerParams.Context, toolCall, user, convID)
-		// If cancel raced with tool start, drop the result and stop.
-		if providers.IsGenerationCancelled(responseMessage.ID) {
-			log.Debug("Generation cancelled during tool execution", "tool", toolCall.Name)
-			return &providers.ChatCompletionMessage{Cancelled: true}, nil
-		}
-
-		toolCall.Output = result.Content
-		toolCall.FileID = result.FileID
+		toolCall.Output = item.output.Content
+		toolCall.FileID = item.output.FileID
 
 		utils.SendStreamChunk(sc, utils.StreamChunk{
 			Type:    utils.TOOL_CALL,
@@ -303,7 +316,6 @@ func enterAgentLoop(
 			log.Error("Error saving tool call output", "err", err)
 		}
 
-		// Append tool result; resolve file id to media on the message only.
 		toolMsg := providers.SimpleMessage{
 			Role: "tool",
 			ToolCall: providers.ToolCall{
@@ -318,7 +330,6 @@ func enterAgentLoop(
 		}
 		attachToolFile(&toolMsg, toolCall.FileID, user)
 		providerParams.Messages = append(providerParams.Messages, toolMsg)
-
 	}
 
 	if providers.IsGenerationCancelled(responseMessage.ID) {

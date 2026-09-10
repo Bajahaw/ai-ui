@@ -5,13 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/Bajahaw/ai-ui/cmd/utils"
 
 	"github.com/google/uuid"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type MCPServer struct {
@@ -146,6 +143,7 @@ func deleteMCPServer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error deleting MCP server", http.StatusInternalServerError)
 		return
 	}
+	mcpSessionManager.invalidate(id)
 
 	utils.RespondWithJSON(w, "MCP server deleted successfully", http.StatusOK)
 }
@@ -215,51 +213,38 @@ func refreshMCPTools(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetMCPTools(server MCPServer) ([]*Tool, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), mcpConnectTimeout)
 	defer cancel()
 
-	client := mcp.NewClient(&mcp.Implementation{Name: "mcp-client", Version: "2025-11-25"}, nil)
-
-	headers := map[string]string{
-		"Authorization": "Bearer " + server.APIKey,
-	}
-	for k, v := range server.Headers {
-		headers[k] = v
-	}
-
-	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
-		Endpoint:   server.Endpoint,
-		HTTPClient: httpClientWithCustomHeaders(headers),
-	}, nil)
-
+	session, err := mcpSessionManager.session(ctx, server)
 	if err != nil {
 		log.Error("Error connecting to MCP server", "err", err)
 		return []*Tool{}, err
 	}
-	defer session.Close()
 
-	var tools []*Tool
-	if session.InitializeResult().Capabilities.Tools != nil {
-		mcpTools := session.Tools(ctx, nil)
-		for tool, err := range mcpTools {
-			if err != nil {
-				log.Error("Error fetching tool from MCP server", "err", err)
-				continue
-			}
-			tools = append(tools, &Tool{
-				ID:          uuid.New().String(),
-				MCPServerID: server.ID,
-				Name:        tool.Name,
-				Description: tool.Description,
-				InputSchema: func() string {
-					schemaBytes, _ := json.Marshal(tool.InputSchema)
-					return string(schemaBytes)
-				}(),
-			})
-		}
+	if res := session.InitializeResult(); res != nil && res.Capabilities.Tools == nil {
+		return []*Tool{}, nil
 	}
 
-	return tools, nil
+	var listed []*Tool
+	for tool, err := range session.Tools(ctx, nil) {
+		if err != nil {
+			log.Error("Error fetching tool from MCP server", "err", err)
+			continue
+		}
+		listed = append(listed, &Tool{
+			ID:          uuid.New().String(),
+			MCPServerID: server.ID,
+			Name:        tool.Name,
+			Description: tool.Description,
+			InputSchema: func() string {
+				schemaBytes, _ := json.Marshal(tool.InputSchema)
+				return string(schemaBytes)
+			}(),
+		})
+	}
+
+	return listed, nil
 }
 
 type acceptHeaderRoundTripper struct {
@@ -331,29 +316,4 @@ func httpClientWithCustomHeaders(headers map[string]string) *http.Client {
 			delegate:     http.DefaultTransport,
 		},
 	}
-}
-
-// MCPSessionManager manager to cache sessions
-type MCPSessionManager struct {
-	sessions sync.Map
-}
-
-func (mgr *MCPSessionManager) add(serverID string, session *mcp.ClientSession) {
-	mgr.sessions.Store(serverID, session)
-
-	go func() {
-		// time.Sleep(5 * time.Minute) // or better
-		<-time.After(5 * time.Minute)
-		mgr.sessions.Delete(serverID)
-		session.Close()
-		log.Debug("MCP session closed due to inactivity", "serverID", serverID)
-	}()
-}
-
-func (mgr *MCPSessionManager) get(serverID string) (*mcp.ClientSession, bool) {
-	value, ok := mgr.sessions.Load(serverID)
-	if !ok {
-		return nil, false
-	}
-	return value.(*mcp.ClientSession), true
 }

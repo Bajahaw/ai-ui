@@ -2,7 +2,6 @@ package tools
 
 import (
 	"database/sql"
-	"sync"
 
 	fs "github.com/Bajahaw/ai-ui/cmd/files"
 	providers "github.com/Bajahaw/ai-ui/cmd/providers"
@@ -27,9 +26,7 @@ func SetUpTools(l *logger.Logger, database *sql.DB) {
 	toolCalls = NewToolCallsRepository(db)
 	tools = NewToolRepository(db)
 	mcps = NewMCPRepository(db, tools)
-	mcpSessionManager = MCPSessionManager{
-		sessions: sync.Map{},
-	}
+	mcpSessionManager = newMCPSessionManager()
 	log = l
 	files = fs.NewRepository(db)
 	settings = stngs.NewRepository(db)

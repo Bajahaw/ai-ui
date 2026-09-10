@@ -141,53 +141,18 @@ func ExecuteMCPTool(ctx context.Context, toolCall providers.ToolCall, user, conv
 	log.Debug("Executing MCP tool", "tool", tool.Name, "server", server.Name, "args", toolCall.Args)
 	log.Debug("MCP tool input schema", "schema", tool.InputSchema, "args", toolCall.Args)
 
-	var session *mcp.ClientSession
-	session, ok := mcpSessionManager.get(server.ID)
-	if !ok {
-		client := mcp.NewClient(&mcp.Implementation{Name: "mcp-client", Version: "v1.0.0"}, nil)
-		headers := map[string]string{
-			"Authorization": "Bearer " + server.APIKey,
-		}
-		for k, v := range server.Headers {
-			headers[k] = v
-		}
-
-		session, err = client.Connect(ctx, &mcp.StreamableClientTransport{
-			Endpoint:   server.Endpoint,
-			HTTPClient: httpClientWithCustomHeaders(headers),
-		}, nil)
-
-		if err != nil {
-			log.Error("Error connecting to MCP server", "err", err)
-			return providers.ToolOutput{Content: "Error connecting to MCP server"}
-		}
-
-		mcpSessionManager.add(server.ID, session)
-	}
-
-	// CallToolParams.Arguments field expects any type
-	// that will be marshaled to JSON by the SDK itself,
-	// not a pre-stringified JSON.
 	var args map[string]any
 	if err := json.Unmarshal([]byte(toolCall.Args), &args); err != nil {
 		log.Error("Error unmarshaling tool arguments", "err", err)
 		return providers.ToolOutput{Content: "Error parsing tool arguments."}
 	}
 
-	params := &mcp.CallToolParams{
+	result, err := mcpSessionManager.callTool(ctx, *server, &mcp.CallToolParams{
 		Name:      toolCall.Name,
 		Arguments: args,
-	}
-
-	result, err := session.CallTool(ctx, params)
+	})
 	if err != nil {
 		log.Error("Error calling tool on MCP server", "err", err)
-
-		// Remove failed session from cache to force reconnection on next call
-		mcpSessionManager.sessions.Delete(server.ID)
-
-		// session.Close() // this might throw the same error if connection is broken
-
 		return providers.ToolOutput{Content: "Tool execution failed!"}
 	}
 
