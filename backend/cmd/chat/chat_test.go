@@ -365,14 +365,12 @@ func TestSync_Simple(t *testing.T) {
 	}
 }
 
-func TestSync_ExcludeSender(t *testing.T) {
+func TestSync_DeliversToSender(t *testing.T) {
 	teardown := setupTest(t, nil)
 	defer teardown()
 
 	userID := "test-user"
-
-	// 1. Session A starts sync SSE stream
-	ctx, cancel := context.WithTimeout(context.Background(), 700*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	reqSync := httptest.NewRequest(http.MethodGet, "/conversations/sync?sessionId=session-a", nil)
@@ -386,15 +384,13 @@ func TestSync_ExcludeSender(t *testing.T) {
 		close(syncDone)
 	}()
 
-	// Give it a moment to subscribe
 	time.Sleep(100 * time.Millisecond)
 
-	// 2. Session A (SAME SESSION) creates a conversation
 	convBody := Conversation{Title: "Same Session Conv"}
 	reqBody := map[string]any{"conversation": convBody}
 	b, _ := json.Marshal(reqBody)
 	reqAdd := httptest.NewRequest(http.MethodPost, "/conversations/add", bytes.NewReader(b))
-	reqAdd.Header.Set("X-Session-ID", "session-a") // SAME SESSION ID
+	reqAdd.Header.Set("X-Session-ID", "session-a")
 	reqAdd = reqAdd.WithContext(context.WithValue(reqAdd.Context(), "user", userID))
 
 	rrAdd := httptest.NewRecorder()
@@ -404,14 +400,27 @@ func TestSync_ExcludeSender(t *testing.T) {
 		t.Fatalf("failed to create conversation: %v", rrAdd.Body.String())
 	}
 
-	// 3. Session A should not receive an event from its own session
 	select {
 	case <-syncDone:
-		if dataLine, ok := firstSSEDataLine(rrSync.Body.Bytes()); ok {
-			t.Fatalf("expected no SSE event for same-session updates, got: %s", string(dataLine))
+		if rrSync.Code != http.StatusOK {
+			t.Errorf("expected 200 OK for sync, got %d", rrSync.Code)
+		}
+		dataLine, ok := firstSSEDataLine(rrSync.Body.Bytes())
+		if !ok {
+			t.Fatalf("expected SSE data line for same-session updates, got: %s", rrSync.Body.String())
+		}
+		var event SyncEvent
+		if err := json.Unmarshal(dataLine, &event); err != nil {
+			t.Fatalf("failed to unmarshal sync event: %v", err)
+		}
+		if event.Type != EventConversationCreated {
+			t.Errorf("expected event type %s, got %s", EventConversationCreated, event.Type)
+		}
+		if event.Conversation.Title != "Same Session Conv" {
+			t.Errorf("expected title 'Same Session Conv', got '%s'", event.Conversation.Title)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for sync handler to finish")
+		t.Fatal("timed out waiting for sync event")
 	}
 }
 

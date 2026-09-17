@@ -83,7 +83,7 @@ func (sm *SyncManager) Unsubscribe(userID, sessionID string) {
 	}
 }
 
-func (sm *SyncManager) Broadcast(userID, sourceSessionID string, event SyncEvent) {
+func (sm *SyncManager) Broadcast(userID string, event SyncEvent) {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 
@@ -92,14 +92,14 @@ func (sm *SyncManager) Broadcast(userID, sourceSessionID string, event SyncEvent
 		return
 	}
 
+	// Deliver to every tab, including the one that caused the event.
+	// Clients ignore payloads they already applied from the chat stream.
 	for sessionID, sub := range userSubs {
-		if sessionID != sourceSessionID {
-			select {
-			case sub.Events <- event:
-			default:
-				// If channel is full, we skip. Client should refresh on reconnect or timeout.
-				log.Warn("Subscriber channel full, skipping event", "userId", userID, "sessionId", sessionID)
-			}
+		select {
+		case sub.Events <- event:
+		default:
+			// If channel is full, we skip. Client catches up on SSE reconnect.
+			log.Warn("Subscriber channel full, skipping event", "userId", userID, "sessionId", sessionID)
 		}
 	}
 }

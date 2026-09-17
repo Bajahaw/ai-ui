@@ -8,6 +8,14 @@ import {
 
 let tempIdCounter = -1;
 
+function isPendingBackendMessage(message: Message): boolean {
+  return message.status === "pending";
+}
+
+function isTempMessageId(id: string): boolean {
+  return Number.isNaN(parseInt(id, 10));
+}
+
 export interface ClientConversation {
   id: string;
 
@@ -179,6 +187,12 @@ export class ClientConversationManager {
       } as unknown as Conversation;
     }
 
+    for (const msg of Object.values(backendMessages)) {
+      if (!isPendingBackendMessage(msg)) {
+        conversation.pendingMessageIds.delete(String(msg.id));
+      }
+    }
+
     // Merge messages into frontend state first
     this.updateWithBackendMessages(conversation.id, backendMessages);
 
@@ -190,7 +204,31 @@ export class ClientConversationManager {
     // Merge into backendConversation.messages
     for (const [idStr, msg] of Object.entries(backendMessages)) {
       const idNum = Number(idStr);
-      conversation.backendConversation.messages[idNum] = msg;
+      const existing = conversation.backendConversation.messages[idNum];
+      const existingFrontend = conversation.messages.find(
+        (m) => m.id === String(idNum),
+      );
+      const alreadyComplete =
+        (existing && existing.status !== "pending") ||
+        existingFrontend?.status === "completed";
+      if (alreadyComplete && isPendingBackendMessage(msg)) {
+        if (existingFrontend) {
+          conversation.backendConversation.messages[idNum] = {
+            ...msg,
+            ...existing,
+            content: existingFrontend.content,
+            reasoning: existingFrontend.reasoning,
+            status: "completed",
+            error: existingFrontend.error,
+            tools: existingFrontend.toolCalls,
+            speed: existingFrontend.speed,
+            tokenCount: existingFrontend.tokenCount,
+            contextSize: existingFrontend.contextSize,
+          };
+        }
+      } else {
+        conversation.backendConversation.messages[idNum] = msg;
+      }
 
       // Ensure children array is sorted by ID so newest branches are always last
       if (msg.children && msg.children.length > 1) {
@@ -297,16 +335,25 @@ export class ClientConversationManager {
         // as completed — killing the spinner permanently.
         if (
           conversation.pendingMessageIds.has(existingMessage.id) &&
-          existingMessage.status === "pending"
+          existingMessage.status === "pending" &&
+          isPendingBackendMessage(backendMsg)
         ) {
+          messageUpdated = true;
+        } else if (isPendingBackendMessage(backendMsg)) {
           messageUpdated = true;
         } else {
           existingMessage.content = backendMsg.content;
           existingMessage.status = "completed";
           existingMessage.attachments = backendMsg.attachments;
+          existingMessage.reasoning = backendMsg.reasoning;
+          existingMessage.error = backendMsg.error;
+          existingMessage.toolCalls = backendMsg.tools;
+          existingMessage.speed = backendMsg.speed;
+          existingMessage.tokenCount = backendMsg.tokenCount;
+          existingMessage.contextSize = backendMsg.contextSize;
           messageUpdated = true;
         }
-      } else {
+      } else if (!isPendingBackendMessage(backendMsg)) {
         // Find matching pending message by content and role
         const pendingMessage = conversation.messages.find(
           (m) =>
@@ -355,6 +402,18 @@ export class ClientConversationManager {
           (m) => m.id === backendMsg.id.toString(),
         );
         if (!exists) {
+          const hasTempInFlightSameRole = conversation.messages.some(
+            (m) =>
+              conversation.pendingMessageIds.has(m.id) &&
+              m.role === backendMsg.role &&
+              isTempMessageId(m.id),
+          );
+          if (
+            isPendingBackendMessage(backendMsg) &&
+            hasTempInFlightSameRole
+          ) {
+            continue;
+          }
           conversation.messages.push(backendToFrontendMessage(backendMsg));
         }
       }
@@ -383,7 +442,10 @@ export class ClientConversationManager {
               backendMsg.content !== "")),
       );
 
-      if (matchingBackendMsg) {
+      if (
+        matchingBackendMsg &&
+        !isPendingBackendMessage(matchingBackendMsg)
+      ) {
         message.status = "completed";
         if (message.role === "assistant" && message.content === "") {
           message.content = matchingBackendMsg.content;
@@ -395,7 +457,9 @@ export class ClientConversationManager {
         // This prevents messages from staying in pending state forever
         const backendMsgArray = Object.values(backendMessages);
         const similarBackendMsg = backendMsgArray.find(
-          (backendMsg) => backendMsg.role === message.role,
+          (backendMsg) =>
+            backendMsg.role === message.role &&
+            !isPendingBackendMessage(backendMsg),
         );
 
         if (
@@ -833,9 +897,56 @@ export class ClientConversationManager {
     const conversation = this.conversations.get(oldId);
     if (!conversation) return;
 
+    const existing = this.conversations.get(newId);
     this.conversations.delete(oldId);
     conversation.id = newId;
+    if (conversation.backendConversation) {
+      conversation.backendConversation.id = newId;
+    }
+
+    if (existing && existing !== conversation) {
+      conversation.title = existing.title || conversation.title;
+      conversation.isPhantom = false;
+      if (existing.backendConversation) {
+        const localMessages = conversation.backendConversation?.messages || {};
+        const remoteMessages = existing.backendConversation.messages || {};
+        conversation.backendConversation = {
+          ...existing.backendConversation,
+          messages: { ...remoteMessages, ...localMessages },
+        };
+      }
+    }
+
     this.conversations.set(newId, conversation);
+  }
+
+  applySyncedMessage(conversationId: string, message: Message): boolean {
+    if (!message || !conversationId || !this.hasLoadedMessages(conversationId)) {
+      return false;
+    }
+
+    const conversation = this.conversations.get(conversationId);
+    if (!conversation) return false;
+
+    if (isPendingBackendMessage(message)) {
+      const id = String(message.id);
+      if (conversation.messages.some((m) => m.id === id)) {
+        return false;
+      }
+      if (conversation.backendConversation?.messages?.[message.id]) {
+        return false;
+      }
+      const hasInFlightSameRole = conversation.messages.some(
+        (m) =>
+          conversation.pendingMessageIds.has(m.id) && m.role === message.role,
+      );
+      if (hasInFlightSameRole) {
+        return false;
+      }
+    }
+
+    this.updateWithChatResponse(conversationId, { [message.id]: message });
+    return true;
   }
 
   handleExternalCreate(conversation: Conversation): void {

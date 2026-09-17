@@ -9,8 +9,9 @@ import {
   StreamStats,
   Attachment,
   WelcomeStats,
+  type ConversationEvent,
 } from "@/lib/api";
-import { getSessionId, rotateSessionId } from "@/lib/api/headers";
+import { getSessionId } from "@/lib/api/headers";
 import { ApiErrorHandler } from "@/lib/api/errorHandler";
 import {
   ClientConversation,
@@ -418,6 +419,8 @@ export const useConversations = () => {
   const connectionEpochRef = useRef(0);
   const lastRecoverAtRef = useRef(0);
   const recoverDeadConnectionRef = useRef<() => void>(() => {});
+  const catchUpFromServerRef = useRef<() => void>(() => {});
+  const catchUpInFlightRef = useRef<Promise<void> | null>(null);
 
   const managerRef = useRef(new ClientConversationManager());
   const manager = managerRef.current;
@@ -438,27 +441,35 @@ export const useConversations = () => {
 
     const es = conversationsAPI.createSyncEventSource(sessionId);
     sseRef.current = es;
+    let cancelled = false;
+
+    es.onopen = () => {
+      if (!cancelled) {
+        catchUpFromServerRef.current();
+      }
+    };
 
     es.onmessage = (e) => {
+      if (cancelled) return;
       try {
-        const event = JSON.parse(e.data);
+        const event = JSON.parse(e.data) as ConversationEvent;
         if (event.type === "conversation_created") {
+          if (!event.conversation) return;
           manager.handleExternalCreate(event.conversation);
         } else if (event.type === "conversation_updated") {
+          if (!event.conversation) return;
           manager.handleExternalUpdate(event.conversation);
         } else if (event.type === "conversation_deleted") {
           manager.handleExternalDelete(event.conversationId);
+          setActiveConversationId((id) =>
+            id === event.conversationId ? null : id,
+          );
         } else if (
           event.type === "message_saved" ||
           event.type === "message_updated"
         ) {
-          // Skip if this conversation's messages haven't been fetched yet —
-          // opening the conversation will load a fresh copy from the server.
-          if (manager.hasLoadedMessages(event.conversationId)) {
-            manager.updateWithChatResponse(event.conversationId, {
-              [event.message.id]: event.message,
-            });
-          }
+          if (!event.message) return;
+          manager.applySyncedMessage(event.conversationId, event.message);
         }
         syncConversations();
       } catch (err) {
@@ -476,6 +487,7 @@ export const useConversations = () => {
     };
 
     return () => {
+      cancelled = true;
       es.close();
       if (sseRef.current === es) {
         sseRef.current = null;
@@ -507,6 +519,9 @@ export const useConversations = () => {
       manager.loadBackendConversations(backendConversations);
       syncConversations();
       setHasHydrated(true);
+      setActiveConversationId((id) =>
+        !id || manager.getConversation(id) ? id : null,
+      );
 
       // Fetch all-time stats from the backend
       try {
@@ -547,6 +562,28 @@ export const useConversations = () => {
     syncConversations();
   }, [manager, syncConversations]);
 
+  const catchUpFromServer = useCallback(async () => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    const previous = catchUpInFlightRef.current;
+    const run = (async () => {
+      if (previous) {
+        await previous;
+      }
+      try {
+        await loadConversations({ silent: true });
+        await refreshLoadedMessages();
+      } catch (err) {
+        console.error("Failed to catch up conversation state:", err);
+      }
+    })();
+
+    catchUpInFlightRef.current = run;
+    await run;
+  }, [isAuthenticated, loadConversations, refreshLoadedMessages]);
+
   const recoverDeadConnection = useCallback(async () => {
     if (!isAuthenticated) {
       return;
@@ -566,21 +603,25 @@ export const useConversations = () => {
       streamAbortRef.current?.abort();
       streamAbortRef.current = null;
       manager.abandonInFlightStreams();
-      rotateSessionId();
       setSseEpoch((n) => n + 1);
-      await loadConversations({ silent: true });
-      await refreshLoadedMessages();
+      await catchUpFromServer();
     } finally {
       needsFocusRefreshRef.current = false;
       focusRefreshInFlightRef.current = false;
     }
-  }, [isAuthenticated, manager, loadConversations, refreshLoadedMessages]);
+  }, [isAuthenticated, manager, catchUpFromServer]);
 
   useEffect(() => {
     recoverDeadConnectionRef.current = () => {
       void recoverDeadConnection();
     };
   }, [recoverDeadConnection]);
+
+  useEffect(() => {
+    catchUpFromServerRef.current = () => {
+      void catchUpFromServer();
+    };
+  }, [catchUpFromServer]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -599,7 +640,7 @@ export const useConversations = () => {
 
       focusRefreshInFlightRef.current = true;
       try {
-        await loadConversations({ silent: true });
+        await catchUpFromServer();
       } finally {
         needsFocusRefreshRef.current = false;
         focusRefreshInFlightRef.current = false;
@@ -653,7 +694,7 @@ export const useConversations = () => {
       window.removeEventListener("resume", onResume);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [isAuthenticated, loadConversations, recoverDeadConnection]);
+  }, [isAuthenticated, catchUpFromServer, recoverDeadConnection]);
 
   // Only load conversations when authenticated
   useEffect(() => {

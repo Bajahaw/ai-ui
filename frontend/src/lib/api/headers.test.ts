@@ -27,7 +27,7 @@ describe("session id", () => {
     }
   });
 
-  it("rotateSessionId issues a new id so recovered SSE is not the stream source", () => {
+  it("rotateSessionId issues a new id", () => {
     const original = getSessionId();
     const rotated = rotateSessionId();
 

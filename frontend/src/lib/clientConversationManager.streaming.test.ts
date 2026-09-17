@@ -81,6 +81,33 @@ function startInFlightFollowUp(manager: ClientConversationManager) {
     args: '{"q":"x"}',
   });
 
+  if (conv.backendConversation) {
+    conv.backendConversation.messages = {
+      ...conv.backendConversation.messages,
+      3: backendMessage({
+        id: 3,
+        convId: "conv-1",
+        role: "user",
+        content: "follow up",
+        parentId: 2,
+        children: [4],
+      }),
+      4: backendMessage({
+        id: 4,
+        convId: "conv-1",
+        role: "assistant",
+        content: "",
+        status: "pending",
+        parentId: 3,
+      }),
+    };
+    const parent2 = conv.backendConversation.messages[2];
+    if (parent2) {
+      parent2.children = [...(parent2.children || []), 3];
+    }
+    conv.backendConversation.activeMessageId = 4;
+  }
+
   return { conv, assistant: live };
 }
 
@@ -202,6 +229,136 @@ describe("ClientConversationManager streaming invariants", () => {
     expect(assistant.toolCalls).toEqual([
       { id: "tc-1", name: "search", args: '{"q":"x"}', tool_output: "result" },
     ]);
+  });
+
+  it("applies a completed sync payload over a still-pending dead stream", () => {
+    const manager = new ClientConversationManager();
+    const { conv, assistant } = startInFlightFollowUp(manager);
+
+    expect(
+      manager.applySyncedMessage(
+        "conv-1",
+        backendMessage({
+          id: 4,
+          convId: "conv-1",
+          role: "assistant",
+          content: "full reply after stream died",
+          reasoning: "done",
+          parentId: 3,
+        }),
+      ),
+    ).toBe(true);
+
+    const visible = conv.messages.find((m) => m.id === "4")!;
+    expect(visible.content).toBe("full reply after stream died");
+    expect(visible.status).toBe("completed");
+    expect(visible.reasoning).toBe("done");
+    expect(conv.pendingMessageIds.has("4")).toBe(false);
+    expect(assistant.status).toBe("completed");
+  });
+
+  it("does not let a late pending stub downgrade a completed message", () => {
+    const manager = new ClientConversationManager();
+    const { conv } = startInFlightFollowUp(manager);
+    conv.pendingMessageIds.delete("4");
+    const assistant = conv.messages.find((m) => m.id === "4")!;
+    assistant.status = "completed";
+    assistant.content = "final saved reply";
+
+    manager.updateWithChatResponse("conv-1", {
+      4: backendMessage({
+        id: 4,
+        convId: "conv-1",
+        role: "assistant",
+        content: "",
+        status: "pending",
+        parentId: 3,
+      }),
+    });
+
+    const visible = conv.messages.find((m) => m.id === "4")!;
+    expect(visible.content).toBe("final saved reply");
+    expect(visible.status).toBe("completed");
+  });
+
+  it("skips own pending sync stub while a stream is in flight", () => {
+    const manager = new ClientConversationManager();
+    const { assistant } = startInFlightFollowUp(manager);
+
+    expect(
+      manager.applySyncedMessage(
+        "conv-1",
+        backendMessage({
+          id: 4,
+          convId: "conv-1",
+          role: "assistant",
+          content: "",
+          status: "pending",
+          parentId: 3,
+        }),
+      ),
+    ).toBe(false);
+
+    expect(assistant.content).toBe("partial streamed text");
+    expect(assistant.status).toBe("pending");
+  });
+
+  it("applies another tab's pending assistant when this tab is idle", () => {
+    const manager = new ClientConversationManager();
+    seedConversation(manager, "conv-1", priorTurn());
+
+    expect(
+      manager.applySyncedMessage(
+        "conv-1",
+        backendMessage({
+          id: 3,
+          convId: "conv-1",
+          role: "user",
+          content: "from other tab",
+          parentId: 2,
+          children: [4],
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      manager.applySyncedMessage(
+        "conv-1",
+        backendMessage({
+          id: 4,
+          convId: "conv-1",
+          role: "assistant",
+          content: "",
+          status: "pending",
+          parentId: 3,
+        }),
+      ),
+    ).toBe(true);
+
+    const conv = manager.getConversation("conv-1")!;
+    expect(conv.messages.find((m) => m.id === "3")?.content).toBe(
+      "from other tab",
+    );
+    const visible = conv.messages.find((m) => m.id === "4")!;
+    expect(visible.status).toBe("pending");
+    expect(visible.content).toBe("");
+  });
+
+  it("does not apply message sync before messages have been loaded", () => {
+    const manager = new ClientConversationManager();
+    seedConversation(manager, "conv-1");
+
+    expect(
+      manager.applySyncedMessage(
+        "conv-1",
+        backendMessage({
+          id: 1,
+          convId: "conv-1",
+          role: "user",
+          content: "hi",
+        }),
+      ),
+    ).toBe(false);
+    expect(manager.getConversation("conv-1")!.messages).toEqual([]);
   });
 
   it("applies a completed backend message after the stream is no longer in-flight", () => {
@@ -367,5 +524,48 @@ describe("optimistic send / id swap", () => {
     expect(assistant.status).toBe("completed");
     expect(assistant.error).toBe("network down");
     expect(conv.pendingMessageIds.has(assistant.id)).toBe(false);
+  });
+});
+
+describe("external sync / rekey", () => {
+  it("handleExternalCreate updates an existing conversation instead of duplicating", () => {
+    const manager = new ClientConversationManager();
+    seedConversation(manager, "conv-1", priorTurn());
+
+    manager.handleExternalCreate({
+      id: "conv-1",
+      userId: "user-1",
+      title: "Renamed elsewhere",
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-02T00:00:00Z",
+      messages: {},
+    });
+
+    const conv = manager.getConversation("conv-1")!;
+    expect(conv.title).toBe("Renamed elsewhere");
+    expect(conv.messages.find((m) => m.id === "1")?.content).toBe("hi");
+  });
+
+  it("rekeyConversation keeps optimistic messages when sync already created the id", () => {
+    const manager = new ClientConversationManager();
+    const local = manager.createConversation("hello from this tab");
+    const oldId = local.id;
+
+    manager.handleExternalCreate({
+      id: "uuid-1",
+      userId: "user-1",
+      title: "hello from this tab",
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+      messages: {},
+    });
+
+    manager.rekeyConversation(oldId, "uuid-1");
+
+    expect(manager.getConversation(oldId)).toBeUndefined();
+    const merged = manager.getConversation("uuid-1")!;
+    expect(merged).toBe(local);
+    expect(merged.messages[0]?.content).toBe("hello from this tab");
+    expect(merged.messages).toHaveLength(2);
   });
 });
