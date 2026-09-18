@@ -7,37 +7,22 @@ import { AuthProvider } from "./hooks/useAuth.tsx";
 import { ModelsProvider } from "./hooks/useModelsContext.tsx";
 import { SettingsDataProvider } from "./hooks/useSettingsData.tsx";
 import { ChatGPTOAuthWaitingDialog } from "./components/auth/ChatGPTOAuthWaitingDialog.tsx";
+import { UpdateBanner } from "./components/UpdateBanner.tsx";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { registerSW } from "virtual:pwa-register";
-
-let refreshing = false;
-const reloadForUpdate = () => {
-  if (refreshing) return;
-  refreshing = true;
-  window.location.reload();
-};
-
-const checkBuild = async () => {
-  if (!__APP_BUILD__) return;
-  try {
-    const response = await fetch("/api/version", { cache: "no-store" });
-    if (!response.ok) return;
-    const data = (await response.json()) as { build?: string };
-    if (data.build && data.build !== __APP_BUILD__) {
-      reloadForUpdate();
-    }
-  } catch {}
-};
-
-navigator.serviceWorker?.addEventListener("controllerchange", reloadForUpdate);
+import {
+  checkRemoteBuild,
+  notifyAppUpdateAvailable,
+} from "./lib/appUpdate.ts";
 
 registerSW({
   immediate: true,
-  onNeedRefresh: reloadForUpdate,
+  onNeedRefresh: notifyAppUpdateAvailable,
+  onNeedReload: notifyAppUpdateAvailable,
   onRegisteredSW(_url, r) {
     const poll = () => {
       r?.update().catch(() => {});
-      void checkBuild();
+      void checkRemoteBuild(__APP_BUILD__);
     };
     poll();
     const id = setInterval(poll, 60 * 60 * 1000);
@@ -73,6 +58,7 @@ const isDevelopment = (import.meta as any).env.DEV;
 const AppTree = (
   <AuthProvider>
     <ThemeProvider defaultTheme="dark" storageKey="ai-ui-theme">
+      <UpdateBanner />
       <ChatGPTOAuthWaitingDialog />
       <AuthGuard>
         <BrowserRouter>
