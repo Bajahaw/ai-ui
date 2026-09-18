@@ -37,7 +37,9 @@ docker run -d -p 8080:8080 --name ai-ui ghcr.io/bajahaw/ai-ui:latest
 
 Access at `http://localhost:8080`
 
-For persistent storage you need to bind `/app/data` to your file system
+For persistent storage you need to bind `/app/data` to your file system.
+
+Optional: `SANDBOX_ORIGIN=https://sandbox.example.com` loads `browser_sandbox` from that origin so module workers work. Point the hostname at the same app. Unset keeps the isolated srcdoc frame.
 
 
 ## License

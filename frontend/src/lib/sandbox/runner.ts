@@ -5,7 +5,9 @@ import {
   retainFileBytes,
 } from "@/lib/api/files";
 import type { FrontendMessage, ToolCall } from "@/lib/api/types";
+import { getSandboxFrameOrigin, resetSandboxOriginCache } from "./origin";
 import { fileAliases, isSandboxHtml, wrapSandboxCode } from "./wrap";
+import BOOTSTRAP_SRCDOC from "../../../public/sandbox.html?raw";
 
 const SANDBOX_TIMEOUT_MS = 90_000;
 const RETRY_BUDGET_MS = 30_000;
@@ -43,124 +45,6 @@ const running = new Set<string>();
 let hostIframe: HTMLIFrameElement | null = null;
 let hostBusy = false;
 
-const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com blob:; object-src 'none'; base-uri 'none';">
-</head>
-<body>
-<script>
-(function(){
-  var __files = {};
-  var __fileList = [];
-  var __started = false;
-  function send(msg, transfer){ window.parent.postMessage(msg, '*', transfer || []); }
-  function toBuf(data){
-    if (data instanceof ArrayBuffer) return data;
-    if (ArrayBuffer.isView(data)) return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-    if (typeof data === 'string') return new TextEncoder().encode(data).buffer;
-    throw new Error('writeFile: unsupported data type');
-  }
-  window.sandbox = {
-    _done: false,
-    listFiles: function(){
-      return __fileList.slice();
-    },
-    readFile: function(name){
-      var key = String(name == null ? '' : name);
-      if (__files[key]) return __files[key];
-      var avail = __fileList.join(', ');
-      throw new Error('file not found: ' + key + (avail ? ' (available files: ' + avail.slice(0, 1000) + '; use sandbox.listFiles())' : ' (no files available; use sandbox.listFiles())'));
-    },
-    writeFile: function(name, data, mime){
-      var p = (typeof Blob !== 'undefined' && data instanceof Blob)
-        ? data.arrayBuffer()
-        : Promise.resolve(toBuf(data));
-      return p.then(function(buf){
-        send({ type: '__sandbox_file', name: name, mime: mime || '', data: buf }, [buf]);
-      });
-    },
-    done: function(err){
-      if (window.sandbox._done) return;
-      window.sandbox._done = true;
-      send({ type: '__sandbox_done', error: err ? String(err) : '' });
-    }
-  };
-  function hook(fn, level){
-    return function(){
-      var msg = Array.prototype.map.call(arguments, function(a){
-        try { return typeof a === 'string' ? a : JSON.stringify(a); }
-        catch (e) { return String(a); }
-      }).join(' ');
-      send({ type: '__sandbox_log', level: level, message: msg });
-      return fn.apply(console, arguments);
-    };
-  }
-  console.log = hook(console.log, 'log');
-  console.info = hook(console.info, 'info');
-  console.warn = hook(console.warn, 'warn');
-  console.error = hook(console.error, 'error');
-  window.addEventListener('error', function(e){
-    send({ type: '__sandbox_log', level: 'error', message: e.message || 'Runtime error' });
-  });
-  window.addEventListener('unhandledrejection', function(e){
-    send({ type: '__sandbox_log', level: 'error', message: String(e.reason) });
-  });
-  function injectHtml(html){
-    var box = document.createElement('div');
-    box.innerHTML = html;
-    var olds = box.querySelectorAll('script');
-    for (var i = 0; i < olds.length; i++) {
-      var old = olds[i];
-      var s = document.createElement('script');
-      for (var j = 0; j < old.attributes.length; j++) {
-        s.setAttribute(old.attributes[j].name, old.attributes[j].value);
-      }
-      s.textContent = old.textContent;
-      old.parentNode.replaceChild(s, old);
-    }
-    while (box.firstChild) document.body.appendChild(box.firstChild);
-  }
-  function mountFiles(files){
-    __files = {};
-    __fileList = [];
-    for (var i = 0; i < files.length; i++) {
-      var f = files[i];
-      var u8 = new Uint8Array(f.data);
-      __fileList.push(f.name);
-      var keys = f.keys && f.keys.length ? f.keys : [f.name];
-      for (var k = 0; k < keys.length; k++) __files[keys[k]] = u8;
-    }
-  }
-  function runJs(code){
-    (async function(){
-      try {
-        var run = new Function('return (async()=>{\\n' + code + '\\n})()');
-        await run();
-        await Promise.resolve();
-      } catch (e) {
-        sandbox.done(String(e && e.message ? e.message : e));
-        return;
-      }
-      if (!sandbox._done) sandbox.done();
-    })();
-  }
-  window.addEventListener('message', function(e){
-    if (e.source !== window.parent) return;
-    var data = e.data;
-    if (!data || data.type !== '__sandbox_init' || __started) return;
-    __started = true;
-    mountFiles(data.files || []);
-    if (data.html) injectHtml(data.html);
-    else runJs(data.code || '');
-  });
-  send({ type: '__sandbox_ready' });
-})();
-</script>
-</body>
-</html>`;
-
 export function collectConversationFileIds(
   messages: Pick<FrontendMessage, "attachments" | "toolCalls">[],
 ): string[] {
@@ -181,6 +65,7 @@ export function collectConversationFileIds(
 
 export function resetSandboxFileCache(): void {
   resetFileBytesCache();
+  resetSandboxOriginCache();
   hostBusy = false;
   if (hostIframe) {
     hostIframe.remove();
@@ -300,11 +185,21 @@ function parseArgs(raw?: string): {
 
 function createIframe(): HTMLIFrameElement {
   const iframe = document.createElement("iframe");
-  iframe.setAttribute("sandbox", "allow-scripts");
   iframe.setAttribute("title", "browser sandbox");
+  iframe.referrerPolicy = "no-referrer";
   iframe.style.cssText =
     "position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0";
   return iframe;
+}
+
+function mountFrame(iframe: HTMLIFrameElement, frameOrigin: string): void {
+  if (frameOrigin) {
+    iframe.setAttribute("sandbox", "allow-scripts allow-same-origin");
+    iframe.src = `${frameOrigin}/sandbox.html?parent=${encodeURIComponent(window.location.origin)}`;
+    return;
+  }
+  iframe.setAttribute("sandbox", "allow-scripts");
+  iframe.srcdoc = BOOTSTRAP_SRCDOC;
 }
 
 function acquireIframe(): { iframe: HTMLIFrameElement; shared: boolean } {
@@ -324,7 +219,8 @@ function acquireIframe(): { iframe: HTMLIFrameElement; shared: boolean } {
 }
 
 function releaseIframe(iframe: HTMLIFrameElement, shared: boolean): void {
-  iframe.srcdoc = "";
+  iframe.removeAttribute("srcdoc");
+  iframe.src = "about:blank";
   if (shared) {
     hostBusy = false;
     return;
@@ -338,11 +234,13 @@ function executeInIframe(
   signal?: AbortSignal,
 ): Promise<SandboxRunResult> {
   return new Promise((resolve) => {
-    const { iframe, shared } = acquireIframe();
     const logs: string[] = [];
     const outFiles: SandboxFile[] = [];
     let settled = false;
     let started = false;
+    let iframe: HTMLIFrameElement | null = null;
+    let shared = false;
+    let timer = 0;
 
     const finish = (error = "") => {
       if (settled) return;
@@ -350,7 +248,10 @@ function executeInIframe(
       window.removeEventListener("message", onMessage);
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
-      releaseIframe(iframe, shared);
+      if (iframe) {
+        iframe.removeEventListener("load", onFrameLoad);
+        releaseIframe(iframe, shared);
+      }
       resolve({
         ok: !error,
         error: truncate(error),
@@ -359,8 +260,23 @@ function executeInIframe(
       });
     };
 
-    const startRun = () => {
-      if (settled || started) return;
+    const onAbort = () => finish("cancelled");
+    const onFrameLoad = () => {
+      if (!iframe?.dataset.sandboxOrigin) return;
+      try {
+        const win = iframe.contentWindow;
+        if (!win) return;
+        void win.document;
+        if (win.location.origin === window.location.origin) {
+          finish("sandbox origin mismatch");
+        }
+      } catch {
+        // Cross-origin frame: expected when SANDBOX_ORIGIN is set.
+      }
+    };
+
+    const startRun = (frameOrigin: string) => {
+      if (settled || started || !iframe) return;
       const win = iframe.contentWindow;
       if (!win) {
         finish("sandbox failed to start");
@@ -380,18 +296,19 @@ function executeInIframe(
             data: copies[i],
           })),
         },
-        "*",
+        frameOrigin || "*",
         copies,
       );
     };
 
-    const onAbort = () => finish("cancelled");
     const onMessage = (event: MessageEvent) => {
-      if (event.source !== iframe.contentWindow) return;
+      if (!iframe || event.source !== iframe.contentWindow) return;
       const data = event.data;
       if (!data || typeof data !== "object") return;
+      const frameOrigin = iframe.dataset.sandboxOrigin || "";
+      if (frameOrigin && event.origin !== frameOrigin) return;
       if (data.type === "__sandbox_ready") {
-        startRun();
+        startRun(frameOrigin);
         return;
       }
       if (data.type === "__sandbox_log" && typeof data.message === "string") {
@@ -421,7 +338,7 @@ function executeInIframe(
 
     window.addEventListener("message", onMessage);
     signal?.addEventListener("abort", onAbort);
-    const timer = window.setTimeout(
+    timer = window.setTimeout(
       () => finish("sandbox timed out"),
       SANDBOX_TIMEOUT_MS,
     );
@@ -429,7 +346,17 @@ function executeInIframe(
       finish("cancelled");
       return;
     }
-    iframe.srcdoc = BOOTSTRAP_SRCDOC;
+
+    void getSandboxFrameOrigin().then((frameOrigin) => {
+      if (settled) return;
+      const acquired = acquireIframe();
+      iframe = acquired.iframe;
+      shared = acquired.shared;
+      if (frameOrigin) iframe.dataset.sandboxOrigin = frameOrigin;
+      else delete iframe.dataset.sandboxOrigin;
+      iframe.addEventListener("load", onFrameLoad);
+      mountFrame(iframe, frameOrigin);
+    });
   });
 }
 
