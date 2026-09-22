@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -143,10 +144,29 @@ type spaHandler struct {
 	fs        http.Handler
 }
 
+// serveShell writes index.html directly. http.ServeFile redirects any request
+// path ending in "/index.html" to "./", and a redirected response handed to a
+// navigation request by the service worker makes the browser fail the load
+// with ERR_FAILED, so the shell is always served on a path that can't trigger
+// that special case.
+func (h spaHandler) serveShell(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-cache")
+	shellReq := r.Clone(r.Context())
+	shellReq.URL = new(url.URL)
+	*shellReq.URL = *r.URL
+	shellReq.URL.Path = "/"
+	http.ServeFile(w, shellReq, filepath.Join(h.staticDir, "index.html"))
+}
+
 func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+		h.serveShell(w, r)
+		return
+	}
+
 	staticAbs, err := filepath.Abs(h.staticDir)
 	if err != nil {
-		http.ServeFile(w, r, filepath.Join(h.staticDir, "index.html"))
+		h.serveShell(w, r)
 		return
 	}
 
@@ -156,16 +176,24 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	requestedPath, err := filepath.Abs(filepath.Join(staticAbs, cleanReqPath))
 	if err != nil || (requestedPath != staticAbs && !strings.HasPrefix(requestedPath, staticAbs+string(filepath.Separator))) {
 		// Invalid or escaping static dir – serve SPA shell
-		http.ServeFile(w, r, filepath.Join(h.staticDir, "index.html"))
+		h.serveShell(w, r)
 		return
 	}
 
 	if _, err := os.Stat(requestedPath); os.IsNotExist(err) {
 		// Not a real file – serve the SPA shell
-		http.ServeFile(w, r, filepath.Join(h.staticDir, "index.html"))
+		h.serveShell(w, r)
 		return
 	}
 
+	if strings.HasPrefix(r.URL.Path, "/assets/") {
+		// Vite emits content-hashed filenames under /assets, safe to cache forever.
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	} else {
+		// sw.js, workbox-*.js, sandbox.html, manifest/icons: always revalidate so a
+		// new deploy is picked up on the next load instead of after a stale TTL.
+		w.Header().Set("Cache-Control", "no-cache")
+	}
 	h.fs.ServeHTTP(w, r)
 }
 
