@@ -213,10 +213,6 @@ func startServer() {
 		}
 	}()
 
-	if origin := version.SandboxOrigin(); origin != "" {
-		log.Info("Browser sandbox origin", "origin", origin)
-	}
-
 	log.Info("Server started on port 8080")
 
 	<-stop
