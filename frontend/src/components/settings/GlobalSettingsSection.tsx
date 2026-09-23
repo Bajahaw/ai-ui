@@ -166,6 +166,7 @@ export const GlobalSettingsSection = () => {
             <SelectContent className="rounded-xl min-w-[140px] border border-border/70 p-1 shadow-xl">
               <SelectItem value="send">Send</SelectItem>
               <SelectItem value="newline">New Line</SelectItem>
+              <SelectItem value="dynamic">Dynamic</SelectItem>
             </SelectContent>
           </Select>
         </div>

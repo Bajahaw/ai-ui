@@ -24,6 +24,7 @@ import {
   readClipboardImageFiles,
 } from "@/lib/clipboard.ts";
 import { getTextDirection } from "@/lib/rtl-utils.ts";
+import { resolveEnterAction } from "@/lib/enterBehavior.ts";
 import { useSettings } from "@/hooks/useSettings";
 
 /** Submit button chat status (streaming UI only). */
@@ -136,13 +137,11 @@ export const PromptInputTextarea = forwardRef<
       useCallback(
         (e) => {
           if (e.key === "Enter") {
-            const enterBehavior = settings?.enterBehavior || "send";
-
             if (e.shiftKey) {
               return;
             }
 
-            if (enterBehavior === "newline") {
+            if (resolveEnterAction(settings?.enterBehavior) === "newline") {
               return;
             }
 
