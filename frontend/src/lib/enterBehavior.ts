@@ -1,14 +1,7 @@
+import { isLargeScreen } from "./viewport";
+
 export type EnterAction = "send" | "newline";
 export type EnterBehaviorSetting = EnterAction | "dynamic";
-
-/** Matches the app's mobile breakpoint (see App.tsx sidebar/touch handling). */
-export const LARGE_SCREEN_QUERY = "(min-width: 768px)";
-
-export function isLargeScreen(): boolean {
-  return typeof window !== "undefined" && typeof window.matchMedia === "function"
-    ? window.matchMedia(LARGE_SCREEN_QUERY).matches
-    : true;
-}
 
 /**
  * Resolve the configured Enter key setting into a concrete action.

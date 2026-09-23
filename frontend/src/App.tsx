@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { SettingsDialog } from "@/components/settings";
 import { Attachment } from "@/lib/api/types";
 import { goToNewChat, seedHomeUnderCurrentEntry } from "@/lib/history";
+import { isLargeScreen } from "@/lib/viewport";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { MessageSquareIcon, SettingsIcon } from "lucide-react";
@@ -214,15 +215,25 @@ function App() {
     }
   };
 
+  // On small screens the sidebar overlays the chat, so picking a conversation
+  // should reveal it without a second tap to dismiss the sidebar.
+  const closeSidebarOnSmallScreen = () => {
+    if (!isLargeScreen()) {
+      setSidebarCollapsed(true);
+    }
+  };
+
   const handleNewChat = () => {
     if (convId) {
       goToNewChat(navigate);
     }
     setWebSearch(false);
     clearError();
+    closeSidebarOnSmallScreen();
   };
 
   const handleConversationSelect = (conversationId: string) => {
+    closeSidebarOnSmallScreen();
     if (conversationId === convId) {
       return;
     }
