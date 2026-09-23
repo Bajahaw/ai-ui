@@ -7,32 +7,10 @@ import { useConversations } from "@/hooks/useConversations";
 import { useAuth } from "@/hooks/useAuth";
 import { SettingsDialog } from "@/components/settings";
 import { Attachment } from "@/lib/api/types";
-import { NavigateFunction, useNavigate, useParams } from "react-router-dom";
+import { goToNewChat, seedHomeUnderCurrentEntry } from "@/lib/history";
+import { useNavigate, useParams } from "react-router-dom";
 
 import { MessageSquareIcon, SettingsIcon } from "lucide-react";
-
-function historyIdx(): number {
-  return typeof window.history.state?.idx === "number"
-    ? window.history.state.idx
-    : 0;
-}
-
-function goToNewChat(navigate: NavigateFunction) {
-  if (historyIdx() > 0) {
-    navigate(-1);
-    return;
-  }
-  navigate("/", { replace: true });
-}
-
-function seedHomeUnderConversation(convId: string) {
-  if (historyIdx() > 0) {
-    return;
-  }
-  const state = window.history.state ?? {};
-  window.history.replaceState({ ...state, idx: 0 }, "", "/");
-  window.history.pushState({ ...state, idx: 1 }, "", `/c/${convId}`);
-}
 
 function App() {
   const { isAuthenticated, isCheckingAuth } = useAuth();
@@ -104,10 +82,8 @@ function App() {
   } = useConversations();
 
   useLayoutEffect(() => {
-    if (convId) {
-      seedHomeUnderConversation(convId);
-    }
-  }, [convId]);
+    seedHomeUnderCurrentEntry();
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated || isCheckingAuth) {
