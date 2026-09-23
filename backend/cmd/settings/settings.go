@@ -14,6 +14,8 @@ func SetDefaults(user string) {
 		// Built-in skills shipped with the app (user can disable for their account)
 		"enableBuiltinSkills":        "true",
 		"reasoningEffort":            "disabled",
+		// Enter sends on large screens and inserts a newline on small ones
+		"enterBehavior":              "dynamic",
 		"attachmentOcrOnly":          "false",
 		"agenticDocumentRetrieval":   "false",
 		"ocrModel":                   "deepseek-ocr",
