@@ -31,6 +31,8 @@ const (
 	sandboxMaxLogLines     = 500
 	sandboxMaxLogLineRunes = 2000
 	sandboxMaxErrorRunes   = 4000
+	// Serialized return value of the sandbox code echoed back to the model.
+	sandboxMaxResultRunes = 16000
 	sandboxMaxNameRunes    = 255
 	sandboxMaxMIMERunes    = 255
 	// Longer than the client's 90s iframe timeout so the client's own
@@ -52,10 +54,11 @@ type sandboxClientFile struct {
 }
 
 type sandboxClientResult struct {
-	OK    bool
-	Logs  []string
-	Error string
-	Files []sandboxClientFile
+	OK     bool
+	Logs   []string
+	Error  string
+	Result string
+	Files  []sandboxClientFile
 }
 
 type sandboxPending struct {
@@ -121,12 +124,11 @@ func browserSandboxTool(ctx context.Context, callID, args, user string) provider
 	// Any legacy file_ids in args are intentionally ignored.
 	var params struct {
 		Code string `json:"code"`
-		HTML string `json:"html"`
 	}
 	if err := json.Unmarshal([]byte(args), &params); err != nil {
 		return providers.ToolOutput{Content: fmt.Sprintf("error decoding arguments: %v", err)}
 	}
-	if strings.TrimSpace(params.Code) == "" && strings.TrimSpace(params.HTML) == "" {
+	if strings.TrimSpace(params.Code) == "" {
 		return providers.ToolOutput{Content: "Error: 'code' is required."}
 	}
 
@@ -170,6 +172,11 @@ func persistSandboxResult(res sandboxClientResult, user string) providers.ToolOu
 	if logs != "" {
 		b.WriteString("logs:\n")
 		b.WriteString(logs)
+		b.WriteByte('\n')
+	}
+	if result := truncateRunes(res.Result, sandboxMaxResultRunes); result != "" {
+		b.WriteString("result:\n")
+		b.WriteString(result)
 		b.WriteByte('\n')
 	}
 
@@ -251,6 +258,7 @@ type sandboxResultRequest struct {
 	OK     bool                `json:"ok"`
 	Logs   []string            `json:"logs"`
 	Error  string              `json:"error"`
+	Result string              `json:"result"`
 	Files  []sandboxResultFile `json:"files"`
 }
 
@@ -308,10 +316,11 @@ func submitSandboxResult(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := completeSandboxWait(req.CallID, user, sandboxClientResult{
-		OK:    req.OK,
-		Logs:  logs,
-		Error: truncateRunes(req.Error, sandboxMaxErrorRunes),
-		Files: files,
+		OK:     req.OK,
+		Logs:   logs,
+		Error:  truncateRunes(req.Error, sandboxMaxErrorRunes),
+		Result: truncateRunes(req.Result, sandboxMaxResultRunes),
+		Files:  files,
 	})
 	if errors.Is(err, errSandboxNotPending) {
 		http.Error(w, "No pending sandbox call found", http.StatusNotFound)

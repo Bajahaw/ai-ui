@@ -220,8 +220,8 @@ func GetBuiltInTools() []*Tool {
 			// explicit user opt-in, not something that runs unnoticed.
 			ID:              uuid.New().String(),
 			Name:            "browser_sandbox",
-			Description:     "Execute HTML or JavaScript in an isolated client sandbox with filesystem access to conversation files. Use sandbox.listFiles() to discover available files, sandbox.readFile(name) to read a file by name, sandbox.writeFile(name, data), sandbox.done(error?). Bare JS is awaited; HTML must call sandbox.done().",
-			InputSchema:     `{"type":"object","properties":{"code":{"type":"string","description":"HTML or JavaScript to run. CDN script tags are allowed."}},"required":["code"]}`,
+			Description:     "Run JavaScript in an isolated browser sandbox with the conversation's files mounted. Top-level await is allowed; the code's return value (JSON-serialized), console output, and any files written are reported back — return or console.log anything you need to see. API: sandbox.listFiles() -> names; sandbox.readFile(name) -> Uint8Array; sandbox.writeFile(name, data, mime) saves an output file; await sandbox.loadScript(url) loads a classic <script> library and rejects fast on a bad URL/blocked host (only https://cdn.jsdelivr.net and https://cdnjs.cloudflare.com are allowed; ESM builds can also be loaded via dynamic import()). Not HTML: there is no visible page, so do not build documents/script tags as strings. When embedding other languages (e.g. Python source) in a template literal, use String.raw and avoid nested backticks.",
+			InputSchema:     `{"type":"object","properties":{"code":{"type":"string","description":"JavaScript source to run (async context; top-level await and return are allowed)."}},"required":["code"]}`,
 			RequireApproval: true,
 		},
 		{

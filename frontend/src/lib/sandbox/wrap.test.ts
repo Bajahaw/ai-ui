@@ -1,29 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { collectConversationFileIds } from "./runner";
-import { filesObjectLiteral, isSandboxHtml, wrapSandboxCode } from "./wrap";
+import { fileAliases, filesObjectLiteral } from "./wrap";
 
-describe("wrapSandboxCode", () => {
-  it("returns empty for blank input", () => {
-    expect(wrapSandboxCode("  ")).toBe("");
+describe("fileAliases", () => {
+  it("exposes name, basename, id and id+ext", () => {
+    expect(fileAliases("dir/report.xlsx", "abc")).toEqual([
+      "dir/report.xlsx",
+      "report.xlsx",
+      "abc",
+      "abc.xlsx",
+    ]);
   });
 
-  it("passes HTML through", () => {
-    const html = "<div>hi</div><script>sandbox.done()</script>";
-    expect(wrapSandboxCode(html)).toBe(html);
-  });
-
-  it("wraps bare JS in an async IIFE", () => {
-    const out = wrapSandboxCode("console.log(1)");
-    expect(out.startsWith("<script>")).toBe(true);
-    expect(out).toContain("console.log(1)");
-    expect(out).toContain("sandbox.done()");
-  });
-
-  it("wraps JS starting with `<` instead of hanging without done()", () => {
-    expect(isSandboxHtml("if (a < b) { console.log(1) }")).toBe(false);
-    expect(wrapSandboxCode("if (a < b) { console.log(1) }")).toContain(
-      "sandbox.done()",
-    );
+  it("does not duplicate an id that already carries the extension", () => {
+    expect(fileAliases("a.txt", "id.txt")).toEqual(["a.txt", "id.txt"]);
   });
 });
 

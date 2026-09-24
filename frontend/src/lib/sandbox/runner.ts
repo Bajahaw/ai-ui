@@ -5,7 +5,7 @@ import {
   retainFileBytes,
 } from "@/lib/api/files";
 import type { FrontendMessage, ToolCall } from "@/lib/api/types";
-import { fileAliases, isSandboxHtml, wrapSandboxCode } from "./wrap";
+import { fileAliases } from "./wrap";
 
 const SANDBOX_TIMEOUT_MS = 90_000;
 const RETRY_BUDGET_MS = 30_000;
@@ -17,7 +17,13 @@ const MAX_TOTAL_INPUT_BYTES = 100 * 1024 * 1024;
 const MAX_LOG_LINES = 200;
 const MAX_LOG_LINE_CHARS = 2000;
 const MAX_ERROR_CHARS = 4000;
+const MAX_RESULT_CHARS = 16_000;
 const MAX_NAME_CHARS = 255;
+// Must match the iframe CSP script-src below.
+export const SANDBOX_SCRIPT_HOSTS = [
+  "cdn.jsdelivr.net",
+  "cdnjs.cloudflare.com",
+] as const;
 
 type MountedInputFile = {
   name: string;
@@ -35,6 +41,7 @@ type SandboxRunResult = {
   ok: boolean;
   error: string;
   logs: string[];
+  result: string;
   files: SandboxFile[];
 };
 
@@ -43,17 +50,22 @@ const running = new Set<string>();
 let hostIframe: HTMLIFrameElement | null = null;
 let hostBusy = false;
 
-const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
+// Exported for tests only: the bootstrap runs inside the sandbox iframe.
+export const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="script-src 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com blob:; object-src 'none'; base-uri 'none';">
+<meta http-equiv="Content-Security-Policy" content="script-src 'unsafe-inline' 'unsafe-eval' ${SANDBOX_SCRIPT_HOSTS.map((h) => "https://" + h).join(" ")} blob:; object-src 'none'; base-uri 'none';">
 </head>
 <body>
 <script>
 (function(){
+  var ALLOWED_HOSTS = ${JSON.stringify(SANDBOX_SCRIPT_HOSTS)};
+  var LOAD_SCRIPT_TIMEOUT_MS = 30000;
+  var MAX_RESULT_CHARS = ${MAX_RESULT_CHARS};
   var __files = {};
   var __fileList = [];
+  var __loaded = {};
   var __started = false;
   function send(msg, transfer){ window.parent.postMessage(msg, '*', transfer || []); }
   function toBuf(data){
@@ -62,10 +74,44 @@ const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
     if (typeof data === 'string') return new TextEncoder().encode(data).buffer;
     throw new Error('writeFile: unsupported data type');
   }
+  function describe(v){
+    if (v === undefined) return '';
+    if (typeof v === 'string') return v;
+    if (v instanceof ArrayBuffer) return '[ArrayBuffer ' + v.byteLength + ' bytes]';
+    if (ArrayBuffer.isView(v)) return '[' + (v.constructor && v.constructor.name || 'TypedArray') + ' ' + v.byteLength + ' bytes]';
+    var s;
+    try { s = JSON.stringify(v); } catch (e) { s = undefined; }
+    if (s === undefined) s = String(v);
+    return s.length > MAX_RESULT_CHARS ? s.slice(0, MAX_RESULT_CHARS) + '…(result truncated)' : s;
+  }
   window.sandbox = {
     _done: false,
     listFiles: function(){
       return __fileList.slice();
+    },
+    loadScript: function(url){
+      var u;
+      try { u = new URL(String(url)); } catch (e) { return Promise.reject(new Error('loadScript: invalid URL: ' + url)); }
+      if (u.protocol !== 'https:' || ALLOWED_HOSTS.indexOf(u.hostname) < 0) {
+        return Promise.reject(new Error('loadScript: host "' + u.hostname + '" is blocked by the sandbox CSP. Allowed hosts: ' + ALLOWED_HOSTS.join(', ')));
+      }
+      if (__loaded[u.href]) return __loaded[u.href];
+      __loaded[u.href] = new Promise(function(resolve, reject){
+        var s = document.createElement('script');
+        var timer = setTimeout(function(){
+          delete __loaded[u.href];
+          reject(new Error('loadScript: timed out after ' + (LOAD_SCRIPT_TIMEOUT_MS / 1000) + 's loading ' + u.href));
+        }, LOAD_SCRIPT_TIMEOUT_MS);
+        s.onload = function(){ clearTimeout(timer); resolve(); };
+        s.onerror = function(){
+          clearTimeout(timer);
+          delete __loaded[u.href];
+          reject(new Error('loadScript: failed to load ' + u.href + ' (wrong URL, version, or path?)'));
+        };
+        s.src = u.href;
+        document.head.appendChild(s);
+      });
+      return __loaded[u.href];
     },
     readFile: function(name){
       var key = String(name == null ? '' : name);
@@ -107,21 +153,9 @@ const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
   window.addEventListener('unhandledrejection', function(e){
     send({ type: '__sandbox_log', level: 'error', message: String(e.reason) });
   });
-  function injectHtml(html){
-    var box = document.createElement('div');
-    box.innerHTML = html;
-    var olds = box.querySelectorAll('script');
-    for (var i = 0; i < olds.length; i++) {
-      var old = olds[i];
-      var s = document.createElement('script');
-      for (var j = 0; j < old.attributes.length; j++) {
-        s.setAttribute(old.attributes[j].name, old.attributes[j].value);
-      }
-      s.textContent = old.textContent;
-      old.parentNode.replaceChild(s, old);
-    }
-    while (box.firstChild) document.body.appendChild(box.firstChild);
-  }
+  document.addEventListener('securitypolicyviolation', function(e){
+    send({ type: '__sandbox_log', level: 'error', message: 'CSP blocked ' + (e.blockedURI || 'a resource') + ' (' + e.violatedDirective + '). Allowed script hosts: ' + ALLOWED_HOSTS.join(', ') });
+  });
   function mountFiles(files){
     __files = {};
     __fileList = [];
@@ -135,14 +169,17 @@ const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
   }
   function runJs(code){
     (async function(){
+      var value;
       try {
         var run = new Function('return (async()=>{\\n' + code + '\\n})()');
-        await run();
+        value = await run();
         await Promise.resolve();
       } catch (e) {
         sandbox.done(String(e && e.message ? e.message : e));
         return;
       }
+      var text = describe(value);
+      if (text) send({ type: '__sandbox_result', value: text });
       if (!sandbox._done) sandbox.done();
     })();
   }
@@ -152,8 +189,7 @@ const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
     if (!data || data.type !== '__sandbox_init' || __started) return;
     __started = true;
     mountFiles(data.files || []);
-    if (data.html) injectHtml(data.html);
-    else runJs(data.code || '');
+    runJs(data.code || '');
   });
   send({ type: '__sandbox_ready' });
 })();
@@ -232,11 +268,11 @@ export async function runBrowserSandbox(
   running.add(toolCall.id);
   try {
     const args = parseArgs(toolCall.args);
-    const code = args.code || args.html || "";
+    const code = args.code || "";
     if (!code.trim()) {
       await postResultWithRetry(
         toolCall.id,
-        { ok: false, error: "code is required", logs: [], files: [] },
+        { ok: false, error: "code is required", logs: [], result: "", files: [] },
         signal,
       );
       return;
@@ -244,7 +280,7 @@ export async function runBrowserSandbox(
     if (new TextEncoder().encode(code).length > MAX_CODE_BYTES) {
       await postResultWithRetry(
         toolCall.id,
-        { ok: false, error: "code exceeds 500KB limit", logs: [], files: [] },
+        { ok: false, error: "code exceeds 500KB limit", logs: [], result: "", files: [] },
         signal,
       );
       return;
@@ -263,6 +299,7 @@ export async function runBrowserSandbox(
         ok: false,
         error: truncate(err instanceof Error ? err.message : String(err)),
         logs: [],
+        result: "",
         files: [],
       },
       signal,
@@ -274,19 +311,16 @@ export async function runBrowserSandbox(
 
 function parseArgs(raw?: string): {
   code?: string;
-  html?: string;
   file_ids?: string[];
 } {
   if (!raw) return {};
   try {
     const parsed = JSON.parse(raw) as {
       code?: unknown;
-      html?: unknown;
       file_ids?: unknown;
     };
     return {
       code: typeof parsed.code === "string" ? parsed.code : undefined,
-      html: typeof parsed.html === "string" ? parsed.html : undefined,
       file_ids: Array.isArray(parsed.file_ids)
         ? parsed.file_ids
             .filter((id): id is string => typeof id === "string")
@@ -341,6 +375,7 @@ function executeInIframe(
     const { iframe, shared } = acquireIframe();
     const logs: string[] = [];
     const outFiles: SandboxFile[] = [];
+    let result = "";
     let settled = false;
     let started = false;
 
@@ -355,6 +390,7 @@ function executeInIframe(
         ok: !error,
         error: truncate(error),
         logs,
+        result: truncate(result, MAX_RESULT_CHARS),
         files: outFiles.slice(0, MAX_FILES),
       });
     };
@@ -368,12 +404,10 @@ function executeInIframe(
       }
       started = true;
       const copies = files.map((f) => f.data.slice(0));
-      const html = isSandboxHtml(code) ? wrapSandboxCode(code) : "";
       win.postMessage(
         {
           type: "__sandbox_init",
-          html,
-          code: html ? "" : code.trim(),
+          code: code.trim(),
           files: files.map((f, i) => ({
             name: f.name,
             keys: fileAliases(f.name, f.id),
@@ -398,6 +432,10 @@ function executeInIframe(
         if (logs.length < MAX_LOG_LINES) {
           logs.push(data.message.slice(0, MAX_LOG_LINE_CHARS));
         }
+        return;
+      }
+      if (data.type === "__sandbox_result" && typeof data.value === "string") {
+        result = data.value;
         return;
       }
       if (data.type === "__sandbox_file" && typeof data.name === "string") {
@@ -447,6 +485,7 @@ async function postResultWithRetry(
     ok: result.ok,
     logs: result.logs.slice(0, MAX_LOG_LINES),
     error: truncate(result.error),
+    result: truncate(result.result, MAX_RESULT_CHARS),
     files: result.files.slice(0, MAX_FILES).map((f) => ({
       name: f.name.slice(0, MAX_NAME_CHARS),
       mime: f.mime.slice(0, MAX_NAME_CHARS),

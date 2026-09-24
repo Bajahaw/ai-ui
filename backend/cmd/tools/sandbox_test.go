@@ -60,6 +60,45 @@ func TestGetBuiltInTools_IncludesSandbox(t *testing.T) {
 	if !strings.Contains(found.Description, "sandbox.listFiles()") {
 		t.Fatalf("description must document listFiles: %s", found.Description)
 	}
+	if !strings.Contains(found.Description, "sandbox.loadScript(url)") {
+		t.Fatalf("description must document loadScript: %s", found.Description)
+	}
+	if !strings.Contains(found.Description, "return value") {
+		t.Fatalf("description must say the return value is reported: %s", found.Description)
+	}
+	if strings.Contains(found.Description, "HTML or JavaScript") || strings.Contains(found.InputSchema, "HTML") {
+		t.Fatalf("sandbox is JS-only; must not advertise HTML mode: %s %s", found.Description, found.InputSchema)
+	}
+}
+
+func TestBrowserSandboxTool_EchoesReturnValue(t *testing.T) {
+	setupSandboxTest(t)
+
+	callID := "call-result"
+	done := make(chan providers.ToolOutput, 1)
+	go func() {
+		done <- browserSandboxTool(context.Background(), callID, `{"code":"return sandbox.listFiles()"}`, "u1")
+	}()
+
+	waitForPending(t, callID, "u1")
+	if err := completeSandboxWait(callID, "u1", sandboxClientResult{
+		OK:     true,
+		Result: `["a.xlsx","b.pdf"]`,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	out := <-done
+	if !strings.Contains(out.Content, "result:\n[\"a.xlsx\",\"b.pdf\"]") {
+		t.Fatalf("expected result echoed to model, got: %s", out.Content)
+	}
+}
+
+func TestBrowserSandboxTool_RejectsLegacyHTMLArg(t *testing.T) {
+	out := browserSandboxTool(context.Background(), "call-html", `{"html":"<div></div>"}`, "u1")
+	if !strings.Contains(out.Content, "'code' is required") {
+		t.Fatalf("html-only args must be rejected, got: %s", out.Content)
+	}
 }
 
 func TestBrowserSandboxTool_PersistsFiles(t *testing.T) {
@@ -141,6 +180,7 @@ func TestSubmitSandboxResult_AuthAndPending(t *testing.T) {
 		CallID: "c1",
 		OK:     true,
 		Logs:   []string{"hi"},
+		Result: "42",
 		Files: []sandboxResultFile{{
 			Name: "a.bin",
 			Data: base64.StdEncoding.EncodeToString([]byte("abc")),
@@ -155,7 +195,7 @@ func TestSubmitSandboxResult_AuthAndPending(t *testing.T) {
 	}
 	select {
 	case res := <-ch:
-		if !res.OK || string(res.Files[0].Data) != "abc" {
+		if !res.OK || string(res.Files[0].Data) != "abc" || res.Result != "42" {
 			t.Fatalf("result: %+v", res)
 		}
 	case <-time.After(time.Second):
