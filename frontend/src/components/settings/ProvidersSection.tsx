@@ -140,15 +140,14 @@ export const ProvidersSection = () => {
         </div>
       </div>
 
+      <Card className="p-3 bg-transparent border-dashed">
+        <ProviderPresetPicker />
+      </Card>
+
       {data.providers.length === 0 ? (
-        <div className="space-y-3">
-          <Card className="p-3 bg-transparent border-dashed">
-            <ProviderPresetPicker />
-          </Card>
-          <p className="text-sm text-muted-foreground text-center">
-            No providers configured
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground text-center">
+          No providers configured
+        </p>
       ) : (
         <div className="space-y-4 overflow-hidden">
           {data.providers.map((provider) => {

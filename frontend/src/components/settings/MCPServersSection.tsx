@@ -64,9 +64,6 @@ export const MCPServersSection = () => {
   const hasDefaultServer = data.mcpServers.some((s) =>
     isDefaultMCPServer(s.id),
   );
-  const hasCustomServer = data.mcpServers.some(
-    (s) => !isDefaultMCPServer(s.id),
-  );
 
   return (
     <div className="space-y-4">
@@ -103,11 +100,9 @@ export const MCPServersSection = () => {
         </div>
       </div>
 
-      {!hasCustomServer && (
-        <Card className="p-3 bg-transparent border-dashed">
-          <MCPPresetPicker />
-        </Card>
-      )}
+      <Card className="p-3 bg-transparent border-dashed">
+        <MCPPresetPicker />
+      </Card>
 
       {data.mcpServers.length > 0 && (
         <div className="space-y-4 overflow-hidden">
