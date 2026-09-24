@@ -168,6 +168,7 @@
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-fade-in: fade-in 100ms ease-out both;
+  --animate-fade-in-slow: fade-in 600ms ease-out both;
 }
 
 @keyframes accordion-down {

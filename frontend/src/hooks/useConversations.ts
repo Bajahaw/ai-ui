@@ -404,12 +404,7 @@ export const useConversations = () => {
   const [isConversationLoading, setIsConversationLoading] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [stats, setStats] = useState<WelcomeStats>({
-    totalTokens: 0,
-    totalInputTokens: 0,
-    totalConversations: 0,
-    totalMessages: 0,
-  });
+  const [stats, setStats] = useState<WelcomeStats | undefined>(undefined);
   const activeStreamAssistantMessageIdRef = useRef<number | null>(null);
   const needsFocusRefreshRef = useRef(false);
   const focusRefreshInFlightRef = useRef(false);
@@ -715,12 +710,7 @@ export const useConversations = () => {
     setIsConversationLoading(false);
     setHasHydrated(false);
     setError(null);
-    setStats({
-      totalTokens: 0,
-      totalInputTokens: 0,
-      totalConversations: 0,
-      totalMessages: 0,
-    });
+    setStats(undefined);
     needsFocusRefreshRef.current = false;
     focusRefreshInFlightRef.current = false;
   }, [isAuthenticated, manager]);

@@ -1,48 +1,10 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { ComponentProps, useEffect, useRef, useState } from "react";
+import { ComponentProps } from "react";
 import { WelcomeStats } from "@/lib/api/types";
 import type { OnboardingStep } from "@/lib/onboarding";
 import { MCPPresetPicker, ProviderPresetPicker } from "@/components/onboarding";
-
-// Cubic ease-in-out — derivative is 0 at both ends so it genuinely crawls
-// in/out, and the curve never plateaus early like a sigmoid does.
-function cubicEaseInOut(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-function useCountUp(target: number, duration = 3000): number {
-  const [value, setValue] = useState(0);
-  const rafRef = useRef<number | null>(null);
-  const startRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (target === 0) {
-      setValue(0);
-      return;
-    }
-    setValue(0);
-    startRef.current = null;
-
-    const timeout = setTimeout(() => {
-      const step = (ts: number) => {
-        if (startRef.current === null) startRef.current = ts;
-        const progress = Math.min((ts - startRef.current) / duration, 1);
-        setValue(Math.round(cubicEaseInOut(progress) * target));
-        if (progress < 1) rafRef.current = requestAnimationFrame(step);
-      };
-      rafRef.current = requestAnimationFrame(step);
-    }, 0);
-
-    return () => {
-      clearTimeout(timeout);
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    };
-  }, [target, duration]);
-
-  return value;
-}
 
 function formatStatNumber(n: number): string {
   if (n >= 1_000_000)
@@ -63,11 +25,10 @@ function StatCell({
   label,
   index,
 }: {
-  value: number;
+  value: number | undefined;
   label: string;
   index: number;
 }) {
-  const animated = useCountUp(value, 3000);
   // On small screens (2-col grid): border only on right column (items 1, 3)
   // On sm+ (4-col single row): border on every item except the first (items 1, 2, 3)
   const borderClass =
@@ -80,10 +41,20 @@ function StatCell({
     <div
       className={cn("flex flex-col items-center gap-2 py-5 px-4", borderClass)}
     >
-      <span className="text-3xl sm:text-4xl font-thin tabular-nums tracking-tight text-foreground leading-none whitespace-nowrap">
-        {formatStatNumber(animated)}
+      <span
+        className={cn(
+          "text-3xl sm:text-4xl font-thin tabular-nums tracking-tight text-foreground leading-none whitespace-nowrap",
+          value === undefined ? "invisible" : "animate-fade-in-slow",
+        )}
+      >
+        {value === undefined ? "\u00A0" : formatStatNumber(value)}
       </span>
-      <span className="text-[9px] font-normal tracking-[0.16em] uppercase text-muted-foreground text-center whitespace-nowrap">
+      <span
+        className={cn(
+          "text-[9px] font-normal tracking-[0.16em] uppercase text-muted-foreground text-center whitespace-nowrap",
+          value === undefined ? "invisible" : "animate-fade-in-slow",
+        )}
+      >
         {label}
       </span>
     </div>
@@ -116,19 +87,7 @@ export const Welcome = ({
   const displayMessage = onboardingStep
     ? ONBOARDING_MESSAGE[onboardingStep]
     : message;
-  const displayStats: WelcomeStats = isLoading
-    ? {
-        totalTokens: 0,
-        totalInputTokens: 0,
-        totalConversations: 0,
-        totalMessages: 0,
-      }
-    : (stats ?? {
-        totalTokens: 0,
-        totalInputTokens: 0,
-        totalConversations: 0,
-        totalMessages: 0,
-      });
+  const readyStats = isLoading ? undefined : stats;
 
   return (
     <div
@@ -164,7 +123,7 @@ export const Welcome = ({
             {STAT_DEFS.map(({ key, label }, i) => (
               <StatCell
                 key={key}
-                value={displayStats[key] ?? 0}
+                value={readyStats?.[key]}
                 label={label}
                 index={i}
               />
