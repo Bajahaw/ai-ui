@@ -212,13 +212,21 @@ func attachToolFile(msg *providers.SimpleMessage, fileID, user string) {
 	f, images, fileDataURLs := resolveToolFileMedia(fileID, user)
 	msg.Images = images
 	msg.Files = fileDataURLs
-	if f.ID != "" {
-		msg.Content = embeddedFileMetadata("tool", f) + "]\n"
+	if f.ID == "" {
+		return
+	}
+	msg.Content = embeddedFileMetadata("tool", f)
+	if f.Content != "" {
+		msg.Content += embeddedContent(f.Content)
+	} else {
+		msg.Content += "]\n"
 	}
 }
 
 // resolveToolFileMedia loads a tool-produced file by id and returns data URLs
 // for the provider request. ToolCall.FileID is never mutated.
+// Retrievable docs under agentic retrieval resolve to metadata only (their
+// extracted text is embedded by attachToolFile), mirroring user uploads.
 // Large non-image binaries (e.g. office docs from browser_sandbox) resolve to
 // metadata only so they don't blow up provider context; the model can still
 // reference them by name and read them via sandbox.listFiles()/readFile on the next call
@@ -235,13 +243,16 @@ func resolveToolFileMedia(fileID, user string) (f fs.File, images, fileDataURLs 
 	if len(found) == 0 {
 		return fs.File{}, nil, nil
 	}
+	mimeType := strings.Split(found[0].Type, ";")[0]
+	mimeType = strings.ReplaceAll(mimeType, " ", "")
+	if fs.RetrievalEnabled(mimeType, user) {
+		return found[0], nil, nil
+	}
 	data, err := os.ReadFile(found[0].Path)
 	if err != nil {
 		log.Error("Error reading tool call file", "err", err)
 		return fs.File{}, nil, nil
 	}
-	mimeType := strings.Split(found[0].Type, ";")[0]
-	mimeType = strings.ReplaceAll(mimeType, " ", "")
 	if strings.HasPrefix(mimeType, "image/") {
 		return found[0], []string{"data:" + mimeType + ";base64," + toBase64(data)}, nil
 	}

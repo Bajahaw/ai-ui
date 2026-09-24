@@ -58,6 +58,18 @@ func saveBinaryFile(data []byte, mimeType, fileName, user string) (fs.File, erro
 		return fs.File{}, err
 	}
 
+	// Generated docs follow the same agentic retrieval path as uploads so the
+	// model receives extracted text instead of an unsupported file part.
+	// Indexing failure is non-fatal: the file is still delivered to the user.
+	if fs.RetrievalEnabled(mimeType, user) {
+		indexed, err := fs.IndexDocContent(fileData)
+		if err != nil {
+			log.Warn("Failed to index generated document for retrieval", "file", fileName, "type", mimeType, "err", err)
+		} else {
+			fileData = indexed
+		}
+	}
+
 	return fileData, nil
 }
 

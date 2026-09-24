@@ -117,8 +117,7 @@ func saveUploadedFile(file multipart.File, handler *multipart.FileHeader, user s
 	// Extract content when OCR is requested for all attachments, or when
 	// agentic document retrieval is enabled and the file is a retrievable doc.
 	ocrOnly, _ := settings.Get("attachmentOcrOnly", user)
-	agenticRetrieval, _ := settings.Get("agenticDocumentRetrieval", user)
-	if ocrOnly == "true" || (agenticRetrieval == "true" && IsRetrievableDoc(fileData.Type)) {
+	if ocrOnly == "true" || RetrievalEnabled(fileData.Type, user) {
 		ocrModel, _ := settings.Get("ocrModel", user)
 		fileContent, err := extractFileContent(fileData, ocrModel)
 		if err != nil {
@@ -235,6 +234,10 @@ func extractFileContent(file File, model string) (string, error) {
 			return "", err
 		}
 
+		if len(pages) == 0 {
+			return "", fmt.Errorf("no pages extracted from document: %s", file.Type)
+		}
+
 		// indexing all pages individually to allow retrieval of specific pages later.
 		err = repo.SavePages(pages)
 		if err != nil {
@@ -288,6 +291,35 @@ func writeEagerThumbnail(filePath, fileType string, data []byte) error {
 	default:
 		return nil
 	}
+}
+
+// RetrievalEnabled reports whether a file of this type should take the agentic
+// retrieval path for this user (page-indexed, embedded as text, never sent to
+// the provider as a file part). Applies to uploads and tool-produced files alike.
+func RetrievalEnabled(mimeType, user string) bool {
+	if settings == nil || !IsRetrievableDoc(strings.Split(mimeType, ";")[0]) {
+		return false
+	}
+	agenticRetrieval, _ := settings.Get("agenticDocumentRetrieval", user)
+	return agenticRetrieval == "true"
+}
+
+// IndexDocContent page-extracts an already-saved retrievable document,
+// persists the pages for search_document/read_document_page, and stores the
+// first-page summary as the file's Content. Returns the file with Content set.
+func IndexDocContent(f File) (File, error) {
+	if repo == nil {
+		return f, fmt.Errorf("files package not initialised")
+	}
+	content, err := extractFileContent(f, "")
+	if err != nil {
+		return f, err
+	}
+	if err := repo.UpdateContent(f.ID, f.User, content); err != nil {
+		return f, err
+	}
+	f.Content = content
+	return f, nil
 }
 
 // IsRetrievableDoc returns true for document types supported by go-fitz

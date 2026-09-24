@@ -87,7 +87,7 @@ func OpenAIMessageParams(params *openai.ChatCompletionNewParams, messages []Simp
 					// ToolCallID: msg.ToolCall.ID, // changed to ReferenceID (the one from provider)
 					ToolCallID: msg.ToolCall.ReferenceID,
 					Content: openai.ChatCompletionToolMessageParamContentUnion{
-						OfString: param.Opt[string]{Value: msg.ToolCall.Output},
+						OfString: param.Opt[string]{Value: toolResultText(msg)},
 					},
 				},
 			}
@@ -147,6 +147,17 @@ func toolMediaFollowUpText(msg SimpleMessage) string {
 		return msg.Content
 	}
 	return "Here is the result from tool '" + msg.ToolCall.Name + "':"
+}
+
+// toolResultText is the tool message body. Resolved file metadata/content on
+// msg.Content normally rides on the media follow-up message; when a file
+// resolves to text only (agentic retrieval, oversized binary) there is no
+// follow-up, so it is appended to the tool output instead.
+func toolResultText(msg SimpleMessage) string {
+	if len(msg.Images) > 0 || len(msg.Files) > 0 || strings.TrimSpace(msg.Content) == "" {
+		return msg.ToolCall.Output
+	}
+	return msg.ToolCall.Output + "\n\n" + msg.Content
 }
 
 func ReasoningEffort(level string) openai.ReasoningEffort {

@@ -104,6 +104,86 @@ func TestResolveToolFileMedia_NonImage(t *testing.T) {
 	}
 }
 
+// A retrievable doc produced by a tool must follow the agentic retrieval path
+// (extracted text, no file part) exactly like a user upload would, otherwise
+// providers that only accept PDF file parts reject the request.
+func TestResolveToolFileMedia_RetrievableDocUsesAgenticRetrieval(t *testing.T) {
+	teardown := setupTest(t, &mockProviderSuccess{})
+	defer teardown()
+
+	if err := settings.Save(map[string]string{"agenticDocumentRetrieval": "true"}, "test-user"); err != nil {
+		t.Fatalf("save settings: %v", err)
+	}
+
+	tmp := t.TempDir()
+	xlsxPath := filepath.Join(tmp, "report.xlsx")
+	if err := os.WriteFile(xlsxPath, []byte("PK\x03\x04fake"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fileID := "tool-xlsx-1"
+	if err := files.Save(fs.File{
+		ID:      fileID,
+		Name:    "report.xlsx",
+		Type:    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		Size:    10,
+		Path:    xlsxPath,
+		Content: "Document content page 1: \n\nJanuary 5000... retrieve rest of content using tools",
+		User:    "test-user",
+	}); err != nil {
+		t.Fatalf("save file: %v", err)
+	}
+	if err := files.UpdateContent(fileID, "test-user", "Document content page 1: \n\nJanuary 5000... retrieve rest of content using tools"); err != nil {
+		t.Fatalf("update content: %v", err)
+	}
+
+	got, images, nonImages := resolveToolFileMedia(fileID, "test-user")
+	if got.ID != fileID {
+		t.Fatalf("file id: got %q", got.ID)
+	}
+	if len(images) != 0 || len(nonImages) != 0 {
+		t.Fatalf("retrievable doc must not be inlined as media, got images=%v files=%v", images, nonImages)
+	}
+
+	msg := providers.SimpleMessage{Role: "tool"}
+	attachToolFile(&msg, fileID, "test-user")
+	if len(msg.Files) != 0 {
+		t.Fatalf("expected no file parts, got %v", msg.Files)
+	}
+	for _, want := range []string{"[tool attachment:", "name: report.xlsx", "content: Document content page 1", "January 5000"} {
+		if !strings.Contains(msg.Content, want) {
+			t.Fatalf("missing %q in %q", want, msg.Content)
+		}
+	}
+}
+
+// With the setting off, behaviour is unchanged: small non-image files are inlined.
+func TestResolveToolFileMedia_RetrievableDocSettingOffStillInlines(t *testing.T) {
+	teardown := setupTest(t, &mockProviderSuccess{})
+	defer teardown()
+
+	tmp := t.TempDir()
+	xlsxPath := filepath.Join(tmp, "report.xlsx")
+	if err := os.WriteFile(xlsxPath, []byte("PK\x03\x04fake"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fileID := "tool-xlsx-2"
+	if err := files.Save(fs.File{
+		ID:   fileID,
+		Name: "report.xlsx",
+		Type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		Size: 10,
+		Path: xlsxPath,
+		User: "test-user",
+	}); err != nil {
+		t.Fatalf("save file: %v", err)
+	}
+
+	_, _, nonImages := resolveToolFileMedia(fileID, "test-user")
+	if len(nonImages) != 1 {
+		t.Fatalf("expected inline file part when retrieval is off, got %v", nonImages)
+	}
+}
+
 func TestResolveToolFileMedia_EmptyAndMissing(t *testing.T) {
 	teardown := setupTest(t, &mockProviderSuccess{})
 	defer teardown()

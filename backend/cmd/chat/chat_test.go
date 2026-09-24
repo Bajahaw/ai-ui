@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Bajahaw/ai-ui/cmd/data"
+	fs "github.com/Bajahaw/ai-ui/cmd/files"
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/Bajahaw/ai-ui/cmd/skills"
 	"github.com/Bajahaw/ai-ui/cmd/tools"
@@ -86,6 +87,7 @@ func setupTest(t *testing.T, mock providers.Client) func() {
 		t.Fatalf("failed insert user: %v", err)
 	}
 
+	fs.SetupFiles(l, data.DB, mock)
 	tools.SetUpTools(l, data.DB)
 	skills.SetupSkills(l, data.DB)
 	SetupChat(l, data.DB, mock)

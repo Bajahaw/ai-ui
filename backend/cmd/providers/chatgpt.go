@@ -191,7 +191,7 @@ func toChatGPTMessages(messages []SimpleMessage) []chatgptoauth.ChatMessage {
 				cm.ToolCallID = m.ToolCall.ID
 			}
 			cm.ToolName = m.ToolCall.Name
-			cm.ToolOutput = m.ToolCall.Output
+			cm.ToolOutput = toolResultText(m)
 			cm.Images = nil // media goes on a follow-up user message, not the tool row
 			out = append(out, cm)
 			// Resolved tool media lives on SimpleMessage.Images (data URLs).

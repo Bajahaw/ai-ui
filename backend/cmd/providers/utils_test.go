@@ -123,6 +123,51 @@ func TestOpenAIMessageParams_ToolWithoutMedia(t *testing.T) {
 	}
 }
 
+// When a tool file resolves to text only (agentic retrieval, or too large to
+// inline), the resolved metadata/content must still reach the model: it is
+// appended to the tool result since no media follow-up message is emitted.
+func TestOpenAIMessageParams_ToolWithoutMediaAppendsResolvedContent(t *testing.T) {
+	params := &openai.ChatCompletionNewParams{}
+	OpenAIMessageParams(params, []SimpleMessage{
+		{
+			Role:    "tool",
+			Content: "[tool attachment: \nname: report.xlsx\ncontent: Document content page 1: January 5000\n]\n",
+			ToolCall: ToolCall{
+				ReferenceID: "call_5",
+				Name:        "browser_sandbox",
+				Output:      "ok: true",
+			},
+		},
+	})
+	if len(params.Messages) != 1 {
+		t.Fatalf("expected only tool message, got %d", len(params.Messages))
+	}
+	got := params.Messages[0].OfTool.Content.OfString.Value
+	if !strings.HasPrefix(got, "ok: true") || !strings.Contains(got, "January 5000") {
+		t.Fatalf("tool content should carry output and resolved content, got %q", got)
+	}
+}
+
+func TestToChatGPTMessages_ToolWithoutMediaAppendsResolvedContent(t *testing.T) {
+	out := toChatGPTMessages([]SimpleMessage{
+		{
+			Role:    "tool",
+			Content: "[tool attachment: \ncontent: page one text\n]\n",
+			ToolCall: ToolCall{
+				ReferenceID: "c2",
+				Name:        "browser_sandbox",
+				Output:      "ok: true",
+			},
+		},
+	})
+	if len(out) != 1 {
+		t.Fatalf("expected only tool message, got %d", len(out))
+	}
+	if !strings.HasPrefix(out[0].ToolOutput, "ok: true") || !strings.Contains(out[0].ToolOutput, "page one text") {
+		t.Fatalf("tool output: %q", out[0].ToolOutput)
+	}
+}
+
 func TestToChatGPTMessages_ToolImagesBecomeUserFollowUp(t *testing.T) {
 	out := toChatGPTMessages([]SimpleMessage{
 		{
