@@ -1,4 +1,12 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import {
+  ACCENT_SETTING_KEY,
+  ACCENT_STORAGE_KEY,
+  type AccentId,
+  applyAccentToDocument,
+  resolveAccent,
+} from "@/lib/accent";
+import { useSettings } from "@/hooks/useSettings";
 
 type Theme = "dark" | "light";
 
@@ -11,11 +19,15 @@ type ThemeProviderProps = {
 type ThemeProviderState = {
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  accent: AccentId;
+  setAccent: (accent: AccentId) => void;
 };
 
 const initialState: ThemeProviderState = {
   theme: "dark",
   setTheme: () => null,
+  accent: "neutral",
+  setAccent: () => null,
 };
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
@@ -33,6 +45,23 @@ export function ThemeProvider({
     }
     return defaultTheme;
   });
+
+  // The backend is the source of truth for the accent; localStorage is only a
+  // boot cache so the first paint already has the right colour.
+  const [accent, setAccent] = useState<AccentId>(() =>
+    resolveAccent(localStorage.getItem(ACCENT_STORAGE_KEY)),
+  );
+  const { settings } = useSettings();
+  const remoteAccent = settings[ACCENT_SETTING_KEY];
+
+  useEffect(() => {
+    if (remoteAccent !== undefined) setAccent(resolveAccent(remoteAccent));
+  }, [remoteAccent]);
+
+  useEffect(() => {
+    applyAccentToDocument(accent);
+    localStorage.setItem(ACCENT_STORAGE_KEY, accent);
+  }, [accent]);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -69,6 +98,8 @@ export function ThemeProvider({
       localStorage.setItem(storageKey, theme);
       setTheme(theme);
     },
+    accent,
+    setAccent,
   };
 
   return (

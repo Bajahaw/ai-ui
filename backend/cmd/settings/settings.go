@@ -16,6 +16,8 @@ func SetDefaults(user string) {
 		"reasoningEffort":            "disabled",
 		// Enter sends on large screens and inserts a newline on small ones
 		"enterBehavior":              "dynamic",
+		// UI accent preset; see frontend/src/lib/accent.ts for valid values
+		"accentColor":                "neutral",
 		"attachmentOcrOnly":          "false",
 		"agenticDocumentRetrieval":   "false",
 		"ocrModel":                   "deepseek-ocr",

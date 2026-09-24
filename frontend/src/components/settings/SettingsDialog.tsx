@@ -19,9 +19,11 @@ import {
   BookOpen,
   ImageIcon,
   KeyRound,
+  Palette,
 } from "lucide-react";
 import { ProvidersSection } from "./ProvidersSection";
 import { GlobalSettingsSection } from "./GlobalSettingsSection";
+import { AppearanceSection } from "./AppearanceSection";
 import { MediaSection } from "./MediaSection";
 import { ModelsSection } from "./ModelsSection";
 import { MCPServersSection } from "./MCPServersSection";
@@ -41,6 +43,7 @@ type SettingsTab =
   | "providers"
   | "models"
   | "global"
+  | "appearance"
   | "media"
   | "mcp"
   | "tools"
@@ -64,6 +67,11 @@ const SettingsDialogContent = () => {
       id: "global" as const,
       label: "General",
       icon: Settings,
+    },
+    {
+      id: "appearance" as const,
+      label: "Appearance",
+      icon: Palette,
     },
     {
       id: "providers" as const,
@@ -121,6 +129,8 @@ const SettingsDialogContent = () => {
         return <ModelsSection />;
       case "global":
         return <GlobalSettingsSection />;
+      case "appearance":
+        return <AppearanceSection />;
       case "media":
         return <MediaSection />;
       case "mcp":
