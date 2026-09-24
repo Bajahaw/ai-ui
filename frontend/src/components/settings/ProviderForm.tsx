@@ -11,12 +11,15 @@ import {
 } from "@/components/ui/dialog";
 import { AlertCircle, Loader2, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
 import { ProviderRequest, FrontendProvider } from "@/lib/api/types";
+import type { ProviderPreset } from "@/lib/presets";
 
 interface ProviderFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: ProviderRequest) => Promise<void>;
   provider?: FrontendProvider | null;
+  /** Pre-fills the form for a known provider; ignored when editing. */
+  preset?: ProviderPreset | null;
   title: string;
   submitLabel: string;
 }
@@ -26,35 +29,39 @@ export const ProviderForm = ({
   onOpenChange,
   onSubmit,
   provider,
+  preset,
   title,
   submitLabel,
 }: ProviderFormProps) => {
-  const [formData, setFormData] = useState<ProviderRequest>({
-    base_url: provider?.baseUrl || "",
+  const initialData = (): ProviderRequest => ({
+    base_url: provider?.baseUrl || preset?.baseUrl || "",
     api_key: "",
     headers: provider?.headers || {},
   });
+  const initialHeaders = () =>
+    Object.entries(provider?.headers ?? {}).map(([key, value]) => ({
+      key,
+      value,
+    }));
 
+  const [formData, setFormData] = useState<ProviderRequest>(initialData);
   const [headerEntries, setHeaderEntries] = useState<
     { key: string; value: string }[]
-  >([]);
-
-  useEffect(() => {
-    if (provider?.headers) {
-      setHeaderEntries(
-        Object.entries(provider.headers).map(([key, value]) => ({
-          key,
-          value,
-        })),
-      );
-    } else {
-      setHeaderEntries([]);
-    }
-  }, [provider]);
-
+  >(initialHeaders);
   const [showApiKey, setShowApiKey] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Re-seed whenever the dialog opens so a stale provider/preset never leaks in.
+  useEffect(() => {
+    if (!open) return;
+    setFormData(initialData());
+    setHeaderEntries(initialHeaders());
+    setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, provider, preset]);
+
+  const PresetIcon = provider ? null : preset?.icon;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,21 +110,6 @@ export const ProviderForm = ({
   };
 
   const handleCancel = () => {
-    setFormData({
-      base_url: provider?.baseUrl || "",
-      api_key: "",
-      headers: provider?.headers || {},
-    });
-    if (provider?.headers) {
-      setHeaderEntries(
-        Object.entries(provider.headers).map(([key, value]) => ({
-          key,
-          value,
-        })),
-      );
-    } else {
-      setHeaderEntries([]);
-    }
     setError(null);
     onOpenChange(false);
   };
@@ -126,7 +118,10 @@ export const ProviderForm = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] p-6 rounded-xl">
         <DialogHeader className="pb-2">
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {PresetIcon && <PresetIcon className="h-5 w-5" />}
+            {title}
+          </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">

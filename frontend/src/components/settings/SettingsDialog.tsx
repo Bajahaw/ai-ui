@@ -37,9 +37,11 @@ import { useSettingsData } from "@/hooks/useSettingsData";
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Tab to show when the dialog opens. Defaults to "global". */
+  initialTab?: SettingsTab;
 }
 
-type SettingsTab =
+export type SettingsTab =
   | "providers"
   | "models"
   | "global"
@@ -52,9 +54,19 @@ type SettingsTab =
   | "documents"
   | "auth";
 
-const SettingsDialogContent = () => {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("global");
+const SettingsDialogContent = ({
+  open,
+  initialTab = "global",
+}: {
+  open: boolean;
+  initialTab?: SettingsTab;
+}) => {
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const { loaded, loading, fetchAll } = useSettingsData();
+
+  useEffect(() => {
+    if (open) setActiveTab(initialTab);
+  }, [open, initialTab]);
 
   useEffect(() => {
     if (!loaded && !loading) {
@@ -207,10 +219,14 @@ const SettingsDialogContent = () => {
   );
 };
 
-export const SettingsDialog = ({ open, onOpenChange }: SettingsDialogProps) => {
+export const SettingsDialog = ({
+  open,
+  onOpenChange,
+  initialTab,
+}: SettingsDialogProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <SettingsDialogContent />
+      <SettingsDialogContent open={open} initialTab={initialTab} />
     </Dialog>
   );
 };

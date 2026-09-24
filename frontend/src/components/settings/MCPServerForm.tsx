@@ -9,14 +9,24 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { AlertCircle, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  AlertCircle,
+  Eye,
+  EyeOff,
+  Loader2,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { MCPServerRequest, MCPServerResponse } from "@/lib/api/types";
+import type { MCPPreset } from "@/lib/presets";
 
 interface MCPServerFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: MCPServerRequest) => Promise<void>;
   server?: MCPServerResponse | null;
+  /** Pre-fills the form for a known service; ignored when editing. */
+  preset?: MCPPreset | null;
   title: string;
   submitLabel: string;
 }
@@ -26,33 +36,40 @@ export const MCPServerForm = ({
   onOpenChange,
   onSubmit,
   server,
+  preset,
   title,
   submitLabel,
 }: MCPServerFormProps) => {
-  const [formData, setFormData] = useState<MCPServerRequest>({
+  const initialData = (): MCPServerRequest => ({
     id: server?.id || "",
-    name: server?.name || "",
-    endpoint: server?.endpoint || "",
+    name: server?.name || preset?.name || "",
+    endpoint: server?.endpoint || preset?.endpoint || "",
     api_key: "",
-    headers: server?.headers || {},
+    headers: server?.headers || preset?.headers || {},
   });
+  const initialHeaders = () =>
+    Object.entries(server?.headers ?? preset?.headers ?? {}).map(
+      ([key, value]) => ({ key, value }),
+    );
 
+  const [formData, setFormData] = useState<MCPServerRequest>(initialData);
   const [headerEntries, setHeaderEntries] = useState<
     { key: string; value: string }[]
-  >([]);
-
-  useEffect(() => {
-    if (server?.headers) {
-      setHeaderEntries(
-        Object.entries(server.headers).map(([key, value]) => ({ key, value })),
-      );
-    } else {
-      setHeaderEntries([]);
-    }
-  }, [server]);
-
+  >(initialHeaders);
+  const [showApiKey, setShowApiKey] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Re-seed whenever the dialog opens so a stale server/preset never leaks in.
+  useEffect(() => {
+    if (!open) return;
+    setFormData(initialData());
+    setHeaderEntries(initialHeaders());
+    setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, server, preset]);
+
+  const PresetIcon = server ? null : preset?.icon;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,20 +120,6 @@ export const MCPServerForm = ({
   };
 
   const handleCancel = () => {
-    setFormData({
-      id: server?.id || "",
-      name: server?.name || "",
-      endpoint: server?.endpoint || "",
-      api_key: "",
-      headers: server?.headers || {},
-    });
-    if (server?.headers) {
-      setHeaderEntries(
-        Object.entries(server.headers).map(([key, value]) => ({ key, value })),
-      );
-    } else {
-      setHeaderEntries([]);
-    }
     setError(null);
     onOpenChange(false);
   };
@@ -125,7 +128,10 @@ export const MCPServerForm = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] p-6 rounded-xl">
         <DialogHeader className="pb-2">
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {PresetIcon && <PresetIcon className="h-5 w-5" />}
+            {title}
+          </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -164,6 +170,41 @@ export const MCPServerForm = ({
               disabled={isSubmitting}
               required
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="mcp_api_key">API Key</Label>
+            <div className="relative">
+              <Input
+                id="mcp_api_key"
+                type={showApiKey ? "text" : "password"}
+                placeholder="Optional — sent as a Bearer token"
+                value={formData.api_key}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, api_key: e.target.value }))
+                }
+                disabled={isSubmitting}
+                autoComplete="off"
+                className="pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                onClick={() => setShowApiKey(!showApiKey)}
+                disabled={isSubmitting}
+              >
+                {showApiKey ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+                <span className="sr-only">
+                  {showApiKey ? "Hide" : "Show"} API key
+                </span>
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-2.5">

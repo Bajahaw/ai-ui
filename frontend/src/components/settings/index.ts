@@ -1,5 +1,5 @@
 // Settings components exports
-export { SettingsDialog } from "./SettingsDialog";
+export { SettingsDialog, type SettingsTab } from "./SettingsDialog";
 export { ProvidersSection } from "./ProvidersSection";
 export { GlobalSettingsSection } from "./GlobalSettingsSection";
 export { MediaSection } from "./MediaSection";

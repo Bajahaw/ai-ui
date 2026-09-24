@@ -12,6 +12,11 @@ import { cn } from "@/lib/utils";
 import { useModels } from "@/hooks/useModels";
 import { useSettings } from "@/hooks/useSettings";
 import { useSettingsData } from "@/hooks/useSettingsData";
+import {
+  MCP_ONBOARDING_SKIPPED_KEY,
+  getOnboardingStep,
+  isDefaultMCPServer,
+} from "@/lib/onboarding";
 
 import {
   Message as MessageComponent,
@@ -451,6 +456,25 @@ export const ChatInterface = ({
       fetchSettingsData();
     }
   }, [settingsDataLoaded, fetchSettingsData]);
+
+  const [mcpOnboardingSkipped, setMcpOnboardingSkipped] = useState(
+    () => localStorage.getItem(MCP_ONBOARDING_SKIPPED_KEY) === "1",
+  );
+  const skipMcpOnboarding = useCallback(() => {
+    localStorage.setItem(MCP_ONBOARDING_SKIPPED_KEY, "1");
+    setMcpOnboardingSkipped(true);
+  }, []);
+  const onboardingStep = isAuthenticated
+    ? getOnboardingStep({
+        loaded: settingsDataLoaded,
+        providerCount: settingsData.providers.length,
+        customMCPServerCount: settingsData.mcpServers.filter(
+          (s) => !isDefaultMCPServer(s.id),
+        ).length,
+        totalMessages: stats?.totalMessages ?? 0,
+        mcpSkipped: mcpOnboardingSkipped,
+      })
+    : null;
 
   // Auto-select default model when models become available
   const [model, setModel] = useState<string>("");
@@ -1368,6 +1392,8 @@ export const ChatInterface = ({
             <Welcome
               stats={stats}
               isLoading={isAuthChecking}
+              onboardingStep={onboardingStep}
+              onSkipOnboarding={skipMcpOnboarding}
               message={
                 isAuthChecking
                   ? undefined

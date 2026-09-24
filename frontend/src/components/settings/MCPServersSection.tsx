@@ -6,6 +6,8 @@ import { Edit, Loader2, Plus, RotateCcw, Server, Trash2 } from "lucide-react";
 import { MCPServerForm } from "./MCPServerForm";
 import { MCPServerRequest, MCPServerResponse } from "@/lib/api/types";
 import { useSettingsData } from "@/hooks/useSettingsData";
+import { isDefaultMCPServer } from "@/lib/onboarding";
+import { MCPPresetPicker } from "@/components/onboarding/MCPPresetPicker";
 
 export const MCPServersSection = () => {
   const { data, addMCPServer, updateMCPServer, deleteMCPServer, refreshMCPTools, restoreDefaultMCPServer } =
@@ -59,7 +61,12 @@ export const MCPServersSection = () => {
     }
   };
 
-  const hasDefaultServer = data.mcpServers.some(s => s.id.startsWith("default"));
+  const hasDefaultServer = data.mcpServers.some((s) =>
+    isDefaultMCPServer(s.id),
+  );
+  const hasCustomServer = data.mcpServers.some(
+    (s) => !isDefaultMCPServer(s.id),
+  );
 
   return (
     <div className="space-y-4">
@@ -96,36 +103,16 @@ export const MCPServersSection = () => {
         </div>
       </div>
 
-      {data.mcpServers.length === 0 ? (
-        <Card className="p-6 text-center bg-transparent border-dashed">
-          <div className="space-y-2">
-            <p className="text-muted-foreground">No MCP servers configured</p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
-              <Button
-                onClick={() => setShowAddForm(true)}
-                variant="outline"
-                size="sm"
-              >
-                <Plus className="h-4 w-4" />
-                Add Your First MCP Server
-              </Button>
-              <Button
-                onClick={handleRestoreDefaultServer}
-                variant="secondary"
-                size="sm"
-                disabled={restoringDefault}
-              >
-                {restoringDefault ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RotateCcw className="h-4 w-4" />
-                )}
-                Restore Default Server
-              </Button>
-            </div>
-          </div>
+      {!hasCustomServer && (
+        <Card className="p-4 bg-transparent border-dashed">
+          <p className="text-sm text-muted-foreground text-center mb-2">
+            Connect a service
+          </p>
+          <MCPPresetPicker />
         </Card>
-      ) : (
+      )}
+
+      {data.mcpServers.length > 0 && (
         <div className="space-y-4 overflow-hidden">
           {data.mcpServers.map((server) => (
             <Card

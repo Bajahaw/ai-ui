@@ -3,6 +3,8 @@
 import { cn } from "@/lib/utils";
 import { ComponentProps, useEffect, useRef, useState } from "react";
 import { WelcomeStats } from "@/lib/api/types";
+import type { OnboardingStep } from "@/lib/onboarding";
+import { MCPPresetPicker, ProviderPresetPicker } from "@/components/onboarding";
 
 // Cubic ease-in-out — derivative is 0 at both ends so it genuinely crawls
 // in/out, and the curve never plateaus early like a sigmoid does.
@@ -88,10 +90,18 @@ function StatCell({
   );
 }
 
+const ONBOARDING_MESSAGE: Record<NonNullable<OnboardingStep>, string> = {
+  provider: "Connect a provider to start chatting",
+  mcp: "Give it tools with an MCP server, or just start chatting",
+};
+
 export interface WelcomeProps extends ComponentProps<"div"> {
   stats?: WelcomeStats;
   isLoading?: boolean;
   message?: string;
+  /** When set, replaces the stats grid with a setup step. */
+  onboardingStep?: OnboardingStep;
+  onSkipOnboarding?: () => void;
 }
 
 export const Welcome = ({
@@ -99,8 +109,13 @@ export const Welcome = ({
   stats,
   isLoading = false,
   message,
+  onboardingStep = null,
+  onSkipOnboarding,
   ...props
 }: WelcomeProps) => {
+  const displayMessage = onboardingStep
+    ? ONBOARDING_MESSAGE[onboardingStep]
+    : message;
   const displayStats: WelcomeStats = isLoading
     ? {
         totalTokens: 0,
@@ -130,28 +145,46 @@ export const Welcome = ({
       <p
         className={cn(
           "mb-6 max-w-md text-center text-sm text-muted-foreground",
-          !message && "invisible",
+          !displayMessage && "invisible",
         )}
       >
-        {message ?? "\u00A0"}
+        {displayMessage ?? "\u00A0"}
       </p>
 
       <div className="w-full max-w-lg">
         <div className="border-t border-border/40" />
 
-        {/* 2×2 on mobile, 4-col row on sm+ */}
-        <div className="grid grid-cols-2 sm:grid-cols-4">
-          {STAT_DEFS.map(({ key, label }, i) => (
-            <StatCell
-              key={key}
-              value={displayStats[key] ?? 0}
-              label={label}
-              index={i}
-            />
-          ))}
-        </div>
+        {onboardingStep === "provider" ? (
+          <ProviderPresetPicker className="py-2" />
+        ) : onboardingStep === "mcp" ? (
+          <MCPPresetPicker className="py-2" />
+        ) : (
+          /* 2×2 on mobile, 4-col row on sm+ */
+          <div className="grid grid-cols-2 sm:grid-cols-4">
+            {STAT_DEFS.map(({ key, label }, i) => (
+              <StatCell
+                key={key}
+                value={displayStats[key] ?? 0}
+                label={label}
+                index={i}
+              />
+            ))}
+          </div>
+        )}
 
         <div className="border-t border-border/40" />
+
+        {onboardingStep === "mcp" && onSkipOnboarding && (
+          <div className="flex justify-center pt-3">
+            <button
+              type="button"
+              onClick={onSkipOnboarding}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Skip for now
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
