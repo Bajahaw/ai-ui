@@ -155,9 +155,9 @@ export const Welcome = ({
         <div className="border-t border-border/40" />
 
         {onboardingStep === "provider" ? (
-          <ProviderPresetPicker className="py-2" />
+          <ProviderPresetPicker className="py-1" />
         ) : onboardingStep === "mcp" ? (
-          <MCPPresetPicker className="py-2" />
+          <MCPPresetPicker className="py-1" />
         ) : (
           /* 2×2 on mobile, 4-col row on sm+ */
           <div className="grid grid-cols-2 sm:grid-cols-4">

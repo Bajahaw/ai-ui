@@ -104,10 +104,7 @@ export const MCPServersSection = () => {
       </div>
 
       {!hasCustomServer && (
-        <Card className="p-4 bg-transparent border-dashed">
-          <p className="text-sm text-muted-foreground text-center mb-2">
-            Connect a service
-          </p>
+        <Card className="p-3 bg-transparent border-dashed">
           <MCPPresetPicker />
         </Card>
       )}

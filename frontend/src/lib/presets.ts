@@ -1,16 +1,20 @@
 import {
-  SiAnthropic,
-  SiGithub,
-  SiGooglegemini,
-  SiLinear,
-  SiLmstudio,
-  SiNotion,
-  SiOllama,
-  SiOpenrouter,
-  SiStripe,
-} from "@icons-pack/react-simple-icons";
-import { Blocks, Flame, Search } from "lucide-react";
-import { ChatGPTIcon, type BrandIcon } from "@/components/icons/brand-icons";
+  ChatGPTIcon,
+  ClaudeIcon,
+  ComposioIcon,
+  ExaIcon,
+  FirecrawlIcon,
+  GeminiIcon,
+  GitHubIcon,
+  LinearIcon,
+  LMStudioIcon,
+  NotionIcon,
+  OllamaIcon,
+  OpenAIIcon,
+  OpenRouterIcon,
+  StripeIcon,
+  type BrandIcon,
+} from "@/components/icons/brand-icons";
 
 export interface ProviderPreset {
   id: string;
@@ -35,37 +39,37 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   {
     id: "openai",
     name: "OpenAI",
-    icon: ChatGPTIcon,
+    icon: OpenAIIcon,
     baseUrl: "https://api.openai.com/v1",
   },
   {
     id: "anthropic",
     name: "Anthropic",
-    icon: SiAnthropic,
+    icon: ClaudeIcon,
     baseUrl: "https://api.anthropic.com/v1",
   },
   {
     id: "openrouter",
     name: "OpenRouter",
-    icon: SiOpenrouter,
+    icon: OpenRouterIcon,
     baseUrl: "https://openrouter.ai/api/v1",
   },
   {
     id: "gemini",
     name: "Gemini",
-    icon: SiGooglegemini,
+    icon: GeminiIcon,
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
   },
   {
     id: "ollama",
     name: "Ollama",
-    icon: SiOllama,
+    icon: OllamaIcon,
     baseUrl: "http://localhost:11434/v1",
   },
   {
     id: "lmstudio",
     name: "LM Studio",
-    icon: SiLmstudio,
+    icon: LMStudioIcon,
     baseUrl: "http://localhost:1234/v1",
   },
 ];
@@ -74,45 +78,45 @@ export const MCP_PRESETS: MCPPreset[] = [
   {
     id: "github",
     name: "GitHub",
-    icon: SiGithub,
+    icon: GitHubIcon,
     endpoint: "https://api.githubcopilot.com/mcp/",
   },
   {
     id: "notion",
     name: "Notion",
-    icon: SiNotion,
+    icon: NotionIcon,
     endpoint: "https://mcp.notion.com/mcp",
   },
   {
     id: "linear",
     name: "Linear",
-    icon: SiLinear,
+    icon: LinearIcon,
     endpoint: "https://mcp.linear.app/mcp",
   },
   {
     id: "composio",
     name: "Composio",
-    icon: Blocks,
+    icon: ComposioIcon,
     endpoint: "https://connect.composio.dev/mcp",
     headers: { "x-consumer-api-key": "" },
   },
   {
     id: "firecrawl",
     name: "Firecrawl",
-    icon: Flame,
+    icon: FirecrawlIcon,
     endpoint: "https://mcp.firecrawl.dev/v2/mcp",
   },
   {
     id: "exa",
     name: "Exa",
-    icon: Search,
+    icon: ExaIcon,
     endpoint: "https://mcp.exa.ai/mcp",
     headers: { "x-api-key": "" },
   },
   {
     id: "stripe",
     name: "Stripe",
-    icon: SiStripe,
+    icon: StripeIcon,
     endpoint: "https://mcp.stripe.com",
   },
 ];
