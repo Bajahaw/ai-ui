@@ -109,7 +109,7 @@
   --selection: var(--primary);
 }
 
-/* Dark theme keeps the same strength; only yellow and pink flip to dark text. */
+/* Dark theme keeps the same strength and light foreground for every coloured accent. */
 .dark [data-accent="neutral"] {
   --primary: 0 0% 90%;
   --primary-foreground: 240 5.9% 10%;
@@ -125,13 +125,11 @@
 }
 .dark[data-accent="yellow"],
 .dark [data-accent="yellow"] {
-  --primary: 40 60% 55%;
-  --primary-foreground: 40 60% 8%;
+  --primary: 40 62% 48%;
 }
 .dark[data-accent="pink"],
 .dark [data-accent="pink"] {
-  --primary: 333 62% 68%;
-  --primary-foreground: 333 50% 10%;
+  --primary: 333 60% 58%;
 }
 .dark[data-accent="orange"],
 .dark [data-accent="orange"] {
