@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getFileBytes, retainFileBytes } from "@/lib/api/files";
-import { loadSandboxInputFiles, resetSandboxFileCache } from "./runner";
+import {
+  BOOTSTRAP_SRCDOC,
+  loadSandboxInputFiles,
+  resetSandboxFileCache,
+  runBrowserSandbox,
+} from "./runner";
 
 vi.mock("@/lib/api/files", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api/files")>();
@@ -63,5 +68,69 @@ describe("loadSandboxInputFiles", () => {
     await loadSandboxInputFiles(["a"]);
     await loadSandboxInputFiles(["b"]);
     expect(retainFileBytesMock).toHaveBeenLastCalledWith(new Set(["b"]));
+  });
+});
+
+describe("runBrowserSandbox iframe lifecycle", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 200 })),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.querySelectorAll("iframe").forEach((f) => f.remove());
+  });
+
+  // Re-navigating a live iframe adds joint session history entries, which
+  // makes history.back() (New Chat, Android back) step through the iframe.
+  async function runOnce(id: string) {
+    const srcdocAtInsert: (string | null)[] = [];
+    const observer = new MutationObserver((records) => {
+      for (const r of records) {
+        r.addedNodes.forEach((n) => {
+          if (n instanceof HTMLIFrameElement) {
+            srcdocAtInsert.push(n.getAttribute("srcdoc"));
+          }
+        });
+      }
+    });
+    observer.observe(document.body, { childList: true });
+
+    const done = runBrowserSandbox({
+      id,
+      name: "browser_sandbox",
+      args: JSON.stringify({ code: "1" }),
+    } as never);
+
+    await vi.waitFor(() => {
+      if (!document.querySelector("iframe")) throw new Error("no iframe yet");
+    });
+    const iframe = document.querySelector("iframe")!;
+    const srcdocSetter = vi.spyOn(iframe, "srcdoc", "set");
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: { type: "__sandbox_done" },
+        source: iframe.contentWindow,
+      }),
+    );
+    await done;
+    observer.disconnect();
+    return { iframe, srcdocAtInsert, srcdocSetter };
+  }
+
+  it("loads each run in a fresh iframe and removes it without re-navigating", async () => {
+    const first = await runOnce("call-1");
+    const second = await runOnce("call-2");
+
+    for (const run of [first, second]) {
+      expect(run.srcdocAtInsert).toEqual([BOOTSTRAP_SRCDOC]);
+      expect(run.srcdocSetter).not.toHaveBeenCalled();
+      expect(run.iframe.isConnected).toBe(false);
+    }
+    expect(second.iframe).not.toBe(first.iframe);
+    expect(document.querySelectorAll("iframe")).toHaveLength(0);
   });
 });

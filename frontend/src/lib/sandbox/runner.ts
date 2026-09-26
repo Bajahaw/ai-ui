@@ -47,9 +47,6 @@ type SandboxRunResult = {
 
 const running = new Set<string>();
 
-let hostIframe: HTMLIFrameElement | null = null;
-let hostBusy = false;
-
 // Exported for tests only: the bootstrap runs inside the sandbox iframe.
 export const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
 <html>
@@ -217,11 +214,6 @@ export function collectConversationFileIds(
 
 export function resetSandboxFileCache(): void {
   resetFileBytesCache();
-  hostBusy = false;
-  if (hostIframe) {
-    hostIframe.remove();
-    hostIframe = null;
-  }
 }
 
 export async function loadSandboxInputFiles(
@@ -338,32 +330,8 @@ function createIframe(): HTMLIFrameElement {
   iframe.setAttribute("title", "browser sandbox");
   iframe.style.cssText =
     "position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0";
+  iframe.srcdoc = BOOTSTRAP_SRCDOC;
   return iframe;
-}
-
-function acquireIframe(): { iframe: HTMLIFrameElement; shared: boolean } {
-  if (hostIframe && !hostBusy) {
-    if (!hostIframe.isConnected) document.body.appendChild(hostIframe);
-    hostBusy = true;
-    return { iframe: hostIframe, shared: true };
-  }
-  const iframe = createIframe();
-  document.body.appendChild(iframe);
-  if (!hostIframe) {
-    hostIframe = iframe;
-    hostBusy = true;
-    return { iframe, shared: true };
-  }
-  return { iframe, shared: false };
-}
-
-function releaseIframe(iframe: HTMLIFrameElement, shared: boolean): void {
-  iframe.srcdoc = "";
-  if (shared) {
-    hostBusy = false;
-    return;
-  }
-  iframe.remove();
 }
 
 function executeInIframe(
@@ -372,7 +340,7 @@ function executeInIframe(
   signal?: AbortSignal,
 ): Promise<SandboxRunResult> {
   return new Promise((resolve) => {
-    const { iframe, shared } = acquireIframe();
+    const iframe = createIframe();
     const logs: string[] = [];
     const outFiles: SandboxFile[] = [];
     let result = "";
@@ -385,7 +353,7 @@ function executeInIframe(
       window.removeEventListener("message", onMessage);
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
-      releaseIframe(iframe, shared);
+      iframe.remove();
       resolve({
         ok: !error,
         error: truncate(error),
@@ -467,7 +435,7 @@ function executeInIframe(
       finish("cancelled");
       return;
     }
-    iframe.srcdoc = BOOTSTRAP_SRCDOC;
+    document.body.appendChild(iframe);
   });
 }
 

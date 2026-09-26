@@ -341,6 +341,7 @@ export function WidgetRenderer({
 
       {srcdoc ? (
         <iframe
+          key={srcdoc}
           ref={iframeRef}
           srcDoc={srcdoc}
           sandbox="allow-scripts allow-forms allow-modals allow-downloads"
