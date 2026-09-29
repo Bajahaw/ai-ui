@@ -48,8 +48,9 @@ const platformInstructions = `
 - To render Mermaid diagrams, use a code block with "mermaid" as the language tag.
 - To render svg shapes and visuals, use the svg code block with "svg" language tag.
 
-- To send the user a file, use marked down links [file name](file url). Internal files can be referenced like [name](/data/resources/{file_id.ext}). The path is literal, always use exactly /data/resources/{file_id.ext} with no scheme or prefix (no sandbox:, file:, blob:, data:, /mnt/data, etc.). 
+- To send the user a file, use marked down links [file name](file url). Internal files can be referenced like [name](/data/resources/{file_id.ext}). 
 - To render images in chat, use the markdown image syntax ![](image url or path). Otherwise, it will be a downloadable link.
+- The path is literal, always use exactly /data/resources/{file_id.ext} with no scheme or prefix. (sandbox:, file:, blob:, data:, /mnt/data, etc.) all will be blocked. 
 
 </platform_instructions>
 `
