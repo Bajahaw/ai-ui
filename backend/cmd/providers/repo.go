@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Bajahaw/ai-ui/cmd/chatgptoauth"
+	"github.com/Bajahaw/ai-ui/cmd/encryption"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
 )
 
@@ -48,6 +49,10 @@ func NewRepository(db *sql.DB) Repository {
 }
 
 func scanProvider(id, baseURL, apiKey, headersJson, pType, oauthJson, user string) *Provider {
+	if err := encryption.DecryptInPlace(&apiKey, &headersJson, &oauthJson); err != nil {
+		log.Error("Failed to decrypt provider credentials", "provider", id, "err", err)
+		apiKey, headersJson, oauthJson = "", "", ""
+	}
 	var headers map[string]string
 	if headersJson != "" {
 		_ = json.Unmarshal([]byte(headersJson), &headers)
@@ -122,7 +127,8 @@ func providerOAuthJSON(p *Provider) string {
 	return string(b)
 }
 
-func (repo *Repo) Save(provider *Provider) error {
+// encryptedFields normalizes the provider and returns its sensitive columns encrypted.
+func encryptedFields(provider *Provider) (apiKey, headersJson, oauthJson string, err error) {
 	if provider.Headers == nil {
 		provider.Headers = make(map[string]string)
 	}
@@ -130,22 +136,32 @@ func (repo *Repo) Save(provider *Provider) error {
 		provider.Type = ProviderTypeOpenAI
 	}
 	headersBytes, _ := json.Marshal(provider.Headers)
-	headersJson := string(headersBytes)
+	if apiKey, err = encryption.Encrypt(provider.APIKey); err != nil {
+		return
+	}
+	if headersJson, err = encryption.Encrypt(string(headersBytes)); err != nil {
+		return
+	}
+	oauthJson, err = encryption.Encrypt(providerOAuthJSON(provider))
+	return
+}
+
+func (repo *Repo) Save(provider *Provider) error {
+	apiKey, headersJson, oauthJson, err := encryptedFields(provider)
+	if err != nil {
+		return err
+	}
 
 	query := `INSERT INTO Providers (id, url, api_key, user, headers_json, type, oauth_json) VALUES (?, ?, ?, ?, ?, ?, ?)`
-	_, err := repo.db.Exec(query, provider.ID, provider.BaseURL, provider.APIKey, provider.User, headersJson, provider.Type, providerOAuthJSON(provider))
+	_, err = repo.db.Exec(query, provider.ID, provider.BaseURL, apiKey, provider.User, headersJson, provider.Type, oauthJson)
 	return err
 }
 
 func (repo *Repo) Upsert(provider *Provider) error {
-	if provider.Headers == nil {
-		provider.Headers = make(map[string]string)
+	apiKey, headersJson, oauthJson, err := encryptedFields(provider)
+	if err != nil {
+		return err
 	}
-	if provider.Type == "" {
-		provider.Type = ProviderTypeOpenAI
-	}
-	headersBytes, _ := json.Marshal(provider.Headers)
-	headersJson := string(headersBytes)
 
 	query := `INSERT INTO Providers (id, url, api_key, user, headers_json, type, oauth_json) VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
@@ -155,7 +171,7 @@ func (repo *Repo) Upsert(provider *Provider) error {
 			type=excluded.type,
 			oauth_json=excluded.oauth_json
 		WHERE Providers.user=excluded.user`
-	res, err := repo.db.Exec(query, provider.ID, provider.BaseURL, provider.APIKey, provider.User, headersJson, provider.Type, providerOAuthJSON(provider))
+	res, err := repo.db.Exec(query, provider.ID, provider.BaseURL, apiKey, provider.User, headersJson, provider.Type, oauthJson)
 	if err != nil {
 		return err
 	}

@@ -3,7 +3,25 @@ package tools
 import (
 	"database/sql"
 	"encoding/json"
+
+	"github.com/Bajahaw/ai-ui/cmd/encryption"
 )
+
+// decodeServerSecrets decrypts the API key and headers read from the database.
+func decodeServerSecrets(server *MCPServer, headersJson string) {
+	if err := encryption.DecryptInPlace(&server.APIKey, &headersJson); err != nil {
+		log.Error("Failed to decrypt MCP server credentials", "server", server.ID, "err", err)
+		server.APIKey, headersJson = "", ""
+	}
+	var headers map[string]string
+	if headersJson != "" {
+		_ = json.Unmarshal([]byte(headersJson), &headers)
+	}
+	if headers == nil {
+		headers = make(map[string]string)
+	}
+	server.Headers = headers
+}
 
 type MCPServerRepository interface {
 	GetAll(user string) []*MCPServer
@@ -38,14 +56,7 @@ func (repo *MCPRepositoryImpl) GetAll(user string) []*MCPServer {
 			log.Error("Error scanning MCP server", "err", err)
 			continue
 		}
-		var headers map[string]string
-		if headersJson != "" {
-			_ = json.Unmarshal([]byte(headersJson), &headers)
-		}
-		if headers == nil {
-			headers = make(map[string]string)
-		}
-		server.Headers = headers
+		decodeServerSecrets(&server, headersJson)
 		server.User = user
 		allServers = append(allServers, &server)
 	}
@@ -72,14 +83,7 @@ func (repo *MCPRepositoryImpl) GetByID(id string, user string) (*MCPServer, erro
 	if err := row.Scan(&server.ID, &server.Name, &server.Endpoint, &server.APIKey, &headersJson); err != nil {
 		return &server, err
 	}
-	var headers map[string]string
-	if headersJson != "" {
-		_ = json.Unmarshal([]byte(headersJson), &headers)
-	}
-	if headers == nil {
-		headers = make(map[string]string)
-	}
-	server.Headers = headers
+	decodeServerSecrets(&server, headersJson)
 	server.User = user
 
 	tools := repo.toolRepo.GetAll(user)
@@ -96,10 +100,17 @@ func (repo *MCPRepositoryImpl) Save(server *MCPServer) error {
 		server.Headers = make(map[string]string)
 	}
 	headersBytes, _ := json.Marshal(server.Headers)
-	headersJson := string(headersBytes)
+	headersJson, err := encryption.Encrypt(string(headersBytes))
+	if err != nil {
+		return err
+	}
+	apiKey, err := encryption.Encrypt(server.APIKey)
+	if err != nil {
+		return err
+	}
 
 	query := `INSERT INTO MCPServers (id, name, endpoint, api_key, user, headers_json) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err := repo.db.Exec(query, server.ID, server.Name, server.Endpoint, server.APIKey, server.User, headersJson)
+	_, err = repo.db.Exec(query, server.ID, server.Name, server.Endpoint, apiKey, server.User, headersJson)
 	if err != nil {
 		return err
 	}

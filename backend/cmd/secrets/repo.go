@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/Bajahaw/ai-ui/cmd/encryption"
 )
 
 type Repository interface {
@@ -56,6 +58,9 @@ func (r *RepositoryImpl) GetByID(id, user string) (*Secret, error) {
 	if err != nil {
 		return nil, err
 	}
+	if s.Value, err = encryption.Decrypt(s.Value); err != nil {
+		return nil, err
+	}
 	s.User = user
 	return &s, nil
 }
@@ -67,6 +72,9 @@ func (r *RepositoryImpl) GetByName(name, user string) (*Secret, error) {
 		name, user,
 	).Scan(&s.ID, &s.Name, &s.Value)
 	if err != nil {
+		return nil, err
+	}
+	if s.Value, err = encryption.Decrypt(s.Value); err != nil {
 		return nil, err
 	}
 	s.User = user
@@ -81,9 +89,13 @@ func (r *RepositoryImpl) Count(user string) (int, error) {
 
 func (r *RepositoryImpl) Save(secret *Secret) error {
 	now := time.Now().UTC().Format(time.RFC3339)
-	_, err := r.db.Exec(
+	value, err := encryption.Encrypt(secret.Value)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.Exec(
 		`INSERT INTO UserSecrets (id, name, value, user, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		secret.ID, secret.Name, secret.Value, secret.User, now, now,
+		secret.ID, secret.Name, value, secret.User, now, now,
 	)
 	if err != nil && strings.Contains(strings.ToLower(err.Error()), "unique") {
 		return errors.New("a secret with this name already exists")
@@ -96,6 +108,9 @@ func (r *RepositoryImpl) Update(id, user string, name, value string, updateValue
 	var res sql.Result
 	var err error
 	if updateValue {
+		if value, err = encryption.Encrypt(value); err != nil {
+			return err
+		}
 		res, err = r.db.Exec(
 			`UPDATE UserSecrets SET name=?, value=?, updated_at=? WHERE id=? AND user=?`,
 			name, value, now, id, user,

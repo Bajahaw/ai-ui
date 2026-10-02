@@ -17,6 +17,7 @@ import (
 	"github.com/Bajahaw/ai-ui/cmd/auth"
 	"github.com/Bajahaw/ai-ui/cmd/chat"
 	"github.com/Bajahaw/ai-ui/cmd/data"
+	"github.com/Bajahaw/ai-ui/cmd/encryption"
 	"github.com/Bajahaw/ai-ui/cmd/files"
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/Bajahaw/ai-ui/cmd/secrets"
@@ -40,6 +41,7 @@ func main() {
 	setupUtils()
 
 	startDataSource()
+	setupEncryption()
 
 	setupAuth()
 	setupProviderClient()
@@ -123,6 +125,23 @@ func startDataSource() {
 	}
 	db = data.DB
 	log.Info("Data source initialized successfully")
+}
+
+func setupEncryption() {
+	if err := encryption.LoadFromEnv(); err != nil {
+		log.Fatal("Failed to load encryption key", "err", err)
+	}
+	if err := encryption.VerifyKey(db); err != nil {
+		log.Fatal("Encryption key check failed", "err", err)
+	}
+	n, err := encryption.EncryptLegacyRows(db)
+	if err != nil {
+		log.Fatal("Failed to encrypt existing credentials", "err", err)
+	}
+	if n > 0 {
+		log.Info("Encrypted existing plaintext credentials", "count", n)
+	}
+	log.Info("Encryption set up successfully")
 }
 
 func setupAuth() {

@@ -373,5 +373,22 @@ func RunMigrations(db *sql.DB) error {
 		}
 	}
 
+	if userVersion < 10 {
+		schemaV10 := `
+		CREATE TABLE IF NOT EXISTS AppMeta (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL
+		);
+		`
+		_, err = db.Exec(schemaV10)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec("PRAGMA user_version = 10;")
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

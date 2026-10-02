@@ -3,6 +3,7 @@ package secrets
 import (
 	"database/sql"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/Bajahaw/ai-ui/cmd/data"
@@ -37,6 +38,15 @@ func TestSecretCRUDAndExpand(t *testing.T) {
 	}
 	if created.Name != "GITHUB_TOKEN" {
 		t.Fatalf("name %s", created.Name)
+	}
+
+	// Stored encrypted at rest
+	var stored string
+	if err := db.QueryRow(`SELECT value FROM UserSecrets WHERE id = ?`, created.ID).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(stored, "v1:") || strings.Contains(stored, "ghp_secret") {
+		t.Fatalf("value not encrypted at rest: %q", stored)
 	}
 
 	// List has no values

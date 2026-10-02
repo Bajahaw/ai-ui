@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -54,6 +55,14 @@ type tokenResponse struct {
 	ErrorDesc    string `json:"error_description"`
 }
 
+// ClientID returns the OAuth client id, overridable via CHATGPT_CLIENT_ID.
+func ClientID() string {
+	if v := strings.TrimSpace(os.Getenv("CHATGPT_CLIENT_ID")); v != "" {
+		return v
+	}
+	return DefaultClientID
+}
+
 func randomURLSafe(nBytes int) (string, error) {
 	b := make([]byte, nBytes)
 	if _, err := rand.Read(b); err != nil {
@@ -73,7 +82,7 @@ func CreateAuthRequest(redirectURI, clientID string) (*AuthRequest, error) {
 		redirectURI = DefaultRedirect
 	}
 	if clientID == "" {
-		clientID = DefaultClientID
+		clientID = ClientID()
 	}
 	state, err := randomURLSafe(24)
 	if err != nil {
@@ -112,7 +121,7 @@ func CreateAuthRequest(redirectURI, clientID string) (*AuthRequest, error) {
 // ExchangeCode exchanges an authorization code for tokens.
 func ExchangeCode(code, codeVerifier, redirectURI, clientID string) (*Tokens, error) {
 	if clientID == "" {
-		clientID = DefaultClientID
+		clientID = ClientID()
 	}
 	if redirectURI == "" {
 		redirectURI = DefaultRedirect
@@ -158,7 +167,7 @@ func ExchangeCode(code, codeVerifier, redirectURI, clientID string) (*Tokens, er
 // RefreshTokens refreshes an access token using a refresh token.
 func RefreshTokens(refreshToken, clientID string) (*Tokens, error) {
 	if clientID == "" {
-		clientID = DefaultClientID
+		clientID = ClientID()
 	}
 	payload := map[string]string{
 		"grant_type":    "refresh_token",
@@ -325,7 +334,7 @@ func EnsureFresh(t *Tokens) (*Tokens, bool, error) {
 	if t.RefreshToken == "" {
 		return t, false, fmt.Errorf("access token expired and no refresh token")
 	}
-	refreshed, err := RefreshTokens(t.RefreshToken, DefaultClientID)
+	refreshed, err := RefreshTokens(t.RefreshToken, ClientID())
 	if err != nil {
 		return nil, false, err
 	}

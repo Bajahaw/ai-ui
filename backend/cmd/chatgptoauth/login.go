@@ -56,7 +56,7 @@ func NewLoginManager() *LoginManager {
 // bind that port (or is remote and the browser will never hit it), the user can
 // paste the redirect URL into the app via CompleteFromCallbackURL.
 func (m *LoginManager) Start(username string) (authURL, state string, err error) {
-	req, err := CreateAuthRequest(DefaultRedirect, DefaultClientID)
+	req, err := CreateAuthRequest(DefaultRedirect, ClientID())
 	if err != nil {
 		return "", "", err
 	}
@@ -290,7 +290,7 @@ func (m *LoginManager) completeFromQuery(q url.Values) error {
 		return fmt.Errorf("missing authorization code in callback")
 	}
 
-	tokens, err := ExchangeCode(code, codeVerifier, redirectURI, DefaultClientID)
+	tokens, err := ExchangeCode(code, codeVerifier, redirectURI, ClientID())
 	if err != nil {
 		m.fail(state, err.Error())
 		return fmt.Errorf("token exchange failed: %w", err)

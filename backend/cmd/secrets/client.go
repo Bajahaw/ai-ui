@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/Bajahaw/ai-ui/cmd/encryption"
 	logger "github.com/charmbracelet/log"
 	"github.com/google/uuid"
 )
@@ -40,7 +41,14 @@ func GetValueMap(user string) map[string]string {
 		if err := rows.Scan(&name, &value); err != nil {
 			continue
 		}
-		out[name] = value
+		plain, err := encryption.Decrypt(value)
+		if err != nil {
+			if log != nil {
+				log.Error("Failed to decrypt secret", "name", name, "err", err)
+			}
+			continue
+		}
+		out[name] = plain
 	}
 	return out
 }
