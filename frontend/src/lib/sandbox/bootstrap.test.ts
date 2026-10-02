@@ -27,8 +27,10 @@ let onMessage: ((e: MessageEvent) => void) | null = null;
 // window.parent is the test window, exactly like production. Messages the
 // bootstrap posts to its parent are collected in `sent`.
 function bootBootstrap(): Booted {
-  const match = /<script>([\s\S]*?)<\/script>/.exec(BOOTSTRAP_SRCDOC);
-  if (!match) throw new Error("bootstrap script not found");
+  const script = new DOMParser()
+    .parseFromString(BOOTSTRAP_SRCDOC, "text/html")
+    .querySelector("script")?.textContent;
+  if (!script) throw new Error("bootstrap script not found");
   iframe = document.createElement("iframe");
   document.body.appendChild(iframe);
   const frame = iframe.contentWindow;
@@ -40,7 +42,7 @@ function bootBootstrap(): Booted {
     }
   };
   window.addEventListener("message", onMessage);
-  (frame as unknown as { eval(s: string): void }).eval(match[1]);
+  (frame as unknown as { eval(s: string): void }).eval(script);
   const FrameMessageEvent = (frame as unknown as { MessageEvent: typeof MessageEvent }).MessageEvent;
   return {
     sandbox: (frame as unknown as { sandbox: SandboxApi }).sandbox,

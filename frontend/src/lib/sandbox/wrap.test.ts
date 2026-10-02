@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { collectConversationFileIds } from "./runner";
-import { fileAliases, filesObjectLiteral } from "./wrap";
+import { fileAliases } from "./wrap";
 
 describe("fileAliases", () => {
   it("exposes name, basename, id and id+ext", () => {
@@ -14,18 +14,6 @@ describe("fileAliases", () => {
 
   it("does not duplicate an id that already carries the extension", () => {
     expect(fileAliases("a.txt", "id.txt")).toEqual(["a.txt", "id.txt"]);
-  });
-});
-
-describe("filesObjectLiteral", () => {
-  it("builds an empty object", () => {
-    expect(filesObjectLiteral([])).toBe("{}");
-  });
-
-  it("embeds named base64 payloads", () => {
-    const out = filesObjectLiteral([{ name: "a.txt", data: "YQ==" }]);
-    expect(out).toContain('"a.txt"');
-    expect(out).toContain('"YQ=="');
   });
 });
 

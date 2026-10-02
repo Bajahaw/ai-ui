@@ -33,25 +33,3 @@ export function fileAliases(name: string, id?: string): string[] {
   }
   return keys;
 }
-
-export function filesObjectLiteral(files: SandboxInputFile[]): string {
-  if (files.length === 0) return "{}";
-  const decls: string[] = [];
-  const entries: string[] = [];
-  files.forEach((f, i) => {
-    const v = `__d${i}`;
-    decls.push(
-      `var ${v}=Uint8Array.from(atob(${JSON.stringify(f.data)}),c=>c.charCodeAt(0))`,
-    );
-    const keys = fileAliases(f.name, f.id);
-    if (keys.length === 0) {
-      // Fallback: never emit an empty entry set for a file.
-      entries.push(`${JSON.stringify(f.name)}:${v}`);
-    } else {
-      for (const key of keys) {
-        entries.push(`${JSON.stringify(key)}:${v}`);
-      }
-    }
-  });
-  return `(function(){${decls.join(";")};return {${entries.join(",")}}})()`;
-}
