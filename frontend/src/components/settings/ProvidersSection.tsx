@@ -16,8 +16,6 @@ import { ProviderForm } from "./ProviderForm";
 import { FrontendProvider, ProviderRequest } from "@/lib/api/types";
 import { useSettingsData } from "@/hooks/useSettingsData";
 import { useModelsContext } from "@/hooks/useModelsContext";
-import { useAuth } from "@/hooks/useAuth";
-import { ChatGPTIcon } from "@/components/icons/brand-icons";
 import { ProviderPresetPicker } from "@/components/onboarding/ProviderPresetPicker";
 
 export const ProvidersSection = () => {
@@ -28,15 +26,12 @@ export const ProvidersSection = () => {
     deleteProvider,
     getModelsByProvider,
     refreshProviderModels,
-    fetchAll,
   } = useSettingsData();
   const { refreshModels } = useModelsContext();
-  const { loginWithChatGPT } = useAuth();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingProvider, setEditingProvider] =
     useState<FrontendProvider | null>(null);
   const [loadingModels, setLoadingModels] = useState(false);
-  const [connectingChatGPT, setConnectingChatGPT] = useState(false);
   const [refreshingProviders, setRefreshingProviders] = useState<Set<string>>(
     new Set(),
   );
@@ -82,19 +77,6 @@ export const ProvidersSection = () => {
     }
   };
 
-  const handleConnectChatGPT = async () => {
-    setConnectingChatGPT(true);
-    try {
-      await loginWithChatGPT();
-      await fetchAll();
-      await refreshModels();
-    } catch (err) {
-      console.error("Failed to connect ChatGPT:", err);
-    } finally {
-      setConnectingChatGPT(false);
-    }
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -114,20 +96,6 @@ export const ProvidersSection = () => {
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-          </Button>
-          <Button
-            onClick={handleConnectChatGPT}
-            variant="outline"
-            size="sm"
-            disabled={connectingChatGPT}
-            title="Add another ChatGPT account as a provider"
-          >
-            {connectingChatGPT ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <ChatGPTIcon className="h-4 w-4" />
-            )}
-            <span className="hidden sm:inline">Add ChatGPT</span>
           </Button>
           <Button
             onClick={() => setShowAddForm(true)}
