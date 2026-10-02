@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { flushSync } from "react-dom";
 import App from "./App.tsx";
 import "./globals.css";
 import { ThemeProvider } from "./components/theme-provider.tsx";
@@ -83,4 +84,7 @@ const AppWrapper = isDevelopment ? (
   <React.StrictMode>{AppTree}</React.StrictMode>
 );
 
-ReactDOM.createRoot(document.getElementById("root")!).render(AppWrapper);
+// Render the shell synchronously: root.render() alone defers to a later task,
+// letting the browser paint an empty page in between (a blank flash on reload).
+const root = ReactDOM.createRoot(document.getElementById("root")!);
+flushSync(() => root.render(AppWrapper));

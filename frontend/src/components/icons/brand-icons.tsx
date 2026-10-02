@@ -1,10 +1,4 @@
 import type { ComponentType, CSSProperties, ReactNode } from "react";
-import {
-  SiLinear,
-  SiLinearHex,
-  SiStripe,
-  SiStripeHex,
-} from "@icons-pack/react-simple-icons";
 
 /**
  * Brand marks rendered with their official colors. Multi-color / colored
@@ -156,9 +150,17 @@ export const NotionIcon: BrandIcon = (p) => (
   </Svg>
 );
 
-export const LinearIcon: BrandIcon = (p) => <SiLinear color={SiLinearHex} {...p} />;
+export const LinearIcon: BrandIcon = (p) => (
+  <Svg {...p} fill="#5E6AD2">
+    <path d="M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z" />
+  </Svg>
+);
 
-export const StripeIcon: BrandIcon = (p) => <SiStripe color={SiStripeHex} {...p} />;
+export const StripeIcon: BrandIcon = (p) => (
+  <Svg {...p} fill="#635BFF">
+    <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.594-7.305h.003z" />
+  </Svg>
+);
 
 export const ComposioIcon: BrandIcon = (p) => (
   <Svg {...p} viewBox="20 20 140 140" fill="#31AAFF">
