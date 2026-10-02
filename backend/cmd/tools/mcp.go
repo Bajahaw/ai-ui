@@ -278,8 +278,11 @@ func GetMCPTools(server MCPServer) ([]*Tool, error) {
 			log.Error("Error fetching tool from MCP server", "err", err)
 			continue
 		}
+		// New tools start enabled; syncTools restores the stored flag for
+		// tools that already exist, so a refresh never re-enables one.
 		listed = append(listed, &Tool{
 			ID:          uuid.New().String(),
+			IsEnabled:   true,
 			MCPServerID: server.ID,
 			Name:        tool.Name,
 			Description: tool.Description,
