@@ -37,8 +37,8 @@ func TestRunMigrations_FreshDB(t *testing.T) {
 		t.Fatalf("Failed to get user_version: %v", err)
 	}
 
-	if userVersion != 10 {
-		t.Errorf("Expected user_version to be 10, got %d", userVersion)
+	if userVersion != 11 {
+		t.Errorf("Expected user_version to be 11, got %d", userVersion)
 	}
 
 	var hasUserSecrets bool
@@ -238,8 +238,8 @@ func TestRunMigrations_UpgradeFromV1(t *testing.T) {
 	if err := db.QueryRow("PRAGMA user_version;").Scan(&userVersion); err != nil {
 		t.Fatalf("Failed to retrieve user version: %v", err)
 	}
-	if userVersion != 10 {
-		t.Errorf("Expected bumped version to be 10, got %d", userVersion)
+	if userVersion != 11 {
+		t.Errorf("Expected bumped version to be 11, got %d", userVersion)
 	}
 
 	// Verify headers_json was added and old data is intact

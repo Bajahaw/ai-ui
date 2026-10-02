@@ -2,16 +2,32 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "../ui/card";
-import { Edit, Loader2, Plus, RotateCcw, Server, Trash2 } from "lucide-react";
+import {
+  Edit,
+  KeyRound,
+  Loader2,
+  Plus,
+  RotateCcw,
+  Server,
+  Trash2,
+} from "lucide-react";
 import { MCPServerForm } from "./MCPServerForm";
-import { MCPServerRequest, MCPServerResponse } from "@/lib/api/types";
+import { MCPServerResponse } from "@/lib/api/types";
 import { useSettingsData } from "@/hooks/useSettingsData";
 import { isDefaultMCPServer } from "@/lib/onboarding";
+import { authorizeMCPServer, openOAuthPopup } from "@/lib/mcpOAuth";
 import { MCPPresetPicker } from "@/components/onboarding/MCPPresetPicker";
 
 export const MCPServersSection = () => {
-  const { data, addMCPServer, updateMCPServer, deleteMCPServer, refreshMCPTools, restoreDefaultMCPServer } =
-    useSettingsData();
+  const {
+    data,
+    addMCPServer,
+    updateMCPServer,
+    deleteMCPServer,
+    refreshMCPTools,
+    reloadMCPServers,
+    restoreDefaultMCPServer,
+  } = useSettingsData();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingServer, setEditingServer] = useState<MCPServerResponse | null>(
     null,
@@ -20,16 +36,30 @@ export const MCPServersSection = () => {
     new Set(),
   );
   const [restoringDefault, setRestoringDefault] = useState(false);
+  const [connecting, setConnecting] = useState<string | null>(null);
+  const [connectErrors, setConnectErrors] = useState<Record<string, string>>(
+    {},
+  );
 
-  const handleAddServer = async (serverData: MCPServerRequest) => {
-    await addMCPServer(serverData);
-    setShowAddForm(false);
-  };
-
-  const handleEditServer = async (serverData: MCPServerRequest) => {
-    if (editingServer) {
-      await updateMCPServer(serverData);
-      setEditingServer(null);
+  const handleConnect = async (id: string) => {
+    // Opened synchronously so the browser doesn't treat it as an unsolicited popup.
+    const popup = openOAuthPopup();
+    setConnecting(id);
+    setConnectErrors((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    try {
+      await authorizeMCPServer(id, popup);
+      await reloadMCPServers();
+    } catch (err) {
+      setConnectErrors((prev) => ({
+        ...prev,
+        [id]: err instanceof Error ? err.message : "Authorization failed",
+      }));
+    } finally {
+      setConnecting((current) => (current === id ? null : current));
     }
   };
 
@@ -120,6 +150,28 @@ export const MCPServersSection = () => {
                   </div>
 
                   <div className="flex items-center gap-1 flex-shrink-0">
+                    {server.auth_type === "oauth2" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleConnect(server.id)}
+                        disabled={connecting === server.id}
+                        title={
+                          server.oauth?.connected
+                            ? "Reconnect with OAuth"
+                            : "Connect with OAuth"
+                        }
+                      >
+                        {connecting === server.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <KeyRound className="h-4 w-4" />
+                        )}
+                        {!server.oauth?.connected && (
+                          <span className="hidden sm:inline">Connect</span>
+                        )}
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -161,7 +213,21 @@ export const MCPServersSection = () => {
                   >
                     {server.endpoint}
                   </span>
+                  {server.auth_type === "oauth2" && (
+                    <span className="flex items-center gap-1.5 flex-shrink-0 text-xs">
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${server.oauth?.connected ? "bg-green-500" : "bg-amber-500"}`}
+                      />
+                      {server.oauth?.connected ? "OAuth" : "Not connected"}
+                    </span>
+                  )}
                 </div>
+
+                {connectErrors[server.id] && (
+                  <p className="text-xs text-red-600 break-words">
+                    {connectErrors[server.id]}
+                  </p>
+                )}
 
                 {server.tools && server.tools.length > 0 && (
                   <div className="flex flex-wrap gap-1 overflow-hidden">
@@ -192,7 +258,7 @@ export const MCPServersSection = () => {
       <MCPServerForm
         open={showAddForm}
         onOpenChange={setShowAddForm}
-        onSubmit={handleAddServer}
+        onSubmit={addMCPServer}
         title="Add MCP Server"
         submitLabel="Add Server"
       />
@@ -201,7 +267,7 @@ export const MCPServersSection = () => {
       <MCPServerForm
         open={!!editingServer}
         onOpenChange={(open) => !open && setEditingServer(null)}
-        onSubmit={handleEditServer}
+        onSubmit={updateMCPServer}
         server={editingServer}
         title="Edit MCP Server"
         submitLabel="Update Server"

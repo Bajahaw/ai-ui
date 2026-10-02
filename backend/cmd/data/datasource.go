@@ -390,5 +390,20 @@ func RunMigrations(db *sql.DB) error {
 		}
 	}
 
+	if userVersion < 11 {
+		schemaV11 := `
+		ALTER TABLE MCPServers ADD COLUMN auth_type TEXT NOT NULL DEFAULT '';
+		ALTER TABLE MCPServers ADD COLUMN oauth_json TEXT NOT NULL DEFAULT '';
+		`
+		_, err = db.Exec(schemaV11)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec("PRAGMA user_version = 11;")
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

@@ -78,10 +78,12 @@ interface SettingsDataContext {
   refreshProviderModels: (id: string) => Promise<void>;
 
   // MCP Servers
-  addMCPServer: (data: MCPServerRequest) => Promise<void>;
-  updateMCPServer: (data: MCPServerRequest) => Promise<void>;
+  addMCPServer: (data: MCPServerRequest) => Promise<MCPServerResponse>;
+  updateMCPServer: (data: MCPServerRequest) => Promise<MCPServerResponse>;
   deleteMCPServer: (id: string) => Promise<void>;
   refreshMCPTools: (id: string) => Promise<void>;
+  /** Re-reads servers and tools, e.g. after an OAuth callback stored new tools. */
+  reloadMCPServers: () => Promise<void>;
   restoreDefaultMCPServer: () => Promise<void>;
 
   // Tools
@@ -241,9 +243,17 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
   const addMCPServer = useCallback(
     async (serverData: MCPServerRequest) => {
       const newServer = await saveMCPServer(serverData);
-      setData((d) => ({ ...d, mcpServers: [...d.mcpServers, newServer] }));
+      // Upsert: retrying OAuth after a failed attempt re-saves the same id.
+      setData((d) => ({
+        ...d,
+        mcpServers: [
+          ...d.mcpServers.filter((s) => s.id !== newServer.id),
+          newServer,
+        ],
+      }));
       // Refresh tools since new MCP server may provide new tools
       await refreshTools();
+      return newServer;
     },
     [refreshTools],
   );
@@ -259,9 +269,15 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
       }));
       // Refresh tools since updated MCP server may have different tools
       await refreshTools();
+      return updated;
     },
     [refreshTools],
   );
+
+  const reloadMCPServers = useCallback(async () => {
+    const [mcpRes] = await Promise.all([getMCPServers(), refreshTools()]);
+    setData((d) => ({ ...d, mcpServers: mcpRes }));
+  }, [refreshTools]);
 
   const deleteMCPServer = useCallback(
     async (id: string) => {
@@ -401,6 +417,7 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
         updateMCPServer,
         deleteMCPServer,
         refreshMCPTools: refreshMCPToolsFn,
+        reloadMCPServers,
         restoreDefaultMCPServer,
         updateToolsLocal,
         saveTools,

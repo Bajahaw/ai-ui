@@ -261,20 +261,47 @@ export interface FrontendProvider {
 export interface FileUploadResponse extends File {}
 
 // MCP Server types
+/** "" = API key / custom headers, "oauth2" = OAuth2 authorization code flow. */
+export type MCPAuthType = "" | "oauth2";
+
+export interface MCPOAuthRequest {
+  /** Blank = dynamic client registration, when the server supports it. */
+  client_id: string;
+  /** Leave empty on update to keep the existing secret. */
+  client_secret: string;
+  scopes: string;
+  /** Blank = auto-discovered from the MCP server. */
+  auth_url: string;
+  token_url: string;
+}
+
+export interface MCPOAuthResponse {
+  client_id: string;
+  has_client_secret: boolean;
+  scopes: string;
+  auth_url: string;
+  token_url: string;
+  connected: boolean;
+}
+
 export interface MCPServerRequest {
   id?: string;
   name: string;
   endpoint: string;
   api_key: string;
   headers?: Record<string, string>;
+  auth_type?: MCPAuthType;
+  oauth?: MCPOAuthRequest;
 }
 
 export interface MCPServerResponse {
   id: string;
   name: string;
   endpoint: string;
-  tools: Tool[];
+  tools: Tool[] | null;
   headers?: Record<string, string>;
+  auth_type?: MCPAuthType;
+  oauth?: MCPOAuthResponse;
 }
 
 export interface ToolListResponse {

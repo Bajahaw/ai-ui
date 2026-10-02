@@ -20,7 +20,7 @@ var sensitiveColumns = []struct {
 	columns []string
 }{
 	{"Providers", []string{"api_key", "headers_json", "oauth_json"}},
-	{"MCPServers", []string{"api_key", "headers_json"}},
+	{"MCPServers", []string{"api_key", "headers_json", "oauth_json"}},
 	{"UserSecrets", []string{"value"}},
 }
 

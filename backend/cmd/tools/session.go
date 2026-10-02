@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"golang.org/x/oauth2"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -139,16 +141,25 @@ func (m *MCPSessionManager) connect(ctx context.Context, server MCPServer) (*mcp
 	defer cancel()
 
 	headers := map[string]string{}
-	if server.APIKey != "" {
+	if server.APIKey != "" && server.AuthType != AuthTypeOAuth2 {
 		headers["Authorization"] = "Bearer " + server.APIKey
 	}
 	for k, v := range server.Headers {
 		headers[k] = v
 	}
 
+	httpClient := httpClientWithCustomHeaders(headers)
+	if server.AuthType == AuthTypeOAuth2 {
+		ts, err := oauthTokenSource(server)
+		if err != nil {
+			return nil, err
+		}
+		httpClient.Transport = &oauth2.Transport{Source: ts, Base: httpClient.Transport}
+	}
+
 	return m.client.Connect(connectCtx, &mcp.StreamableClientTransport{
 		Endpoint:   server.Endpoint,
-		HTTPClient: httpClientWithCustomHeaders(headers),
+		HTTPClient: httpClient,
 	}, nil)
 }
 
@@ -161,6 +172,16 @@ func sessionFingerprint(server MCPServer) string {
 	b.WriteString(server.Endpoint)
 	b.WriteByte('\n')
 	b.WriteString(server.APIKey)
+	// Token refreshes keep the same session; a new authorization does not.
+	if server.AuthType == AuthTypeOAuth2 {
+		b.WriteString("\noauth2")
+		if server.OAuth.connected() {
+			b.WriteByte('\n')
+			b.WriteString(server.OAuth.Session.ClientID)
+			b.WriteByte('\n')
+			b.WriteString(strconv.FormatInt(server.OAuth.Session.ConnectedAt.UnixNano(), 10))
+		}
+	}
 	if len(server.Headers) == 0 {
 		return b.String()
 	}

@@ -3,15 +3,29 @@ package tools
 import (
 	"database/sql"
 	"encoding/json"
+	"time"
 
 	"github.com/Bajahaw/ai-ui/cmd/encryption"
+	"golang.org/x/oauth2"
 )
 
-// decodeServerSecrets decrypts the API key and headers read from the database.
-func decodeServerSecrets(server *MCPServer, headersJson string) {
-	if err := encryption.DecryptInPlace(&server.APIKey, &headersJson); err != nil {
+const mcpServerColumns = `id, name, endpoint, api_key, headers_json, auth_type, oauth_json`
+
+// scanMCPServer reads a row selected with mcpServerColumns and decrypts its credentials.
+func scanMCPServer(row interface{ Scan(...any) error }, server *MCPServer) error {
+	var headersJson, oauthJson string
+	if err := row.Scan(&server.ID, &server.Name, &server.Endpoint, &server.APIKey, &headersJson, &server.AuthType, &oauthJson); err != nil {
+		return err
+	}
+	decodeServerSecrets(server, headersJson, oauthJson)
+	return nil
+}
+
+// decodeServerSecrets decrypts the API key, headers and OAuth settings read from the database.
+func decodeServerSecrets(server *MCPServer, headersJson, oauthJson string) {
+	if err := encryption.DecryptInPlace(&server.APIKey, &headersJson, &oauthJson); err != nil {
 		log.Error("Failed to decrypt MCP server credentials", "server", server.ID, "err", err)
-		server.APIKey, headersJson = "", ""
+		server.APIKey, headersJson, oauthJson = "", "", ""
 	}
 	var headers map[string]string
 	if headersJson != "" {
@@ -21,6 +35,16 @@ func decodeServerSecrets(server *MCPServer, headersJson string) {
 		headers = make(map[string]string)
 	}
 	server.Headers = headers
+	server.OAuth = nil
+	if oauthJson != "" {
+		var o MCPOAuth
+		if err := json.Unmarshal([]byte(oauthJson), &o); err == nil {
+			server.OAuth = &o
+		}
+	}
+	if server.AuthType == AuthTypeOAuth2 && server.OAuth == nil {
+		server.OAuth = &MCPOAuth{}
+	}
 }
 
 type MCPServerRepository interface {
@@ -28,6 +52,8 @@ type MCPServerRepository interface {
 	GetByID(id string, user string) (*MCPServer, error)
 	Save(server *MCPServer) error
 	Update(server *MCPServer) error
+	UpdateOAuth(server *MCPServer) error
+	UpdateOAuthToken(id, user string, connectedAt time.Time, token *oauth2.Token) error
 	DeleteByID(id string, user string) error
 }
 
@@ -42,7 +68,7 @@ func NewMCPRepository(db *sql.DB, toolRepo ToolRepository) MCPServerRepository {
 
 func (repo *MCPRepositoryImpl) GetAll(user string) []*MCPServer {
 	var allServers = make([]*MCPServer, 0)
-	query := `SELECT id, name, endpoint, api_key, headers_json FROM MCPServers WHERE user = ?`
+	query := `SELECT ` + mcpServerColumns + ` FROM MCPServers WHERE user = ?`
 	rows, err := repo.db.Query(query, user)
 	if err != nil {
 		log.Error("Error querying MCP servers", "err", err)
@@ -52,12 +78,10 @@ func (repo *MCPRepositoryImpl) GetAll(user string) []*MCPServer {
 
 	for rows.Next() {
 		var server MCPServer
-		var headersJson string
-		if err := rows.Scan(&server.ID, &server.Name, &server.Endpoint, &server.APIKey, &headersJson); err != nil {
+		if err := scanMCPServer(rows, &server); err != nil {
 			log.Error("Error scanning MCP server", "err", err)
 			continue
 		}
-		decodeServerSecrets(&server, headersJson)
 		server.User = user
 		allServers = append(allServers, &server)
 	}
@@ -78,13 +102,10 @@ func (repo *MCPRepositoryImpl) GetAll(user string) []*MCPServer {
 
 func (repo *MCPRepositoryImpl) GetByID(id string, user string) (*MCPServer, error) {
 	var server MCPServer
-	var headersJson string
-	query := `SELECT id, name, endpoint, api_key, headers_json FROM MCPServers WHERE id = ? AND user = ?`
-	row := repo.db.QueryRow(query, id, user)
-	if err := row.Scan(&server.ID, &server.Name, &server.Endpoint, &server.APIKey, &headersJson); err != nil {
+	query := `SELECT ` + mcpServerColumns + ` FROM MCPServers WHERE id = ? AND user = ?`
+	if err := scanMCPServer(repo.db.QueryRow(query, id, user), &server); err != nil {
 		return &server, err
 	}
-	decodeServerSecrets(&server, headersJson)
 	server.User = user
 
 	tools := repo.toolRepo.GetAll(user)
@@ -96,8 +117,8 @@ func (repo *MCPRepositoryImpl) GetByID(id string, user string) (*MCPServer, erro
 	return &server, nil
 }
 
-// encryptedSecrets returns the server's API key and headers encrypted for storage.
-func encryptedSecrets(server *MCPServer) (apiKey, headersJson string, err error) {
+// encryptedSecrets returns the server's API key, headers and OAuth settings encrypted for storage.
+func encryptedSecrets(server *MCPServer) (apiKey, headersJson, oauthJson string, err error) {
 	if server.Headers == nil {
 		server.Headers = make(map[string]string)
 	}
@@ -105,19 +126,33 @@ func encryptedSecrets(server *MCPServer) (apiKey, headersJson string, err error)
 	if headersJson, err = encryption.Encrypt(string(headersBytes)); err != nil {
 		return
 	}
+	if oauthJson, err = encryptedOAuth(server.OAuth); err != nil {
+		return
+	}
 	apiKey, err = encryption.Encrypt(server.APIKey)
 	return
 }
 
+func encryptedOAuth(o *MCPOAuth) (string, error) {
+	if o == nil {
+		return "", nil
+	}
+	b, err := json.Marshal(o)
+	if err != nil {
+		return "", err
+	}
+	return encryption.Encrypt(string(b))
+}
+
 // Update changes the server's connection settings. Tools are not touched.
 func (repo *MCPRepositoryImpl) Update(server *MCPServer) error {
-	apiKey, headersJson, err := encryptedSecrets(server)
+	apiKey, headersJson, oauthJson, err := encryptedSecrets(server)
 	if err != nil {
 		return err
 	}
 	res, err := repo.db.Exec(
-		`UPDATE MCPServers SET name = ?, endpoint = ?, api_key = ?, headers_json = ? WHERE id = ? AND user = ?`,
-		server.Name, server.Endpoint, apiKey, headersJson, server.ID, server.User,
+		`UPDATE MCPServers SET name = ?, endpoint = ?, api_key = ?, headers_json = ?, auth_type = ?, oauth_json = ? WHERE id = ? AND user = ?`,
+		server.Name, server.Endpoint, apiKey, headersJson, server.AuthType, oauthJson, server.ID, server.User,
 	)
 	if err != nil {
 		return err
@@ -128,14 +163,44 @@ func (repo *MCPRepositoryImpl) Update(server *MCPServer) error {
 	return nil
 }
 
+// UpdateOAuth stores only the OAuth settings and session.
+func (repo *MCPRepositoryImpl) UpdateOAuth(server *MCPServer) error {
+	oauthJson, err := encryptedOAuth(server.OAuth)
+	if err != nil {
+		return err
+	}
+	res, err := repo.db.Exec(`UPDATE MCPServers SET oauth_json = ? WHERE id = ? AND user = ?`, oauthJson, server.ID, server.User)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// UpdateOAuthToken stores a refreshed token, unless the session it belongs to
+// has since been replaced by a new authorization.
+func (repo *MCPRepositoryImpl) UpdateOAuthToken(id, user string, connectedAt time.Time, token *oauth2.Token) error {
+	server, err := repo.GetByID(id, user)
+	if err != nil {
+		return err
+	}
+	if !server.OAuth.connected() || !server.OAuth.Session.ConnectedAt.Equal(connectedAt) {
+		return nil
+	}
+	server.OAuth.Session.Token = token
+	return repo.UpdateOAuth(server)
+}
+
 func (repo *MCPRepositoryImpl) Save(server *MCPServer) error {
-	apiKey, headersJson, err := encryptedSecrets(server)
+	apiKey, headersJson, oauthJson, err := encryptedSecrets(server)
 	if err != nil {
 		return err
 	}
 
-	query := `INSERT INTO MCPServers (id, name, endpoint, api_key, user, headers_json) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err = repo.db.Exec(query, server.ID, server.Name, server.Endpoint, apiKey, server.User, headersJson)
+	query := `INSERT INTO MCPServers (id, name, endpoint, api_key, user, headers_json, auth_type, oauth_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err = repo.db.Exec(query, server.ID, server.Name, server.Endpoint, apiKey, server.User, headersJson, server.AuthType, oauthJson)
 	if err != nil {
 		return err
 	}

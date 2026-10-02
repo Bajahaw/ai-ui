@@ -15,6 +15,7 @@ import {
   StripeIcon,
   type BrandIcon,
 } from "@/components/icons/brand-icons";
+import type { MCPAuthType } from "@/lib/api/types";
 
 export interface ProviderPreset {
   id: string;
@@ -32,6 +33,7 @@ export interface MCPPreset {
   endpoint?: string;
   /** Header keys the service expects; values are left for the user to fill. */
   headers?: Record<string, string>;
+  authType?: MCPAuthType;
 }
 
 export const PROVIDER_PRESETS: ProviderPreset[] = [
@@ -86,12 +88,14 @@ export const MCP_PRESETS: MCPPreset[] = [
     name: "Notion",
     icon: NotionIcon,
     endpoint: "https://mcp.notion.com/mcp",
+    authType: "oauth2",
   },
   {
     id: "linear",
     name: "Linear",
     icon: LinearIcon,
     endpoint: "https://mcp.linear.app/mcp",
+    authType: "oauth2",
   },
   {
     id: "composio",

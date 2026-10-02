@@ -24,8 +24,17 @@ func Handler() http.Handler {
 	mux.HandleFunc("POST /mcp/restore-default", restoreDefaultMCPServer)
 	mux.HandleFunc("DELETE /mcp/delete/{id}", deleteMCPServer)
 	mux.HandleFunc("POST /mcp/refresh-tools/{id}", refreshMCPTools)
+	mux.HandleFunc("GET /mcp/oauth/redirect-url", getMCPOAuthRedirectURL)
+	mux.HandleFunc("POST /mcp/oauth/start/{id}", startMCPOAuth)
 
-	return http.StripPrefix("/api/tools", auth.Authenticated(mux))
+	// The OAuth provider redirects here; the SameSite=Strict session cookie is
+	// not sent on that cross-site navigation, so the single-use state
+	// parameter is what ties the callback to the user who started the flow.
+	root := http.NewServeMux()
+	root.HandleFunc("GET /mcp/oauth/callback", mcpOAuthCallback)
+	root.Handle("/", auth.Authenticated(mux))
+
+	return http.StripPrefix("/api/tools", root)
 }
 
 type ToolListResponse struct {

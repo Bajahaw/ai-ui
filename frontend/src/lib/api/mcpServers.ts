@@ -70,6 +70,39 @@ export const deleteMCPServer = async (id: string): Promise<void> => {
   }
 };
 
+// Callback URL to register with the OAuth app (same for every server).
+export const getMCPOAuthRedirectURL = async (): Promise<string> => {
+  const response = await fetch("/api/tools/mcp/oauth/redirect-url", {
+    method: "GET",
+    headers: getHeaders(),
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get OAuth redirect URL: ${response.statusText}`);
+  }
+
+  const data: { redirect_url: string } = await response.json();
+  return data.redirect_url;
+};
+
+// Begin the OAuth2 flow for a saved server; returns the URL to open.
+export const startMCPOAuth = async (id: string): Promise<string> => {
+  const response = await fetch(`/api/tools/mcp/oauth/start/${id}`, {
+    method: "POST",
+    headers: getHeaders(),
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    const detail = (await response.text()).trim();
+    throw new Error(detail || `Failed to start OAuth: ${response.statusText}`);
+  }
+
+  const data: { auth_url: string } = await response.json();
+  return data.auth_url;
+};
+
 // Refresh tools for a specific MCP server (re-fetches from MCP server)
 export const refreshMCPTools = async (id: string): Promise<void> => {
   const response = await fetch(

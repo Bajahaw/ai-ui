@@ -19,6 +19,8 @@ type MCPServer struct {
 	User     string            `json:"-"`
 	Tools    []*Tool           `json:"tools,omitempty"`
 	Headers  map[string]string `json:"headers"`
+	AuthType string            `json:"auth_type"`
+	OAuth    *MCPOAuth         `json:"-"`
 }
 
 // MCPServerResponse never includes credentials: header values are blanked.
@@ -27,18 +29,25 @@ type MCPServerResponse struct {
 	Name     string `json:"name"`
 	Endpoint string `json:"endpoint"`
 	// APIKey string
-	Tools   []*Tool           `json:"tools"`
-	Headers map[string]string `json:"headers"`
+	Tools    []*Tool           `json:"tools"`
+	Headers  map[string]string `json:"headers"`
+	AuthType string            `json:"auth_type"`
+	OAuth    *MCPOAuthResponse `json:"oauth,omitempty"`
 }
 
 func toMCPResponse(server *MCPServer) MCPServerResponse {
-	return MCPServerResponse{
+	resp := MCPServerResponse{
 		ID:       server.ID,
 		Name:     server.Name,
 		Endpoint: server.Endpoint,
 		Tools:    server.Tools,
 		Headers:  utils.RedactHeaders(server.Headers),
+		AuthType: server.AuthType,
 	}
+	if server.AuthType == AuthTypeOAuth2 {
+		resp.OAuth = toMCPOAuthResponse(server.OAuth)
+	}
+	return resp
 }
 
 type MCPServerListResponse struct {
@@ -53,6 +62,8 @@ type MCPServerRequest struct {
 	Endpoint string            `json:"endpoint"`
 	APIKey   string            `json:"api_key"`
 	Headers  map[string]string `json:"headers"`
+	AuthType string            `json:"auth_type,omitempty"`
+	OAuth    *MCPOAuthRequest  `json:"oauth,omitempty"`
 }
 
 func listMCPServers(w http.ResponseWriter, r *http.Request) {
@@ -94,6 +105,11 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.AuthType != "" && req.AuthType != AuthTypeOAuth2 {
+		http.Error(w, "Unsupported auth type", http.StatusBadRequest)
+		return
+	}
+
 	server := MCPServer{
 		ID:       req.ID,
 		Name:     req.Name,
@@ -101,11 +117,14 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 		APIKey:   req.APIKey,
 		User:     user,
 		Headers:  req.Headers,
+		AuthType: req.AuthType,
 	}
 
 	isUpdate := req.ID != ""
+	var existing *MCPServer
 	if isUpdate {
-		existing, getErr := mcps.GetByID(req.ID, user)
+		var getErr error
+		existing, getErr = mcps.GetByID(req.ID, user)
 		if getErr != nil {
 			http.Error(w, "MCP server not found", http.StatusNotFound)
 			return
@@ -118,15 +137,30 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 		server.ID = uuid.NewString()
 	}
 
-	server.Tools, err = GetMCPTools(server)
-	if err != nil {
-		log.Error("Error getting MCP tools", "err", err)
-		http.Error(w, "Error connecting to MCP server", http.StatusBadRequest)
-		return
+	if server.AuthType == AuthTypeOAuth2 {
+		// The OAuth access token replaces the static Bearer key.
+		server.APIKey = ""
+		server.OAuth = mergeMCPOAuth(req.OAuth, server.Endpoint, existing)
+	}
+
+	// An OAuth server can't be reached until the user authorizes it, so it is
+	// saved first and its tools are fetched by the OAuth callback.
+	needsAuthorization := server.AuthType == AuthTypeOAuth2 && !server.OAuth.connected()
+	if needsAuthorization {
+		if existing != nil {
+			server.Tools = existing.Tools
+		}
+	} else {
+		server.Tools, err = GetMCPTools(server)
+		if err != nil {
+			log.Error("Error getting MCP tools", "err", err)
+			http.Error(w, "Error connecting to MCP server", http.StatusBadRequest)
+			return
+		}
 	}
 
 	if isUpdate {
-		if err = mcps.Update(&server); err == nil {
+		if err = mcps.Update(&server); err == nil && !needsAuthorization {
 			err = syncTools(server.ID, server.Tools)
 		}
 	} else {
