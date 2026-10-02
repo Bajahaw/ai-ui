@@ -26,6 +26,7 @@ function App() {
   const [lastMessageSignature, setLastMessageSignature] = useState<string>("");
   const [lastMessageTime, setLastMessageTime] = useState<number>(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [focusComposerSignal, setFocusComposerSignal] = useState(0);
 
   // Touch handling for swipe gestures
   const touchStartRef = useRef<number | null>(null);
@@ -230,6 +231,7 @@ function App() {
     setWebSearch(false);
     clearError();
     closeSidebarOnSmallScreen();
+    setFocusComposerSignal((n) => n + 1);
   };
 
   const handleConversationSelect = (conversationId: string) => {
@@ -382,6 +384,7 @@ function App() {
           getBranchInfo={getBranchInfo}
           onUpdateMessage={handleUpdateMessage}
           onCancelStream={cancelStream}
+          focusComposerSignal={focusComposerSignal}
         />
       </div>
 

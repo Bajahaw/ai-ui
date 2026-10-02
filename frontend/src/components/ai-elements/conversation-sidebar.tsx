@@ -91,6 +91,11 @@ const updatedAtMs = (c: ClientConversation): number => {
 const sortByUpdatedDesc = (a: ClientConversation, b: ClientConversation) =>
   updatedAtMs(b) - updatedAtMs(a);
 
+const modKeyLabel =
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent)
+    ? "⌘"
+    : "Ctrl+";
+
 /** Render FTS snippet with [matched] markers from the backend. */
 const SearchSnippet = ({ snippet }: { snippet: string }) => {
   const parts = snippet.split(/(\[[^\]]*\])/g);
@@ -130,25 +135,70 @@ export const ConversationSidebar = ({
   // Input value updates immediately; list filtering is deferred so typing stays responsive.
   const [searchTerm, setSearchTerm] = useState<string>("");
   const deferredSearch = useDeferredValue(searchTerm);
-  const [ftsHits, setFtsHits] = useState<ConversationSearchHit[]>([]);
+  // Server FTS results for `query`; `failed` enables local title fallback.
+  const [ftsResult, setFtsResult] = useState<{
+    query: string;
+    hits: ConversationSearchHit[];
+    failed: boolean;
+  } | null>(null);
   const [ftsLoading, setFtsLoading] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [pendingSearchFocus, setPendingSearchFocus] = useState(false);
+
+  // Global shortcuts: Mod+K focuses search, Mod+Shift+O starts a new chat.
+  const shortcutStateRef = useRef({ isCollapsed, onToggleCollapse, onNewChat });
+  shortcutStateRef.current = { isCollapsed, onToggleCollapse, onNewChat };
+  const canStartChat = isAuthenticated && !isCheckingAuth;
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const key = e.key.toLowerCase();
+      const { isCollapsed, onToggleCollapse, onNewChat } =
+        shortcutStateRef.current;
+      if (key === "k" && !e.shiftKey) {
+        e.preventDefault();
+        if (isCollapsed) {
+          onToggleCollapse?.();
+          setPendingSearchFocus(true);
+        } else {
+          searchInputRef.current?.focus();
+          searchInputRef.current?.select();
+        }
+      } else if (key === "o" && e.shiftKey && canStartChat) {
+        e.preventDefault();
+        onNewChat?.();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [canStartChat]);
+
+  // Input is display:none while collapsed; focus once the sidebar has opened.
+  useEffect(() => {
+    if (!pendingSearchFocus || isCollapsed) return;
+    setPendingSearchFocus(false);
+    searchInputRef.current?.focus();
+    searchInputRef.current?.select();
+  }, [pendingSearchFocus, isCollapsed]);
 
   const trimmedSearch = deferredSearch.trim();
   const isSearching = trimmedSearch.length > 0;
-  const isSearchPending = searchTerm.trim() !== trimmedSearch;
-
-  // Title filter uses deferred query so the input never waits on list work.
-  const titleMatches = useMemo(() => {
-    if (!isSearching) return conversations;
-    const q = trimmedSearch.toLowerCase();
-    return conversations.filter((c) => c.title.toLowerCase().includes(q));
-  }, [conversations, isSearching, trimmedSearch]);
+  // Local title filtering only when the server can't be used.
+  const useLocalSearch =
+    isSearching && (!isAuthenticated || !!ftsResult?.failed);
+  // Until the first server response, keep the normal list (dimmed) instead of
+  // flashing local matches that the server results would then replace.
+  const showResults = isSearching && (useLocalSearch || ftsResult !== null);
+  const isSearchPending =
+    isSearching &&
+    searchTerm.trim() !==
+      (useLocalSearch ? trimmedSearch : (ftsResult?.query ?? ""));
 
   // Debounced FTS over message bodies. Loading flag only flips when fetch starts
   // (not on every keystroke) to avoid extra re-renders while typing.
   useEffect(() => {
     if (!isSearching || !isAuthenticated) {
-      setFtsHits((prev) => (prev.length === 0 ? prev : []));
+      setFtsResult(null);
       setFtsLoading(false);
       return;
     }
@@ -164,14 +214,14 @@ export const ConversationSidebar = ({
           controller.signal,
         );
         if (!controller.signal.aborted) {
-          setFtsHits(hits);
+          setFtsResult({ query, hits, failed: false });
         }
       } catch (err) {
         if (controller.signal.aborted) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
         if (err instanceof Error && err.name === "AbortError") return;
         console.error("Conversation search failed:", err);
-        setFtsHits([]);
+        setFtsResult({ query, hits: [], failed: true });
       } finally {
         if (!controller.signal.aborted) {
           setFtsLoading(false);
@@ -185,42 +235,30 @@ export const ConversationSidebar = ({
     };
   }, [trimmedSearch, isSearching, isAuthenticated]);
 
-  // Merge title matches + FTS hits into a single list for display.
+  // Map server hits onto known conversations (or local title filter as fallback).
   const filteredConversations = useMemo((): ListConversation[] => {
     // Manager already keeps sidebar order — avoid copy+sort on every idle render.
-    if (!isSearching) {
+    if (!showResults) {
       return conversations as ListConversation[];
     }
 
-    const byId = new Map(conversations.map((c) => [c.id, c]));
-    const snippetByConv = new Map(
-      ftsHits.map((h) => [h.conversationId, h.snippet]),
-    );
-    const result = new Map<string, ListConversation>();
-
-    for (const c of titleMatches) {
-      const snippet = snippetByConv.get(c.id);
-      // Shallow wrapper only when a snippet is needed (keeps list work cheap).
-      result.set(c.id, snippet ? { ...c, searchSnippet: snippet } : c);
+    if (useLocalSearch) {
+      const q = trimmedSearch.toLowerCase();
+      return conversations.filter((c) => c.title.toLowerCase().includes(q));
     }
 
-    for (const hit of ftsHits) {
-      if (result.has(hit.conversationId)) {
-        const existing = result.get(hit.conversationId)!;
-        if (!existing.searchSnippet && hit.snippet) {
-          result.set(hit.conversationId, {
-            ...existing,
-            searchSnippet: hit.snippet,
-          });
-        }
-        continue;
-      }
+    const byId = new Map(conversations.map((c) => [c.id, c]));
+    const result = new Map<string, ListConversation>();
+
+    for (const hit of ftsResult?.hits ?? []) {
+      if (result.has(hit.conversationId)) continue;
       const known = byId.get(hit.conversationId);
       if (known) {
-        result.set(hit.conversationId, {
-          ...known,
-          searchSnippet: hit.snippet,
-        });
+        // Shallow wrapper only when a snippet is needed (keeps list work cheap).
+        result.set(
+          hit.conversationId,
+          hit.snippet ? { ...known, searchSnippet: hit.snippet } : known,
+        );
       } else {
         result.set(hit.conversationId, {
           id: hit.conversationId,
@@ -228,7 +266,7 @@ export const ConversationSidebar = ({
           messages: [],
           pendingMessageIds: new Set(),
           activeBranches: new Map(),
-          searchSnippet: hit.snippet,
+          searchSnippet: hit.snippet || undefined,
           backendConversation: {
             id: hit.conversationId,
             userId: "",
@@ -242,11 +280,11 @@ export const ConversationSidebar = ({
     }
 
     return Array.from(result.values()).sort(sortByUpdatedDesc);
-  }, [conversations, isSearching, titleMatches, ftsHits]);
+  }, [conversations, showResults, useLocalSearch, trimmedSearch, ftsResult]);
 
   // Group conversations (skip date groups while searching — flat results feel faster)
   const groupedConversations = useMemo(() => {
-    if (isSearching) {
+    if (showResults) {
       return { Results: filteredConversations } as Record<
         string,
         ListConversation[]
@@ -270,18 +308,18 @@ export const ConversationSidebar = ({
     });
 
     return groups;
-  }, [filteredConversations, isSearching]);
+  }, [filteredConversations, showResults]);
 
   const flatItems = useMemo(() => {
     const items: FlatItem[] = [];
-    const groupOrder = isSearching
+    const groupOrder = showResults
       ? ["Results"]
       : ["Today", "Yesterday", "Last 7 Days", "Older"];
 
     groupOrder.forEach((group) => {
       const groupItems = groupedConversations[group];
       if (!groupItems || groupItems.length === 0) return;
-      if (!isSearching) {
+      if (!showResults) {
         items.push({ type: "header", id: `header-${group}`, label: group });
       }
       groupItems.forEach((conversation) => {
@@ -289,7 +327,7 @@ export const ConversationSidebar = ({
       });
     });
     return items;
-  }, [groupedConversations, isSearching]);
+  }, [groupedConversations, showResults]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   // Stable estimate lookup without closing over a new flatItems array identity
@@ -349,9 +387,7 @@ export const ConversationSidebar = ({
   };
 
   const showEmptySearch =
-    isSearching &&
-    filteredConversations.length === 0 &&
-    !ftsLoading;
+    showResults && filteredConversations.length === 0 && !isSearchPending;
 
   return (
     <div
@@ -417,7 +453,9 @@ export const ConversationSidebar = ({
             onClick={onNewChat}
             disabled={!isAuthenticated || isCheckingAuth}
             title={
-              !isAuthenticated ? "Sign in to start a chat" : "Start a new chat"
+              !isAuthenticated
+                ? "Sign in to start a chat"
+                : `Start a new chat (${modKeyLabel}Shift+O)`
             }
             className="w-full justify-start gap-2 rounded-lg text-foreground/80 font-semibold"
           >
@@ -435,11 +473,20 @@ export const ConversationSidebar = ({
               <SearchIcon className="absolute left-2 top-2.5 size-4 text-muted-foreground pointer-events-none" />
             )}
             <Input
-              placeholder="Search titles & messages…"
+              ref={searchInputRef}
+              placeholder="Search messages…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 h-9 text-sm border-0 border-b rounded-none focus-visible:ring-0 focus-visible:border-muted-foreground !bg-transparent"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") e.currentTarget.blur();
+              }}
+              className="pl-8 pr-12 h-9 text-sm border-0 border-b rounded-none focus-visible:ring-0 focus-visible:border-muted-foreground !bg-transparent"
             />
+            {!searchTerm && (
+              <kbd className="absolute right-1 top-2 pointer-events-none rounded border border-muted-foreground/20 px-1.5 text-[10px] leading-5 text-muted-foreground/70 font-sans">
+                {modKeyLabel}K
+              </kbd>
+            )}
           </div>
         </div>
 
@@ -518,7 +565,7 @@ export const ConversationSidebar = ({
                               // No animate-fade-in while filtering — CSS animations
                               // on remounted rows are a major source of typing jank.
                               "group relative w-full rounded-lg transition-colors py-[0.1rem]",
-                              !isSearching && "animate-fade-in",
+                              !showResults && "animate-fade-in",
                               activeConversationId === item.data.id
                                 ? "bg-secondary/80"
                                 : "hover:bg-secondary/80",

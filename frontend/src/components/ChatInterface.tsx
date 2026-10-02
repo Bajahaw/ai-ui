@@ -111,6 +111,8 @@ interface ChatInterfaceProps {
   };
   onUpdateMessage: (messageId: string, newContent: string) => Promise<void>;
   onCancelStream: () => Promise<void>;
+  /** Increment to request composer focus (e.g. after "New Chat"). */
+  focusComposerSignal?: number;
 }
 
 type PromptAreaHandle = {
@@ -428,6 +430,7 @@ export const ChatInterface = ({
   getBranchInfo,
   onUpdateMessage,
   onCancelStream,
+  focusComposerSignal = 0,
 }: ChatInterfaceProps) => {
   const isComposerDisabled = isAuthChecking || !isAuthenticated;
   const [isDragOver, setIsDragOver] = useState(false);
@@ -531,6 +534,17 @@ export const ChatInterface = ({
     input.focus({ preventScroll: true });
     hasFocusedInitialLoadRef.current = true;
   }, [isComposerDisabled]);
+
+  // Focus composer on explicit request (New Chat). Skipped on touch devices so
+  // the on-screen keyboard doesn't pop up unasked.
+  useEffect(() => {
+    if (!focusComposerSignal || isComposerDisabled) return;
+    if (window.matchMedia("(pointer: coarse)").matches) return;
+    const frame = requestAnimationFrame(() =>
+      promptAreaRef.current?.focus({ preventScroll: true }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [focusComposerSignal, isComposerDisabled]);
 
   // Scroll to bottom when user sends a message
   const scrollToBottom = useCallback(() => {
