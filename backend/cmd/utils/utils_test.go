@@ -144,3 +144,28 @@ func TestCacheControlMiddleware_HandlerCanOverride(t *testing.T) {
 		t.Errorf("expected Cache-Control %q, got %q", expected, cc)
 	}
 }
+
+func TestRedactHeaders(t *testing.T) {
+	got := RedactHeaders(map[string]string{"x-api-key": "secret", "X-Org": "acme"})
+	if len(got) != 2 || got["x-api-key"] != "" || got["X-Org"] != "" {
+		t.Fatalf("got %v", got)
+	}
+	if got := RedactHeaders(nil); got == nil || len(got) != 0 {
+		t.Fatalf("nil input: %v", got)
+	}
+}
+
+func TestMergeHeaders(t *testing.T) {
+	existing := map[string]string{"x-api-key": "secret", "X-Org": "acme", "X-Old": "gone"}
+	incoming := map[string]string{"x-api-key": "", "X-Org": "new", "X-Added": ""}
+	got := MergeHeaders(incoming, existing)
+	want := map[string]string{"x-api-key": "secret", "X-Org": "new", "X-Added": ""}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Fatalf("%s = %q, want %q (got %v)", k, got[k], v, got)
+		}
+	}
+}

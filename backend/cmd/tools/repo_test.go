@@ -415,3 +415,31 @@ func TestRefreshFlow_UpdatesSchemaPreservesFlags(t *testing.T) {
 		t.Errorf("brand_new description wrong: got %q", brandNew.Description)
 	}
 }
+
+func TestMCPRepositoryUpdate_KeepsToolsAndChecksOwner(t *testing.T) {
+	db, toolRepo := setupTestDB(t)
+	mcpRepo := NewMCPRepository(db, toolRepo)
+	if err := toolRepo.SaveAll([]*Tool{{ID: "t1", MCPServerID: "server1", Name: "tool_a", InputSchema: `{}`, IsEnabled: true}}); err != nil {
+		t.Fatal(err)
+	}
+
+	server := &MCPServer{ID: "server1", Name: "Renamed", Endpoint: "http://new", APIKey: "k2", User: "testuser", Headers: map[string]string{"x-api-key": "h"}}
+	if err := mcpRepo.Update(server); err != nil {
+		t.Fatal(err)
+	}
+	got, err := mcpRepo.GetByID("server1", "testuser")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "Renamed" || got.Endpoint != "http://new" || got.APIKey != "k2" || got.Headers["x-api-key"] != "h" {
+		t.Fatalf("got %+v", got)
+	}
+	if len(got.Tools) != 1 || got.Tools[0].ID != "t1" {
+		t.Fatalf("tools changed: %+v", got.Tools)
+	}
+
+	server.User = "someone-else"
+	if err := mcpRepo.Update(server); err != sql.ErrNoRows {
+		t.Fatalf("cross-user update: %v", err)
+	}
+}

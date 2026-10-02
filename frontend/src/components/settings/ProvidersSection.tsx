@@ -173,12 +173,12 @@ export const ProvidersSection = () => {
                         )}
                       </div>
                       {provider.type === "chatgpt-oauth" &&
-                        provider.headers?.label && (
+                        provider.label && (
                           <p
                             className="text-xs text-muted-foreground truncate max-w-[200px] sm:max-w-[320px] mt-0.5"
-                            title={provider.headers.label}
+                            title={provider.label}
                           >
-                            {provider.headers.label}
+                            {provider.label}
                           </p>
                         )}
                     </div>

@@ -27,6 +27,7 @@ type MCPServerRepository interface {
 	GetAll(user string) []*MCPServer
 	GetByID(id string, user string) (*MCPServer, error)
 	Save(server *MCPServer) error
+	Update(server *MCPServer) error
 	DeleteByID(id string, user string) error
 }
 
@@ -95,16 +96,40 @@ func (repo *MCPRepositoryImpl) GetByID(id string, user string) (*MCPServer, erro
 	return &server, nil
 }
 
-func (repo *MCPRepositoryImpl) Save(server *MCPServer) error {
+// encryptedSecrets returns the server's API key and headers encrypted for storage.
+func encryptedSecrets(server *MCPServer) (apiKey, headersJson string, err error) {
 	if server.Headers == nil {
 		server.Headers = make(map[string]string)
 	}
 	headersBytes, _ := json.Marshal(server.Headers)
-	headersJson, err := encryption.Encrypt(string(headersBytes))
+	if headersJson, err = encryption.Encrypt(string(headersBytes)); err != nil {
+		return
+	}
+	apiKey, err = encryption.Encrypt(server.APIKey)
+	return
+}
+
+// Update changes the server's connection settings. Tools are not touched.
+func (repo *MCPRepositoryImpl) Update(server *MCPServer) error {
+	apiKey, headersJson, err := encryptedSecrets(server)
 	if err != nil {
 		return err
 	}
-	apiKey, err := encryption.Encrypt(server.APIKey)
+	res, err := repo.db.Exec(
+		`UPDATE MCPServers SET name = ?, endpoint = ?, api_key = ?, headers_json = ? WHERE id = ? AND user = ?`,
+		server.Name, server.Endpoint, apiKey, headersJson, server.ID, server.User,
+	)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (repo *MCPRepositoryImpl) Save(server *MCPServer) error {
+	apiKey, headersJson, err := encryptedSecrets(server)
 	if err != nil {
 		return err
 	}

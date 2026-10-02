@@ -211,16 +211,20 @@ export const backendToFrontendMessage = (
 };
 
 // Provider API Types
+// When id is set the provider is updated; a blank api_key or header value keeps the stored one.
 export interface ProviderRequest {
+  id?: string;
   base_url: string;
   api_key: string;
   headers?: Record<string, string>;
 }
 
+// Header values are always blank in responses (they may hold credentials).
 export interface ProviderResponse {
   id: string;
   type?: string;
   base_url: string;
+  label?: string;
   headers?: Record<string, string>;
 }
 
@@ -249,6 +253,7 @@ export interface FrontendProvider {
   name: string;
   type?: string;
   baseUrl: string;
+  label?: string;
   headers?: Record<string, string>;
 }
 

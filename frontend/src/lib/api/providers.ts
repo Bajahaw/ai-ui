@@ -133,6 +133,7 @@ export const backendToFrontendProvider = (
     name: getProviderDisplayName(backendProvider),
     type: backendProvider.type,
     baseUrl: backendProvider.base_url,
+    label: backendProvider.label,
     headers: backendProvider.headers,
   };
 };

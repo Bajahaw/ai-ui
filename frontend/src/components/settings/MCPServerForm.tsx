@@ -178,7 +178,11 @@ export const MCPServerForm = ({
               <Input
                 id="mcp_api_key"
                 type={showApiKey ? "text" : "password"}
-                placeholder="Optional — sent as a Bearer token"
+                placeholder={
+                  server
+                    ? "Leave blank to keep current key"
+                    : "Optional — sent as a Bearer token"
+                }
                 value={formData.api_key}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, api_key: e.target.value }))
@@ -239,7 +243,11 @@ export const MCPServerForm = ({
                       disabled={isSubmitting}
                     />
                     <Input
-                      placeholder="Value"
+                      placeholder={
+                        server?.headers?.[header.key] !== undefined
+                          ? "Leave blank to keep"
+                          : "Value"
+                      }
                       value={header.value}
                       onChange={(e) => {
                         const newEntries = [...headerEntries];

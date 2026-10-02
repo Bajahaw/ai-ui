@@ -228,6 +228,28 @@ func SqlPlaceholders(n int) string {
 	return strings.Join(placeholders, ", ")
 }
 
+// RedactHeaders returns header names with blank values, since values often hold credentials.
+func RedactHeaders(h map[string]string) map[string]string {
+	out := make(map[string]string, len(h))
+	for k := range h {
+		out[k] = ""
+	}
+	return out
+}
+
+// MergeHeaders returns incoming, keeping the existing value for any header sent blank.
+// Headers missing from incoming are dropped.
+func MergeHeaders(incoming, existing map[string]string) map[string]string {
+	out := make(map[string]string, len(incoming))
+	for k, v := range incoming {
+		if v == "" {
+			v = existing[k]
+		}
+		out[k] = v
+	}
+	return out
+}
+
 func ExtractContextUser(r *http.Request) string {
 	user := r.Context().Value("user").(string)
 	return user

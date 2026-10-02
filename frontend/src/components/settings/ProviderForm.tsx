@@ -34,6 +34,7 @@ export const ProviderForm = ({
   submitLabel,
 }: ProviderFormProps) => {
   const initialData = (): ProviderRequest => ({
+    id: provider?.id,
     base_url: provider?.baseUrl || preset?.baseUrl || "",
     api_key: "",
     headers: provider?.headers || {},
@@ -73,7 +74,8 @@ export const ProviderForm = ({
       return;
     }
 
-    if (!formData.api_key.trim()) {
+    // When editing, a blank key keeps the stored one
+    if (!provider && !formData.api_key.trim()) {
       setError("API Key is required");
       return;
     }
@@ -153,13 +155,16 @@ export const ProviderForm = ({
               <Input
                 id="api_key"
                 type={showApiKey ? "text" : "password"}
-                placeholder="Enter your API key"
+                placeholder={
+                  provider ? "Leave blank to keep current key" : "Enter your API key"
+                }
                 value={formData.api_key}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, api_key: e.target.value }))
                 }
                 disabled={isSubmitting}
-                required
+                required={!provider}
+                autoComplete="off"
                 className="pr-10"
               />
               <Button
@@ -214,7 +219,11 @@ export const ProviderForm = ({
                       disabled={isSubmitting}
                     />
                     <Input
-                      placeholder="Value"
+                      placeholder={
+                        provider?.headers?.[header.key] !== undefined
+                          ? "Leave blank to keep"
+                          : "Value"
+                      }
                       value={header.value}
                       onChange={(e) => {
                         const newEntries = [...headerEntries];

@@ -21,6 +21,7 @@ type MCPServer struct {
 	Headers  map[string]string `json:"headers"`
 }
 
+// MCPServerResponse never includes credentials: header values are blanked.
 type MCPServerResponse struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
@@ -30,10 +31,22 @@ type MCPServerResponse struct {
 	Headers map[string]string `json:"headers"`
 }
 
+func toMCPResponse(server *MCPServer) MCPServerResponse {
+	return MCPServerResponse{
+		ID:       server.ID,
+		Name:     server.Name,
+		Endpoint: server.Endpoint,
+		Tools:    server.Tools,
+		Headers:  utils.RedactHeaders(server.Headers),
+	}
+}
+
 type MCPServerListResponse struct {
 	Servers []MCPServerResponse `json:"servers"`
 }
 
+// MCPServerRequest creates a server, or updates one when ID is set.
+// On update, a blank APIKey or header value keeps the stored one.
 type MCPServerRequest struct {
 	ID       string            `json:"id,omitempty"`
 	Name     string            `json:"name"`
@@ -47,13 +60,7 @@ func listMCPServers(w http.ResponseWriter, r *http.Request) {
 	servers := mcps.GetAll(user)
 	response := make([]MCPServerResponse, len(servers))
 	for i, server := range servers {
-		response[i] = MCPServerResponse{
-			ID:       server.ID,
-			Name:     server.Name,
-			Endpoint: server.Endpoint,
-			Tools:    server.Tools,
-			Headers:  server.Headers,
-		}
+		response[i] = toMCPResponse(server)
 	}
 	utils.RespondWithJSON(w, response, http.StatusOK)
 }
@@ -68,14 +75,7 @@ func getMCPServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := MCPServerResponse{
-		ID:       server.ID,
-		Name:     server.Name,
-		Endpoint: server.Endpoint,
-		Tools:    server.Tools,
-		Headers:  server.Headers,
-	}
-	utils.RespondWithJSON(w, response, http.StatusOK)
+	utils.RespondWithJSON(w, toMCPResponse(server), http.StatusOK)
 }
 
 func restoreDefaultMCPServer(w http.ResponseWriter, r *http.Request) {
@@ -94,18 +94,28 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := req.ID
-	if id == "" {
-		id = uuid.NewString()
-	}
-
 	server := MCPServer{
-		ID:       id,
+		ID:       req.ID,
 		Name:     req.Name,
 		Endpoint: req.Endpoint,
 		APIKey:   req.APIKey,
 		User:     user,
 		Headers:  req.Headers,
+	}
+
+	isUpdate := req.ID != ""
+	if isUpdate {
+		existing, getErr := mcps.GetByID(req.ID, user)
+		if getErr != nil {
+			http.Error(w, "MCP server not found", http.StatusNotFound)
+			return
+		}
+		if server.APIKey == "" {
+			server.APIKey = existing.APIKey
+		}
+		server.Headers = utils.MergeHeaders(req.Headers, existing.Headers)
+	} else {
+		server.ID = uuid.NewString()
 	}
 
 	server.Tools, err = GetMCPTools(server)
@@ -115,22 +125,21 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Save MCP server does save tools as well
-	err = mcps.Save(&server)
+	if isUpdate {
+		if err = mcps.Update(&server); err == nil {
+			err = syncTools(server.ID, server.Tools)
+		}
+	} else {
+		// Save MCP server does save tools as well
+		err = mcps.Save(&server)
+	}
 	if err != nil {
 		log.Error("Error saving MCP server", "err", err)
 		http.Error(w, "Error saving MCP server", http.StatusInternalServerError)
 		return
 	}
 
-	response := MCPServerResponse{
-		ID:       server.ID,
-		Name:     server.Name,
-		Endpoint: server.Endpoint,
-		Tools:    server.Tools,
-		Headers:  server.Headers,
-	}
-
+	response := toMCPResponse(&server)
 	utils.RespondWithJSON(w, &response, http.StatusOK)
 }
 
@@ -177,8 +186,20 @@ func refreshMCPTools(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if err = syncTools(server.ID, freshTools); err != nil {
+		log.Error("Error saving refreshed tools", "err", err)
+		http.Error(w, "Error saving tools", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// syncTools stores freshTools for an existing server: tools matched by name keep
+// their ID, is_enabled and require_approval; tools no longer listed are removed.
+func syncTools(serverID string, freshTools []*Tool) error {
 	// Build map of existing tools keyed by name to preserve IDs and user-set flags
-	existingTools := tools.GetAllByMCPServerID(server.ID)
+	existingTools := tools.GetAllByMCPServerID(serverID)
 	existingMap := make(map[string]*Tool, len(existingTools))
 	for _, t := range existingTools {
 		existingMap[t.Name] = t
@@ -196,20 +217,11 @@ func refreshMCPTools(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Upsert all fields (including schema/description changes) with correct state values
-	if err = tools.UpsertAll(freshTools); err != nil {
-		log.Error("Error saving refreshed tools", "err", err)
-		http.Error(w, "Error saving tools", http.StatusInternalServerError)
-		return
+	if err := tools.UpsertAll(freshTools); err != nil {
+		return err
 	}
-
 	// Remove stale tools that no longer exist on the MCP server
-	if err = tools.DeleteNotIn(server.ID, newToolIDs); err != nil {
-		log.Error("Error deleting stale tools", "err", err)
-		http.Error(w, "Error cleaning up stale tools", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
+	return tools.DeleteNotIn(serverID, newToolIDs)
 }
 
 func GetMCPTools(server MCPServer) ([]*Tool, error) {

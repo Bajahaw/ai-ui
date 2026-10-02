@@ -197,8 +197,10 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
     async (providerData: ProviderRequest) => {
       await saveProvider(providerData);
       await refreshProviders();
+      // Backend re-syncs models on update (base URL or key may have changed)
+      await refreshModels();
     },
-    [refreshProviders],
+    [refreshProviders, refreshModels],
   );
 
   const deleteProviderFn = useCallback(

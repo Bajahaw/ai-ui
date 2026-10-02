@@ -3,6 +3,7 @@ package providers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/Bajahaw/ai-ui/cmd/auth"
@@ -14,17 +15,31 @@ import (
 	"github.com/openai/openai-go/v3/option"
 )
 
+// Request creates a provider, or updates one when ID is set.
+// On update, a blank APIKey or header value keeps the stored one.
 type Request struct {
+	ID      string            `json:"id,omitempty"`
 	BaseURL string            `json:"base_url"`
 	APIKey  string            `json:"api_key"`
 	Headers map[string]string `json:"headers"`
 }
 
+// Response never includes credentials: header values are blanked.
 type Response struct {
 	ID      string            `json:"id"`
 	Type    string            `json:"type"`
 	BaseURL string            `json:"base_url"`
-	Headers map[string]string `json:"headers"`
+	Label   string            `json:"label,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
+}
+
+var errFetchModels = errors.New("failed to fetch models from provider")
+
+func toResponse(p *Provider) Response {
+	if p.Type == chatgptoauth.ProviderType {
+		return Response{ID: p.ID, Type: p.Type, BaseURL: p.BaseURL, Label: p.Headers["label"]}
+	}
+	return Response{ID: p.ID, Type: p.Type, BaseURL: p.BaseURL, Headers: utils.RedactHeaders(p.Headers)}
 }
 
 type Model struct {
@@ -156,12 +171,7 @@ func getProvidersList(w http.ResponseWriter, r *http.Request) {
 
 	response := make([]Response, 0, len(providers))
 	for _, p := range providers {
-		response = append(response, Response{
-			ID:      p.ID,
-			Type:    p.Type,
-			BaseURL: p.BaseURL,
-			Headers: p.Headers,
-		})
+		response = append(response, toResponse(p))
 	}
 
 	utils.RespondWithJSON(w, &response, http.StatusOK)
@@ -177,13 +187,7 @@ func getProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := Response{
-		ID:      provider.ID,
-		Type:    provider.Type,
-		BaseURL: provider.BaseURL,
-		Headers: provider.Headers,
-	}
-
+	response := toResponse(provider)
 	utils.RespondWithJSON(w, &response, http.StatusOK)
 }
 
@@ -197,7 +201,7 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 	}
 
 	provider := &Provider{
-		ID:      utils.ExtractProviderName(req.BaseURL) + "-" + uuid.New().String()[:4],
+		ID:      req.ID,
 		Type:    ProviderTypeOpenAI,
 		BaseURL: req.BaseURL,
 		APIKey:  req.APIKey,
@@ -205,30 +209,35 @@ func saveProvider(w http.ResponseWriter, r *http.Request) {
 		Headers: req.Headers,
 	}
 
-	err = providers.Save(provider)
+	status := http.StatusCreated
+	if req.ID == "" {
+		provider.ID = utils.ExtractProviderName(req.BaseURL) + "-" + uuid.New().String()[:4]
+		err = providers.Save(provider)
+	} else {
+		existing, getErr := providers.GetByID(req.ID, provider.User)
+		if getErr != nil || existing.Type != ProviderTypeOpenAI {
+			http.Error(w, "Provider not found", http.StatusNotFound)
+			return
+		}
+		if provider.APIKey == "" {
+			provider.APIKey = existing.APIKey
+		}
+		provider.Headers = utils.MergeHeaders(req.Headers, existing.Headers)
+		err = providers.Upsert(provider)
+		status = http.StatusOK
+	}
 	if err != nil {
 		log.Error("Error saving provider", "err", err)
 		http.Error(w, "Error saving provider", http.StatusInternalServerError)
 		return
 	}
 
-	models, fetchErr := fetchAllModels(provider)
-	if fetchErr != nil {
-		log.Error("Error fetching models for new provider", "err", fetchErr)
-	} else {
-		if err = providers.SaveModels(models, provider.User); err != nil {
-			log.Error("Error saving models for provider", "err", err)
-		}
+	if err = syncModels(provider); err != nil {
+		log.Error("Error syncing models for provider", "provider", provider.ID, "err", err)
 	}
 
-	response := Response{
-		ID:      provider.ID,
-		Type:    provider.Type,
-		BaseURL: provider.BaseURL,
-		Headers: provider.Headers,
-	}
-
-	utils.RespondWithJSON(w, &response, http.StatusCreated)
+	response := toResponse(provider)
+	utils.RespondWithJSON(w, &response, status)
 }
 
 func deleteProvider(w http.ResponseWriter, r *http.Request) {
@@ -254,12 +263,29 @@ func refreshProviderModels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch fresh model list from provider API
-	freshModels, fetchErr := fetchAllModels(provider)
-	if fetchErr != nil {
-		log.Error("Error fetching models from provider", "err", fetchErr)
-		http.Error(w, "Failed to fetch models from provider", http.StatusBadGateway)
+	if err = syncModels(provider); err != nil {
+		log.Error("Error refreshing models", "provider", provider.ID, "err", err)
+		switch {
+		case errors.Is(err, errFetchModels):
+			http.Error(w, "Failed to fetch models from provider", http.StatusBadGateway)
+		case errors.Is(err, ErrUnauthorizedProviderReference):
+			http.Error(w, "Unauthorized provider reference", http.StatusUnauthorized)
+		default:
+			http.Error(w, "Error saving models", http.StatusInternalServerError)
+		}
 		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// syncModels fetches the provider's model list, preserving is_enabled for
+// known models (new ones default to enabled) and removing stale ones.
+func syncModels(provider *Provider) error {
+	// Fetch fresh model list from provider API
+	freshModels, err := fetchAllModels(provider)
+	if err != nil {
+		return fmt.Errorf("%w: %v", errFetchModels, err)
 	}
 
 	// Build map of existing is_enabled states to preserve them
@@ -279,22 +305,9 @@ func refreshProviderModels(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Upsert with correct is_enabled values
-	if err = providers.SaveModels(freshModels, user); err != nil {
-		log.Error("Error saving refreshed models", "err", err)
-		if errors.Is(err, ErrUnauthorizedProviderReference) {
-			http.Error(w, "Unauthorized provider reference", http.StatusUnauthorized)
-			return
-		}
-		http.Error(w, "Error saving models", http.StatusInternalServerError)
-		return
+	if err = providers.SaveModels(freshModels, provider.User); err != nil {
+		return err
 	}
-
 	// Remove stale models that no longer exist at the provider
-	if err = providers.DeleteModelsNotIn(provider.ID, newModelIDs); err != nil {
-		log.Error("Error deleting stale models", "err", err)
-		http.Error(w, "Error cleaning up stale models", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
+	return providers.DeleteModelsNotIn(provider.ID, newModelIDs)
 }
