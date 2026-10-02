@@ -310,7 +310,10 @@ export const ToolsSection: React.FC = () => {
                             )}
                           </div>
                           {tool.description && (
-                            <div className="text-[11px] text-muted-foreground truncate max-w-[200px] sm:max-w-[300px]">
+                            <div
+                              className="text-[11px] text-muted-foreground truncate max-w-[200px] sm:max-w-[300px]"
+                              title={tool.description}
+                            >
                               {tool.description}
                             </div>
                           )}
