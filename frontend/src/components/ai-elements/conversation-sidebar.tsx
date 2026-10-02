@@ -633,11 +633,13 @@ const AuthButton = () => {
   const { isAuthenticated, isCheckingAuth, logout, isLoading } = useAuth();
   const [loginOpen, setLoginOpen] = useState(false);
 
-  useEffect(() => {
-    if (!isCheckingAuth && !isAuthenticated) {
-      setLoginOpen(true);
-    }
-  }, [isAuthenticated, isCheckingAuth]);
+  // Open the login dialog whenever the user becomes signed out
+  const needsLogin = !isCheckingAuth && !isAuthenticated;
+  const [prevNeedsLogin, setPrevNeedsLogin] = useState(false);
+  if (needsLogin !== prevNeedsLogin) {
+    setPrevNeedsLogin(needsLogin);
+    if (needsLogin) setLoginOpen(true);
+  }
 
   const handleLogout = async () => {
     try {

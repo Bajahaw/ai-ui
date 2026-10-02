@@ -313,7 +313,7 @@ export class ChatAPI {
                 try {
                   const errorData = JSON.parse(data);
                   onError(errorData.error || "Unknown error");
-                } catch (e) {
+                } catch {
                   onError(data);
                 }
               }

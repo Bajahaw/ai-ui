@@ -54,9 +54,11 @@ export function ThemeProvider({
   const { settings } = useSettings();
   const remoteAccent = settings[ACCENT_SETTING_KEY];
 
-  useEffect(() => {
+  const [prevRemoteAccent, setPrevRemoteAccent] = useState<string | undefined>();
+  if (remoteAccent !== prevRemoteAccent) {
+    setPrevRemoteAccent(remoteAccent);
     if (remoteAccent !== undefined) setAccent(resolveAccent(remoteAccent));
-  }, [remoteAccent]);
+  }
 
   useEffect(() => {
     applyAccentToDocument(accent);

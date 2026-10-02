@@ -675,32 +675,32 @@ export const ChatInterface = ({
    * Synchronize local model state with the default model setting
    * This ensures the prompt input always reflects the current default model
    */
+  const savedModel =
+    models.length > 0 && !settingsLoading ? getSingleSetting("defaultModel") : "";
+  // Check if saved model is still available in current providers
+  const isSavedModelAvailable =
+    !!savedModel && models.some((m) => m.id === savedModel);
+  // Saved model is no longer available, update to first available
+  const fallbackModel =
+    savedModel && !isSavedModelAvailable ? models[0].id : "";
+
+  // No default model and no local model: the auto-select hook handles it,
+  // which prevents race conditions between auto-select and this component.
+  if (isSavedModelAvailable && !model) {
+    setModel(savedModel); // Sync is only needed if no local model is set
+  } else if (fallbackModel && model !== fallbackModel) {
+    setModel(fallbackModel);
+  }
+
   useEffect(() => {
-    if (models.length > 0 && !settingsLoading) {
-      const savedModel = getSingleSetting("defaultModel");
-
-      // Check if saved model is still available in current providers
-      const isModelAvailable =
-        savedModel && models.find((m) => m.id === savedModel);
-
-      if (isModelAvailable && !model) {
-        setModel(savedModel); // Sync is only needed if no local model is set
-      } else if (!savedModel && !model && models.length > 0) {
-        // No default model exists and no local model - let auto-select hook handle this
-        // This prevents race conditions between auto-select and this component
-      } else if (savedModel && !isModelAvailable && models.length > 0) {
-        // Saved model is no longer available, update to first available
-        const fallbackModel = models[0].id;
-        setModel(fallbackModel);
-        updateSingleSetting("defaultModel", fallbackModel).catch((error) => {
-          console.error("Failed to update default model setting:", error);
-        });
-        console.warn(
-          `Saved model "${savedModel}" is no longer available. Falling back to "${fallbackModel}".`,
-        );
-      }
-    }
-  }, [models, settingsLoading, getSingleSetting, updateSingleSetting, model]);
+    if (!fallbackModel) return;
+    updateSingleSetting("defaultModel", fallbackModel).catch((error) => {
+      console.error("Failed to update default model setting:", error);
+    });
+    console.warn(
+      `Saved model "${savedModel}" is no longer available. Falling back to "${fallbackModel}".`,
+    );
+  }, [fallbackModel, savedModel, updateSingleSetting]);
 
   /**
    * Handle model selection change and persist to settings
@@ -886,32 +886,35 @@ export const ChatInterface = ({
     window.getSelection()?.removeAllRanges();
   }, [replySelection]);
 
-  const copyMessage = (messageId: string | null, fallbackContent: string) => {
-    const element = messageId
-      ? editableMessageRefs.current[messageId]?.getContentElement()
-      : null;
+  const copyMessage = useCallback(
+    (messageId: string | null, fallbackContent: string) => {
+      const element = messageId
+        ? editableMessageRefs.current[messageId]?.getContentElement()
+        : null;
 
-    if (element) {
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      // execCommand('copy') is deprecated but remains the only way to copy
-      // a live selection with full computed styles (fonts, tables, colours, etc.).
-      // The modern Clipboard API does not support selection-based copying.
-      // eslint-disable-next-line @typescript-eslint/no-deprecated
-      const success = document.execCommand("copy");
-      selection?.removeAllRanges();
-      if (!success) {
+      if (element) {
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        // execCommand('copy') is deprecated but remains the only way to copy
+        // a live selection with full computed styles (fonts, tables, colours, etc.).
+        // The modern Clipboard API does not support selection-based copying.
+        const success = document.execCommand("copy");
+        selection?.removeAllRanges();
+        if (!success) {
+          navigator.clipboard.writeText(fallbackContent).catch(console.error);
+        }
+      } else {
         navigator.clipboard.writeText(fallbackContent).catch(console.error);
       }
-    } else {
-      navigator.clipboard.writeText(fallbackContent).catch(console.error);
-    }
-  };
+    },
+    [],
+  );
 
-  const stopReadAloud = useCallback(() => {
+  // Releases the audio element, request and object URL (no state updates).
+  const releaseReadAloud = useCallback(() => {
     ttsAbortRef.current?.abort();
     ttsAbortRef.current = null;
     if (ttsAudioRef.current) {
@@ -924,9 +927,13 @@ export const ChatInterface = ({
       URL.revokeObjectURL(ttsObjectUrlRef.current);
       ttsObjectUrlRef.current = null;
     }
+  }, []);
+
+  const stopReadAloud = useCallback(() => {
+    releaseReadAloud();
     setSpeakingMessageId(null);
     setTtsLoadingMessageId(null);
-  }, []);
+  }, [releaseReadAloud]);
 
   useEffect(() => {
     return () => {
@@ -935,10 +942,17 @@ export const ChatInterface = ({
   }, [stopReadAloud]);
 
   // Stop playback when switching conversations
-  useEffect(() => {
-    stopReadAloud();
+  const conversationId = currentConversation?.id;
+  const [ttsConversationId, setTtsConversationId] = useState(conversationId);
+  if (conversationId !== ttsConversationId) {
+    setTtsConversationId(conversationId);
+    setSpeakingMessageId(null);
+    setTtsLoadingMessageId(null);
     setTtsErrorMessageId(null);
-  }, [currentConversation?.id, stopReadAloud]);
+  }
+  useEffect(() => {
+    releaseReadAloud();
+  }, [conversationId, releaseReadAloud]);
 
   // Auto-mounted conversation files for browser_sandbox: the model only sees a filesystem.
   const conversationFileIds = useMemo(
@@ -999,26 +1013,29 @@ export const ChatInterface = ({
     [speakingMessageId, ttsLoadingMessageId, stopReadAloud],
   );
 
-  const handleRetryMessage = async (messageId: string) => {
-    // Prevent retry when model is invalid
-    if (!isModelValid) {
-      return;
-    }
+  const handleRetryMessage = useCallback(
+    async (messageId: string) => {
+      // Prevent retry when model is invalid
+      if (!isModelValid) {
+        return;
+      }
 
-    // Match send-message behavior: keep extra bottom space and move viewport
-    // so the retried streaming response stays in view.
-    setHasInteracted(true);
-    initialScrollUserInteractedRef.current = true;
-    pendingInitialScrollConversationIdRef.current = null;
-    scrollToBottom();
+      // Match send-message behavior: keep extra bottom space and move viewport
+      // so the retried streaming response stays in view.
+      setHasInteracted(true);
+      initialScrollUserInteractedRef.current = true;
+      pendingInitialScrollConversationIdRef.current = null;
+      scrollToBottom();
 
-    setRetryingMessageId(messageId);
-    try {
-      await onRetryMessage(messageId, model);
-    } finally {
-      setRetryingMessageId(null);
-    }
-  };
+      setRetryingMessageId(messageId);
+      try {
+        await onRetryMessage(messageId, model);
+      } finally {
+        setRetryingMessageId(null);
+      }
+    },
+    [isModelValid, scrollToBottom, onRetryMessage, model],
+  );
 
   const handleUpdateMessage = async (messageId: string, newContent: string) => {
     setUpdatingMessageId(messageId);
@@ -1064,6 +1081,8 @@ export const ChatInterface = ({
     }
 
     return cache;
+    // getBranchInfo reads mutable manager state, so activeBranches is kept as the invalidation key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     messages,
     currentConversation?.backendConversation,
@@ -1243,6 +1262,8 @@ export const ChatInterface = ({
       speakingMessageId,
       ttsLoadingMessageId,
       ttsErrorMessageId,
+      isModelValid,
+      models.length,
       onSwitchBranch,
       handleRetryMessage,
       handleReadAloud,
@@ -1405,7 +1426,6 @@ export const ChatInterface = ({
           </div>
         ) : (
           <ConversationContent className="chat-interface w-full max-w-3xl mx-auto !px-5 lg:!px-3 lg:!pt-14">
-            {/* eslint-disable-next-line react-hooks/refs */}
             {messages.map((message, index) => {
               const stableKey = getMessageKey(message);
               return (

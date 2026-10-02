@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/collapsible.tsx";
 import { BrainIcon, ChevronDownIcon } from "lucide-react";
 import type { ComponentProps } from "react";
-import { createContext, memo, useContext, useEffect, useState } from "react";
+import { createContext, memo, useContext, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils.ts";
 import { Response } from "./response.tsx";
 
@@ -58,19 +58,17 @@ export const Reasoning = memo(
       defaultProp: 0,
     });
 
-    const [startTime, setStartTime] = useState<number | null>(null);
+    const startTimeRef = useRef<number | null>(null);
 
     // Track duration when streaming starts and ends
     useEffect(() => {
       if (isStreaming) {
-        if (startTime === null) {
-          setStartTime(Date.now());
-        }
-      } else if (startTime !== null) {
-        setDuration(Math.round((Date.now() - startTime) / 1000));
-        setStartTime(null);
+        startTimeRef.current ??= Date.now();
+      } else if (startTimeRef.current !== null) {
+        setDuration(Math.round((Date.now() - startTimeRef.current) / 1000));
+        startTimeRef.current = null;
       }
-    }, [isStreaming, startTime, setDuration]);
+    }, [isStreaming, setDuration]);
 
     return (
       <ReasoningContext.Provider

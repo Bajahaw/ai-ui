@@ -74,7 +74,7 @@ export const getFileBytes = async (
 
 export const retainFileBytes = (ids: Iterable<string>): void => {
   const keep = new Set(ids);
-  for (const key of [...fileBytesCache.keys()]) {
+  for (const key of fileBytesCache.keys()) {
     if (!keep.has(key)) fileBytesCache.delete(key);
   }
 };

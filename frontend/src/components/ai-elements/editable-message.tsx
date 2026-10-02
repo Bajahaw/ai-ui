@@ -43,13 +43,15 @@ export const EditableMessage = forwardRef<
     ref,
   ) => {
     const [editContent, setEditContent] = useState(content);
+    const [prevContent, setPrevContent] = useState(content);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const contentDivRef = useRef<HTMLDivElement>(null);
 
     // Update edit content when content prop changes
-    useEffect(() => {
+    if (content !== prevContent) {
+      setPrevContent(content);
       setEditContent(content);
-    }, [content]);
+    }
 
     // Focus and select all text when entering edit mode
     useEffect(() => {

@@ -1,6 +1,9 @@
 import { SecretListResponse, SecretRequest, SecretResponse } from "./types";
 import { getHeaders } from "./headers";
 
+/** Placeholder the backend substitutes with the secret value. */
+export const secretRef = (name: string) => `$secrets.${name}$`;
+
 export const getSecrets = async (): Promise<SecretResponse[]> => {
   const response = await fetch("/api/secrets/all", {
     method: "GET",

@@ -20,7 +20,7 @@ interface FileCardProps {
 }
 
 export function FileCard({ href, filename, isExternal = false }: FileCardProps) {
-  const extMatch = href.match(/\.([a-zA-Z0-9]+)(?:[\?#]|$)/);
+  const extMatch = href.match(/\.([a-zA-Z0-9]+)(?:[?#]|$)/);
   const extension = extMatch ? extMatch[1].toUpperCase() : "FILE";
 
   let Icon = FileIcon;

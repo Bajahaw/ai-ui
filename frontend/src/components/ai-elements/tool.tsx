@@ -13,8 +13,8 @@ import { getFaviconUrl, getToolIcon } from "@/lib/toolIcons";
 import {
   type ComponentProps,
   type ReactNode,
+  createElement,
   useState,
-  useEffect,
 } from "react";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -92,17 +92,13 @@ export const ToolHeader = ({
   mcpUrl,
   ...props
 }: ToolHeaderProps) => {
-  const [imageError, setImageError] = useState(false);
-
-  useEffect(() => {
-    setImageError(false);
-  }, [mcpUrl]);
+  // Remember which URL failed so a new URL gets a fresh attempt
+  const [failedUrl, setFailedUrl] = useState<string | undefined>();
 
   // Extract tool name from "tool-<name>" format for built-in icon lookup
   const toolName = type.startsWith("tool-") ? type.slice(5) : type;
-  const ToolIcon = getToolIcon(toolName);
 
-  const faviconUrl = !imageError ? getFaviconUrl(mcpUrl) : null;
+  const faviconUrl = failedUrl !== mcpUrl ? getFaviconUrl(mcpUrl) : null;
 
   return (
     <CollapsibleTrigger
@@ -114,11 +110,13 @@ export const ToolHeader = ({
           <img
             src={faviconUrl}
             className="size-4 rounded-sm object-contain"
-            onError={() => setImageError(true)}
+            onError={() => setFailedUrl(mcpUrl)}
             alt="icon"
           />
         ) : (
-          <ToolIcon className="size-4 text-muted-foreground" />
+          createElement(getToolIcon(toolName), {
+            className: "size-4 text-muted-foreground",
+          })
         )}
         <span className="font-sm text-muted-foreground text-sm">{type}</span>
         {getStatusBadge(state)}

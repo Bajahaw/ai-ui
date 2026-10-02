@@ -32,23 +32,29 @@ export const useSettings = (): UseSettingsReturn => {
     setError(null);
   }, []);
 
-  const refreshSettings = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
+  // Fetches settings; callers set loading/error beforehand.
+  const loadSettings = useCallback(
+    () =>
+      getSettings()
+        .then((settingsResponse) => {
+          setSettings(settingsResponse.settings);
+          setSystemPrompt(settingsResponse.settings.systemPrompt || "");
+        })
+        .catch((err) => {
+          const errorMessage =
+            err instanceof Error ? err.message : "Failed to load settings";
+          setError(errorMessage);
+          console.error("Error loading settings:", err);
+        })
+        .finally(() => setIsLoading(false)),
+    [],
+  );
 
-      const settingsResponse = await getSettings();
-      setSettings(settingsResponse.settings);
-      setSystemPrompt(settingsResponse.settings.systemPrompt || "");
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to load settings";
-      setError(errorMessage);
-      console.error("Error loading settings:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const refreshSettings = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    await loadSettings();
+  }, [loadSettings]);
 
   const updateAllSettings = useCallback(
     async (newSettings: Record<string, string>) => {
@@ -119,21 +125,28 @@ export const useSettings = (): UseSettingsReturn => {
     [settings],
   );
 
-  // Load settings on mount
-  useEffect(() => {
-    if (isCheckingAuth) {
-      return;
-    }
-
-    if (!isAuthenticated) {
+  // Load settings on mount: clear on sign-out, reload on sign-in
+  const authState = isCheckingAuth
+    ? "checking"
+    : isAuthenticated
+      ? "signed-in"
+      : "signed-out";
+  const [prevAuthState, setPrevAuthState] = useState<string | null>(null);
+  if (authState !== prevAuthState) {
+    setPrevAuthState(authState);
+    if (authState === "signed-out") {
       setSettings({});
       setSystemPrompt("");
       setIsLoading(false);
-      return;
+    } else if (authState === "signed-in") {
+      setIsLoading(true);
+      setError(null);
     }
+  }
 
-    refreshSettings();
-  }, [isAuthenticated, isCheckingAuth, refreshSettings]);
+  useEffect(() => {
+    if (authState === "signed-in") void loadSettings();
+  }, [authState, loadSettings]);
 
   return {
     settings,

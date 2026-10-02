@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -33,33 +33,24 @@ export const GlobalSettingsSection = () => {
   const reasoningEffort = data.settings.reasoningEffort || "medium";
   const enterBehavior = data.settings.enterBehavior || "send";
 
-  const [local, setLocal] = useState({
+  const saved = {
     systemPrompt,
     defaultModel,
     reasoningEffort,
     enterBehavior,
     appendDateToSystemPrompt: appendDate,
     appendPlatformInstructions: appendPlatform,
-  });
+  };
+  const [local, setLocal] = useState(saved);
 
-  useEffect(() => {
-    setLocal({
-      systemPrompt,
-      defaultModel,
-      reasoningEffort,
-      enterBehavior,
-      appendDateToSystemPrompt: appendDate,
-      appendPlatformInstructions: appendPlatform,
-    });
+  // Reset the draft whenever the saved settings change
+  const savedKey = JSON.stringify(saved);
+  const [prevSavedKey, setPrevSavedKey] = useState(savedKey);
+  if (savedKey !== prevSavedKey) {
+    setPrevSavedKey(savedKey);
+    setLocal(saved);
     setHasChanges(false);
-  }, [
-    systemPrompt,
-    defaultModel,
-    reasoningEffort,
-    enterBehavior,
-    appendDate,
-    appendPlatform,
-  ]);
+  }
 
   const handleChange = (key: string, value: string) => {
     setLocal((prev) => ({ ...prev, [key]: value }));

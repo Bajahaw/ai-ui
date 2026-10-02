@@ -39,20 +39,26 @@ export const ModelsProvider = ({ children }: { children: ReactNode }) => {
 
   const clearError = useCallback(() => setError(null), []);
 
+  // Fetches models; callers set loading/error beforehand.
+  const loadModels = useCallback(
+    () =>
+      getAllModels()
+        .then((response) => setModels(response.models))
+        .catch((err) => {
+          const msg =
+            err instanceof Error ? err.message : "Failed to load models";
+          setError(msg);
+          console.error("Error loading models:", err);
+        })
+        .finally(() => setIsLoading(false)),
+    [],
+  );
+
   const refreshModels = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    try {
-      const response = await getAllModels();
-      setModels(response.models);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to load models";
-      setError(msg);
-      console.error("Error loading models:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    await loadModels();
+  }, [loadModels]);
 
   const updateModelsLocal = useCallback((newModels: Model[]) => {
     setModels(newModels);
@@ -109,20 +115,27 @@ export const ModelsProvider = ({ children }: { children: ReactNode }) => {
     [models],
   );
 
-  // Initial load
-  useEffect(() => {
-    if (isCheckingAuth) {
-      return;
-    }
-
-    if (!isAuthenticated) {
+  // Initial load: clear on sign-out, reload on sign-in
+  const authState = isCheckingAuth
+    ? "checking"
+    : isAuthenticated
+      ? "signed-in"
+      : "signed-out";
+  const [prevAuthState, setPrevAuthState] = useState<string | null>(null);
+  if (authState !== prevAuthState) {
+    setPrevAuthState(authState);
+    if (authState === "signed-out") {
       setModels([]);
       setIsLoading(false);
-      return;
+    } else if (authState === "signed-in") {
+      setIsLoading(true);
+      setError(null);
     }
+  }
 
-    refreshModels();
-  }, [isAuthenticated, isCheckingAuth, refreshModels]);
+  useEffect(() => {
+    if (authState === "signed-in") void loadModels();
+  }, [authState, loadModels]);
 
   const value = useMemo<ModelsContextValue>(
     () => ({

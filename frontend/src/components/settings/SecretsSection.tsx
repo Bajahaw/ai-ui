@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "../ui/card";
 import { Check, Copy, Edit, KeyRound, Plus, Trash2 } from "lucide-react";
-import { SecretForm, secretRef } from "./SecretForm";
+import { SecretForm } from "./SecretForm";
+import { secretRef } from "@/lib/api/secrets";
 import { SecretRequest, SecretResponse } from "@/lib/api/types";
 import { useSettingsData } from "@/hooks/useSettingsData";
 

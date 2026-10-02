@@ -24,7 +24,7 @@ vi.mock("@/lib/api/files", async (importOriginal) => {
     }),
     retainFileBytes: vi.fn((ids: Iterable<string>) => {
       const keep = new Set(ids);
-      for (const key of [...bytes.keys()]) {
+      for (const key of bytes.keys()) {
         if (!keep.has(key)) bytes.delete(key);
       }
     }),

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -22,16 +22,17 @@ export const DocumentsSection = () => {
     data.settings.agenticDocumentRetrieval === "true";
   const ocrModel = data.settings.ocrModel || "";
 
-  const [local, setLocal] = useState({
-    attachmentOcrOnly,
-    agenticDocumentRetrieval,
-    ocrModel,
-  });
+  const saved = { attachmentOcrOnly, agenticDocumentRetrieval, ocrModel };
+  const [local, setLocal] = useState(saved);
 
-  useEffect(() => {
-    setLocal({ attachmentOcrOnly, agenticDocumentRetrieval, ocrModel });
+  // Reset the draft whenever the saved settings change
+  const savedKey = JSON.stringify(saved);
+  const [prevSavedKey, setPrevSavedKey] = useState(savedKey);
+  if (savedKey !== prevSavedKey) {
+    setPrevSavedKey(savedKey);
+    setLocal(saved);
     setHasChanges(false);
-  }, [attachmentOcrOnly, agenticDocumentRetrieval, ocrModel]);
+  }
 
   const handleToggleChange = () => {
     setLocal((prev) => ({

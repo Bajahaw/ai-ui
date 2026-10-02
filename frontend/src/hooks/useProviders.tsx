@@ -50,25 +50,33 @@ export const ProvidersProvider = ({ children }: ProvidersProviderProps) => {
 
   const clearError = useCallback(() => setError(null), []);
 
-  const refreshProviders = useCallback(async (_forceRefresh?: boolean) => {
-    setIsLoading(true);
-    setError(null);
+  // Fetches providers; callers set loading/error beforehand.
+  const loadProviders = useCallback(
+    () =>
+      getProviders()
+        .then((backendProviders) =>
+          setProviders(
+            backendProviders.map((p) => backendToFrontendProvider(p)),
+          ),
+        )
+        .catch((err) => {
+          const msg =
+            err instanceof Error ? err.message : "Failed to load providers";
+          setError(msg);
+          console.error("Error loading providers:", err);
+        })
+        .finally(() => setIsLoading(false)),
+    [],
+  );
 
-    try {
-      const backendProviders = await getProviders();
-      const frontendProviders = backendProviders.map((p) =>
-        backendToFrontendProvider(p),
-      );
-      setProviders(frontendProviders);
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Failed to load providers";
-      setError(msg);
-      console.error("Error loading providers:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const refreshProviders = useCallback(
+    async (_forceRefresh?: boolean) => {
+      setIsLoading(true);
+      setError(null);
+      await loadProviders();
+    },
+    [loadProviders],
+  );
 
   const addProvider = useCallback(
     async (providerData: ProviderRequest): Promise<ProviderResponse> => {
@@ -89,10 +97,10 @@ export const ProvidersProvider = ({ children }: ProvidersProviderProps) => {
     [refreshProviders],
   );
 
-  // Initial load
+  // Initial load (state already starts as loading with no error)
   useEffect(() => {
-    refreshProviders();
-  }, [refreshProviders]);
+    void loadProviders();
+  }, [loadProviders]);
 
   const value = useMemo<UseProvidersReturn>(
     () => ({

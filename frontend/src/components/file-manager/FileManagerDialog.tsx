@@ -62,31 +62,40 @@ export function FileManagerDialog({
   const [searchQuery, setSearchQuery] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchFiles = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await getFiles();
-      // Sort by uploadedAt (if provided) else createdAt, desc
-      const sorted = data.sort(
-        (a, b) =>
-          new Date(b.uploadedAt || b.createdAt).getTime() -
-          new Date(a.uploadedAt || a.createdAt).getTime(),
-      );
-      setFiles(sorted);
-    } catch (error) {
-      console.error("Failed to fetch files:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Loads the file list; `loading` is set when the dialog opens.
+  const loadFiles = useCallback(
+    () =>
+      getFiles()
+        .then((data) => {
+          // Sort by uploadedAt (if provided) else createdAt, desc
+          const sorted = data.sort(
+            (a, b) =>
+              new Date(b.uploadedAt || b.createdAt).getTime() -
+              new Date(a.uploadedAt || a.createdAt).getTime(),
+          );
+          setFiles(sorted);
+        })
+        .catch((error) => {
+          console.error("Failed to fetch files:", error);
+        })
+        .finally(() => setLoading(false)),
+    [],
+  );
 
-  useEffect(() => {
+  // Reset selection and search, and reload, each time the dialog opens
+  const [prevOpen, setPrevOpen] = useState(false);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) {
-      fetchFiles();
+      setLoading(true);
       setSelectedFileIds(new Set());
       setSearchQuery("");
     }
-  }, [open, fetchFiles]);
+  }
+
+  useEffect(() => {
+    if (open) void loadFiles();
+  }, [open, loadFiles]);
 
   const handleFileSelect = (fileId: string) => {
     const newSelected = new Set(selectedFileIds);

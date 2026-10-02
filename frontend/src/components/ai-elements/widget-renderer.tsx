@@ -260,17 +260,15 @@ export function WidgetRenderer({
     return () => window.removeEventListener("message", handler);
   }, []);
 
-  const [srcdoc, setSrcdoc] = useState("");
+  const [builtSrcdoc, setBuiltSrcdoc] = useState("");
+  const srcdoc = normalizedCode ? builtSrcdoc : "";
 
   useEffect(() => {
-    if (!normalizedCode) {
-      setSrcdoc("");
-      return;
-    }
+    if (!normalizedCode) return;
 
     const timer = setTimeout(() => {
       setError(null);
-      setSrcdoc(buildSrcdoc(normalizedCode, isDark));
+      setBuiltSrcdoc(buildSrcdoc(normalizedCode, isDark));
     }, 300);
 
     return () => clearTimeout(timer);

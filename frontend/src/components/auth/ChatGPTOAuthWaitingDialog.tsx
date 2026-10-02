@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -60,14 +60,16 @@ export const ChatGPTOAuthWaitingDialog: React.FC = () => {
   const [localError, setLocalError] = useState<string | null>(null);
 
   // Reset help UI when a new OAuth attempt starts/ends.
-  useEffect(() => {
+  const [prevPending, setPrevPending] = useState(chatgptOAuthPending);
+  if (chatgptOAuthPending !== prevPending) {
+    setPrevPending(chatgptOAuthPending);
     if (!chatgptOAuthPending) {
       setHelpOpen(false);
       setUrl("");
       setLocalError(null);
       setSubmitting(false);
     }
-  }, [chatgptOAuthPending]);
+  }
 
   const handleOpenChange = (open: boolean) => {
     if (!open && chatgptOAuthPending) {

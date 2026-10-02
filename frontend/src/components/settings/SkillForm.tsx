@@ -48,16 +48,22 @@ export const SkillForm = ({
 
   // When opening for edit, fetch the full skill content; when opening for
   // create, reset the form.
-  useEffect(() => {
-    if (!open) {
+  const [prevOpen, setPrevOpen] = useState(false);
+  const [prevSkill, setPrevSkill] = useState(skill);
+  if (open !== prevOpen || skill !== prevSkill) {
+    setPrevOpen(open);
+    setPrevSkill(skill);
+    setError(null);
+    if (open && skill) {
+      setIsLoadingContent(true);
+    } else {
       setFormData({ id: "", name: "", description: "", content: "" });
       setFileName(null);
-      setError(null);
-      return;
     }
-    if (skill) {
-      setIsLoadingContent(true);
-      setError(null);
+  }
+
+  useEffect(() => {
+    if (open && skill) {
       getSkill(skill.id)
         .then((detail) => {
           setFormData({
@@ -77,10 +83,6 @@ export const SkillForm = ({
           });
         })
         .finally(() => setIsLoadingContent(false));
-    } else {
-      setFormData({ id: "", name: "", description: "", content: "" });
-      setFileName(null);
-      setError(null);
     }
   }, [open, skill]);
 

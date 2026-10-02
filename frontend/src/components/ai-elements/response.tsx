@@ -325,7 +325,7 @@ const components: Options["components"] = {
             typeof window !== "undefined" &&
             absoluteUrl.origin !== window.location.origin;
         }
-      } catch (e) {
+      } catch {
         // Ignore parse errors
       }
     }

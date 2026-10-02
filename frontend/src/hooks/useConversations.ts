@@ -394,8 +394,10 @@ export const useConversations = () => {
   const { isAuthenticated } = useAuth();
   // Settings-owned tools list, read live for sandbox approval gating.
   const { data: settingsData } = useSettingsData();
-  const toolsRef = useRef<Tool[]>([]);
-  toolsRef.current = settingsData.tools;
+  const toolsRef = useRef<Tool[]>(settingsData.tools);
+  useEffect(() => {
+    toolsRef.current = settingsData.tools;
+  }, [settingsData.tools]);
   const [conversations, setConversations] = useState<ClientConversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<
     string | null
@@ -417,8 +419,7 @@ export const useConversations = () => {
   const catchUpFromServerRef = useRef<() => void>(() => {});
   const catchUpInFlightRef = useRef<Promise<void> | null>(null);
 
-  const managerRef = useRef(new ClientConversationManager());
-  const manager = managerRef.current;
+  const [manager] = useState(() => new ClientConversationManager());
 
   const currentConversation = conversations.find(
     (conv) => conv.id === activeConversationId,
@@ -490,51 +491,60 @@ export const useConversations = () => {
     };
   }, [isAuthenticated, manager, syncConversations, sseEpoch]);
 
-  const loadConversations = useCallback(async (opts?: { silent?: boolean }) => {
-    // Skip if not authenticated to prevent 401 errors
-    if (!isAuthenticated) {
-      return;
-    }
+  // Fetches the conversation list; callers set isLoading beforehand if needed.
+  const fetchConversationList = useCallback(
+    () =>
+      conversationsAPI
+        .fetchConversations()
+        .then(async (backendConversations) => {
+          setError(null);
 
-    try {
+          if (!backendConversations || !Array.isArray(backendConversations)) {
+            console.warn("Backend returned null or invalid conversations data");
+            syncConversations();
+            setHasHydrated(true);
+            return;
+          }
+
+          manager.loadBackendConversations(backendConversations);
+          syncConversations();
+          setHasHydrated(true);
+          setActiveConversationId((id) =>
+            !id || manager.getConversation(id) ? id : null,
+          );
+
+          // Fetch all-time stats from the backend
+          try {
+            const fetchedStats = await conversationsAPI.fetchStats();
+            setStats(fetchedStats);
+          } catch {
+            // Stats are non-critical; swallow the error silently
+          }
+        })
+        .catch((err) => {
+          const errorMessage = ApiErrorHandler.getUserFriendlyMessage(err);
+          setError(errorMessage);
+          console.error("Failed to load conversations:", err);
+          syncConversations();
+          setHasHydrated(true);
+        })
+        .finally(() => setIsLoading(false)),
+    [manager, syncConversations],
+  );
+
+  const loadConversations = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      // Skip if not authenticated to prevent 401 errors
+      if (!isAuthenticated) {
+        return;
+      }
       if (!opts?.silent) {
         setIsLoading(true);
       }
-      setError(null);
-
-      const backendConversations = await conversationsAPI.fetchConversations();
-
-      if (!backendConversations || !Array.isArray(backendConversations)) {
-        console.warn("Backend returned null or invalid conversations data");
-        syncConversations();
-        setHasHydrated(true);
-        return;
-      }
-
-      manager.loadBackendConversations(backendConversations);
-      syncConversations();
-      setHasHydrated(true);
-      setActiveConversationId((id) =>
-        !id || manager.getConversation(id) ? id : null,
-      );
-
-      // Fetch all-time stats from the backend
-      try {
-        const fetchedStats = await conversationsAPI.fetchStats();
-        setStats(fetchedStats);
-      } catch {
-        // Stats are non-critical; swallow the error silently
-      }
-    } catch (err) {
-      const errorMessage = ApiErrorHandler.getUserFriendlyMessage(err);
-      setError(errorMessage);
-      console.error("Failed to load conversations:", err);
-      syncConversations();
-      setHasHydrated(true);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isAuthenticated, manager, syncConversations]);
+      await fetchConversationList();
+    },
+    [isAuthenticated, fetchConversationList],
+  );
 
   const refreshLoadedMessages = useCallback(async () => {
     const loadedIds: string[] = [];
@@ -691,29 +701,36 @@ export const useConversations = () => {
     };
   }, [isAuthenticated, catchUpFromServer, recoverDeadConnection]);
 
+  // Reset state on sign-out; mark loading on sign-in (the fetch runs below)
+  const [prevAuthenticated, setPrevAuthenticated] = useState<boolean | null>(
+    null,
+  );
+  if (isAuthenticated !== prevAuthenticated) {
+    setPrevAuthenticated(isAuthenticated);
+    if (isAuthenticated) {
+      setIsLoading(true);
+    } else {
+      setConversations([]);
+      setActiveConversationId(null);
+      setIsLoading(false);
+      setIsConversationLoading(false);
+      setHasHydrated(false);
+      setError(null);
+      setStats(undefined);
+    }
+  }
+
   // Only load conversations when authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      loadConversations();
-    }
-  }, [isAuthenticated, loadConversations]);
-
-  useEffect(() => {
-    if (isAuthenticated) {
+      void fetchConversationList();
       return;
     }
 
     manager.clear();
-    setConversations([]);
-    setActiveConversationId(null);
-    setIsLoading(false);
-    setIsConversationLoading(false);
-    setHasHydrated(false);
-    setError(null);
-    setStats(undefined);
     needsFocusRefreshRef.current = false;
     focusRefreshInFlightRef.current = false;
-  }, [isAuthenticated, manager]);
+  }, [isAuthenticated, manager, fetchConversationList]);
 
   const getCurrentMessages = useCallback(
     (conversation: ClientConversation): FrontendMessage[] => {

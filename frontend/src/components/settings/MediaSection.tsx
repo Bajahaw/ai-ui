@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Save, RotateCcw, ImageIcon } from "lucide-react";
@@ -28,17 +28,17 @@ export const MediaSection = () => {
   const ttsVoice = data.settings.ttsVoice || "alloy";
   const ttsSpeed = data.settings.ttsSpeed || "1";
 
-  const [local, setLocal] = useState({
-    imageModel,
-    ttsModel,
-    ttsVoice,
-    ttsSpeed,
-  });
+  const saved = { imageModel, ttsModel, ttsVoice, ttsSpeed };
+  const [local, setLocal] = useState(saved);
 
-  useEffect(() => {
-    setLocal({ imageModel, ttsModel, ttsVoice, ttsSpeed });
+  // Reset the draft whenever the saved settings change
+  const savedKey = JSON.stringify(saved);
+  const [prevSavedKey, setPrevSavedKey] = useState(savedKey);
+  if (savedKey !== prevSavedKey) {
+    setPrevSavedKey(savedKey);
+    setLocal(saved);
     setHasChanges(false);
-  }, [imageModel, ttsModel, ttsVoice, ttsSpeed]);
+  }
 
   const handleChange = (key: string, value: string) => {
     setLocal((prev) => ({ ...prev, [key]: value }));

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { AlertCircle, Check, Copy, Loader2 } from "lucide-react";
 import { SecretRequest, SecretResponse } from "@/lib/api/types";
+import { secretRef } from "@/lib/api/secrets";
 
 interface SecretFormProps {
   open: boolean;
@@ -23,8 +24,6 @@ interface SecretFormProps {
 
 // No spaces: letters, digits, underscore only.
 const NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
-
-export const secretRef = (name: string) => `$secrets.${name}$`;
 
 export const SecretForm = ({
   open,
@@ -41,19 +40,17 @@ export const SecretForm = ({
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    if (!open) {
-      setName("");
-      setValue("");
-      setError(null);
-      setCopied(false);
-      return;
-    }
-    setName(secret?.name ?? "");
+  // Reset the form whenever the dialog opens/closes or the secret changes
+  const [prevOpen, setPrevOpen] = useState(false);
+  const [prevSecret, setPrevSecret] = useState(secret);
+  if (open !== prevOpen || secret !== prevSecret) {
+    setPrevOpen(open);
+    setPrevSecret(secret);
+    setName(open ? (secret?.name ?? "") : "");
     setValue("");
     setError(null);
     setCopied(false);
-  }, [open, secret]);
+  }
 
   const previewName = name.replace(/\s+/g, "").toUpperCase() || "NAME";
   const previewRef = secretRef(previewName);

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +20,7 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
   open,
   onOpenChange,
 }) => {
-  const [isLoginMode, setIsLoginMode] = useState(true);
+  const [loginModeState, setIsLoginMode] = useState(true);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -42,11 +42,8 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({
   const dialogOpen = isControlled ? open : isDialogOpen;
   const setDialogOpen = isControlled ? onOpenChange : setIsDialogOpen;
 
-  useEffect(() => {
-    if (!registrationEnabled) {
-      setIsLoginMode(true);
-    }
-  }, [registrationEnabled]);
+  // Registration mode is unavailable when sign-ups are disabled
+  const isLoginMode = loginModeState || !registrationEnabled;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

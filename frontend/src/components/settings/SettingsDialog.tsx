@@ -64,9 +64,14 @@ const SettingsDialogContent = ({
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const { loaded, loading, fetchAll } = useSettingsData();
 
-  useEffect(() => {
+  // Jump to the requested tab each time the dialog opens
+  const [prevOpen, setPrevOpen] = useState(open);
+  const [prevInitialTab, setPrevInitialTab] = useState(initialTab);
+  if (open !== prevOpen || initialTab !== prevInitialTab) {
+    setPrevOpen(open);
+    setPrevInitialTab(initialTab);
     if (open) setActiveTab(initialTab);
-  }, [open, initialTab]);
+  }
 
   useEffect(() => {
     if (!loaded && !loading) {

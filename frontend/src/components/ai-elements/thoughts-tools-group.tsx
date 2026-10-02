@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createElement, useEffect, useMemo, useState } from "react";
 import { BrainIcon, ClockIcon } from "lucide-react";
 import {
   getFaviconUrl,
@@ -50,6 +50,7 @@ type ThoughtsToolsGroupProps = {
 };
 
 const MAX_VISIBLE_TOOL_ICONS = 3;
+const NO_TOOL_CALLS: ToolCall[] = [];
 const ICON_CHIP_CLASS =
   "flex size-4.5 items-center justify-center overflow-hidden rounded-full border bg-muted";
 
@@ -80,10 +81,12 @@ const ToolCallItem = ({
 
   const [localState, setLocalState] =
     useState<ToolCallDisplayState>(initialState);
+  const [prevInitialState, setPrevInitialState] = useState(initialState);
 
-  useEffect(() => {
+  if (initialState !== prevInitialState) {
+    setPrevInitialState(initialState);
     setLocalState(initialState);
-  }, [initialState]);
+  }
 
   return (
     <Tool key={toolCall.id} defaultOpen={false}>
@@ -149,26 +152,23 @@ const ToolSummaryIcon = ({
   toolCall: ToolCall;
   settingsData: SettingsDataLike;
 }) => {
-  const [imageError, setImageError] = useState(false);
+  // Remember which URL failed so a new URL gets a fresh attempt
+  const [failedUrl, setFailedUrl] = useState<string | undefined>();
   const iconSourceUrl = useMemo(
     () => getIconSourceUrlForToolCall(toolCall, settingsData),
     [toolCall, settingsData],
   );
   const faviconUrl = useMemo(
-    () => (!imageError ? getFaviconUrl(iconSourceUrl) : null),
-    [iconSourceUrl, imageError],
+    () => (failedUrl !== iconSourceUrl ? getFaviconUrl(iconSourceUrl) : null),
+    [iconSourceUrl, failedUrl],
   );
-
-  useEffect(() => {
-    setImageError(false);
-  }, [iconSourceUrl]);
-
-  const ToolIcon = getToolIcon(toolCall.name);
 
   if (!faviconUrl) {
     return (
       <span className={ICON_CHIP_CLASS} aria-hidden="true">
-        <ToolIcon className="size-3 text-muted-foreground" />
+        {createElement(getToolIcon(toolCall.name), {
+          className: "size-3 text-muted-foreground",
+        })}
       </span>
     );
   }
@@ -178,7 +178,7 @@ const ToolSummaryIcon = ({
       <img
         src={faviconUrl}
         className="size-full object-cover"
-        onError={() => setImageError(true)}
+        onError={() => setFailedUrl(iconSourceUrl)}
         alt={`${toolCall.name} icon`}
       />
     </span>
@@ -191,7 +191,7 @@ export const ThoughtsToolsGroup = ({
   className,
   conversationFileIds,
 }: ThoughtsToolsGroupProps) => {
-  const toolCalls = message.toolCalls ?? [];
+  const toolCalls = message.toolCalls ?? NO_TOOL_CALLS;
   const hasReasoning = Boolean(message.reasoning?.trim());
   const isStreaming = message.status === "pending";
 
@@ -208,31 +208,35 @@ export const ThoughtsToolsGroup = ({
   );
 
   const [isOpen, setIsOpen] = useState(() => hasAwaitingApproval);
-  const previousAwaitingApprovalRef = useRef(hasAwaitingApproval);
+  const [prevAwaitingApproval, setPrevAwaitingApproval] =
+    useState(hasAwaitingApproval);
 
-  // Force tool call text to be visible for a brief moment even if it completes instantly
-  const [briefToolName, setBriefToolName] = useState<string | null>(null);
-
-  useEffect(() => {
-    const lastCall = toolCalls[toolCalls.length - 1];
-    if (lastCall) {
-      setBriefToolName(lastCall.name);
-
-      const timer = setTimeout(() => {
-        setBriefToolName(null);
-      }, 1500); // 1.5s delay
-
-      return () => clearTimeout(timer);
-    }
-  }, [toolCalls.length]);
-
-  useEffect(() => {
-    if (hasAwaitingApproval && !previousAwaitingApprovalRef.current) {
+  if (hasAwaitingApproval !== prevAwaitingApproval) {
+    setPrevAwaitingApproval(hasAwaitingApproval);
+    if (hasAwaitingApproval) {
       setIsOpen(true);
     }
+  }
 
-    previousAwaitingApprovalRef.current = hasAwaitingApproval;
-  }, [hasAwaitingApproval]);
+  // Force tool call text to be visible for a brief moment even if it completes instantly.
+  // Holds the tool count whose 1.5s window has elapsed; a new call reopens the window.
+  const toolCallCount = toolCalls.length;
+  const [expiredToolCallCount, setExpiredToolCallCount] = useState<
+    number | null
+  >(null);
+
+  useEffect(() => {
+    if (toolCallCount === 0) return;
+    const timer = setTimeout(() => {
+      setExpiredToolCallCount(toolCallCount);
+    }, 1500); // 1.5s delay
+    return () => clearTimeout(timer);
+  }, [toolCallCount]);
+
+  const briefToolName =
+    toolCallCount > 0 && expiredToolCallCount !== toolCallCount
+      ? toolCalls[toolCallCount - 1].name
+      : null;
 
   if (!hasReasoning && toolCalls.length === 0) {
     return null;

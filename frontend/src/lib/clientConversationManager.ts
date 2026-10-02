@@ -589,7 +589,7 @@ export class ClientConversationManager {
       if (existingConv) {
         // Merge minimal backend conversation fields (messages may be fetched separately)
         existingConv.backendConversation = {
-          ...(existingConv.backendConversation || {}),
+          ...existingConv.backendConversation,
           ...normalizedBackendConv,
         } as Conversation;
         existingConv.title = normalizedBackendConv.title || existingConv.title;

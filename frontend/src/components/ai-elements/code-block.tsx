@@ -106,11 +106,14 @@ export const CodeBlock = ({
   ...props
 }: CodeBlockProps) => {
   const [showHighlight, setShowHighlight] = useState(false);
-  const [resolvedLanguage, setResolvedLanguage] = useState("text");
 
   const normalizedLanguage = useMemo(
     () => normalizeLanguage(language),
     [language],
+  );
+  const resolvedLanguage = useMemo(
+    () => resolvePrismLanguage(normalizedLanguage) ?? "text",
+    [normalizedLanguage],
   );
 
   useEffect(() => {
@@ -121,11 +124,6 @@ export const CodeBlock = ({
     }, 10);
     return () => clearTimeout(timer);
   }, []);
-
-  useEffect(() => {
-    const nextLanguage = resolvePrismLanguage(normalizedLanguage);
-    setResolvedLanguage(nextLanguage ?? "text");
-  }, [normalizedLanguage]);
 
   const canHighlight = ENABLE_HIGHLIGHTING && showHighlight;
 
