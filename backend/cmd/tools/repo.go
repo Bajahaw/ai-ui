@@ -63,7 +63,8 @@ func (repo *ToolRepositoryImpl) GetAll(user string) []*Tool {
 
 func (repo *ToolRepositoryImpl) GetByName(name, user string) (*Tool, error) {
 	var tool Tool
-	sql := `SELECT id, mcp_server_id, name, description, input_schema, require_approval, is_enabled FROM Tools WHERE name = ? and mcp_server_id IN (SELECT id FROM MCPServers WHERE user = ?)`
+	// Prefer an enabled tool when two servers share a tool name.
+	sql := `SELECT id, mcp_server_id, name, description, input_schema, require_approval, is_enabled FROM Tools WHERE name = ? and mcp_server_id IN (SELECT id FROM MCPServers WHERE user = ?) ORDER BY is_enabled DESC LIMIT 1`
 	err := repo.db.QueryRow(sql, name, user).Scan(
 		&tool.ID,
 		&tool.MCPServerID,

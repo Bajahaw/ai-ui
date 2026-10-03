@@ -531,9 +531,9 @@ func mcpOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	mcpSessionManager.invalidate(server.ID)
 
-	freshTools, err := GetMCPTools(*server)
+	freshTools, info, err := GetMCPTools(*server)
 	if err == nil {
-		err = syncTools(server.ID, freshTools)
+		err = storeCatalog(server.ID, server.User, freshTools, info)
 	}
 	if err != nil {
 		log.Error("MCP OAuth connected but listing tools failed", "server", server.ID, "err", err)

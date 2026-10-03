@@ -9,12 +9,17 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const mcpServerColumns = `id, name, endpoint, api_key, headers_json, auth_type, oauth_json`
+const mcpServerColumns = `id, name, endpoint, api_key, headers_json, auth_type, oauth_json,
+	server_name, server_title, server_version, server_description, server_instructions,
+	auto_update, update_pending, last_checked_at`
 
 // scanMCPServer reads a row selected with mcpServerColumns and decrypts its credentials.
 func scanMCPServer(row interface{ Scan(...any) error }, server *MCPServer) error {
 	var headersJson, oauthJson string
-	if err := row.Scan(&server.ID, &server.Name, &server.Endpoint, &server.APIKey, &headersJson, &server.AuthType, &oauthJson); err != nil {
+	info := &server.Info
+	if err := row.Scan(&server.ID, &server.Name, &server.Endpoint, &server.APIKey, &headersJson, &server.AuthType, &oauthJson,
+		&info.Name, &info.Title, &info.Version, &info.Description, &info.Instructions,
+		&server.AutoUpdate, &server.UpdatePending, &server.LastCheckedAt); err != nil {
 		return err
 	}
 	decodeServerSecrets(server, headersJson, oauthJson)
@@ -54,6 +59,8 @@ type MCPServerRepository interface {
 	Update(server *MCPServer) error
 	UpdateOAuth(server *MCPServer) error
 	UpdateOAuthToken(id, user string, connectedAt time.Time, token *oauth2.Token) error
+	UpdateServerInfo(id, user string, info MCPServerInfo) error
+	UpdateSyncState(id, user string, pending bool, checkedAt int64) error
 	DeleteByID(id string, user string) error
 }
 
@@ -151,8 +158,8 @@ func (repo *MCPRepositoryImpl) Update(server *MCPServer) error {
 		return err
 	}
 	res, err := repo.db.Exec(
-		`UPDATE MCPServers SET name = ?, endpoint = ?, api_key = ?, headers_json = ?, auth_type = ?, oauth_json = ? WHERE id = ? AND user = ?`,
-		server.Name, server.Endpoint, apiKey, headersJson, server.AuthType, oauthJson, server.ID, server.User,
+		`UPDATE MCPServers SET name = ?, endpoint = ?, api_key = ?, headers_json = ?, auth_type = ?, oauth_json = ?, auto_update = ? WHERE id = ? AND user = ?`,
+		server.Name, server.Endpoint, apiKey, headersJson, server.AuthType, oauthJson, server.AutoUpdate, server.ID, server.User,
 	)
 	if err != nil {
 		return err
@@ -193,14 +200,51 @@ func (repo *MCPRepositoryImpl) UpdateOAuthToken(id, user string, connectedAt tim
 	return repo.UpdateOAuth(server)
 }
 
+// UpdateServerInfo stores what the server reported about itself on initialize.
+func (repo *MCPRepositoryImpl) UpdateServerInfo(id, user string, info MCPServerInfo) error {
+	res, err := repo.db.Exec(
+		`UPDATE MCPServers SET server_name = ?, server_title = ?, server_version = ?, server_description = ?, server_instructions = ? WHERE id = ? AND user = ?`,
+		info.Name, info.Title, info.Version, info.Description, info.Instructions, id, user,
+	)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// UpdateSyncState records an update check: when it ran (unix seconds) and
+// whether it found changes that were not applied.
+func (repo *MCPRepositoryImpl) UpdateSyncState(id, user string, pending bool, checkedAt int64) error {
+	res, err := repo.db.Exec(
+		`UPDATE MCPServers SET update_pending = ?, last_checked_at = ? WHERE id = ? AND user = ?`,
+		pending, checkedAt, id, user,
+	)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 func (repo *MCPRepositoryImpl) Save(server *MCPServer) error {
 	apiKey, headersJson, oauthJson, err := encryptedSecrets(server)
 	if err != nil {
 		return err
 	}
 
-	query := `INSERT INTO MCPServers (id, name, endpoint, api_key, user, headers_json, auth_type, oauth_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err = repo.db.Exec(query, server.ID, server.Name, server.Endpoint, apiKey, server.User, headersJson, server.AuthType, oauthJson)
+	info := server.Info
+	query := `INSERT INTO MCPServers (id, name, endpoint, api_key, user, headers_json, auth_type, oauth_json,
+		server_name, server_title, server_version, server_description, server_instructions,
+		auto_update, update_pending, last_checked_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err = repo.db.Exec(query, server.ID, server.Name, server.Endpoint, apiKey, server.User, headersJson, server.AuthType, oauthJson,
+		info.Name, info.Title, info.Version, info.Description, info.Instructions,
+		server.AutoUpdate, server.UpdatePending, server.LastCheckedAt)
 	if err != nil {
 		return err
 	}

@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Bajahaw/ai-ui/cmd/utils"
 
 	"github.com/google/uuid"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type MCPServer struct {
@@ -21,6 +23,41 @@ type MCPServer struct {
 	Headers  map[string]string `json:"headers"`
 	AuthType string            `json:"auth_type"`
 	OAuth    *MCPOAuth         `json:"-"`
+	Info     MCPServerInfo     `json:"server_info"`
+	// AutoUpdate applies changes found by the app-load update check; when
+	// off, the check only sets UpdatePending.
+	AutoUpdate    bool  `json:"auto_update"`
+	UpdatePending bool  `json:"update_pending"`
+	LastCheckedAt int64 `json:"-"` // unix seconds
+}
+
+// MCPServerInfo is what the server reports about itself on initialize.
+// It is server-controlled text, so it is length-capped on capture.
+type MCPServerInfo struct {
+	Name         string `json:"name"`
+	Title        string `json:"title,omitempty"`
+	Version      string `json:"version,omitempty"`
+	Description  string `json:"description,omitempty"`
+	Instructions string `json:"instructions,omitempty"`
+}
+
+const (
+	mcpMaxInfoFieldRunes    = 1000
+	mcpMaxInstructionsRunes = 16000
+)
+
+func serverInfoFromInit(res *mcp.InitializeResult) MCPServerInfo {
+	if res == nil {
+		return MCPServerInfo{}
+	}
+	info := MCPServerInfo{Instructions: truncateRunes(strings.TrimSpace(res.Instructions), mcpMaxInstructionsRunes)}
+	if si := res.ServerInfo; si != nil {
+		info.Name = truncateRunes(strings.TrimSpace(si.Name), mcpMaxInfoFieldRunes)
+		info.Title = truncateRunes(strings.TrimSpace(si.Title), mcpMaxInfoFieldRunes)
+		info.Version = truncateRunes(strings.TrimSpace(si.Version), mcpMaxInfoFieldRunes)
+		info.Description = truncateRunes(strings.TrimSpace(si.Description), mcpMaxInfoFieldRunes)
+	}
+	return info
 }
 
 // MCPServerResponse never includes credentials: header values are blanked.
@@ -29,23 +66,32 @@ type MCPServerResponse struct {
 	Name     string `json:"name"`
 	Endpoint string `json:"endpoint"`
 	// APIKey string
-	Tools    []*Tool           `json:"tools"`
-	Headers  map[string]string `json:"headers"`
-	AuthType string            `json:"auth_type"`
-	OAuth    *MCPOAuthResponse `json:"oauth,omitempty"`
+	Tools         []*Tool           `json:"tools"`
+	Headers       map[string]string `json:"headers"`
+	AuthType      string            `json:"auth_type"`
+	OAuth         *MCPOAuthResponse `json:"oauth,omitempty"`
+	ServerInfo    *MCPServerInfo    `json:"server_info,omitempty"`
+	AutoUpdate    bool              `json:"auto_update"`
+	UpdatePending bool              `json:"update_pending"`
 }
 
 func toMCPResponse(server *MCPServer) MCPServerResponse {
 	resp := MCPServerResponse{
-		ID:       server.ID,
-		Name:     server.Name,
-		Endpoint: server.Endpoint,
-		Tools:    server.Tools,
-		Headers:  utils.RedactHeaders(server.Headers),
-		AuthType: server.AuthType,
+		ID:            server.ID,
+		Name:          server.Name,
+		Endpoint:      server.Endpoint,
+		Tools:         server.Tools,
+		Headers:       utils.RedactHeaders(server.Headers),
+		AuthType:      server.AuthType,
+		AutoUpdate:    server.AutoUpdate,
+		UpdatePending: server.UpdatePending,
 	}
 	if server.AuthType == AuthTypeOAuth2 {
 		resp.OAuth = toMCPOAuthResponse(server.OAuth)
+	}
+	if server.Info != (MCPServerInfo{}) {
+		info := server.Info
+		resp.ServerInfo = &info
 	}
 	return resp
 }
@@ -64,6 +110,8 @@ type MCPServerRequest struct {
 	Headers  map[string]string `json:"headers"`
 	AuthType string            `json:"auth_type,omitempty"`
 	OAuth    *MCPOAuthRequest  `json:"oauth,omitempty"`
+	// Omitted keeps the stored setting (off for new servers).
+	AutoUpdate *bool `json:"auto_update,omitempty"`
 }
 
 func listMCPServers(w http.ResponseWriter, r *http.Request) {
@@ -133,8 +181,14 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 			server.APIKey = existing.APIKey
 		}
 		server.Headers = utils.MergeHeaders(req.Headers, existing.Headers)
+		server.AutoUpdate = existing.AutoUpdate
+		server.UpdatePending = existing.UpdatePending
+		server.LastCheckedAt = existing.LastCheckedAt
 	} else {
 		server.ID = uuid.NewString()
+	}
+	if req.AutoUpdate != nil {
+		server.AutoUpdate = *req.AutoUpdate
 	}
 
 	if server.AuthType == AuthTypeOAuth2 {
@@ -149,19 +203,22 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 	if needsAuthorization {
 		if existing != nil {
 			server.Tools = existing.Tools
+			server.Info = existing.Info
 		}
 	} else {
-		server.Tools, err = GetMCPTools(server)
+		server.Tools, server.Info, err = GetMCPTools(server)
 		if err != nil {
 			log.Error("Error getting MCP tools", "err", err)
 			http.Error(w, "Error connecting to MCP server", http.StatusBadRequest)
 			return
 		}
+		server.UpdatePending = false
+		server.LastCheckedAt = time.Now().Unix()
 	}
 
 	if isUpdate {
 		if err = mcps.Update(&server); err == nil && !needsAuthorization {
-			err = syncTools(server.ID, server.Tools)
+			err = storeCatalog(server.ID, user, server.Tools, server.Info)
 		}
 	} else {
 		// Save MCP server does save tools as well
@@ -204,15 +261,11 @@ func refreshMCPTools(w http.ResponseWriter, r *http.Request) {
 
 	// Built-in servers (id starts with "default") don't use MCP SDK
 	var freshTools []*Tool
-	if strings.HasPrefix(server.ID, "default") {
-		freshTools = GetBuiltInTools()
-		// Update MCPServerID to match the actual server ID
-		for _, t := range freshTools {
-			t.MCPServerID = server.ID
-		}
+	if isBuiltInServer(server.ID) {
+		freshTools, server.Info = builtInToolsFor(server.ID), builtInServerInfo()
 	} else {
 		var fetchErr error
-		freshTools, fetchErr = GetMCPTools(*server)
+		freshTools, server.Info, fetchErr = GetMCPTools(*server)
 		if fetchErr != nil {
 			log.Error("Error fetching tools from MCP server", "err", fetchErr)
 			http.Error(w, "Failed to fetch tools from MCP server", http.StatusBadGateway)
@@ -220,13 +273,25 @@ func refreshMCPTools(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err = syncTools(server.ID, freshTools); err != nil {
+	if err = storeCatalog(server.ID, user, freshTools, server.Info); err != nil {
 		log.Error("Error saving refreshed tools", "err", err)
 		http.Error(w, "Error saving tools", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// storeCatalog saves a freshly fetched catalog and marks the server as
+// checked with no pending update.
+func storeCatalog(serverID, user string, freshTools []*Tool, info MCPServerInfo) error {
+	if err := syncTools(serverID, freshTools); err != nil {
+		return err
+	}
+	if err := mcps.UpdateServerInfo(serverID, user, info); err != nil {
+		return err
+	}
+	return mcps.UpdateSyncState(serverID, user, false, time.Now().Unix())
 }
 
 // syncTools stores freshTools for an existing server: tools matched by name keep
@@ -258,25 +323,44 @@ func syncTools(serverID string, freshTools []*Tool) error {
 	return tools.DeleteNotIn(serverID, newToolIDs)
 }
 
-func GetMCPTools(server MCPServer) ([]*Tool, error) {
+// GetMCPTools lists the server's tools along with what it reported about
+// itself on initialize.
+func GetMCPTools(server MCPServer) ([]*Tool, MCPServerInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), mcpConnectTimeout)
 	defer cancel()
+	return fetchMCPCatalog(ctx, server)
+}
 
+// fetchMCPCatalog retries once on a fresh session when the cached one died.
+func fetchMCPCatalog(ctx context.Context, server MCPServer) ([]*Tool, MCPServerInfo, error) {
+	listed, info, err := listMCPCatalog(ctx, server)
+	if err != nil && ctx.Err() == nil && sessionDead(err) {
+		mcpSessionManager.invalidate(server.ID)
+		listed, info, err = listMCPCatalog(ctx, server)
+	}
+	return listed, info, err
+}
+
+func listMCPCatalog(ctx context.Context, server MCPServer) ([]*Tool, MCPServerInfo, error) {
 	session, err := mcpSessionManager.session(ctx, server)
 	if err != nil {
 		log.Error("Error connecting to MCP server", "err", err)
-		return []*Tool{}, err
+		return []*Tool{}, MCPServerInfo{}, err
 	}
 
-	if res := session.InitializeResult(); res != nil && res.Capabilities.Tools == nil {
-		return []*Tool{}, nil
+	res := session.InitializeResult()
+	info := serverInfoFromInit(res)
+	if res != nil && res.Capabilities.Tools == nil {
+		return []*Tool{}, info, nil
 	}
 
 	var listed []*Tool
 	for tool, err := range session.Tools(ctx, nil) {
+		// Iteration stops at the first error, so a partial list must not be
+		// treated as complete: syncTools would delete the missing tools.
 		if err != nil {
-			log.Error("Error fetching tool from MCP server", "err", err)
-			continue
+			log.Error("Error fetching tools from MCP server", "err", err)
+			return []*Tool{}, MCPServerInfo{}, err
 		}
 		// New tools start enabled; syncTools restores the stored flag for
 		// tools that already exist, so a refresh never re-enables one.
@@ -293,7 +377,7 @@ func GetMCPTools(server MCPServer) ([]*Tool, error) {
 		})
 	}
 
-	return listed, nil
+	return listed, info, nil
 }
 
 type acceptHeaderRoundTripper struct {

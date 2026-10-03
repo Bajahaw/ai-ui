@@ -37,8 +37,8 @@ func TestRunMigrations_FreshDB(t *testing.T) {
 		t.Fatalf("Failed to get user_version: %v", err)
 	}
 
-	if userVersion != 11 {
-		t.Errorf("Expected user_version to be 11, got %d", userVersion)
+	if userVersion != 13 {
+		t.Errorf("Expected user_version to be 13, got %d", userVersion)
 	}
 
 	var hasUserSecrets bool
@@ -86,6 +86,17 @@ func TestRunMigrations_FreshDB(t *testing.T) {
 	}
 	if !hasHeadersJson {
 		t.Error("Expected headers_json column in MCPServers table, but it was not found")
+	}
+
+	for _, col := range []string{"server_name", "server_title", "server_version", "server_description", "server_instructions",
+		"auto_update", "update_pending", "last_checked_at"} {
+		var has bool
+		if err := db.QueryRow("SELECT COUNT(*) > 0 FROM pragma_table_info('MCPServers') WHERE name = ?", col).Scan(&has); err != nil {
+			t.Fatalf("Failed to check MCPServers column %s: %v", col, err)
+		}
+		if !has {
+			t.Errorf("Expected %s column in MCPServers table", col)
+		}
 	}
 }
 
@@ -238,8 +249,8 @@ func TestRunMigrations_UpgradeFromV1(t *testing.T) {
 	if err := db.QueryRow("PRAGMA user_version;").Scan(&userVersion); err != nil {
 		t.Fatalf("Failed to retrieve user version: %v", err)
 	}
-	if userVersion != 11 {
-		t.Errorf("Expected bumped version to be 11, got %d", userVersion)
+	if userVersion != 13 {
+		t.Errorf("Expected bumped version to be 13, got %d", userVersion)
 	}
 
 	// Verify headers_json was added and old data is intact

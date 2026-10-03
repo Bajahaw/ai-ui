@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -76,6 +77,7 @@ export const MCPServerForm = ({
     api_key: "",
     headers: server?.headers || preset?.headers || {},
     auth_type: server ? (server.auth_type ?? "") : (preset?.authType ?? ""),
+    auto_update: server?.auto_update ?? false,
   });
   const initialOAuth = (): MCPOAuthRequest => ({
     client_id: server?.oauth?.client_id ?? "",
@@ -489,6 +491,29 @@ export const MCPServerForm = ({
               </div>
             </div>
           )}
+
+          <div className="flex items-start justify-between gap-4 pt-2">
+            <div className="space-y-1">
+              <Label className="!mb-0">Auto-update tools</Label>
+              <p className="text-xs text-muted-foreground">
+                Apply tool changes from this server when the app opens
+                (checked at most every 6 hours). Off: you'll see "Update
+                available" and can refresh manually.
+              </p>
+            </div>
+            <Switch
+              className="mx-1 mt-0.5 flex-shrink-0"
+              title="Auto-update tools"
+              checked={!!formData.auto_update}
+              onCheckedChange={() =>
+                setFormData((prev) => ({
+                  ...prev,
+                  auto_update: !prev.auto_update,
+                }))
+              }
+              disabled={isSubmitting}
+            />
+          </div>
 
           <div className="space-y-2.5">
             <div className="flex items-center justify-between pt-2">

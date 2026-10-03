@@ -3,6 +3,7 @@ import {
   ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useRef,
   useState,
 } from "react";
@@ -14,6 +15,7 @@ import {
   saveProvider,
 } from "@/lib/api/providers";
 import {
+  checkMCPUpdates,
   deleteMCPServer as deleteMCPServerApi,
   getMCPServers,
   refreshMCPTools as refreshMCPToolsApi,
@@ -85,6 +87,8 @@ interface SettingsDataContext {
   /** Re-reads servers and tools, e.g. after an OAuth callback stored new tools. */
   reloadMCPServers: () => Promise<void>;
   restoreDefaultMCPServer: () => Promise<void>;
+  /** True while the app-load MCP server update check runs. */
+  checkingMCPUpdates: boolean;
 
   // Tools
   updateToolsLocal: (tools: Tool[]) => void;
@@ -310,6 +314,50 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
     setData((d) => ({ ...d, mcpServers: mcpRes }));
   }, [refreshTools]);
 
+  // Once per app load (and per login), check MCP servers for updates. The
+  // backend throttles per server, so most loads make no MCP requests.
+  const [checkingMCPUpdates, setCheckingMCPUpdates] = useState(false);
+  const [mcpUpdatesFound, setMCPUpdatesFound] = useState(false);
+  const mcpUpdateCheckStarted = useRef(false);
+
+  useEffect(() => {
+    if (isCheckingAuth) return;
+    if (!isAuthenticated) {
+      mcpUpdateCheckStarted.current = false;
+      return;
+    }
+    if (mcpUpdateCheckStarted.current) return;
+    mcpUpdateCheckStarted.current = true;
+    // Throttled checks return instantly; only show the spinner for real work.
+    const showSpinner = setTimeout(() => setCheckingMCPUpdates(true), 300);
+    checkMCPUpdates()
+      .then((res) => {
+        if (res.updated.length > 0 || res.pending.length > 0) {
+          setMCPUpdatesFound(true);
+        }
+      })
+      .catch((err) => console.error("MCP update check failed:", err))
+      .finally(() => {
+        clearTimeout(showSpinner);
+        setCheckingMCPUpdates(false);
+      });
+  }, [isAuthenticated, isCheckingAuth]);
+
+  // Reload only after the initial fetch settles, so its older response can't
+  // overwrite the updated servers.
+  const reloadingAfterCheck = useRef(false);
+  useEffect(() => {
+    if (!mcpUpdatesFound || !loaded || loading || reloadingAfterCheck.current)
+      return;
+    reloadingAfterCheck.current = true;
+    reloadMCPServers()
+      .catch((err) => console.error("Failed to reload MCP servers:", err))
+      .finally(() => {
+        reloadingAfterCheck.current = false;
+        setMCPUpdatesFound(false);
+      });
+  }, [mcpUpdatesFound, loaded, loading, reloadMCPServers]);
+
   // Tools
   const updateToolsLocal = useCallback((tools: Tool[]) => {
     setData((d) => ({ ...d, tools }));
@@ -419,6 +467,7 @@ export const SettingsDataProvider = ({ children }: { children: ReactNode }) => {
         refreshMCPTools: refreshMCPToolsFn,
         reloadMCPServers,
         restoreDefaultMCPServer,
+        checkingMCPUpdates,
         updateToolsLocal,
         saveTools,
         addSkill,

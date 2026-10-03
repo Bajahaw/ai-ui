@@ -5,16 +5,18 @@ import { ConversationSidebar } from "@/components/ai-elements/conversation-sideb
 import { ChatInterface } from "@/components/ChatInterface";
 import { useConversations } from "@/hooks/useConversations";
 import { useAuth } from "@/hooks/useAuth";
+import { useSettingsData } from "@/hooks/useSettingsData";
 import { SettingsDialog } from "@/components/settings";
 import { Attachment } from "@/lib/api/types";
 import { goToNewChat, seedHomeUnderCurrentEntry } from "@/lib/history";
 import { isLargeScreen } from "@/lib/viewport";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { MessageSquareIcon, SettingsIcon } from "lucide-react";
+import { Loader2, MessageSquareIcon, SettingsIcon } from "lucide-react";
 
 function App() {
   const { isAuthenticated, isCheckingAuth } = useAuth();
+  const { checkingMCPUpdates } = useSettingsData();
   const { convId } = useParams<{ convId?: string }>();
   const navigate = useNavigate();
   const [webSearch, setWebSearch] = useState(false);
@@ -334,6 +336,14 @@ function App() {
             </Button>
           </div>
           <div className="flex items-center gap-2 lg:pointer-events-auto">
+            {checkingMCPUpdates && (
+              <Loader2
+                className="size-3.5 animate-spin text-muted-foreground"
+                aria-label="Checking MCP servers for updates"
+              >
+                <title>Checking MCP servers for updates</title>
+              </Loader2>
+            )}
             <Button
               variant="ghost"
               size="sm"

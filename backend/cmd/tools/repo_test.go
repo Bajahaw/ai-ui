@@ -16,7 +16,8 @@ func setupTestDB(t *testing.T) (*sql.DB, ToolRepository) {
 	tmpDir := t.TempDir()
 	dbPath := path.Join(tmpDir, "test.db")
 
-	db, err := sql.Open("sqlite", dbPath)
+	// busy_timeout matches production: update checks write from parallel goroutines.
+	db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatalf("Failed to open test DB: %v", err)
 	}

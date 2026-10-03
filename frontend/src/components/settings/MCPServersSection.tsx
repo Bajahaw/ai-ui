@@ -147,6 +147,17 @@ export const MCPServersSection = () => {
                     <h4 className="truncate max-w-[75px] sm:max-w-[300px]">
                       {server.name}
                     </h4>
+                    {server.server_info && (
+                      <p
+                        className="text-xs text-muted-foreground truncate max-w-[75px] sm:max-w-[300px]"
+                        title={`${server.server_info.name} ${server.server_info.version ?? ""}`.trim()}
+                      >
+                        {server.server_info.title || server.server_info.name}
+                        {/* Drop semver build metadata ("v1+abc") for display. */}
+                        {server.server_info.version &&
+                          ` ${server.server_info.version.split("+")[0]}`}
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1 flex-shrink-0">
@@ -221,7 +232,27 @@ export const MCPServersSection = () => {
                       {server.oauth?.connected ? "OAuth" : "Not connected"}
                     </span>
                   )}
+                  {server.update_pending && (
+                    <Badge
+                      variant="outline"
+                      className="flex-shrink-0 text-xs border-amber-500/50 text-amber-600 dark:text-amber-400"
+                      title="This server's tools changed. Refresh to apply."
+                    >
+                      Update available
+                    </Badge>
+                  )}
                 </div>
+
+                {(server.server_info?.description ||
+                  server.server_info?.instructions) && (
+                  <p
+                    className="text-xs text-muted-foreground line-clamp-2 break-words"
+                    title={server.server_info.instructions}
+                  >
+                    {server.server_info.description ||
+                      server.server_info.instructions}
+                  </p>
+                )}
 
                 {connectErrors[server.id] && (
                   <p className="text-xs text-red-600 break-words">

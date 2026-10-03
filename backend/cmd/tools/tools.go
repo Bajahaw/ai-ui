@@ -12,7 +12,6 @@ import (
 	fs "github.com/Bajahaw/ai-ui/cmd/files"
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/Bajahaw/ai-ui/cmd/skills"
-	"github.com/google/uuid"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -76,6 +75,10 @@ func ExecuteMCPTool(ctx context.Context, toolCall providers.ToolCall, user, conv
 	if err != nil {
 		log.Error("Error retrieving tool", "err", err)
 		return providers.ToolOutput{Content: "Error occurred while retrieving tool."}
+	}
+	// The model may name any tool, not only the ones it was sent.
+	if !tool.IsEnabled {
+		return providers.ToolOutput{Content: fmt.Sprintf("Tool '%s' is disabled.", tool.Name)}
 	}
 
 	server, err := mcps.GetByID(tool.MCPServerID, user)
@@ -173,66 +176,6 @@ func GetAvailableTools(user string) []*Tool {
 		}
 	}
 	return enabledTools
-}
-
-// GetBuiltInTools returns the platform built-in tools.
-// MCPServerID is left empty; callers must set it to the owning server ID
-// (e.g. "default-{user}") before persisting, so the Tools FK is satisfied.
-func GetBuiltInTools() []*Tool {
-	return []*Tool{
-		{
-			ID:          uuid.New().String(),
-			Name:        "search_document",
-			Description: "Search a specific attached document for a keyword or phrase constraint. Returns best matching pages.",
-			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"query":{"type":"string","description":"The keyword or phrase to search for"}},"required":["file_id","query"]}`,
-			IsEnabled:   true,
-		},
-		{
-			ID:          uuid.New().String(),
-			Name:        "read_document_page",
-			Description: "Read the extracted text of specific pages from a retreivable attached document.",
-			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"start_page":{"type":"integer","description":"The 1-based page number to start reading from"},"end_page":{"type":"integer","description":"The 1-based page number to end reading at (inclusive)"}},"required":["file_id","start_page","end_page"]}`,
-			IsEnabled:   true,
-		},
-		{
-			ID:          uuid.New().String(),
-			Name:        "view_document_page",
-			Description: "Get a screenshot of a specific PDF page (works only with pdf!). Use this when the user specifically mentions looking at an image, chart, format, or layout in a PDF. Pass array of files_ids via file_id property if needed.",
-			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"page_number":{"type":"integer","description":"The 1-based page number to view"}},"required":["file_id","page_number"]}`,
-			IsEnabled:   true,
-		},
-		{
-			ID:          uuid.New().String(),
-			Name:        "generate_image",
-			Description: "Generate an image via AI model currently selected by user. Pass the user prompt exactly as is, unless user requested you to enhance it. Embed the resulting image file in the chat. ONlY call when user asks for `AI generated image`!, and Never call more than once",
-			InputSchema: `{"type":"object","properties":{"prompt":{"type":"string","description":"A detailed prompt for the image generation model"}},"required":["prompt"]}`,
-			IsEnabled:   true,
-		},
-		{
-			ID:          uuid.New().String(),
-			Name:        "read_skill",
-			Description: "Read the full content of a specific skill by its name. Choose the skill that best matches the user's task from the <available_skills> section in the system prompt, then read its full instructions using this tool.",
-			InputSchema: `{"type":"object","properties":{"name":{"type":"string","description":"The exact name of the skill to read"}},"required":["name"]}`,
-			IsEnabled:   true,
-		},
-		{
-			// Off by default and approval-gated: executing code should be an
-			// explicit user opt-in, not something that runs unnoticed.
-			ID:              uuid.New().String(),
-			Name:            "browser_sandbox",
-			Description:     "Run JavaScript in an isolated browser sandbox with the conversation's files mounted. Top-level await is allowed; the code's return value (JSON-serialized), console output, and any files written are reported back — return or console.log anything you need to see. API: sandbox.listFiles() -> names; sandbox.readFile(name) -> Uint8Array; sandbox.writeFile(name, data, mime) saves an output file; await sandbox.loadScript(url) loads a classic <script> library and rejects fast on a bad URL/blocked host (only https://cdn.jsdelivr.net and https://cdnjs.cloudflare.com are allowed; ESM builds can also be loaded via dynamic import()). Not HTML: there is no visible page, so do not build documents/script tags as strings. When embedding other languages (e.g. Python source) in a template literal, use String.raw and avoid nested backticks.",
-			InputSchema:     `{"type":"object","properties":{"code":{"type":"string","description":"JavaScript source to run (async context; top-level await and return are allowed)."}},"required":["code"]}`,
-			RequireApproval: true,
-		},
-		{
-			ID:              uuid.New().String(),
-			Name:            "http_request",
-			Description:     "HTTPS request to a public host (no IPs/private/loopback). Prefer json_pointers or css_selectors to extract fields. Response bodies are reduced by default; verbose for raw/larger. Secrets: $secrets.NAME$ in headers or URL path/query only.",
-			InputSchema:     `{"type":"object","properties":{"url":{"type":"string","description":"https URL (DNS hostname). $secrets.NAME$ in path/query."},"method":{"type":"string","description":"GET, HEAD, POST, PUT, PATCH, or DELETE","default":"GET"},"headers":{"type":"object","additionalProperties":{"type":"string"},"description":"Optional headers. $secrets.NAME$ allowed."},"body":{"description":"Optional body for POST/PUT/PATCH/DELETE. Prefer JSON object/array."},"verbose":{"type":"boolean","description":"Raw/larger response body.","default":false},"json_pointers":{"type":"array","items":{"type":"string"},"description":"RFC 6901 pointers into JSON body (e.g. \"/data/0/id\"). Missing paths → null. Exclusive with css_selectors."},"css_selectors":{"type":"array","items":{"type":"string"},"description":"CSS selectors into HTML (e.g. \"a.result\"). Exclusive with json_pointers."}},"required":["url"]}`,
-			RequireApproval: true,
-			IsEnabled:       true,
-		},
-	}
 }
 
 func searchDocumentTool(args string) providers.ToolOutput {

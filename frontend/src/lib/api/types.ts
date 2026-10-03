@@ -292,6 +292,17 @@ export interface MCPServerRequest {
   headers?: Record<string, string>;
   auth_type?: MCPAuthType;
   oauth?: MCPOAuthRequest;
+  /** Omit to keep the stored setting (off for new servers). */
+  auto_update?: boolean;
+}
+
+/** What the server reported about itself when connecting. */
+export interface MCPServerInfo {
+  name: string;
+  title?: string;
+  version?: string;
+  description?: string;
+  instructions?: string;
 }
 
 export interface MCPServerResponse {
@@ -302,6 +313,18 @@ export interface MCPServerResponse {
   headers?: Record<string, string>;
   auth_type?: MCPAuthType;
   oauth?: MCPOAuthResponse;
+  server_info?: MCPServerInfo;
+  /** Apply changes found by the app-load update check. */
+  auto_update?: boolean;
+  /** The server changed but auto-update is off; a manual refresh applies it. */
+  update_pending?: boolean;
+}
+
+export interface MCPUpdateCheckResponse {
+  /** Server IDs whose changes were applied. */
+  updated: string[];
+  /** Server IDs with changes waiting for a manual refresh. */
+  pending: string[];
 }
 
 export interface ToolListResponse {

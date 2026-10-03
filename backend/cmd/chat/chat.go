@@ -170,6 +170,9 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		Payload: metadata,
 	})
 
+	// Let an app-load MCP update check land before tools are read.
+	tools.WaitForMCPUpdateCheck(user)
+
 	// Build context from user message
 	ctx := buildContext(convID, userMessage.ID, user)
 	reasoningSetting, _ := settings.Get("reasoningEffort", user)
@@ -339,6 +342,9 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		Type:    utils.EVENT_METADATA,
 		Payload: metadata,
 	})
+
+	// Let an app-load MCP update check land before tools are read.
+	tools.WaitForMCPUpdateCheck(user)
 
 	// Build context from the parent message
 	ctx := buildContext(req.ConversationID, parent.ID, user)

@@ -1,5 +1,9 @@
 
-import { MCPServerRequest, MCPServerResponse } from "./types";
+import {
+  MCPServerRequest,
+  MCPServerResponse,
+  MCPUpdateCheckResponse,
+} from "./types";
 import { getHeaders } from "./headers";
 
 // Get all MCP servers
@@ -101,6 +105,22 @@ export const startMCPOAuth = async (id: string): Promise<string> => {
 
   const data: { auth_url: string } = await response.json();
   return data.auth_url;
+};
+
+// Checks servers that are due (throttled server-side) and applies changes for
+// those with auto-update on; the rest are flagged update_pending.
+export const checkMCPUpdates = async (): Promise<MCPUpdateCheckResponse> => {
+  const response = await fetch("/api/tools/mcp/check-updates", {
+    method: "POST",
+    headers: getHeaders(),
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to check MCP updates: ${response.statusText}`);
+  }
+
+  return response.json();
 };
 
 // Refresh tools for a specific MCP server (re-fetches from MCP server)

@@ -24,6 +24,7 @@ func Handler() http.Handler {
 	mux.HandleFunc("POST /mcp/restore-default", restoreDefaultMCPServer)
 	mux.HandleFunc("DELETE /mcp/delete/{id}", deleteMCPServer)
 	mux.HandleFunc("POST /mcp/refresh-tools/{id}", refreshMCPTools)
+	mux.HandleFunc("POST /mcp/check-updates", checkMCPUpdates)
 	mux.HandleFunc("GET /mcp/oauth/redirect-url", getMCPOAuthRedirectURL)
 	mux.HandleFunc("POST /mcp/oauth/start/{id}", startMCPOAuth)
 

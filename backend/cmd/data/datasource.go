@@ -405,5 +405,39 @@ func RunMigrations(db *sql.DB) error {
 		}
 	}
 
+	if userVersion < 12 {
+		schemaV12 := `
+		ALTER TABLE MCPServers ADD COLUMN server_name TEXT NOT NULL DEFAULT '';
+		ALTER TABLE MCPServers ADD COLUMN server_title TEXT NOT NULL DEFAULT '';
+		ALTER TABLE MCPServers ADD COLUMN server_version TEXT NOT NULL DEFAULT '';
+		ALTER TABLE MCPServers ADD COLUMN server_description TEXT NOT NULL DEFAULT '';
+		ALTER TABLE MCPServers ADD COLUMN server_instructions TEXT NOT NULL DEFAULT '';
+		`
+		_, err = db.Exec(schemaV12)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec("PRAGMA user_version = 12;")
+		if err != nil {
+			return err
+		}
+	}
+
+	if userVersion < 13 {
+		schemaV13 := `
+		ALTER TABLE MCPServers ADD COLUMN auto_update BOOLEAN NOT NULL DEFAULT 0;
+		ALTER TABLE MCPServers ADD COLUMN update_pending BOOLEAN NOT NULL DEFAULT 0;
+		ALTER TABLE MCPServers ADD COLUMN last_checked_at INTEGER NOT NULL DEFAULT 0;
+		`
+		_, err = db.Exec(schemaV13)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec("PRAGMA user_version = 13;")
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

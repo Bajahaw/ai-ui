@@ -38,15 +38,12 @@ func SaveDefaultMCPServer(user string) {
 	// Built-in tools must use the real server ID (default-{user}), not the
 	// placeholder "default". A mismatch fails the Tools FK insert, so the
 	// server appears with no tools until the user hits Refresh.
-	builtInTools := GetBuiltInTools()
-	for _, t := range builtInTools {
-		t.MCPServerID = serverID
-	}
 	defaultServer := MCPServer{
 		ID:    serverID,
 		Name:  "Default Server",
-		Tools: builtInTools,
+		Tools: builtInToolsFor(serverID),
 		User:  user,
+		Info:  builtInServerInfo(),
 	}
 	if err := mcps.Save(&defaultServer); err != nil {
 		log.Error("Error saving default MCP server", "err", err, "user", user)
