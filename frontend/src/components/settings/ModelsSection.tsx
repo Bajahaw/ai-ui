@@ -16,6 +16,7 @@ import { locallyApplyEnableFlags } from "@/lib/api/models";
 import { formatProviderSelectLabel } from "@/lib/api/providers";
 import { Model } from "@/lib/api/types";
 import { useSettingsData } from "@/hooks/useSettingsData";
+import { createSearchMatcher } from "@/lib/utils";
 
 /**
 
@@ -40,12 +41,10 @@ export const ModelsSection: React.FC = () => {
   const filtered = useMemo(() => {
     if (!search.trim()) return models;
 
-    const q = search.toLowerCase();
+    const matches = createSearchMatcher(search);
 
-    return models.filter(
-      (m) =>
-        m.name.toLowerCase().includes(q) ||
-        m.provider.toLowerCase().includes(q),
+    return models.filter((m) =>
+      matches(m.name, m.provider, formatProviderSelectLabel(m.provider)),
     );
   }, [models, search]);
 

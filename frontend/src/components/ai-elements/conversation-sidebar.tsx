@@ -480,10 +480,10 @@ export const ConversationSidebar = ({
               onKeyDown={(e) => {
                 if (e.key === "Escape") e.currentTarget.blur();
               }}
-              className="pl-8 pr-12 h-9 text-sm border-0 border-b rounded-none focus-visible:ring-0 focus-visible:border-muted-foreground !bg-transparent"
+              className="pl-8 pr-12 h-9 text-sm border-0 border-b rounded-none focus-visible:ring-0 focus:border-primary focus-visible:border-primary !bg-transparent"
             />
             {!searchTerm && (
-              <kbd className="absolute right-1 top-2 pointer-events-none rounded border border-muted-foreground/20 px-1.5 text-[10px] leading-5 text-muted-foreground/70 font-sans">
+              <kbd className="absolute right-1 top-2 pointer-events-none rounded px-1.5 text-[10px] leading-5 text-muted-foreground/70 font-sans">
                 {modKeyLabel}K
               </kbd>
             )}

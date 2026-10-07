@@ -54,8 +54,11 @@ function SelectContent({
   className,
   children,
   position = "popper",
+  viewportRef,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Content>) {
+}: React.ComponentProps<typeof SelectPrimitive.Content> & {
+  viewportRef?: React.Ref<HTMLDivElement>;
+}) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -71,7 +74,7 @@ function SelectContent({
         position={position}
         {...props}
       >
-        <SelectPrimitive.Viewport className={cn()}>
+        <SelectPrimitive.Viewport ref={viewportRef} className={cn()}>
           {children}
         </SelectPrimitive.Viewport>
       </SelectPrimitive.Content>

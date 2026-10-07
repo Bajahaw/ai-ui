@@ -16,6 +16,7 @@ import {
 import { locallyApplyToolFlags } from "@/lib/api/tools";
 import { Tool } from "@/lib/api/types";
 import { useSettingsData } from "@/hooks/useSettingsData";
+import { createSearchMatcher } from "@/lib/utils";
 
 /**
  * ToolsSection
@@ -45,16 +46,14 @@ export const ToolsSection: React.FC = () => {
 
   const filtered = useMemo(() => {
     if (!search.trim()) return data.tools;
-    const q = search.toLowerCase();
-    return data.tools.filter(
-      (t) =>
-        t.name.toLowerCase().includes(q) ||
-        (t.description && t.description.toLowerCase().includes(q)) ||
-        (t.mcp_server_id && t.mcp_server_id.toLowerCase().includes(q)) ||
-        (t.mcp_server_id &&
-          (mcpNameById[t.mcp_server_id] || "")
-            .toLowerCase()
-            .includes(q)),
+    const matches = createSearchMatcher(search);
+    return data.tools.filter((t) =>
+      matches(
+        t.name,
+        t.description,
+        t.mcp_server_id,
+        t.mcp_server_id ? mcpNameById[t.mcp_server_id] : undefined,
+      ),
     );
   }, [data.tools, search, mcpNameById]);
 
