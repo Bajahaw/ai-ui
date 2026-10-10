@@ -110,6 +110,10 @@ export interface ToolCall {
   args?: string;
   tool_output?: string;
   file_id?: string;
+  // Assistant text/reasoning of the round that produced this call
+  // (only on the first call of each round).
+  text?: string;
+  reasoning?: string;
 }
 
 // Streaming types
@@ -154,6 +158,9 @@ export interface FrontendMessage {
   content: string;
   reasoning?: string;
   reasoningDuration?: number; // Duration in seconds for reasoning (if reasoning was used)
+  // Live-session reasoning durations of earlier rounds, keyed by the id of the
+  // tool call that carries that round's reasoning.
+  roundReasoningDurations?: Record<string, number>;
   toolCalls?: ToolCall[];
   status?: "completed" | "pending";
   error?: string;

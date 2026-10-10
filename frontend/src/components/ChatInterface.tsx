@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useState,
   useEffect,
   useRef,
@@ -73,6 +74,11 @@ import {
   UploadedFile,
 } from "@/components/ui/file-upload";
 import { ThoughtsToolsGroup } from "@/components/ai-elements/thoughts-tools-group";
+import { Response } from "@/components/ai-elements/response";
+import {
+  buildMessageTimeline,
+  getMessageFullText,
+} from "@/lib/messageTimeline";
 import { collectConversationFileIds } from "@/lib/sandbox/runner";
 import { uploadFile, FileUploadError } from "@/lib/api/files";
 import { synthesizeMessageSpeech } from "@/lib/api/tts";
@@ -977,7 +983,7 @@ export const ChatInterface = ({
   const handleReadAloud = useCallback(
     async (message: FrontendMessage) => {
       if (message.role !== "assistant") return;
-      if (!(message.content || "").trim()) return;
+      if (!getMessageFullText(message).trim()) return;
       // Backend numeric id required for GET /api/tts/messages/{id}
       if (!/^\d+$/.test(message.id)) return;
 
@@ -1157,21 +1163,23 @@ export const ChatInterface = ({
 
             <Action
               tooltip={message.error ? "Copy error" : "Copy message"}
-              onClick={() =>
+              onClick={() => {
+                const fullText = getMessageFullText(message);
+                // Rich copy only covers the final text block; messages with
+                // text between tool calls are copied as markdown instead.
+                const singleBlock = fullText === (message.content || "").trim();
                 copyMessage(
-                  message.error ? null : message.id,
-                  message.error
-                    ? message.error || "Error occurred"
-                    : message.content,
-                )
-              }
+                  message.error || !singleBlock ? null : message.id,
+                  message.error ? message.error || "Error occurred" : fullText,
+                );
+              }}
             >
               <CopyIcon className="size-4" />
             </Action>
 
             {message.role === "assistant" &&
               !message.error &&
-              message.content?.trim() &&
+              getMessageFullText(message) &&
               message.status !== "pending" && (
                 <Action
                   tooltip={
@@ -1369,15 +1377,25 @@ export const ChatInterface = ({
                 renderMessageContent(message)
               ) : (
                 <div className="space-y-4">
-                  {(message.reasoning ||
-                    (message.toolCalls && message.toolCalls.length > 0)) && (
-                    <ThoughtsToolsGroup
-                      message={message}
-                      settingsData={settingsData}
-                      conversationFileIds={conversationFileIds}
-                    />
+                  {/* Segments only append at the end while streaming, so
+                      index keys keep earlier bars mounted (open state). */}
+                  {buildMessageTimeline(message).map((segment, index) =>
+                    segment.kind === "steps" ? (
+                      <ThoughtsToolsGroup
+                        key={`segment-${index}`}
+                        steps={segment.steps}
+                        isStreaming={segment.isStreaming}
+                        settingsData={settingsData}
+                        conversationFileIds={conversationFileIds}
+                      />
+                    ) : segment.isFinal ? (
+                      <Fragment key={`segment-${index}`}>
+                        {renderMessageContent(message)}
+                      </Fragment>
+                    ) : (
+                      <Response key={`segment-${index}`}>{segment.text}</Response>
+                    ),
                   )}
-                  {renderMessageContent(message)}
                   {renderMessageActions(message)}
                 </div>
               )}

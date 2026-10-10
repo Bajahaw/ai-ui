@@ -434,6 +434,13 @@ func buildResponsesBody(model string, messages []ChatMessage, tools []ToolDef, r
 			input = append(input, map[string]any{"role": "user", "content": content})
 		case "assistant":
 			if m.ToolName != "" && m.ToolCallID != "" {
+				// Text the model wrote before calling the tool in this round.
+				if m.Content != "" {
+					input = append(input, map[string]any{
+						"role":    "assistant",
+						"content": []any{map[string]any{"type": "output_text", "text": m.Content}},
+					})
+				}
 				input = append(input, map[string]any{
 					"type":      "function_call",
 					"call_id":   m.ToolCallID,

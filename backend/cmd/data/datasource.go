@@ -439,5 +439,21 @@ func RunMigrations(db *sql.DB) error {
 		}
 	}
 
+	if userVersion < 14 {
+		// per-round assistant text/reasoning emitted before a tool call
+		schemaV14 := `
+		ALTER TABLE ToolCalls ADD COLUMN text TEXT NOT NULL DEFAULT '';
+		ALTER TABLE ToolCalls ADD COLUMN reasoning TEXT NOT NULL DEFAULT '';
+		`
+		_, err = db.Exec(schemaV14)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec("PRAGMA user_version = 14;")
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

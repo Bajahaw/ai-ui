@@ -31,10 +31,13 @@ import {
 /**
  * Manages accumulated streaming state (content, reasoning, RAF scheduling)
  */
-class StreamingState {
+export class StreamingState {
+  // Output of the current completion round only; earlier rounds are moved
+  // onto the tool call they preceded (see takeRound).
   content = "";
   reasoning = "";
   reasoningStartTime: number | null = null;
+  reasoningEndTime: number | null = null;
   rafId: number | null = null;
 
   addContent(chunk: string): void {
@@ -48,6 +51,7 @@ class StreamingState {
     if (this.reasoningStartTime === null) {
       this.reasoningStartTime = Date.now();
     }
+    this.reasoningEndTime = Date.now();
 
     this.reasoning += reasoning;
   }
@@ -56,7 +60,22 @@ class StreamingState {
     if (this.reasoningStartTime === null || !this.reasoning) {
       return undefined;
     }
-    return Math.round((Date.now() - this.reasoningStartTime) / 1000);
+    const end = this.reasoningEndTime ?? Date.now();
+    return Math.round((end - this.reasoningStartTime) / 1000);
+  }
+
+  /** Returns the current round's output and starts a fresh round. */
+  takeRound(): { text: string; reasoning: string; duration?: number } {
+    const round = {
+      text: this.content,
+      reasoning: this.reasoning,
+      duration: this.getReasoningDuration(),
+    };
+    this.content = "";
+    this.reasoning = "";
+    this.reasoningStartTime = null;
+    this.reasoningEndTime = null;
+    return round;
   }
 
   scheduleSync(syncCallback: () => void): void {
@@ -97,7 +116,7 @@ export function shouldAutoRunSandbox(
 /**
  * Creates streaming callback handlers with shared logic
  */
-function createStreamingHandlers(
+export function createStreamingHandlers(
   manager: ClientConversationManager,
   conversationId: string,
   assistantPlaceholderRef: { current: string },
@@ -141,26 +160,36 @@ function createStreamingHandlers(
 
   const onToolCall = (toolCall: ToolCall) => {
     if (!isCurrent()) return;
-    manager.addToolCall(
-      conversationId,
-      assistantPlaceholderRef.current,
-      toolCall,
-    );
+    const assistMsg = manager
+      .getConversation(conversationId)
+      ?.messages.find((m) => m.id === assistantPlaceholderRef.current);
 
-    // If there's accumulated reasoning and this is the first tool call event (no output yet),
-    // append tool usage information to show when the model decided to use the tool
-    if (streamingState.reasoning && !toolCall.tool_output) {
-      streamingState.reasoning += `  \n\`used tool:${toolCall.name}\`\n  `;
-      const conv = manager.getConversation(conversationId);
-      if (conv) {
-        const assistMsg = conv.messages.find(
-          (m) => m.id === assistantPlaceholderRef.current,
-        );
-        if (assistMsg) {
-          assistMsg.reasoning = streamingState.reasoning;
+    // The first new call of a round takes the text/reasoning streamed so far,
+    // mirroring how the backend stores rounds; later calls find empty buffers.
+    let call = toolCall;
+    const isNewCall = !assistMsg?.toolCalls?.some(
+      (tc) => tc.id === toolCall.id,
+    );
+    if (isNewCall && (streamingState.content || streamingState.reasoning)) {
+      const round = streamingState.takeRound();
+      call = {
+        ...toolCall,
+        text: toolCall.text || round.text || undefined,
+        reasoning: toolCall.reasoning || round.reasoning || undefined,
+      };
+      if (assistMsg) {
+        assistMsg.content = "";
+        assistMsg.reasoning = "";
+        if (round.duration !== undefined) {
+          assistMsg.roundReasoningDurations = {
+            ...assistMsg.roundReasoningDurations,
+            [toolCall.id]: round.duration,
+          };
         }
       }
     }
+
+    manager.addToolCall(conversationId, assistantPlaceholderRef.current, call);
 
     streamingState.scheduleSync(syncConversations);
     if (shouldAutoRunSandbox(toolsRef.current, toolCall)) {

@@ -101,8 +101,10 @@ func compileSystemPrompt(user string) string {
 	return sb.String()
 }
 
-// Helper
-func buildContext(convID string, start int, user string) []providers.SimpleMessage {
+// buildContext rebuilds the provider history ending at start. model is the
+// model of the upcoming request; stored per-round reasoning is replayed only
+// for messages produced by that same model (other providers may reject it).
+func buildContext(convID string, start int, user, model string) []providers.SimpleMessage {
 	var convMessages = getAllConversationMessages(convID, user) // todo: cache or something
 	var path []int
 	var current = start
@@ -136,18 +138,19 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 			break
 		}
 
-		// If the assistant message has tool calls, include the text content on the
-		// first tool-call message so the model sees what it said before using tools.
-		// Then append each tool result. Skip the normal content append below.
+		// Replay tool rounds exactly as enterAgentLoop sent them: each round's
+		// text/reasoning sits on its first call, followed by the tool results.
+		// msg.Content is the final round only, so it goes after the last result.
 		if msg.Role == "assistant" && len(msg.Tools) > 0 {
-			for j, tool := range msg.Tools {
+			replayReasoning := model != "" && msg.Model == model
+			for _, tool := range msg.Tools {
 				assistantMsg := providers.SimpleMessage{
 					Role:     "assistant",
+					Content:  tool.Text,
 					ToolCall: *tool,
 				}
-				// Attach the assistant's text to the first tool-call message
-				if j == 0 {
-					assistantMsg.Content = msg.Content
+				if replayReasoning {
+					assistantMsg.Reasoning = tool.Reasoning
 				}
 				messages = append(messages, assistantMsg)
 
@@ -157,6 +160,12 @@ func buildContext(convID string, start int, user string) []providers.SimpleMessa
 				}
 				attachToolFile(&toolMsg, tool.FileID, user)
 				messages = append(messages, toolMsg)
+			}
+			if msg.Content != "" {
+				messages = append(messages, providers.SimpleMessage{
+					Role:    "assistant",
+					Content: msg.Content,
+				})
 			}
 			continue
 		}
@@ -303,17 +312,24 @@ func enterAgentLoop(
 		return &providers.ChatCompletionMessage{Cancelled: true}, nil
 	}
 
-	for i, item := range executed {
+	// responseMessage holds only the current round's output. It moves onto the
+	// round's first tool call so the stored history keeps the real order:
+	// text -> tool calls -> results -> next round.
+	if len(executed) > 0 {
+		executed[0].call.Text = responseMessage.Content
+		executed[0].call.Reasoning = responseMessage.Reasoning
+	}
+	responseMessage.Content = ""
+	responseMessage.Reasoning = ""
+
+	for _, item := range executed {
 		toolCall := item.call
-		assistantMsg := providers.SimpleMessage{
-			Role:     "assistant",
-			ToolCall: toolCall,
-		}
-		if i == 0 {
-			assistantMsg.Content = responseMessage.Content
-			assistantMsg.Reasoning = responseMessage.Reasoning
-		}
-		providerParams.Messages = append(providerParams.Messages, assistantMsg)
+		providerParams.Messages = append(providerParams.Messages, providers.SimpleMessage{
+			Role:      "assistant",
+			Content:   toolCall.Text,
+			Reasoning: toolCall.Reasoning,
+			ToolCall:  toolCall,
+		})
 
 		toolCall.Output = item.output.Content
 		toolCall.FileID = item.output.FileID
@@ -348,16 +364,6 @@ func enterAgentLoop(
 		return &providers.ChatCompletionMessage{Cancelled: true}, nil
 	}
 
-	// Stream a newline separator before the post-tool completion so
-	// sentences from before and after the tool call don't run together.
-	// This mirrors the "\n" that is added to responseMessage.Content below.
-	if responseMessage.Content != "" {
-		utils.SendStreamChunk(sc, utils.StreamChunk{
-			Type:    utils.CONTENT,
-			Payload: "\n",
-		})
-	}
-
 	completion, err := provider.SendChatCompletionStreamRequest(providerParams, sc)
 	if err != nil {
 		log.Error("Error streaming chat completion after tool call", "err", err)
@@ -368,23 +374,10 @@ func enterAgentLoop(
 		return completion, err
 	}
 
-	// Accumulate content from the post-tool completion into the response.
-	// Add a newline separator to prevent sentences from running together.
-	// Keep partial content even when the follow-up stream was cancelled.
-	if completion.Content != "" {
-		if responseMessage.Content != "" {
-			responseMessage.Content += "\n"
-		}
-		responseMessage.Content += completion.Content
-	}
-
-	// Accumulate reasoning for all tool calls
-	if responseMessage.Reasoning != "" || completion.Reasoning != "" {
-		for _, toolCall := range calls {
-			responseMessage.Reasoning += "  \n`used tool:" + toolCall.Name + "`  \n"
-		}
-		responseMessage.Reasoning += completion.Reasoning
-	}
+	// The new round replaces (never appends to) the response body; earlier
+	// rounds already live on their tool calls. Keep partial output on cancel.
+	responseMessage.Content = completion.Content
+	responseMessage.Reasoning = completion.Reasoning
 
 	if completion.Cancelled || providers.IsGenerationCancelled(responseMessage.ID) {
 		return completion, nil

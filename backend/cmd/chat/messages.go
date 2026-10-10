@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"strings"
 	"time"
 
 	"github.com/Bajahaw/ai-ui/cmd/data"
@@ -26,6 +27,21 @@ type Message struct {
 	ContextSize int                   `json:"contextSize,omitempty"`
 	CreatedAt   time.Time             `json:"createdAt"`
 	UpdatedAt   time.Time             `json:"updatedAt"`
+}
+
+// fullContent joins the text of every round (stored on each round's first
+// tool call) with the final content, in display order.
+func fullContent(msg *Message) string {
+	parts := make([]string, 0, len(msg.Tools)+1)
+	for _, tc := range msg.Tools {
+		if strings.TrimSpace(tc.Text) != "" {
+			parts = append(parts, tc.Text)
+		}
+	}
+	if strings.TrimSpace(msg.Content) != "" {
+		parts = append(parts, msg.Content)
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 func getMessage(id int, user string) (*Message, error) {

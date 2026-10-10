@@ -24,11 +24,11 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
-  FrontendMessage,
   MCPServerResponse,
   Tool as ToolDefinition,
   ToolCall,
 } from "@/lib/api/types";
+import type { TimelineStep } from "@/lib/messageTimeline";
 import {
   ToolCallDisplayState,
   getToolCallDisplayState,
@@ -43,14 +43,16 @@ type SettingsDataLike = {
 };
 
 type ThoughtsToolsGroupProps = {
-  message: FrontendMessage;
+  // Ordered reasoning/tool steps of one bar (between two assistant texts).
+  steps: TimelineStep[];
+  // True only for the bar the model is currently working in.
+  isStreaming: boolean;
   settingsData: SettingsDataLike;
   className?: string;
   conversationFileIds?: string[];
 };
 
 const MAX_VISIBLE_TOOL_ICONS = 3;
-const NO_TOOL_CALLS: ToolCall[] = [];
 const ICON_CHIP_CLASS =
   "flex size-4.5 items-center justify-center overflow-hidden rounded-full border bg-muted";
 
@@ -186,14 +188,18 @@ const ToolSummaryIcon = ({
 };
 
 export const ThoughtsToolsGroup = ({
-  message,
+  steps,
+  isStreaming,
   settingsData,
   className,
   conversationFileIds,
 }: ThoughtsToolsGroupProps) => {
-  const toolCalls = message.toolCalls ?? NO_TOOL_CALLS;
-  const hasReasoning = Boolean(message.reasoning?.trim());
-  const isStreaming = message.status === "pending";
+  const toolCalls = useMemo(
+    () =>
+      steps.flatMap((step) => (step.kind === "tool" ? [step.toolCall] : [])),
+    [steps],
+  );
+  const hasReasoning = steps.some((step) => step.kind === "reasoning");
 
   const toolStates = useMemo(
     () =>
@@ -316,25 +322,26 @@ export const ThoughtsToolsGroup = ({
           "data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-top-2",
         )}
       >
-        {hasReasoning && (
-          <Reasoning
-            isStreaming={isStreaming}
-            duration={message.reasoningDuration}
-            defaultOpen={false}
-          >
-            <ReasoningTrigger />
-            <ReasoningContent>{message.reasoning || ""}</ReasoningContent>
-          </Reasoning>
+        {steps.map((step, index) =>
+          step.kind === "reasoning" ? (
+            <Reasoning
+              key={`reasoning-${index}`}
+              isStreaming={step.isStreaming}
+              duration={step.duration}
+              defaultOpen={false}
+            >
+              <ReasoningTrigger />
+              <ReasoningContent>{step.text}</ReasoningContent>
+            </Reasoning>
+          ) : (
+            <ToolCallItem
+              key={step.toolCall.id}
+              toolCall={step.toolCall}
+              settingsData={settingsData}
+              conversationFileIds={conversationFileIds}
+            />
+          ),
         )}
-
-        {toolCalls.map((toolCall) => (
-          <ToolCallItem
-            key={toolCall.id}
-            toolCall={toolCall}
-            settingsData={settingsData}
-            conversationFileIds={conversationFileIds}
-          />
-        ))}
       </CollapsibleContent>
     </Collapsible>
   );

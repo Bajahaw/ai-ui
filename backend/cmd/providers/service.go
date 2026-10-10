@@ -60,6 +60,10 @@ type ToolCall struct {
 	FileID      string `json:"file_id,omitempty"` // persisted file id only; never a data URL
 	TokenCount  int    `json:"tokenCount,omitempty"`
 	ContextSize int    `json:"contextSize,omitempty"`
+	// Text and Reasoning are the assistant output of the completion round that
+	// produced this call. Set only on the first call of each round.
+	Text      string `json:"text,omitempty"`
+	Reasoning string `json:"reasoning,omitempty"`
 }
 
 type ToolOutput struct {

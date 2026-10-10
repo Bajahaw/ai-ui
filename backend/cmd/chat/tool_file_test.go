@@ -250,7 +250,7 @@ func TestBuildContext_ToolFileIDNotMutatedToDataURL(t *testing.T) {
 		t.Fatalf("save tool call: %v", err)
 	}
 
-	msgs := buildContext("conv1", int(msgID), "test-user")
+	msgs := buildContext("conv1", int(msgID), "test-user", "m")
 
 	var toolMsg *providers.SimpleMessage
 	for i := range msgs {

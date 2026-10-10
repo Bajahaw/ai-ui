@@ -427,8 +427,7 @@ func TestSync_DeliversToSender(t *testing.T) {
 }
 
 // mockProviderWithToolCalls simulates a model that produces content, then a
-// tool call, then more content.  The second streaming call must be preceded by
-// a "\n" content chunk so the two pieces of text don't run together.
+// tool call, then more content.
 type mockProviderWithToolCalls struct {
 	callCount int
 }
@@ -464,18 +463,16 @@ func (m *mockProviderWithToolCalls) SendChatCompletionStreamRequest(params provi
 	}, nil
 }
 
-// TestChatStream_NewlineSeparatorStreamedBetweenToolCalls verifies that when
-// the model produces content, uses a tool, then produces more content, a "\n"
-// content chunk is streamed to the client between the two content segments.
-// This is a regression test for the bug where the newline was only added to the
-// saved DB message but never sent over the SSE stream.
-func TestChatStream_NewlineSeparatorStreamedBetweenToolCalls(t *testing.T) {
+// TestChatStream_PreToolTextStoredOnToolCall verifies that text written before
+// a tool call is stored on that tool call (not merged into the message body),
+// and that no synthetic separator chunk is streamed between rounds.
+func TestChatStream_PreToolTextStoredOnToolCall(t *testing.T) {
 	mock := &mockProviderWithToolCalls{}
 	teardown := setupTest(t, mock)
 	defer teardown()
 
 	reqBody := map[string]any{
-		"conversationId": "conv-tool-nl",
+		"conversationId": "conv-tool-rounds",
 		"parentId":       0,
 		"model":          "provider-x/model",
 		"content":        "hello",
@@ -487,18 +484,14 @@ func TestChatStream_NewlineSeparatorStreamedBetweenToolCalls(t *testing.T) {
 	rr := &flushRecorder{httptest.NewRecorder()}
 	chatStream(rr, req)
 
-	body := rr.Body.String()
-
-	// Collect all SSE data lines that carry content chunks, in order.
 	var contentChunks []string
-	for _, line := range strings.Split(body, "\n") {
+	for _, line := range strings.Split(rr.Body.String(), "\n") {
 		line = strings.TrimSpace(line)
 		if !strings.HasPrefix(line, "data: ") {
 			continue
 		}
-		data := strings.TrimPrefix(line, "data: ")
 		var m map[string]json.RawMessage
-		if err := json.Unmarshal([]byte(data), &m); err != nil {
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &m); err != nil {
 			continue
 		}
 		raw, ok := m["content"]
@@ -511,44 +504,24 @@ func TestChatStream_NewlineSeparatorStreamedBetweenToolCalls(t *testing.T) {
 		}
 		contentChunks = append(contentChunks, text)
 	}
-
-	// We expect at least: "Before tool", "\n", "After tool"
-	if len(contentChunks) < 3 {
-		t.Fatalf("expected at least 3 content chunks, got %d: %v", len(contentChunks), contentChunks)
+	if strings.Join(contentChunks, "|") != "Before tool|After tool" {
+		t.Fatalf("unexpected content chunks: %q", contentChunks)
 	}
 
-	// Find the index of the newline separator.
-	nlIdx := -1
-	for i, c := range contentChunks {
-		if c == "\n" {
-			nlIdx = i
-			break
-		}
+	var content string
+	if err := data.DB.QueryRow(`SELECT content FROM Messages WHERE role = 'assistant'`).Scan(&content); err != nil {
+		t.Fatalf("query assistant message: %v", err)
+	}
+	if content != "After tool" {
+		t.Fatalf("message content must hold only the final round, got %q", content)
 	}
 
-	if nlIdx == -1 {
-		t.Fatalf("expected a '\\n' content chunk between tool calls in stream, got chunks: %v", contentChunks)
+	var text string
+	if err := data.DB.QueryRow(`SELECT text FROM ToolCalls WHERE id = 'tc-1'`).Scan(&text); err != nil {
+		t.Fatalf("query tool call: %v", err)
 	}
-
-	// The "\n" must appear after "Before tool" and before "After tool".
-	beforeFound := false
-	for i := 0; i < nlIdx; i++ {
-		if contentChunks[i] == "Before tool" {
-			beforeFound = true
-		}
-	}
-	afterFound := false
-	for i := nlIdx + 1; i < len(contentChunks); i++ {
-		if contentChunks[i] == "After tool" {
-			afterFound = true
-		}
-	}
-
-	if !beforeFound {
-		t.Errorf("expected 'Before tool' content chunk before the '\\n' separator, got chunks: %v", contentChunks)
-	}
-	if !afterFound {
-		t.Errorf("expected 'After tool' content chunk after the '\\n' separator, got chunks: %v", contentChunks)
+	if text != "Before tool" {
+		t.Fatalf("tool call text = %q, want %q", text, "Before tool")
 	}
 }
 

@@ -28,52 +28,27 @@ func (repo *ToolCallsRepositoryImpl) Save(toolCall *providers.ToolCall) error {
 		fileID = nil
 	}
 
-	query := `INSERT INTO ToolCalls (id, reference_id, conv_id, message_id, name, args, output, file_id, token_count, context_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err := repo.db.Exec(query, toolCall.ID, toolCall.ReferenceID, toolCall.ConvID, toolCall.MessageID, toolCall.Name, toolCall.Args, toolCall.Output, fileID, toolCall.TokenCount, toolCall.ContextSize)
+	query := `INSERT INTO ToolCalls (id, reference_id, conv_id, message_id, name, args, output, file_id, token_count, context_size, text, reasoning) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err := repo.db.Exec(query, toolCall.ID, toolCall.ReferenceID, toolCall.ConvID, toolCall.MessageID, toolCall.Name, toolCall.Args, toolCall.Output, fileID, toolCall.TokenCount, toolCall.ContextSize, toolCall.Text, toolCall.Reasoning)
 	return err
 }
 
+// Rows are returned in insertion order: call order defines the round
+// boundaries (text/reasoning sit on the first call of each round).
 func (repo *ToolCallsRepositoryImpl) GetAllByMessageID(messageID int) []*providers.ToolCall {
-	query := `SELECT id, reference_id, name, args, output, file_id, token_count, context_size FROM ToolCalls WHERE message_id = ?`
-	var toolCalls = make([]*providers.ToolCall, 0)
-
-	rows, err := repo.db.Query(query, messageID)
-	if err != nil {
-		log.Error("Error querying tool calls", "err", err)
-		return toolCalls
-	}
-
-	defer rows.Close()
-	for rows.Next() {
-		var toolCall providers.ToolCall
-		var fileID sql.NullString
-		if err := rows.Scan(
-			&toolCall.ID,
-			&toolCall.ReferenceID,
-			&toolCall.Name,
-			&toolCall.Args,
-			&toolCall.Output,
-			&fileID,
-			&toolCall.TokenCount,
-			&toolCall.ContextSize,
-		); err != nil {
-			log.Error("Error scanning tool call", "err", err)
-			return toolCalls
-		}
-		if fileID.Valid {
-			toolCall.FileID = fileID.String
-		}
-
-		toolCalls = append(toolCalls, &toolCall)
-	}
-	return toolCalls
+	query := `SELECT id, reference_id, message_id, name, args, output, file_id, token_count, context_size, text, reasoning FROM ToolCalls WHERE message_id = ? ORDER BY rowid`
+	return repo.query(query, messageID)
 }
 
 func (repo *ToolCallsRepositoryImpl) GetAllByConvID(convID string) []*providers.ToolCall {
-	query := `SELECT id, reference_id, message_id, name, args, output, file_id, token_count, context_size FROM ToolCalls WHERE conv_id = ?`
+	query := `SELECT id, reference_id, message_id, name, args, output, file_id, token_count, context_size, text, reasoning FROM ToolCalls WHERE conv_id = ? ORDER BY rowid`
+	return repo.query(query, convID)
+}
+
+func (repo *ToolCallsRepositoryImpl) query(query string, arg any) []*providers.ToolCall {
 	var toolCalls = make([]*providers.ToolCall, 0)
 
-	rows, err := repo.db.Query(query, convID)
+	rows, err := repo.db.Query(query, arg)
 	if err != nil {
 		log.Error("Error querying tool calls", "err", err)
 		return toolCalls
@@ -93,6 +68,8 @@ func (repo *ToolCallsRepositoryImpl) GetAllByConvID(convID string) []*providers.
 			&fileID,
 			&toolCall.TokenCount,
 			&toolCall.ContextSize,
+			&toolCall.Text,
+			&toolCall.Reasoning,
 		); err != nil {
 			log.Error("Error scanning tool call", "err", err)
 			return toolCalls

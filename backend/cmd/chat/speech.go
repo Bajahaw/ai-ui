@@ -68,7 +68,7 @@ func synthesizeMessageSpeech(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	text := strings.TrimSpace(stripMarkdownForTTS(msg.Content))
+	text := strings.TrimSpace(stripMarkdownForTTS(fullContent(msg)))
 	if text == "" {
 		http.Error(w, "Message has no readable text", http.StatusBadRequest)
 		return

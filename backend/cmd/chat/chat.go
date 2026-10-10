@@ -174,7 +174,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 	tools.WaitForMCPUpdateCheck(user)
 
 	// Build context from user message
-	ctx := buildContext(convID, userMessage.ID, user)
+	ctx := buildContext(convID, userMessage.ID, user, req.Model)
 	reasoningSetting, _ := settings.Get("reasoningEffort", user)
 
 	providerParams := providers.RequestParams{
@@ -347,7 +347,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 	tools.WaitForMCPUpdateCheck(user)
 
 	// Build context from the parent message
-	ctx := buildContext(req.ConversationID, parent.ID, user)
+	ctx := buildContext(req.ConversationID, parent.ID, user, req.Model)
 	reasoningSetting, _ := settings.Get("reasoningEffort", user)
 
 	providerParams := providers.RequestParams{
