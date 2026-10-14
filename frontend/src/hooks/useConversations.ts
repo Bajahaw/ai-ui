@@ -313,6 +313,36 @@ function updateUserMessageAfterSave(
   syncConversations(); // Sync to show action buttons
 }
 
+/** In-flight client stream for one conversation. */
+export type ActiveStream = {
+  abort: AbortController;
+  assistantMessageId: number | null;
+};
+
+/** Registers a stream for a conversation, aborting any earlier one there. */
+export function startActiveStream(
+  streams: Map<string, ActiveStream>,
+  conversationId: string,
+): ActiveStream {
+  streams.get(conversationId)?.abort.abort();
+  const stream: ActiveStream = {
+    abort: new AbortController(),
+    assistantMessageId: null,
+  };
+  streams.set(conversationId, stream);
+  return stream;
+}
+
+export function endActiveStream(
+  streams: Map<string, ActiveStream>,
+  conversationId: string,
+  stream: ActiveStream,
+): void {
+  if (streams.get(conversationId) === stream) {
+    streams.delete(conversationId);
+  }
+}
+
 /**
  * Swaps optimistic assistant ID with real ID early to prevent unmount/remount
  */
@@ -436,12 +466,11 @@ export const useConversations = () => {
   const [hasHydrated, setHasHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<WelcomeStats | undefined>(undefined);
-  const activeStreamAssistantMessageIdRef = useRef<number | null>(null);
+  const activeStreamsRef = useRef(new Map<string, ActiveStream>());
   const needsFocusRefreshRef = useRef(false);
   const focusRefreshInFlightRef = useRef(false);
   const [sseEpoch, setSseEpoch] = useState(0);
   const sseRef = useRef<EventSource | null>(null);
-  const streamAbortRef = useRef<AbortController | null>(null);
   const connectionEpochRef = useRef(0);
   const lastRecoverAtRef = useRef(0);
   const recoverDeadConnectionRef = useRef<() => void>(() => {});
@@ -633,9 +662,10 @@ export const useConversations = () => {
     focusRefreshInFlightRef.current = true;
     try {
       connectionEpochRef.current += 1;
-      activeStreamAssistantMessageIdRef.current = null;
-      streamAbortRef.current?.abort();
-      streamAbortRef.current = null;
+      for (const stream of activeStreamsRef.current.values()) {
+        stream.abort.abort();
+      }
+      activeStreamsRef.current.clear();
       manager.abandonInFlightStreams();
       setSseEpoch((n) => n + 1);
       await catchUpFromServer();
@@ -1026,6 +1056,7 @@ export const useConversations = () => {
       let tempMessageId: string | undefined;
       let assistantPlaceholderId: string | undefined;
       let clientConversationId = conversationId;
+      let stream: ActiveStream | undefined;
       const streamEpoch = connectionEpochRef.current;
 
       try {
@@ -1131,9 +1162,11 @@ export const useConversations = () => {
         // Initialize streaming state and handlers
         const streamingState = new StreamingState();
         const assistantPlaceholderRef = { current: assistantPlaceholderId! };
-        streamAbortRef.current?.abort();
-        const streamAbort = new AbortController();
-        streamAbortRef.current = streamAbort;
+        const activeStream = startActiveStream(
+          activeStreamsRef.current,
+          conversationId,
+        );
+        stream = activeStream;
         const handlers = createStreamingHandlers(
           manager,
           conversationId,
@@ -1141,7 +1174,7 @@ export const useConversations = () => {
           streamingState,
           syncConversations,
           () => connectionEpochRef.current === streamEpoch,
-          streamAbort.signal,
+          activeStream.abort.signal,
           toolsRef,
         );
 
@@ -1180,8 +1213,7 @@ export const useConversations = () => {
               );
             }
             if (metadata.assistantMessageId) {
-              activeStreamAssistantMessageIdRef.current =
-                metadata.assistantMessageId;
+              activeStream.assistantMessageId = metadata.assistantMessageId;
 
               // Swap optimistic ID immediately so UI doesn't blink when streaming finishes
               if (assistantPlaceholderRef.current) {
@@ -1202,7 +1234,7 @@ export const useConversations = () => {
             if (connectionEpochRef.current !== streamEpoch) {
               return;
             }
-            activeStreamAssistantMessageIdRef.current = null;
+            activeStream.assistantMessageId = null;
             if (assistantPlaceholderRef.current) {
               updateAssistantMessageAfterComplete(
                 manager,
@@ -1224,12 +1256,12 @@ export const useConversations = () => {
               return;
             }
             console.error("Stream error:", error);
-            activeStreamAssistantMessageIdRef.current = null;
+            activeStream.assistantMessageId = null;
             streamingState.cancelPendingSync();
             streamError = error;
           },
           sessionId,
-          streamAbort.signal,
+          activeStream.abort.signal,
         );
         return conversationId;
       } catch (err) {
@@ -1250,6 +1282,10 @@ export const useConversations = () => {
         }
 
         throw err;
+      } finally {
+        if (stream && conversationId) {
+          endActiveStream(activeStreamsRef.current, conversationId, stream);
+        }
       }
     },
     [manager, syncConversations],
@@ -1266,6 +1302,7 @@ export const useConversations = () => {
         throw new Error("Conversation not ready");
       }
 
+      let stream: ActiveStream | undefined;
       try {
         setError(null);
 
@@ -1310,9 +1347,11 @@ export const useConversations = () => {
         const streamEpoch = connectionEpochRef.current;
         const streamingState = new StreamingState();
         const assistantPlaceholderRef = { current: assistantPlaceholderId };
-        streamAbortRef.current?.abort();
-        const streamAbort = new AbortController();
-        streamAbortRef.current = streamAbort;
+        const activeStream = startActiveStream(
+          activeStreamsRef.current,
+          activeConversationId,
+        );
+        stream = activeStream;
         const handlers = createStreamingHandlers(
           manager,
           activeConversationId,
@@ -1320,7 +1359,7 @@ export const useConversations = () => {
           streamingState,
           syncConversations,
           () => connectionEpochRef.current === streamEpoch,
-          streamAbort.signal,
+          activeStream.abort.signal,
           toolsRef,
         );
 
@@ -1340,8 +1379,7 @@ export const useConversations = () => {
               return;
             }
             if (metadata.assistantMessageId) {
-              activeStreamAssistantMessageIdRef.current =
-                metadata.assistantMessageId;
+              activeStream.assistantMessageId = metadata.assistantMessageId;
 
               // Swap optimistic ID immediately so UI doesn't blink when streaming finishes
               swapAssistantMessageId(
@@ -1360,7 +1398,7 @@ export const useConversations = () => {
             if (connectionEpochRef.current !== streamEpoch) {
               return;
             }
-            activeStreamAssistantMessageIdRef.current = null;
+            activeStream.assistantMessageId = null;
             updateAssistantMessageAfterComplete(
               manager,
               activeConversationId,
@@ -1380,25 +1418,32 @@ export const useConversations = () => {
               return;
             }
             console.error("Retry stream error:", err);
-            activeStreamAssistantMessageIdRef.current = null;
+            activeStream.assistantMessageId = null;
             streamingState.cancelPendingSync();
             streamError = err;
           },
           sessionId,
-          streamAbort.signal,
+          activeStream.abort.signal,
         );
       } catch (err) {
         console.error("Failed to retry message (stream):", err);
         const errorMessage = ApiErrorHandler.getUserFriendlyMessage(err);
         setError(errorMessage);
         throw err;
+      } finally {
+        if (stream) {
+          endActiveStream(activeStreamsRef.current, activeConversationId, stream);
+        }
       }
     },
     [manager, activeConversationId, syncConversations],
   );
 
   const cancelStream = useCallback(async () => {
-    let messageId = activeStreamAssistantMessageIdRef.current;
+    let messageId = activeConversationId
+      ? (activeStreamsRef.current.get(activeConversationId)
+          ?.assistantMessageId ?? null)
+      : null;
 
     if (!messageId && activeConversationId) {
       const currentConv = manager.getConversation(activeConversationId);

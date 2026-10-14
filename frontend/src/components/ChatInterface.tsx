@@ -107,7 +107,7 @@ interface ChatInterfaceProps {
     webSearch: boolean,
     model: string,
     attachments?: import("@/lib/api/types").Attachment[],
-  ) => Promise<void>;
+  ) => boolean;
   onRetryMessage: (messageId: string, model: string) => Promise<void>;
   onSwitchBranch: (messageId: number, branchIndex: number) => void;
   getBranchInfo: (messageId: number) => {
@@ -128,7 +128,8 @@ type PromptAreaHandle = {
 };
 
 type PromptAreaProps = {
-  onSend: (message: string, attachments?: Attachment[]) => void;
+  /** Returns false if the send was rejected; the composer keeps its input. */
+  onSend: (message: string, attachments?: Attachment[]) => boolean;
   placeholder: string;
   isDisabled: boolean;
   models: ModelOption[];
@@ -252,6 +253,8 @@ const PromptArea = memo(
     const handleSubmit = useCallback(
       (e: React.FormEvent) => {
         e.preventDefault();
+        // Enter still submits the form while this conversation is streaming.
+        if (hasPendingMessages) return;
         if (!promptInputRef.current?.value.trim() && uploadedFiles.length === 0)
           return;
         if (!isModelValid) return;
@@ -264,15 +267,15 @@ const PromptArea = memo(
                 file: fileData,
               }))
             : undefined;
+        if (!onSend(message, attachments)) return;
         promptInputRef.current?.clear();
         setIsInputEmpty(true);
         setUploadedFiles([]);
         setPendingFileNames([]);
         setUploadError(null);
-        onSend(message, attachments);
         promptInputRef.current?.focus({ preventScroll: true });
       },
-      [isModelValid, uploadedFiles, onSend],
+      [hasPendingMessages, isModelValid, uploadedFiles, onSend],
     );
 
     return (
@@ -756,11 +759,12 @@ export const ChatInterface = ({
 
   const handleSend = useCallback(
     (message: string, attachments?: Attachment[]) => {
+      if (!onSendMessage(message, webSearch, model, attachments)) return false;
       setHasInteracted(true);
       initialScrollUserInteractedRef.current = true;
       pendingInitialScrollConversationIdRef.current = null;
       if (messages.length > 0) scrollToBottom();
-      onSendMessage(message, webSearch, model, attachments);
+      return true;
     },
     [messages.length, webSearch, model, scrollToBottom, onSendMessage],
   );

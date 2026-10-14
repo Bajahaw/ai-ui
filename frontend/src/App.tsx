@@ -24,7 +24,8 @@ function App() {
     window.innerWidth < 768,
   );
 
-  const [isProcessing, setIsProcessing] = useState(false);
+  // Conversations with a send in flight; "" is a new chat not yet created.
+  const sendingConversationsRef = useRef(new Set<string>());
   const [lastMessageSignature, setLastMessageSignature] = useState<string>("");
   const [lastMessageTime, setLastMessageTime] = useState<number>(0);
   const [showSettings, setShowSettings] = useState(false);
@@ -141,45 +142,57 @@ function App() {
     navigate,
   ]);
 
-  const handleSendMessage = async (
+  // Returns whether the send was accepted, so the composer keeps rejected input.
+  const handleSendMessage = (
     message: string,
     webSearchEnabled: boolean,
     model: string,
     attachments?: Attachment[],
-  ) => {
+  ): boolean => {
     // Enhanced duplicate prevention for StrictMode and race conditions
     const currentTime = Date.now();
     const timeSinceLastMessage = currentTime - lastMessageTime;
 
-    if (isProcessing) {
-      return;
+    // One send at a time per conversation; other conversations are independent.
+    const sending = sendingConversationsRef.current;
+    let lockKey = activeConversationId ?? "";
+    if (sending.has(lockKey)) {
+      return false;
     }
 
     // Prevent duplicate messages within 1 second with same content (StrictMode protection)
     const attachmentKey = attachments?.map((a) => a.file.id).join(",") ?? "";
     const messageSignature = `${message}|${attachmentKey}`;
     if (messageSignature === lastMessageSignature && timeSinceLastMessage < 1000) {
-      return;
+      return false;
     }
 
-    setIsProcessing(true);
+    sending.add(lockKey);
     setLastMessageSignature(messageSignature);
     setLastMessageTime(currentTime);
 
-    try {
-      // Use streaming for better UX
-      await sendMessageStream(
-        activeConversationId,
-        message,
-        model,
-        webSearchEnabled,
-        attachments,
-        (newConvId) =>
-          navigate(`/c/${newConvId}`, { replace: Boolean(convId) }),
-      );
-    } finally {
-      setIsProcessing(false);
-    }
+    void (async () => {
+      try {
+        // Use streaming for better UX
+        await sendMessageStream(
+          activeConversationId,
+          message,
+          model,
+          webSearchEnabled,
+          attachments,
+          (newConvId) => {
+            // Free the new-chat slot as soon as the conversation has an ID.
+            sending.delete(lockKey);
+            lockKey = newConvId;
+            sending.add(lockKey);
+            navigate(`/c/${newConvId}`, { replace: Boolean(convId) });
+          },
+        );
+      } finally {
+        sending.delete(lockKey);
+      }
+    })();
+    return true;
   };
 
   const handleRetryMessage = async (messageId: string, model: string) => {
