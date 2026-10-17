@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual";
 import { Loader2, Search } from "lucide-react";
@@ -76,6 +76,7 @@ export const ModelSelect = ({
   const viewportRef = useRef<HTMLDivElement>(null);
   const searchFocusRef = useRef(false);
   const typeaheadRef = useRef({ text: "", time: 0 });
+  const resizingRef = useRef(false);
   const selectedModel = models.find((model) => model.id === selectValue);
   const filteredModels = useMemo(() => {
     const matches = createSearchMatcher(search);
@@ -114,6 +115,24 @@ export const ModelSelect = ({
     ])).filter((index) => index >= 0 && index < filteredModels.length).sort((a, b) => a - b),
   });
   const virtualRows = rowVirtualizer.getVirtualItems();
+
+  useEffect(() => {
+    if (!open) return;
+    let timeout: ReturnType<typeof setTimeout>;
+    const onResize = () => {
+      resizingRef.current = true;
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        resizingRef.current = false;
+      });
+    };
+    window.addEventListener("resize", onResize, true);
+    return () => {
+      window.removeEventListener("resize", onResize, true);
+      clearTimeout(timeout);
+      resizingRef.current = false;
+    };
+  }, [open]);
 
   const focusModel = (index: number) => {
     if (!filteredModels[index]) return;
@@ -159,6 +178,7 @@ export const ModelSelect = ({
       disabled={isDisabled}
       open={open}
       onOpenChange={(nextOpen) => {
+        if (!nextOpen && resizingRef.current && document.activeElement === searchRef.current) return;
         setOpen(nextOpen);
         setSearch("");
         setFocusedIndex(-1);

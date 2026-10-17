@@ -285,6 +285,24 @@ describe("model search focus", () => {
     expect(onChange).toHaveBeenCalledExactlyOnceWith(models[3].id);
   });
 
+  it("stays open with search focused when the mobile keyboard resizes the window", async () => {
+    await changeSearch("mimo");
+    await act(async () => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    expect(document.querySelector('[role="listbox"]')).not.toBeNull();
+    expect(document.activeElement).toBe(input());
+    expect(input().value).toBe("mimo");
+  });
+
+  it("still closes on window resize when search is not focused", async () => {
+    expect(document.activeElement).not.toBe(input());
+    await act(async () => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    expect(document.querySelector('[role="listbox"]')).toBeNull();
+  });
+
   it("protects search focus after returning from the options and during pointer movement", async () => {
     await act(async () => input().focus());
     await key(input(), "ArrowDown");
