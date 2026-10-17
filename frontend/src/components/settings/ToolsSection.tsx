@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useScrollAreaVirtualizer } from "@/hooks/useScrollAreaVirtualizer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -66,10 +66,14 @@ export const ToolsSection: React.FC = () => {
     filtered.length > 0 && filtered.every((t) => selection.has(t.id));
   const anySelected = selection.size > 0;
 
-  const rowVirtualizer = useVirtualizer({
+  const rowVirtualizer = useScrollAreaVirtualizer({
+    listRef: parentRef,
     count: filtered.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 76,
+    estimateSize: (index) => {
+      const { description, mcp_server_id } = filtered[index];
+      if (description && mcp_server_id) return 76;
+      return description ? 62 : mcp_server_id ? 60 : 52;
+    },
     overscan: 5,
   });
 
@@ -254,7 +258,7 @@ export const ToolsSection: React.FC = () => {
         )}
 
         {filtered.length > 0 && (
-          <div ref={parentRef} className="h-full overflow-y-auto pr-1">
+          <div ref={parentRef} className="h-full pr-1">
             <div
               style={{
                 height: `${rowVirtualizer.getTotalSize()}px`,
@@ -277,7 +281,7 @@ export const ToolsSection: React.FC = () => {
                       top: 0,
                       left: 0,
                       width: "100%",
-                      transform: `translateY(${Math.round(virtualRow.start)}px)`,
+                      transform: `translateY(${Math.round(virtualRow.start - rowVirtualizer.options.scrollMargin)}px)`,
                       paddingBottom: "8px", // replaces space-y-2
                     }}
                   >

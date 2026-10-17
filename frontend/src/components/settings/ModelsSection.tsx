@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useScrollAreaVirtualizer } from "@/hooks/useScrollAreaVirtualizer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -52,10 +52,10 @@ export const ModelsSection: React.FC = () => {
 
   const parentRef = useRef<HTMLDivElement>(null);
 
-  const rowVirtualizer = useVirtualizer({
+  const rowVirtualizer = useScrollAreaVirtualizer({
+    listRef: parentRef,
     count: filtered.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 76,
+    estimateSize: () => 62,
     overscan: 5,
   });
 
@@ -236,7 +236,7 @@ export const ModelsSection: React.FC = () => {
         )}
 
         {filtered.length > 0 && (
-          <div ref={parentRef} className="h-full overflow-y-auto pr-1">
+          <div ref={parentRef} className="h-full pr-1">
             <div
               style={{
                 height: `${rowVirtualizer.getTotalSize()}px`,
@@ -259,7 +259,7 @@ export const ModelsSection: React.FC = () => {
                       top: 0,
                       left: 0,
                       width: "100%",
-                      transform: `translateY(${Math.round(virtualRow.start)}px)`,
+                      transform: `translateY(${Math.round(virtualRow.start - rowVirtualizer.options.scrollMargin)}px)`,
                       paddingBottom: "8px",
                     }}
                   >
