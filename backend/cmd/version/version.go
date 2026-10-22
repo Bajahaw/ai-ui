@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-var AppVersion = "0.9.0"
+var AppVersion = "0.10.0"
 var BuildID = ""
 
 type VersionResponse struct {
