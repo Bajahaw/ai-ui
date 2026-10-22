@@ -233,7 +233,8 @@ export const AttachmentMessage = ({
             path: attachment,
             url: attachment,
             content: "",
-            createdAt: new Date().toISOString(),
+            // Legacy attachments carry no timestamp and it is never rendered.
+            createdAt: "",
           },
         },
       ];
