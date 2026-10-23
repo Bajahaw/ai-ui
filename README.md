@@ -49,4 +49,6 @@ For persistent storage you need to bind `/app/data` to your file system
 See [.env.example](.env.example) for all options.
 
 ## License
-MIT
+
+Source: MIT - [LICENSE](LICENSE).
+Images and binaries: AGPL-3.0 - [NOTICES.md](NOTICES.md).

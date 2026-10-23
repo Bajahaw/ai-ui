@@ -76,3 +76,4 @@ jobs:
           cache-from: type=registry,ref=ghcr.io/bajahaw/ai-ui:latest
           build-args: |
             BUILDKIT_INLINE_CACHE=1
+            GIT_SHA=${{ github.sha }}

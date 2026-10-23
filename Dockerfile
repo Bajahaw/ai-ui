@@ -37,10 +37,18 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 FROM alpine AS prod
 
+ARG GIT_SHA=unknown
+
+LABEL org.opencontainers.image.title="ai-ui" \
+      org.opencontainers.image.source="https://github.com/Bajahaw/ai-ui" \
+      org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.licenses="AGPL-3.0-only"
+
 WORKDIR /app
 
 COPY --from=backend-builder /app/ai-ui /app/ai-ui
 COPY --from=frontend-builder /app/frontend/dist ./static
+COPY NOTICES.md /app/NOTICES.md
 
 EXPOSE 8080
 
