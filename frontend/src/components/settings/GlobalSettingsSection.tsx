@@ -163,8 +163,10 @@ export const GlobalSettingsSection = () => {
         </div>
 
         <div className="space-y-4 pt-2">
-          <Label htmlFor="system-prompt">System Prompt</Label>
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex min-h-10 items-center">
+            <Label htmlFor="system-prompt">System Prompt</Label>
+          </div>
+          <div className="flex min-h-10 items-center justify-between">
             <div>
               <Label className="!mb-0">Append current date</Label>
             </div>
@@ -180,7 +182,7 @@ export const GlobalSettingsSection = () => {
               disabled={isSaving}
             />
           </div>
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex min-h-10 items-center justify-between">
             <div>
               <Label className="!mb-0">Append platform instructions</Label>
             </div>
