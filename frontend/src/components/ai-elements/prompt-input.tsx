@@ -189,6 +189,7 @@ export const PromptInputTextarea = forwardRef<
           className,
         )}
         name="message"
+        data-chat-composer=""
         onChange={handleChange}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
@@ -284,6 +285,8 @@ export const PromptInputSubmit = ({
         type="button"
         variant={variant}
         onClick={onStop}
+        title="Stop generating (Esc)"
+        aria-label="Stop generating"
         {...props}
       >
         {children ?? Icon}

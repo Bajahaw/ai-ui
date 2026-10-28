@@ -22,6 +22,7 @@ import {
   Loader2Icon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { modKeyLabel } from "@/lib/platform";
 import {
   ComponentProps,
   useDeferredValue,
@@ -90,11 +91,6 @@ const updatedAtMs = (c: ClientConversation): number => {
 
 const sortByUpdatedDesc = (a: ClientConversation, b: ClientConversation) =>
   updatedAtMs(b) - updatedAtMs(a);
-
-const modKeyLabel =
-  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent)
-    ? "⌘"
-    : "Ctrl+";
 
 /** Render FTS snippet with [matched] markers from the backend. */
 const SearchSnippet = ({ snippet }: { snippet: string }) => {
@@ -441,6 +437,7 @@ export const ConversationSidebar = ({
             size="sm"
             onClick={onToggleCollapse}
             className="h-8 w-8 p-0"
+            title={`Hide sidebar (${modKeyLabel}B)`}
           >
             <ChevronLeftIcon className="size-4" />
           </Button>

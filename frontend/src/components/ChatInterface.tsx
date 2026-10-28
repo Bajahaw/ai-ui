@@ -746,6 +746,37 @@ export const ChatInterface = ({
     (message) => message.status === "pending",
   );
 
+  // Escape stops an in-flight response. Skipped where Escape already has a
+  // meaning: open dialogs/menus/pickers, and fields with their own handler
+  // (conversation search, rename, inline edit) — but not the composer, where
+  // Escape is free and stopping mid-draft is the expected behaviour.
+  useEffect(() => {
+    if (!hasPendingMessages) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || e.isComposing) return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+
+      // Radix surfaces own Escape while open; don't cancel underneath them.
+      const openOverlay = document.querySelector(
+        '[role="dialog"][data-state="open"], [role="menu"][data-state="open"], [role="listbox"][data-state="open"]',
+      );
+      if (openOverlay) return;
+
+      const target = e.target instanceof Element ? e.target : null;
+      const field = target?.closest(
+        'input, textarea, [contenteditable="true"]',
+      );
+      if (field && !field.hasAttribute("data-chat-composer")) return;
+
+      e.preventDefault();
+      void onCancelStream();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [hasPendingMessages, onCancelStream]);
+
   // Check if there are recent error messages (within last 2 messages)
   const hasRecentError = messages.slice(-2).some((message) => !!message.error);
 

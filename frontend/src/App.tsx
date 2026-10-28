@@ -10,6 +10,7 @@ import { SettingsDialog } from "@/components/settings";
 import { Attachment } from "@/lib/api/types";
 import { goToNewChat, seedHomeUnderCurrentEntry } from "@/lib/history";
 import { isLargeScreen } from "@/lib/viewport";
+import { modKeyLabel } from "@/lib/platform";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Loader2, MessageSquareIcon, SettingsIcon } from "lucide-react";
@@ -88,6 +89,18 @@ function App() {
 
   useLayoutEffect(() => {
     seedHomeUnderCurrentEntry();
+  }, []);
+
+  // Global shortcut: Mod+B toggles the sidebar (VS Code style).
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+      if (e.key.toLowerCase() !== "b") return;
+      e.preventDefault();
+      setSidebarCollapsed((collapsed) => !collapsed);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
   useEffect(() => {
@@ -258,7 +271,7 @@ function App() {
   };
 
   const handleToggleSidebar = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
+    setSidebarCollapsed((collapsed) => !collapsed);
   };
 
   const handleWebSearchToggle = (enabled: boolean) => {
@@ -344,6 +357,8 @@ function App() {
               size="sm"
               onClick={handleToggleSidebar}
               className="hover:bg-accent"
+              title={`Toggle sidebar (${modKeyLabel}B)`}
+              aria-keyshortcuts="Control+B Meta+B"
             >
               <MessageSquareIcon className="size-4" />
             </Button>
