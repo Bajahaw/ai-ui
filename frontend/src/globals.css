@@ -239,6 +239,10 @@
     height: 100% !important;
     overflow: hidden;
     overscroll-behavior: none;
+    /* Pan-only gestures: no double-tap zoom (so taps dispatch immediately
+       instead of waiting for a second tap) and no pinch zoom. Scrolling
+       still works. */
+    touch-action: pan-x pan-y;
   }
 }
 
