@@ -18,9 +18,33 @@
     />
     <meta name="robots" content="index,follow" />
     <meta
+      id="viewport-meta"
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content"
     />
+    <script>
+      // Pick the initial zoom by device width. Phones get 0.9 so the 16px chat
+      // text and 14px chrome don't feel oversized in the narrow column;
+      // tablets/desktop stay at 1.0 (desktop browsers ignore initial-scale
+      // anyway). Runs before first paint, so there is no zoom flash.
+      (function () {
+        var meta = document.getElementById("viewport-meta");
+        if (!meta) return;
+        var width = Math.min(
+          window.innerWidth || document.documentElement.clientWidth || 0,
+          screen.width || 0,
+        );
+        var scale = 1;
+        if (width > 0 && width < 480) scale = 0.9;
+        else if (width > 0 && width < 768) scale = 0.95;
+        meta.setAttribute(
+          "content",
+          "width=device-width, initial-scale=" +
+            scale +
+            ", maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content",
+        );
+      })();
+    </script>
     <meta name="theme-color" content="#19191a" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta
