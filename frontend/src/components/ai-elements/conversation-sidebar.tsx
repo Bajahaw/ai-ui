@@ -399,8 +399,6 @@ export const ConversationSidebar = ({
           ? "0px"
           : `${Math.min(window.innerWidth * 0.4, 500)}px`,
         flexShrink: 0,
-        transition:
-          "width 300ms cubic-bezier(0.4, 0, 0.2, 1), min-width 300ms cubic-bezier(0.4, 0, 0.2, 1), max-width 300ms cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms cubic-bezier(0.4, 0, 0.2, 1), transform 300ms cubic-bezier(0.4, 0, 0.2, 1)",
       }}
       {...props}
     >
