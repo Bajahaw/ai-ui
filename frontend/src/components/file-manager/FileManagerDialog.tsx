@@ -397,6 +397,7 @@ export function FileManagerDialog({
                       {showThumb ? (
                         <FileThumb
                           src={fileThumbnailUrl(file.path)}
+                          file={file}
                           alt={file.name}
                           className="w-full h-full object-cover transition-transform group-hover:scale-105"
                         />

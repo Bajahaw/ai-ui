@@ -137,6 +137,7 @@ export const FilePreview = ({
           <div className="size-10 rounded overflow-hidden border bg-background flex items-center justify-center">
             <FileThumb
               src={fileThumbnailUrl(file.fileData.path)}
+              file={file.fileData}
               alt={file.file.name}
               className="size-full object-cover"
               iconClassName="size-4 text-gray-500"
@@ -295,6 +296,7 @@ export const AttachmentMessage = ({
               {showThumb ? (
                 <FileThumb
                   src={fileThumbnailUrl(att.file.path)}
+                  file={att.id === "legacy" ? undefined : att.file}
                   alt={att.file.name}
                   className="size-full object-cover"
                   iconClassName="h-8 w-8 text-muted-foreground/40"

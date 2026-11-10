@@ -6,6 +6,8 @@ import {
 } from "@/lib/api/files";
 import type { FrontendMessage, ToolCall } from "@/lib/api/types";
 import { fileAliases } from "./wrap";
+import { SCREENSHOT_API } from "./screenshot-api";
+import { createScreenshotBridge } from "./screenshot-bridge";
 
 const SANDBOX_TIMEOUT_MS = 90_000;
 const RETRY_BUDGET_MS = 30_000;
@@ -61,6 +63,7 @@ export const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
   var LOAD_SCRIPT_TIMEOUT_MS = 30000;
   var MAX_RESULT_CHARS = ${MAX_RESULT_CHARS};
   var __files = {};
+  var __fileNames = {};
   var __fileList = [];
   var __loaded = {};
   var __started = false;
@@ -71,6 +74,7 @@ export const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
     if (typeof data === 'string') return new TextEncoder().encode(data).buffer;
     throw new Error('writeFile: unsupported data type');
   }
+  ${SCREENSHOT_API}
   function describe(v){
     if (v === undefined) return '';
     if (typeof v === 'string') return v;
@@ -83,6 +87,7 @@ export const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
   }
   window.sandbox = {
     _done: false,
+    screenshot: screenshot,
     listFiles: function(){
       return __fileList.slice();
     },
@@ -127,6 +132,7 @@ export const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
     done: function(err){
       if (window.sandbox._done) return;
       window.sandbox._done = true;
+      __closeScreenshots();
       send({ type: '__sandbox_done', error: err ? String(err) : '' });
     }
   };
@@ -155,13 +161,17 @@ export const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
   });
   function mountFiles(files){
     __files = {};
+    __fileNames = {};
     __fileList = [];
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
       var u8 = new Uint8Array(f.data);
       __fileList.push(f.name);
       var keys = f.keys && f.keys.length ? f.keys : [f.name];
-      for (var k = 0; k < keys.length; k++) __files[keys[k]] = u8;
+      for (var k = 0; k < keys.length; k++) {
+        __files[keys[k]] = u8;
+        __fileNames[keys[k]] = f.name;
+      }
     }
   }
   function runJs(code){
@@ -346,10 +356,15 @@ function executeInIframe(
     let result = "";
     let settled = false;
     let started = false;
+    const screenshotController = new AbortController();
+    const handleScreenshot = createScreenshotBridge((message, transfer) => {
+      iframe.contentWindow?.postMessage(message, "*", transfer ?? []);
+    }, screenshotController.signal);
 
     const finish = (error = "") => {
       if (settled) return;
       settled = true;
+      screenshotController.abort();
       window.removeEventListener("message", onMessage);
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
@@ -392,6 +407,7 @@ function executeInIframe(
       if (event.source !== iframe.contentWindow) return;
       const data = event.data;
       if (!data || typeof data !== "object") return;
+      if (handleScreenshot(data)) return;
       if (data.type === "__sandbox_ready") {
         startRun();
         return;

@@ -63,6 +63,12 @@ func TestGetBuiltInTools_IncludesSandbox(t *testing.T) {
 	if !strings.Contains(found.Description, "sandbox.loadScript(url)") {
 		t.Fatalf("description must document loadScript: %s", found.Description)
 	}
+	if !strings.Contains(found.Description, "sandbox.screenshot(nameOrBytes, options)") {
+		t.Fatalf("description must document screenshot: %s", found.Description)
+	}
+	if strings.Contains(found.Description, "cdnjs.cloudflare.com") || strings.Contains(found.Description, "cdn.jsdelivr.net") || strings.Contains(found.Description, "file-generation skill") {
+		t.Fatalf("tool description must stay limited to the API summary: %s", found.Description)
+	}
 	if !strings.Contains(found.Description, "return value") {
 		t.Fatalf("description must say the return value is reported: %s", found.Description)
 	}

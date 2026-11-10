@@ -1,6 +1,7 @@
 import { FileUploadResponse, File as ApiFile } from "./types";
 
 import { getHeaders } from "./headers";
+import { getPreviewKind } from "@/lib/document-preview";
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
 
@@ -10,6 +11,9 @@ type FileBytes = {
 };
 
 const fileBytesCache = new Map<string, FileBytes>();
+
+/** Read-only access for transient thumbnail work, without growing the cache. */
+export const cachedFileBytes = (id: string): FileBytes | undefined => fileBytesCache.get(id);
 
 export const fileResourceUrl = (filePath: string): string => {
   if (!filePath) return "";
@@ -140,6 +144,18 @@ export const deleteFile = async (id: string): Promise<void> => {
   fileBytesCache.delete(id);
 };
 
+/** Stores a derived image separately; the server never changes the source file. */
+export const uploadFileThumbnail = async (id: string, image: Blob, signal?: AbortSignal): Promise<void> => {
+  const response = await fetch(`/api/files/${encodeURIComponent(id)}/thumbnail`, {
+    method: "POST",
+    credentials: "include",
+    headers: getHeaders({ "Content-Type": image.type }),
+    body: image,
+    signal,
+  });
+  if (!response.ok) throw new Error("Failed to store file thumbnail");
+};
+
 export const extractContent = async (fileIds: string[]): Promise<ApiFile[]> => {
   const response = await fetch(`/api/files/extract-content`, {
     method: "POST",
@@ -168,8 +184,10 @@ export const isImageFile = (filename: string): boolean => {
   return imageExtensions.includes(extension);
 };
 
-/** Types the backend can thumbnail: raster images + PDF first page (not SVG). */
+/** Server image/PDF thumbnails and separately persisted client Office previews. */
 export const isThumbnailable = (filename: string, mimeType?: string): boolean => {
+  const kind = getPreviewKind("/thumbnail", { filename, mimeType });
+  if (kind === "docx" || kind === "xlsx" || kind === "pptx") return true;
   const mt = (mimeType || "").toLowerCase();
   if (mt === "application/pdf") return true;
   if (mt.startsWith("image/") && mt !== "image/svg+xml") return true;

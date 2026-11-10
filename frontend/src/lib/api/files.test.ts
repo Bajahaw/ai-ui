@@ -5,6 +5,8 @@ import {
   resetFileBytesCache,
   retainFileBytes,
   uploadFile,
+  uploadFileThumbnail,
+  isThumbnailable,
 } from "./files";
 
 function meta(id: string, name = `${id}.txt`) {
@@ -93,5 +95,34 @@ describe("file bytes cache", () => {
     expect(fetchMock.mock.calls.some((c) => String(c[0]) === "/files/a")).toBe(
       true,
     );
+  });
+});
+
+describe("derived file thumbnail uploads", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("uploads an image against a file ID without uploading or modifying the source", async () => {
+    const fetchMock = vi.fn(async () => ({ok: true}));
+    vi.stubGlobal("fetch", fetchMock);
+    const image = new Blob(["png"], {type: "image/png"});
+    const controller = new AbortController();
+    await uploadFileThumbnail("office/id", image, controller.signal);
+    expect(fetchMock).toHaveBeenCalledWith("/api/files/office%2Fid/thumbnail", expect.objectContaining({
+      method: "POST", credentials: "include", body: image, signal: controller.signal,
+    }));
+    expect((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toBeInstanceOf(Headers);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("reports rejected thumbnail uploads", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ok: false})));
+    await expect(uploadFileThumbnail("office", new Blob(["png"]))).rejects.toThrow("Failed to store");
+  });
+
+  it.each(["docx", "xlsx", "pptx"])("allows separately stored %s previews without changing legacy/PDF support", (extension) => {
+    expect(isThumbnailable(`report.${extension}`)).toBe(true);
+    expect(isThumbnailable("report.doc")).toBe(false);
+    expect(isThumbnailable("report.pdf")).toBe(true);
+    expect(isThumbnailable("photo.png")).toBe(true);
   });
 });

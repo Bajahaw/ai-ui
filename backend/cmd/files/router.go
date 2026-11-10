@@ -13,6 +13,7 @@ func FileHandler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("POST 	/upload", upload)
+	mux.HandleFunc("POST /{id}/thumbnail", uploadThumbnail)
 	mux.HandleFunc("GET 	/{id}", getFile)
 	mux.HandleFunc("GET 	/all", getAllFiles)
 	mux.HandleFunc("DELETE 	/delete/{id}", deleteFile)
@@ -96,12 +97,23 @@ func serveThumbnail(w http.ResponseWriter, r *http.Request, rel string) {
 		return
 	}
 
-	if !isThumbnailableMIME(fileType) {
+	if !isThumbnailableMIME(fileType) && !isOfficeMIME(fileType) {
 		http.NotFound(w, r)
 		return
 	}
 
-	thumbPath, err := EnsureThumbnail(originalPath, fileType)
+	// Office previews are supplied by the active client. Never render Office
+	// documents server-side or regenerate them on a thumbnail request.
+	thumbPath := ThumbnailPath(originalPath)
+	if isOfficeMIME(fileType) {
+		if !thumbExists(thumbPath) {
+			w.Header().Set("Cache-Control", "no-store")
+			http.NotFound(w, r)
+			return
+		}
+	} else {
+		thumbPath, err = EnsureThumbnail(originalPath, fileType)
+	}
 	if err != nil {
 		if log != nil {
 			log.Debug("thumbnail generation failed", "path", originalPath, "err", err)

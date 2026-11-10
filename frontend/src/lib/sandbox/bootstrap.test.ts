@@ -6,6 +6,7 @@ type SandboxApi = {
   readFile(name: string): Uint8Array;
   writeFile(name: string, data: unknown, mime?: string): Promise<void>;
   loadScript(url: string): Promise<void>;
+  screenshot(source: string | Uint8Array, options?: {filename?: string; page?: number}): Promise<Blob>;
   done(err?: unknown): void;
   _done: boolean;
 };
@@ -141,5 +142,42 @@ describe("sandbox bootstrap", () => {
     await waitFor(() => sent.some((m) => m.type === "__sandbox_done"));
     const result = sent.find((m) => m.type === "__sandbox_result");
     expect(result?.value).toBe("[Uint8Array 5 bytes]");
+  });
+
+  it("requests screenshots for mounted aliases without detaching input bytes", async () => {
+    const { sent, init, frame, sandbox } = bootBootstrap();
+    const FrameMessageEvent = (frame as unknown as {MessageEvent: typeof MessageEvent}).MessageEvent;
+    init("const image = await sandbox.screenshot('file-id', {page: 2}); return image.type", [{name: "report.docx", keys: ["report.docx", "file-id"], data: new Uint8Array([1, 2, 3]).buffer}]);
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_screenshot"));
+    const message = sent.find((m) => m.type === "__sandbox_screenshot")!;
+    expect(message.filename).toBe("report.docx");
+    expect(message.options).toMatchObject({page: 2});
+    expect(sandbox.readFile("report.docx").byteLength).toBe(3);
+    const FrameArrayBuffer = (frame as unknown as {ArrayBuffer: typeof ArrayBuffer}).ArrayBuffer;
+    frame.dispatchEvent(new FrameMessageEvent("message", {source: frame.parent, data: {type: "__sandbox_screenshot_result", requestId: message.requestId, data: new FrameArrayBuffer(4)}}));
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_done"));
+    expect(sent.find((m) => m.type === "__sandbox_result")?.value).toBe("image/png");
+  });
+
+  it("reports screenshot failures to calling sandbox code", async () => {
+    const { sent, init, frame } = bootBootstrap();
+    const FrameMessageEvent = (frame as unknown as {MessageEvent: typeof MessageEvent}).MessageEvent;
+    init("await sandbox.screenshot('report.docx')", [{name: "report.docx", data: new Uint8Array([1, 2, 3]).buffer}]);
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_screenshot"));
+    const message = sent.find((m) => m.type === "__sandbox_screenshot")!;
+    frame.dispatchEvent(new FrameMessageEvent("message", {source: frame.parent, data: {type: "__sandbox_screenshot_result", requestId: message.requestId, error: "Page number is out of range"}}));
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_done"));
+    expect(sent.find((m) => m.type === "__sandbox_done")?.error).toBe("Page number is out of range");
+  });
+
+  it("assigns distinct request IDs to concurrent screenshots", async () => {
+    const { sent, init, frame } = bootBootstrap();
+    const FrameMessageEvent = (frame as unknown as {MessageEvent: typeof MessageEvent}).MessageEvent;
+    init("await Promise.all([sandbox.screenshot('report.docx'), sandbox.screenshot('report.docx')])", [{name: "report.docx", data: new Uint8Array([1, 2, 3]).buffer}]);
+    await waitFor(() => sent.filter((m) => m.type === "__sandbox_screenshot").length === 2);
+    const requests = sent.filter((m) => m.type === "__sandbox_screenshot");
+    expect(requests.map((m) => m.requestId)).toEqual([1, 2]);
+    for (const message of requests) frame.dispatchEvent(new FrameMessageEvent("message", {source: frame.parent, data: {type: "__sandbox_screenshot_result", requestId: message.requestId, error: "test complete"}}));
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_done"));
   });
 });
