@@ -3,6 +3,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { ConversationSidebar } from "@/components/ai-elements/conversation-sidebar";
 import { ChatInterface } from "@/components/ChatInterface";
+import { DocumentPreviewProvider } from "@/components/document-viewer/document-preview-provider";
+import { DocumentViewer } from "@/components/document-viewer/document-viewer";
 import { useConversations } from "@/hooks/useConversations";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettingsData } from "@/hooks/useSettingsData";
@@ -15,7 +17,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { Loader2, MessageSquareIcon, SettingsIcon } from "lucide-react";
 
-function App() {
+function AppContent() {
   const { isAuthenticated, isCheckingAuth } = useAuth();
   const { checkingMCPUpdates } = useSettingsData();
   const { convId } = useParams<{ convId?: string }>();
@@ -426,9 +428,20 @@ function App() {
         />
       </div>
 
+      <DocumentViewer />
+
       {/* Settings Dialog */}
       <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
     </div>
+  );
+}
+
+function App() {
+  const { convId } = useParams<{ convId?: string }>();
+  return (
+    <DocumentPreviewProvider scopeKey={convId ?? ""}>
+      <AppContent />
+    </DocumentPreviewProvider>
   );
 }
 

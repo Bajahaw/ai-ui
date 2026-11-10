@@ -6,6 +6,7 @@ MuPDF 1.28.0: (c) Artifex Software, Inc. - AGPL-3.0 - https://mupdf.com/
 go-fitz v1.28.2: MIT - https://github.com/gen2brain/go-fitz
 Other Go modules: MIT, BSD-2-Clause, BSD-3-Clause, ISC, Apache-2.0 - `backend/go.sum`.
 Front-end: dompurify MPL-2.0 OR Apache-2.0, elkjs EPL-2.0, lightningcss MPL-2.0 (build only), caniuse-lite CC-BY-4.0 (build only).
+PDF.js (pdfjs-dist), including adapted TextLayer styles: Apache-2.0, Mozilla Foundation - https://github.com/mozilla/pdf.js. Bundled PDF.js fonts and codecs retain their accompanying licenses under `/pdfjs/`.
 Source: https://github.com/Bajahaw/ai-ui at `org.opencontainers.image.revision`.
 MuPDF source: https://mupdf.com/downloads/
 

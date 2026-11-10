@@ -2,6 +2,8 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "path";
+import { fileURLToPath } from "node:url";
+import { viteStaticCopy } from "vite-plugin-static-copy";
 import packageJson from "./package.json" with { type: "json" };
 
 export default defineConfig({
@@ -11,6 +13,22 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    viteStaticCopy({
+      targets: [
+        ...["cmaps", "standard_fonts", "wasm"].map((directory) => ({
+          src: `${fileURLToPath(new URL(`../${directory}`, import.meta.resolve("pdfjs-dist"))).replaceAll("\\", "/")}/*`,
+          dest: `pdfjs/${directory}`,
+          rename: { stripBase: true as const },
+        })),
+        {
+          src: fileURLToPath(
+            new URL("../LICENSE", import.meta.resolve("pdfjs-dist")),
+          ).replaceAll("\\", "/"),
+          dest: "pdfjs",
+          rename: { stripBase: true },
+        },
+      ],
+    }),
     VitePWA({
       registerType: "prompt",
       injectRegister: false,
@@ -25,7 +43,11 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2,ttf}"],
         navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/api\//, /^\/data\//, /^\/sandbox\.html$/],
+        navigateFallbackDenylist: [
+          /^\/api\//,
+          /^\/data\//,
+          /^\/sandbox\.html$/,
+        ],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         runtimeCaching: [
           {
