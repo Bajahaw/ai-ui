@@ -144,6 +144,33 @@ describe("sandbox bootstrap", () => {
     expect(result?.value).toBe("[Uint8Array 5 bytes]");
   });
 
+  it.each([
+    ["document.createElement('canvas')", "HTMLCanvasElement"],
+    ["document.createElement('div')", "HTMLDivElement"],
+    ["{}", "Object"],
+    ["null", "Null"],
+    ["undefined", "Undefined"],
+  ])("explains supported screenshot inputs for %s", async (source, type) => {
+    const { sent, init } = bootBootstrap();
+    init(`await sandbox.screenshot(${source})`);
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_done"));
+    const error = String(sent.find((m) => m.type === "__sandbox_done")?.error);
+    expect(error).toBe(
+      `screenshot: unsupported data type [object ${type}]. Expected a string, Blob, ArrayBuffer, typed array, or DataView.`,
+    );
+    expect(sent.some((m) => m.type === "__sandbox_screenshot")).toBe(false);
+  });
+
+  it("explains supported writeFile data types", async () => {
+    const { sent, init } = bootBootstrap();
+    init("await sandbox.writeFile('test.png', document.createElement('canvas'))");
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_done"));
+    expect(sent.find((m) => m.type === "__sandbox_done")?.error).toBe(
+      "writeFile: unsupported data type [object HTMLCanvasElement]. Expected a string, Blob, ArrayBuffer, typed array, or DataView.",
+    );
+    expect(sent.some((m) => m.type === "__sandbox_file")).toBe(false);
+  });
+
   it("requests screenshots for mounted aliases without detaching input bytes", async () => {
     const { sent, init, frame, sandbox } = bootBootstrap();
     const FrameMessageEvent = (frame as unknown as {MessageEvent: typeof MessageEvent}).MessageEvent;

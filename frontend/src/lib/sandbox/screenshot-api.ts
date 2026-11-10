@@ -21,7 +21,7 @@ export const SCREENSHOT_API = `
       filename = __fileNames[source] || source;
       source = window.sandbox.readFile(source);
     }
-    var buf = typeof Blob !== 'undefined' && source instanceof Blob ? await source.arrayBuffer() : toBuf(source);
+    var buf = typeof Blob !== 'undefined' && source instanceof Blob ? await source.arrayBuffer() : toBuf(source, 'screenshot');
     if (!buf.byteLength || buf.byteLength > 50 * 1024 * 1024) throw new Error('screenshot: input must be between 1 byte and 50MB');
     if (typeof filename !== 'string' || !filename || filename.length > 255) throw new Error('screenshot: filename is required for bytes or Blob input');
     if (window.sandbox._done) throw new Error('sandbox finished');

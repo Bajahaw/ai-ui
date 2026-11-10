@@ -68,11 +68,11 @@ export const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
   var __loaded = {};
   var __started = false;
   function send(msg, transfer){ window.parent.postMessage(msg, '*', transfer || []); }
-  function toBuf(data){
+  function toBuf(data, caller){
     if (data instanceof ArrayBuffer) return data;
     if (ArrayBuffer.isView(data)) return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
     if (typeof data === 'string') return new TextEncoder().encode(data).buffer;
-    throw new Error('writeFile: unsupported data type');
+    throw new Error((caller || 'writeFile') + ': unsupported data type ' + Object.prototype.toString.call(data) + '. Expected a string, Blob, ArrayBuffer, typed array, or DataView.');
   }
   ${SCREENSHOT_API}
   function describe(v){
