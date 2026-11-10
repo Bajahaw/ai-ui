@@ -15,7 +15,10 @@ describe("document preview detection", () => {
   });
 
   it.each([
-    "/data/resources/report.docx",
+    "/data/resources/report.doc",
+    "/data/resources/report.xls",
+    "/data/resources/report.ppt",
+    "/data/resources/report.docm",
     "/download?name=report.pdf",
     "https://example.com/report.pdf.exe",
     "javascript:report.pdf",
@@ -29,6 +32,41 @@ describe("document preview detection", () => {
     expect(
       fileLinkName("/data/resources/Annual%20report.pdf?download=1#page=1"),
     ).toBe("Annual report.pdf");
+  });
+
+  it.each([
+    ["docx", "wordprocessingml.document"],
+    ["xlsx", "spreadsheetml.sheet"],
+    ["pptx", "presentationml.presentation"],
+  ])("recognizes %s links and opaque uploads", (kind, mimeSuffix) => {
+    expect(
+      getPreviewKind(
+        `/data/resources/REPORT.${kind.toUpperCase()}?download=1#view`,
+      ),
+    ).toBe(kind);
+    expect(getPreviewKind(`/data/resources/report%2E${kind}`)).toBe(kind);
+    expect(
+      getPreviewKind("/data/resources/upload-123", {
+        filename: `Report.${kind}`,
+        mimeType: "application/octet-stream",
+      }),
+    ).toBe(kind);
+    expect(
+      getPreviewKind("/data/resources/upload-123", {
+        mimeType: `APPLICATION/VND.OPENXMLFORMATS-OFFICEDOCUMENT.${mimeSuffix.toUpperCase()}; charset=binary`,
+      }),
+    ).toBe(kind);
+    expect(
+      getPreviewKind(`/report.${kind}`, { mimeType: "text/html" }),
+    ).toBeNull();
+    expect(getPreviewKind(`javascript:report.${kind}`)).toBeNull();
+    expect(
+      getPreviewLabel({
+        href: "/opaque",
+        filename: "Report",
+        kind: kind as "docx" | "xlsx" | "pptx",
+      }),
+    ).toBe(kind.toUpperCase());
   });
 
   it.each([

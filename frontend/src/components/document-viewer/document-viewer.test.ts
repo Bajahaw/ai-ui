@@ -12,6 +12,11 @@ vi.mock("./pdf-viewer", () => ({
     createElement("div", { "data-testid": "pdf" }, document.filename),
 }));
 
+vi.mock("./office-viewer", () => ({
+  default: ({ document }: { document: { filename: string; kind: string } }) =>
+    createElement("div", { "data-testid": document.kind }, document.filename),
+}));
+
 let root: Root;
 let container: HTMLDivElement;
 let desktop: boolean;
@@ -50,6 +55,15 @@ const attachments: Attachment[] = [
   {
     name: "Notes.docx",
     type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  },
+  { name: "Legacy.doc", type: "application/msword" },
+  {
+    name: "Budget.xlsx",
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  },
+  {
+    name: "Slides.pptx",
+    type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   },
 ].map(({ name, type }, index) => ({
   id: `attachment-${index}`,
@@ -134,22 +148,51 @@ describe("document viewer integration", () => {
 
   it("opens unsupported uploads with a short note and direct download", async () => {
     await render();
-    await click('[aria-label="Preview Notes.docx"]');
+    await click('[aria-label="Preview Legacy.doc"]');
     expect(document.querySelector("aside")?.textContent).toContain(
       "Preview isn’t available for this file type yet.",
     );
     expect(document.querySelector("aside header")?.textContent).toContain(
-      "DOCX",
+      "DOC",
     );
     const download = document.querySelector<HTMLAnchorElement>(
       "aside a[download]:not([aria-label])",
     );
     expect(download?.textContent).toContain("Download file");
-    expect(download?.getAttribute("href")).toBe("/data/resources/upload-2");
-    expect(download?.getAttribute("download")).toBe("Notes.docx");
+    expect(download?.getAttribute("href")).toBe("/data/resources/upload-3");
+    expect(download?.getAttribute("download")).toBe("Legacy.doc");
     expect(
       document.querySelector("aside iframe, aside object, aside embed"),
     ).toBeNull();
+  });
+
+  it.each([
+    ["Notes.docx", "docx"],
+    ["Budget.xlsx", "xlsx"],
+    ["Slides.pptx", "pptx"],
+  ])("opens uploaded %s in the Office renderer", async (name, kind) => {
+    await render();
+    await click(`[aria-label="Preview ${name}"]`);
+    expect(
+      document.querySelector(`aside [data-testid="${kind}"]`)?.textContent,
+    ).toBe(name);
+    expect(document.querySelector("aside header")?.textContent).toContain(
+      kind.toUpperCase(),
+    );
+    expect(
+      document.querySelector(`aside a[download="${name}"]`),
+    ).not.toBeNull();
+  });
+
+  it("previews generated Office links even when the display label has no extension", async () => {
+    await render();
+    await click('[aria-label="Preview Word document"]');
+    expect(
+      document.querySelector('aside [data-testid="docx"]')?.textContent,
+    ).toBe("Word document");
+    expect(document.querySelector("aside header")?.textContent).toContain(
+      "DOCX",
+    );
   });
 
   it("supports legacy image attachments and keeps native links outside the viewer provider", async () => {

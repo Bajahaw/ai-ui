@@ -29,6 +29,11 @@
   color-scheme: only light;
 }
 
+/* Office canvases and the library-owned sheet tabs use a light document surface. */
+.office-document-surface {
+  color-scheme: only light;
+}
+
 /* PDF.js TextLayer positioning, scoped so document styles cannot affect chat. */
 .pdf-text-layer {
   position: absolute;

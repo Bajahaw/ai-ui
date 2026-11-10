@@ -1,13 +1,22 @@
+export type OfficePreviewKind = "docx" | "xlsx" | "pptx";
+
 /** Add new renderer kinds here as more document formats become previewable. */
 export type DocumentPreview = {
   href: string;
   filename: string;
   /** Original upload name, separate from a generated link's display label. */
   downloadFilename?: string;
-  kind: "pdf" | "image" | "unsupported";
+  kind: "pdf" | "image" | OfficePreviewKind | "unsupported";
 };
 
 const imageExtensions = /\.(png|jpe?g|gif|webp|avif|bmp|svg|ico|apng)$/i;
+const officeMimeTypes: Record<string, OfficePreviewKind> = {
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    "docx",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+    "pptx",
+};
 const imageMimeTypes = new Set([
   "image/png",
   "image/jpeg",
@@ -43,6 +52,8 @@ export function getPreviewKind(
     const mimeType = metadata.mimeType?.split(";")[0].trim().toLowerCase();
     if (mimeType === "application/pdf") return "pdf";
     if (mimeType && imageMimeTypes.has(mimeType)) return "image";
+    if (mimeType && Object.hasOwn(officeMimeTypes, mimeType))
+      return officeMimeTypes[mimeType];
     // Specific MIME types take precedence over misleading extensions. Generic
     // upload MIME types still allow detection using the original filename.
     if (
@@ -56,6 +67,9 @@ export function getPreviewKind(
       return null;
     const name = metadata.filename || decodeURIComponent(url.pathname);
     if (/\.pdf$/i.test(name)) return "pdf";
+    const officeExtension = name.match(/\.(docx|xlsx|pptx)$/i)?.[1];
+    if (officeExtension)
+      return officeExtension.toLowerCase() as OfficePreviewKind;
     return imageExtensions.test(name) ? "image" : null;
   } catch {
     return null;
@@ -64,6 +78,8 @@ export function getPreviewKind(
 
 export function getPreviewLabel(document: DocumentPreview): string {
   if (document.kind === "pdf") return "PDF";
+  if (["docx", "xlsx", "pptx"].includes(document.kind))
+    return document.kind.toUpperCase();
   const extension = document.filename.match(/\.([a-z0-9]{1,10})$/i)?.[1];
   return (
     extension?.toUpperCase() ?? (document.kind === "image" ? "Image" : "File")

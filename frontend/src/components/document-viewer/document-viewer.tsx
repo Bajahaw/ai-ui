@@ -22,8 +22,12 @@ import { ImageViewer } from "./image-viewer";
 import { UnsupportedViewer } from "./unsupported-viewer";
 import "./document-viewer.css";
 
+const OfficeViewer = lazy(() => import("./office-viewer"));
 const renderers = {
   pdf: lazy(() => import("./pdf-viewer")),
+  docx: OfficeViewer,
+  xlsx: OfficeViewer,
+  pptx: OfficeViewer,
   image: ImageViewer,
   unsupported: UnsupportedViewer,
 } satisfies Record<
@@ -127,7 +131,7 @@ function ViewerContents({
           </div>
         }
       >
-        <Renderer key={document.href} document={document} />
+        <Renderer key={`${document.kind}:${document.href}`} document={document} />
       </Suspense>
     </>
   );
