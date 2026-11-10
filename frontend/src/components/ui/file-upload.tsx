@@ -16,6 +16,8 @@ import {
 } from "@/lib/api/files";
 import type { File as APIFile } from "@/lib/api/types";
 import { FileThumb } from "@/components/ui/file-thumb";
+import { useDocumentPreview } from "@/hooks/useDocumentPreview";
+import { getPreviewKind } from "@/lib/document-preview";
 
 
 export interface FileUploadProps {
@@ -212,6 +214,7 @@ export const AttachmentMessage = ({
   filename,
   className,
 }: AttachmentMessageProps) => {
+  const preview = useDocumentPreview();
   // Normalize input to array of Attachment-like objects
   const items = (() => {
     if (attachments && attachments.length > 0) {
@@ -262,9 +265,31 @@ export const AttachmentMessage = ({
             href={originalUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="relative flex flex-col overflow-hidden rounded-xl border bg-card w-40 sm:w-48 aspect-video shrink-0 shadow-sm"
+            className="relative flex flex-col overflow-hidden rounded-xl border bg-card w-40 sm:w-48 aspect-video shrink-0 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             title={`${att.file.name} (${formatFileSize(att.file.size)})`}
-            onClick={(e) => e.stopPropagation()}
+            aria-label={preview ? `Preview ${att.file.name}` : att.file.name}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (
+                !preview ||
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              ) return;
+              event.preventDefault();
+              event.currentTarget.focus({ preventScroll: true });
+              preview.openPreview({
+                href: originalUrl,
+                filename: att.file.name,
+                downloadFilename: att.file.name,
+                kind: getPreviewKind(originalUrl, {
+                  filename: att.file.name,
+                  mimeType: att.file.type,
+                }) ?? "unsupported",
+              });
+            }}
           >
             <div className="size-full overflow-hidden flex items-center justify-center bg-muted/10">
               {showThumb ? (

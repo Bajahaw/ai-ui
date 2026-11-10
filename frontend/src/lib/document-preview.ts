@@ -2,8 +2,27 @@
 export type DocumentPreview = {
   href: string;
   filename: string;
-  kind: "pdf";
+  /** Original upload name, separate from a generated link's display label. */
+  downloadFilename?: string;
+  kind: "pdf" | "image" | "unsupported";
 };
+
+const imageExtensions = /\.(png|jpe?g|gif|webp|avif|bmp|svg|ico|apng)$/i;
+const imageMimeTypes = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/pjpeg",
+  "image/gif",
+  "image/webp",
+  "image/avif",
+  "image/bmp",
+  "image/x-ms-bmp",
+  "image/svg+xml",
+  "image/x-icon",
+  "image/vnd.microsoft.icon",
+  "image/apng",
+]);
 
 export function fileLinkName(href: string): string {
   try {
@@ -14,12 +33,39 @@ export function fileLinkName(href: string): string {
   }
 }
 
-export function getPreviewKind(href: string): DocumentPreview["kind"] | null {
+export function getPreviewKind(
+  href: string,
+  metadata: { filename?: string; mimeType?: string } = {},
+): Exclude<DocumentPreview["kind"], "unsupported"> | null {
   try {
     const url = new URL(href, "http://localhost");
     if (!["http:", "https:"].includes(url.protocol)) return null;
-    return /\.pdf$/i.test(decodeURIComponent(url.pathname)) ? "pdf" : null;
+    const mimeType = metadata.mimeType?.split(";")[0].trim().toLowerCase();
+    if (mimeType === "application/pdf") return "pdf";
+    if (mimeType && imageMimeTypes.has(mimeType)) return "image";
+    // Specific MIME types take precedence over misleading extensions. Generic
+    // upload MIME types still allow detection using the original filename.
+    if (
+      mimeType &&
+      ![
+        "application/octet-stream",
+        "binary/octet-stream",
+        "image/unknown",
+      ].includes(mimeType)
+    )
+      return null;
+    const name = metadata.filename || decodeURIComponent(url.pathname);
+    if (/\.pdf$/i.test(name)) return "pdf";
+    return imageExtensions.test(name) ? "image" : null;
   } catch {
     return null;
   }
+}
+
+export function getPreviewLabel(document: DocumentPreview): string {
+  if (document.kind === "pdf") return "PDF";
+  const extension = document.filename.match(/\.([a-z0-9]{1,10})$/i)?.[1];
+  return (
+    extension?.toUpperCase() ?? (document.kind === "image" ? "Image" : "File")
+  );
 }

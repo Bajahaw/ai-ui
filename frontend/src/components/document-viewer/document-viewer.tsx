@@ -7,14 +7,25 @@ import {
   type ComponentType,
 } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { DownloadIcon, FileTextIcon, Loader2Icon, XIcon } from "lucide-react";
+import {
+  DownloadIcon,
+  FileIcon,
+  FileImageIcon,
+  FileTextIcon,
+  Loader2Icon,
+  XIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDocumentPreview } from "@/hooks/useDocumentPreview";
-import type { DocumentPreview } from "@/lib/document-preview";
+import { getPreviewLabel, type DocumentPreview } from "@/lib/document-preview";
+import { ImageViewer } from "./image-viewer";
+import { UnsupportedViewer } from "./unsupported-viewer";
 import "./document-viewer.css";
 
 const renderers = {
   pdf: lazy(() => import("./pdf-viewer")),
+  image: ImageViewer,
+  unsupported: UnsupportedViewer,
 } satisfies Record<
   DocumentPreview["kind"],
   ComponentType<{ document: DocumentPreview }>
@@ -38,6 +49,12 @@ function ViewerContents({
 }) {
   const preview = useDocumentPreview()!;
   const Renderer = renderers[document.kind];
+  const Icon =
+    document.kind === "image"
+      ? FileImageIcon
+      : document.kind === "pdf"
+        ? FileTextIcon
+        : FileIcon;
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -53,7 +70,7 @@ function ViewerContents({
         />
       )}
       <header className="flex min-h-14 shrink-0 items-center gap-2 border-b px-3">
-        <FileTextIcon
+        <Icon
           className="size-4 shrink-0 text-muted-foreground"
           aria-hidden="true"
         />
@@ -73,11 +90,13 @@ function ViewerContents({
             {document.filename}
           </h2>
         )}
-        <span className="text-xs text-muted-foreground">PDF</span>
+        <span className="text-xs text-muted-foreground">
+          {getPreviewLabel(document)}
+        </span>
         <Button variant="ghost" size="icon" asChild>
           <a
             href={document.href}
-            download
+            download={document.downloadFilename ?? true}
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Download ${document.filename}`}

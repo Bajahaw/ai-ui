@@ -2,6 +2,8 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FileCard } from "@/components/ai-elements/file-card";
+import { AttachmentMessage } from "@/components/ui/file-upload";
+import type { Attachment } from "@/lib/api/types";
 import { DocumentPreviewProvider } from "./document-preview-provider";
 import { DocumentViewer } from "./document-viewer";
 
@@ -19,6 +21,13 @@ beforeEach(() => {
   desktop = true;
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+  vi.stubGlobal(
     "matchMedia",
     vi.fn(() => ({
       get matches() {
@@ -34,6 +43,27 @@ beforeEach(() => {
   document.body.append(container);
   root = createRoot(container);
 });
+
+const attachments: Attachment[] = [
+  { name: "Photo.png", type: "image/png" },
+  { name: "Uploaded.pdf", type: "application/pdf" },
+  {
+    name: "Notes.docx",
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  },
+].map(({ name, type }, index) => ({
+  id: `attachment-${index}`,
+  messageId: 1,
+  file: {
+    id: `upload-${index}`,
+    name,
+    type,
+    size: 1024,
+    path: `data/resources/upload-${index}`,
+    content: "",
+    createdAt: "2026-11-10T00:00:00Z",
+  },
+}));
 
 afterEach(async () => {
   await act(async () => root.unmount());
@@ -62,6 +92,7 @@ async function render(scopeKey = "chat-a") {
           href: "/data/resources/report.docx",
           filename: "Word document",
         }),
+        createElement(AttachmentMessage, { key: "uploads", attachments }),
         createElement(DocumentViewer, { key: "viewer" }),
       ),
     );
@@ -80,6 +111,93 @@ async function click(selector: string) {
 }
 
 describe("document viewer integration", () => {
+  it("opens uploaded images and PDFs using metadata rather than resource extensions", async () => {
+    await render();
+    const event = await click('[aria-label="Preview Photo.png"]');
+    expect(event.defaultPrevented).toBe(true);
+    const image = document.querySelector<HTMLImageElement>(
+      'aside img[alt="Photo.png"]',
+    );
+    expect(image?.getAttribute("src")).toBe("/data/resources/upload-0");
+    expect(document.querySelector("aside header")?.textContent).toContain(
+      "PNG",
+    );
+    await click('[aria-label="Preview Uploaded.pdf"]');
+    expect(document.querySelector('[data-testid="pdf"]')?.textContent).toBe(
+      "Uploaded.pdf",
+    );
+    await click('[aria-label="Close document preview"]');
+    expect(document.activeElement?.getAttribute("aria-label")).toBe(
+      "Preview Uploaded.pdf",
+    );
+  });
+
+  it("opens unsupported uploads with a short note and direct download", async () => {
+    await render();
+    await click('[aria-label="Preview Notes.docx"]');
+    expect(document.querySelector("aside")?.textContent).toContain(
+      "Preview isn’t available for this file type yet.",
+    );
+    expect(document.querySelector("aside header")?.textContent).toContain(
+      "DOCX",
+    );
+    const download = document.querySelector<HTMLAnchorElement>(
+      "aside a[download]:not([aria-label])",
+    );
+    expect(download?.textContent).toContain("Download file");
+    expect(download?.getAttribute("href")).toBe("/data/resources/upload-2");
+    expect(download?.getAttribute("download")).toBe("Notes.docx");
+    expect(
+      document.querySelector("aside iframe, aside object, aside embed"),
+    ).toBeNull();
+  });
+
+  it("supports legacy image attachments and keeps native links outside the viewer provider", async () => {
+    await act(async () =>
+      root.render(
+        createElement(
+          DocumentPreviewProvider,
+          { scopeKey: "legacy" },
+          createElement(AttachmentMessage, {
+            attachment: "data/resources/old.jpg",
+            filename: "Old photo.jpg",
+          }),
+          createElement(DocumentViewer),
+        ),
+      ),
+    );
+    await click('[aria-label="Preview Old photo.jpg"]');
+    expect(
+      document
+        .querySelector('aside img[alt="Old photo.jpg"]')
+        ?.getAttribute("src"),
+    ).toBe("/data/resources/old.jpg");
+    await act(async () =>
+      root.render(createElement(AttachmentMessage, { attachments })),
+    );
+    expect(
+      container
+        .querySelector('a[aria-label="Photo.png"]')
+        ?.getAttribute("target"),
+    ).toBe("_blank");
+    expect(document.querySelector("aside")).toBeNull();
+  });
+
+  it("opens image attachments in the mobile bottom sheet", async () => {
+    desktop = false;
+    await render();
+    await click('[aria-label="Preview Photo.png"]');
+    expect(
+      document.querySelector('[role="dialog"] img[alt="Photo.png"]'),
+    ).not.toBeNull();
+    await click('[aria-label="Close document preview"]');
+    await vi.waitFor(() =>
+      expect(document.activeElement?.getAttribute("aria-label")).toBe(
+        "Preview Photo.png",
+      ),
+    );
+  });
+
   it("opens PDF cards beside chat, switches files, and restores focus on close", async () => {
     await render();
     const event = await click('[aria-label="Preview Report"]');
