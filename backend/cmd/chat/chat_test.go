@@ -30,13 +30,16 @@ type flushRecorder struct {
 
 func (f *flushRecorder) Flush() {}
 
-type mockProviderSuccess struct{}
+type mockProviderSuccess struct {
+	conversationID string
+}
 
 func (m *mockProviderSuccess) SendChatCompletionRequest(params providers.RequestParams) (*providers.ChatCompletionMessage, error) {
 	return nil, nil
 }
 
 func (m *mockProviderSuccess) SendChatCompletionStreamRequest(params providers.RequestParams, sc utils.StreamClient) (*providers.ChatCompletionMessage, error) {
+	m.conversationID = params.ConversationID
 	// simulate streaming partial reasoning and content
 	_ = utils.SendStreamChunk(sc, utils.StreamChunk{Type: utils.REASONING, Payload: "partial-reasoning"})
 	_ = utils.SendStreamChunk(sc, utils.StreamChunk{Type: utils.CONTENT, Payload: "partial-content"})
@@ -211,6 +214,9 @@ func TestChatStream_DBContentSaved(t *testing.T) {
 
 	if convID == "" || userMsgID == 0 {
 		t.Fatalf("failed to extract metadata from stream response: convID=%s, userMsgID=%d", convID, userMsgID)
+	}
+	if mock.conversationID != convID {
+		t.Fatalf("provider conversation ID: got %q, want %q", mock.conversationID, convID)
 	}
 
 	// Verify conversation was created using repository

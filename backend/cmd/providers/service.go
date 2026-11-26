@@ -32,6 +32,7 @@ type RequestParams struct {
 	Model           string
 	ReasoningEffort openai.ReasoningEffort
 	User            string
+	ConversationID  string
 	MessageID       int
 	// Context scopes the full assistant generation (streams + tool calls).
 	// Cancelled by CancelStream / EndGeneration.
@@ -92,6 +93,9 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompl
 	}
 	for key, value := range provider.Headers {
 		opts = append(opts, option.WithHeader(key, value))
+	}
+	if params.ConversationID != "" {
+		opts = append(opts, option.WithHeader("session-id", params.ConversationID))
 	}
 	client := openai.NewClient(opts...)
 
@@ -168,6 +172,9 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 	}
 	for key, value := range provider.Headers {
 		opts = append(opts, option.WithHeader(key, value))
+	}
+	if params.ConversationID != "" {
+		opts = append(opts, option.WithHeader("session-id", params.ConversationID))
 	}
 	client := openai.NewClient(opts...)
 
