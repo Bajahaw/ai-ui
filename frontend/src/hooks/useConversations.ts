@@ -199,7 +199,7 @@ export function createStreamingHandlers(
       const convFiles = collectConversationFileIds(
         manager.getConversation(conversationId)?.messages ?? [],
       );
-      void runBrowserSandbox(toolCall, signal, convFiles);
+      void runBrowserSandbox(toolCall, signal, convFiles, toolsRef.current);
     }
   };
 

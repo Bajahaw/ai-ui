@@ -64,6 +64,15 @@ var toolCallManager = ToolCallManager{
 // }
 
 func ExecuteMCPTool(ctx context.Context, toolCall providers.ToolCall, user, convID string) providers.ToolOutput {
+	return executeTool(ctx, toolCall, user, convID, false)
+}
+
+// executeTool runs a single tool call. skipApproval is set for nested calls
+// made from inside an approved browser_sandbox run: that one approval covers
+// everything the sandbox code does, so per-tool approval is not asked again.
+// Nested calls are never persisted as separate tool calls; their results only
+// surface through the sandbox run's own result.
+func executeTool(ctx context.Context, toolCall providers.ToolCall, user, convID string, skipApproval bool) providers.ToolOutput {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -91,7 +100,7 @@ func ExecuteMCPTool(ctx context.Context, toolCall providers.ToolCall, user, conv
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
 	defer cancel()
 
-	if tool.RequireApproval {
+	if tool.RequireApproval && !skipApproval {
 		// wait for approval
 		responseChan := make(chan bool, 1)
 
@@ -136,8 +145,12 @@ func ExecuteMCPTool(ctx context.Context, toolCall providers.ToolCall, user, conv
 			return generateImageTool(toolCall.Args, user, convID)
 		case "http_request":
 			return httpRequestTool(toolCall.Args, user)
+		case "list_tools":
+			return listToolsTool(toolCall.Args, user)
+		case "get_tool_schema":
+			return getToolSchemaTool(toolCall.Args, user)
 		case "browser_sandbox":
-			return browserSandboxTool(ctx, toolCall.ID, toolCall.Args, user)
+			return browserSandboxTool(ctx, toolCall.ID, toolCall.Args, user, convID)
 		}
 	}
 

@@ -3,6 +3,7 @@ package chat
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -92,6 +93,23 @@ func compileSystemPrompt(user string) string {
 			sb.WriteString("\n")
 		}
 		sb.WriteString("\n</available_skills>\n\n")
+	}
+
+	// Tool-heavy MCP servers are kept out of the request's tool list;
+	// their tool names are summarized here so the model knows they exist
+	// and how to reach them.
+	deferredServers := tools.DeferredServerSummaries(user)
+	if len(deferredServers) > 0 {
+		sb.WriteString("<deferred_tools>\n")
+		sb.WriteString("These MCP servers have many tools, so their schemas are not in your tool list. Search them with list_tools, fetch parameters with get_tool_schema, then call the tool directly by name.\n\n")
+		for _, s := range deferredServers {
+			fmt.Fprintf(&sb, "- %s (%d tools): %s", s.Server, s.Total, strings.Join(s.ToolNames, ", "))
+			if s.Total > len(s.ToolNames) {
+				fmt.Fprintf(&sb, " (+%d more)", s.Total-len(s.ToolNames))
+			}
+			sb.WriteByte('\n')
+		}
+		sb.WriteString("\n</deferred_tools>\n\n")
 	}
 
 	sb.WriteString("<user_instructions>\n\n")

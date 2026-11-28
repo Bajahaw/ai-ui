@@ -8,6 +8,9 @@ type SandboxApi = {
   loadScript(url: string): Promise<void>;
   screenshot(source: string | Uint8Array, options?: {filename?: string; page?: number}): Promise<Blob>;
   done(err?: unknown): void;
+  tools: { name: string; description: string }[];
+  callTool(name: string, args?: unknown): Promise<{ content: string; file_id: string }>;
+  getTool(name: string): Promise<{ name: string; description: string; input_schema: unknown }>;
   _done: boolean;
 };
 
@@ -18,7 +21,11 @@ type Booted = {
   sent: Sent[];
   frame: Window;
   doc: Document;
-  init(code: string, files?: { name: string; keys?: string[]; data: ArrayBuffer }[]): void;
+  init(
+    code: string,
+    files?: { name: string; keys?: string[]; data: ArrayBuffer }[],
+    tools?: { name: string; description: string }[],
+  ): void;
 };
 
 let iframe: HTMLIFrameElement | null = null;
@@ -54,10 +61,10 @@ function bootBootstrap(): Booted {
     // (correctly) rejects as not from the parent; dispatch with an explicit
     // source. Use frame.parent: under vitest the global `window` is Node's
     // globalThis, not the jsdom window that is the frame's actual parent.
-    init(code, files = []) {
+    init(code, files = [], tools = []) {
       frame.dispatchEvent(
         new FrameMessageEvent("message", {
-          data: { type: "__sandbox_init", code, files },
+          data: { type: "__sandbox_init", code, files, tools },
           source: frame.parent,
         }),
       );
@@ -121,6 +128,97 @@ describe("sandbox bootstrap", () => {
     expect(result?.value).toBe('["report.xlsx"]');
     const done = sent.find((m) => m.type === "__sandbox_done");
     expect(done?.error).toBe("");
+  });
+
+  it("lists the mounted tool catalog on sandbox.tools", async () => {
+    const { sent, init } = bootBootstrap();
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_ready"));
+    init(
+      "return sandbox.tools.map(t => t.name).join(',')",
+      [],
+      [
+        { name: "search_document", description: "Search a document" },
+        { name: "http_request", description: "HTTPS request" },
+      ],
+    );
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_done"));
+    expect(sent.find((m) => m.type === "__sandbox_result")?.value).toBe(
+      "search_document,http_request",
+    );
+  });
+
+  it("sends callTool requests to the parent and resolves on its reply", async () => {
+    const { sent, init, frame } = bootBootstrap();
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_ready"));
+    init(
+      "const r = await sandbox.callTool('search_document', {file_id: 'a', query: 'q'}); return [r.content, r.file_id]",
+      [],
+      [{ name: "search_document", description: "Search a document" }],
+    );
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_tool_call"));
+    const call = sent.find((m) => m.type === "__sandbox_tool_call")!;
+    expect(call.name).toBe("search_document");
+    expect(call.args).toEqual({ file_id: "a", query: "q" });
+
+    const FrameMessageEvent = (frame as unknown as { MessageEvent: typeof MessageEvent }).MessageEvent;
+    frame.dispatchEvent(
+      new FrameMessageEvent("message", {
+        data: { type: "__sandbox_tool_result", nonce: call.nonce, ok: true, content: "found", file_id: "f1" },
+        source: frame.parent,
+      }),
+    );
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_done"));
+    expect(sent.find((m) => m.type === "__sandbox_result")?.value).toBe('["found","f1"]');
+  });
+
+  it("rejects callTool for unknown tools and bad args without messaging the parent", async () => {
+    const { sent, init } = bootBootstrap();
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_ready"));
+    init(
+      "const a = await sandbox.callTool('nope', {}).catch(e => e.message);" +
+        "const b = await sandbox.callTool('search_document', 'not-object').catch(e => e.message);" +
+        "return [a, b]",
+      [],
+      [{ name: "search_document", description: "Search a document" }],
+    );
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_done"));
+    const value = String(sent.find((m) => m.type === "__sandbox_result")?.value);
+    expect(value).toContain("unknown tool");
+    expect(value).toContain("nope");
+    expect(value).toContain("args must be an object");
+    expect(sent.some((m) => m.type === "__sandbox_tool_call")).toBe(false);
+  });
+
+  it("resolves sandbox.getTool with the descriptor the parent sends back", async () => {
+    const { sent, init, frame } = bootBootstrap();
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_ready"));
+    init(
+      "const t = await sandbox.getTool('search_document'); return [t.description, t.input_schema.type]",
+      [],
+      [{ name: "search_document", description: "Search a document" }],
+    );
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_tool_info"));
+    const info = sent.find((m) => m.type === "__sandbox_tool_info")!;
+    expect(info.name).toBe("search_document");
+
+    const FrameMessageEvent = (frame as unknown as { MessageEvent: typeof MessageEvent }).MessageEvent;
+    frame.dispatchEvent(
+      new FrameMessageEvent("message", {
+        data: {
+          type: "__sandbox_tool_info_result",
+          nonce: info.nonce,
+          ok: true,
+          name: "search_document",
+          description: "Search a document",
+          schema: { type: "object" },
+        },
+        source: frame.parent,
+      }),
+    );
+    await waitFor(() => sent.some((m) => m.type === "__sandbox_done"));
+    expect(sent.find((m) => m.type === "__sandbox_result")?.value).toBe(
+      '["Search a document","object"]',
+    );
   });
 
   it("reports thrown errors through done and does not send a result", async () => {

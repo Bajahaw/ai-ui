@@ -4,12 +4,13 @@ import {
   resetFileBytesCache,
   retainFileBytes,
 } from "@/lib/api/files";
-import type { FrontendMessage, ToolCall } from "@/lib/api/types";
+import type { FrontendMessage, Tool, ToolCall } from "@/lib/api/types";
 import { fileAliases } from "./wrap";
 import { SCREENSHOT_API } from "./screenshot-api";
 import { createScreenshotBridge } from "./screenshot-bridge";
 
 const SANDBOX_TIMEOUT_MS = 90_000;
+const SANDBOX_MAX_RUN_MS = 600_000;
 const RETRY_BUDGET_MS = 30_000;
 const MAX_FILES = 3;
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
@@ -21,6 +22,14 @@ const MAX_LOG_LINE_CHARS = 2000;
 const MAX_ERROR_CHARS = 4000;
 const MAX_RESULT_CHARS = 16_000;
 const MAX_NAME_CHARS = 255;
+// Code mode: tool catalog passed into the iframe and the per-tool content
+// cap echoed back from a nested call (the server truncates too). Init only
+// carries names + one-line summaries; full schemas are fetched on demand
+// via sandbox.getTool from the parent's in-memory list.
+const MAX_CATALOG_NAMES = 1000;
+const MAX_TOOL_SUMMARY_CHARS = 300;
+const MAX_TOOL_DESC_CHARS = 2000;
+const MAX_TOOL_CONTENT_CHARS = 256_000;
 // Must match the iframe CSP script-src below.
 export const SANDBOX_SCRIPT_HOSTS = [
   "cdn.jsdelivr.net",
@@ -37,6 +46,24 @@ type SandboxFile = {
   name: string;
   mime: string;
   data: ArrayBuffer;
+};
+
+type SandboxToolDescriptor = {
+  name: string;
+  description: string;
+  input_schema: unknown;
+};
+
+type SandboxToolSummary = {
+  name: string;
+  description: string;
+};
+
+type SandboxCatalog = {
+  // Sent with __sandbox_init: names + one-line summaries only.
+  summaries: SandboxToolSummary[];
+  // Kept by the parent for sandbox.getTool: full descriptors by name.
+  full: Map<string, SandboxToolDescriptor>;
 };
 
 type SandboxRunResult = {
@@ -67,6 +94,13 @@ export const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
   var __fileList = [];
   var __loaded = {};
   var __started = false;
+  // Code mode: descriptors exposed as sandbox.tools, name-indexed for
+  // callTool/getTool validation, plus pending nested-call promises by nonce.
+  var __toolDesc = [];
+  var __toolMap = {};
+  var __toolNonce = 0;
+  var __toolPending = {};
+  var __toolInfoPending = {};
   function send(msg, transfer){ window.parent.postMessage(msg, '*', transfer || []); }
   function toBuf(data, caller){
     if (data instanceof ArrayBuffer) return data;
@@ -88,6 +122,34 @@ export const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
   window.sandbox = {
     _done: false,
     screenshot: screenshot,
+    tools: __toolDesc,
+    callTool: function(name, args){
+      var n = String(name == null ? '' : name);
+      if (!__toolMap[n]) {
+        var avail = Object.keys(__toolMap).slice(0, 200).join(', ');
+        return Promise.reject(new Error('callTool: unknown tool "' + n + '"' + (avail ? ' (available tools: ' + avail + ')' : ' (no tools available; see sandbox.tools)')));
+      }
+      if (args != null && typeof args !== 'object') {
+        return Promise.reject(new Error('callTool: args must be an object'));
+      }
+      return new Promise(function(resolve, reject){
+        var nonce = ++__toolNonce;
+        __toolPending[nonce] = { resolve: resolve, reject: reject };
+        send({ type: '__sandbox_tool_call', nonce: nonce, name: n, args: args || {} });
+      });
+    },
+    getTool: function(name){
+      var n = String(name == null ? '' : name);
+      if (!__toolMap[n]) {
+        var avail = Object.keys(__toolMap).slice(0, 200).join(', ');
+        return Promise.reject(new Error('getTool: unknown tool "' + n + '"' + (avail ? ' (available tools: ' + avail + ')' : ' (no tools available; see sandbox.tools)')));
+      }
+      return new Promise(function(resolve, reject){
+        var nonce = ++__toolNonce;
+        __toolInfoPending[nonce] = { resolve: resolve, reject: reject };
+        send({ type: '__sandbox_tool_info', nonce: nonce, name: n });
+      });
+    },
     listFiles: function(){
       return __fileList.slice();
     },
@@ -174,6 +236,16 @@ export const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
       }
     }
   }
+  function mountTools(list){
+    __toolMap = {};
+    __toolDesc.length = 0;
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i];
+      if (!t || !t.name || __toolMap[t.name]) continue;
+      __toolMap[t.name] = t;
+      __toolDesc.push(t);
+    }
+  }
   function runJs(code){
     (async function(){
       var value;
@@ -193,9 +265,33 @@ export const BOOTSTRAP_SRCDOC = `<!DOCTYPE html>
   window.addEventListener('message', function(e){
     if (e.source !== window.parent) return;
     var data = e.data;
-    if (!data || data.type !== '__sandbox_init' || __started) return;
+    if (!data || typeof data.type !== 'string') return;
+    if (data.type === '__sandbox_tool_result') {
+      var p = __toolPending[data.nonce];
+      if (!p) return;
+      delete __toolPending[data.nonce];
+      if (data.ok) {
+        p.resolve({ content: String(data.content == null ? '' : data.content), file_id: String(data.file_id == null ? '' : data.file_id) });
+      } else {
+        p.reject(new Error(data.error || 'tool call failed'));
+      }
+      return;
+    }
+    if (data.type === '__sandbox_tool_info_result') {
+      var ip = __toolInfoPending[data.nonce];
+      if (!ip) return;
+      delete __toolInfoPending[data.nonce];
+      if (data.ok) {
+        ip.resolve({ name: String(data.name == null ? '' : data.name), description: String(data.description == null ? '' : data.description), input_schema: data.schema });
+      } else {
+        ip.reject(new Error(data.error || 'getTool failed'));
+      }
+      return;
+    }
+    if (data.type !== '__sandbox_init' || __started) return;
     __started = true;
     mountFiles(data.files || []);
+    mountTools(data.tools || []);
     runJs(data.code || '');
   });
   send({ type: '__sandbox_ready' });
@@ -224,6 +320,42 @@ export function collectConversationFileIds(
 
 export function resetSandboxFileCache(): void {
   resetFileBytesCache();
+}
+
+/**
+ * Code mode: the sandbox tool catalog. Every enabled tool except
+ * browser_sandbox itself. Init gets names + short summaries; full schemas
+ * stay with the parent and are served on demand via sandbox.getTool, so
+ * a server with hundreds of tools costs a few KB instead of its whole
+ * schema payload.
+ */
+export function buildSandboxCatalog(tools: Tool[]): SandboxCatalog {
+  const summaries: SandboxToolSummary[] = [];
+  const full = new Map<string, SandboxToolDescriptor>();
+  for (const t of tools ?? []) {
+    if (!t?.name || t.name === "browser_sandbox") continue;
+    if (t.is_enabled === false) continue;
+    if (full.size >= MAX_CATALOG_NAMES) break;
+    let schema: unknown = t.input_schema;
+    if (typeof schema === "string") {
+      try {
+        schema = JSON.parse(schema);
+      } catch {
+        // keep the raw string; something is still better than nothing
+      }
+    }
+    const description = t.description ?? "";
+    full.set(t.name, {
+      name: t.name,
+      description: description.slice(0, MAX_TOOL_DESC_CHARS),
+      input_schema: schema,
+    });
+    summaries.push({
+      name: t.name.slice(0, MAX_NAME_CHARS),
+      description: description.slice(0, MAX_TOOL_SUMMARY_CHARS),
+    });
+  }
+  return { summaries, full };
 }
 
 export async function loadSandboxInputFiles(
@@ -264,6 +396,7 @@ export async function runBrowserSandbox(
   toolCall: ToolCall,
   signal?: AbortSignal,
   conversationFileIds?: string[],
+  tools?: Tool[],
 ): Promise<void> {
   if (toolCall.name !== "browser_sandbox" || toolCall.tool_output) return;
   if (!toolCall.id || running.has(toolCall.id)) return;
@@ -291,7 +424,14 @@ export async function runBrowserSandbox(
       conversationFileIds ?? args.file_ids ?? [],
       signal,
     );
-    const result = await executeInIframe(code, inputs, signal);
+    const catalog = buildSandboxCatalog(tools ?? []);
+    const result = await executeInIframe(
+      toolCall.id,
+      code,
+      inputs,
+      catalog,
+      signal,
+    );
     await postResultWithRetry(toolCall.id, result, signal);
   } catch (err) {
     if (signal?.aborted) return;
@@ -345,8 +485,10 @@ function createIframe(): HTMLIFrameElement {
 }
 
 function executeInIframe(
+  callId: string,
   code: string,
   files: MountedInputFile[],
+  catalog: SandboxCatalog,
   signal?: AbortSignal,
 ): Promise<SandboxRunResult> {
   return new Promise((resolve) => {
@@ -357,14 +499,34 @@ function executeInIframe(
     let settled = false;
     let started = false;
     const screenshotController = new AbortController();
+    // Nested tool calls run as authenticated POSTs from this window; they
+    // are cancelled together with the run.
+    const invokeController = new AbortController();
+    const hardDeadline = Date.now() + SANDBOX_MAX_RUN_MS;
     const handleScreenshot = createScreenshotBridge((message, transfer) => {
       iframe.contentWindow?.postMessage(message, "*", transfer ?? []);
     }, screenshotController.signal);
+
+    let timer = window.setTimeout(
+      () => finish("sandbox timed out"),
+      SANDBOX_TIMEOUT_MS,
+    );
+    // A nested tool call means the code is blocked on real work: give the
+    // run fresh budget, never past the hard cap.
+    const extendTimer = () => {
+      clearTimeout(timer);
+      const remaining = hardDeadline - Date.now();
+      timer = window.setTimeout(
+        () => finish("sandbox timed out"),
+        Math.max(0, Math.min(SANDBOX_TIMEOUT_MS, remaining)),
+      );
+    };
 
     const finish = (error = "") => {
       if (settled) return;
       settled = true;
       screenshotController.abort();
+      invokeController.abort();
       window.removeEventListener("message", onMessage);
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
@@ -376,6 +538,65 @@ function executeInIframe(
         result: truncate(result, MAX_RESULT_CHARS),
         files: outFiles.slice(0, MAX_FILES),
       });
+    };
+
+    const handleToolCall = async (data: {
+      nonce: number;
+      name: string;
+      args?: unknown;
+    }) => {
+      extendTimer();
+      let payload: {
+        ok?: boolean;
+        content?: string;
+        file_id?: string;
+        error?: string;
+      };
+      try {
+        const res = await fetch("/api/tools/sandbox-invoke", {
+          method: "POST",
+          credentials: "include",
+          headers: getHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({
+            call_id: callId,
+            name: data.name,
+            args: data.args ?? {},
+          }),
+          signal: invokeController.signal,
+        });
+        if (!res.ok) {
+          payload = {
+            ok: false,
+            error:
+              "tool call failed: " + ((await res.text()) || res.statusText),
+          };
+        } else {
+          payload = await res.json();
+        }
+      } catch (err) {
+        if (invokeController.signal.aborted) return;
+        payload = {
+          ok: false,
+          error:
+            "tool call failed: " +
+            (err instanceof Error ? err.message : String(err)),
+        };
+      }
+      if (settled || !iframe.contentWindow) return;
+      iframe.contentWindow.postMessage(
+        {
+          type: "__sandbox_tool_result",
+          nonce: data.nonce,
+          ok: !!payload.ok,
+          content: String(payload.content ?? "").slice(
+            0,
+            MAX_TOOL_CONTENT_CHARS,
+          ),
+          file_id: String(payload.file_id ?? ""),
+          error: String(payload.error ?? ""),
+        },
+        "*",
+      );
     };
 
     const startRun = () => {
@@ -391,6 +612,7 @@ function executeInIframe(
         {
           type: "__sandbox_init",
           code: code.trim(),
+          tools: catalog.summaries,
           files: files.map((f, i) => ({
             name: f.name,
             keys: fileAliases(f.name, f.id),
@@ -408,6 +630,36 @@ function executeInIframe(
       const data = event.data;
       if (!data || typeof data !== "object") return;
       if (handleScreenshot(data)) return;
+      if (data.type === "__sandbox_tool_call") {
+        if (typeof data.nonce === "number" && typeof data.name === "string") {
+          void handleToolCall({
+            nonce: data.nonce,
+            name: data.name,
+            args: data.args,
+          });
+        }
+        return;
+      }
+      if (data.type === "__sandbox_tool_info") {
+        if (typeof data.nonce === "number" && typeof data.name === "string") {
+          const desc = catalog.full.get(data.name);
+          iframe.contentWindow?.postMessage(
+            {
+              type: "__sandbox_tool_info_result",
+              nonce: data.nonce,
+              ok: !!desc,
+              name: data.name,
+              description: desc?.description ?? "",
+              schema: desc?.input_schema ?? null,
+              error: desc
+                ? ""
+                : `getTool: unknown tool "${data.name}" (see sandbox.tools)`,
+            },
+            "*",
+          );
+        }
+        return;
+      }
       if (data.type === "__sandbox_ready") {
         startRun();
         return;
@@ -443,10 +695,6 @@ function executeInIframe(
 
     window.addEventListener("message", onMessage);
     signal?.addEventListener("abort", onAbort);
-    const timer = window.setTimeout(
-      () => finish("sandbox timed out"),
-      SANDBOX_TIMEOUT_MS,
-    );
     if (signal?.aborted) {
       finish("cancelled");
       return;

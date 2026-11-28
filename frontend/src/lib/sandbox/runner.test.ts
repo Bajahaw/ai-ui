@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getFileBytes, retainFileBytes } from "@/lib/api/files";
+import type { Tool } from "@/lib/api/types";
 import {
   BOOTSTRAP_SRCDOC,
+  buildSandboxCatalog,
   loadSandboxInputFiles,
   resetSandboxFileCache,
   runBrowserSandbox,
@@ -68,6 +70,37 @@ describe("loadSandboxInputFiles", () => {
     await loadSandboxInputFiles(["a"]);
     await loadSandboxInputFiles(["b"]);
     expect(retainFileBytesMock).toHaveBeenLastCalledWith(new Set(["b"]));
+  });
+});
+
+describe("buildSandboxCatalog", () => {
+  const schema = `{"type":"object","properties":{"q":{"type":"string"}}}`;
+
+  it("sends names and short summaries but keeps schemas for getTool", () => {
+    const catalog = buildSandboxCatalog([
+      { id: "1", name: "search", description: "Long".repeat(500), input_schema: schema, is_enabled: true },
+      { id: "2", name: "browser_sandbox", is_enabled: true },
+      { id: "3", name: "off", is_enabled: false },
+    ] as unknown as Tool[]);
+
+    expect(catalog.summaries).toHaveLength(1);
+    expect(catalog.summaries[0]?.name).toBe("search");
+    expect(catalog.summaries[0]?.description.length).toBeLessThanOrEqual(300);
+    expect(JSON.stringify(catalog.summaries)).not.toContain("input_schema");
+
+    const full = catalog.full.get("search");
+    expect(full?.input_schema).toEqual({ type: "object", properties: { q: { type: "string" } } });
+    expect(full?.description).toBe("Long".repeat(500));
+    expect(catalog.full.has("browser_sandbox")).toBe(false);
+  });
+
+  it("parses object schemas as-is and keeps unknown JSON as raw text", () => {
+    const catalog = buildSandboxCatalog([
+      { id: "1", name: "obj", input_schema: { type: "object" }, is_enabled: true },
+      { id: "2", name: "raw", input_schema: "not-json", is_enabled: true },
+    ] as unknown as Tool[]);
+    expect(catalog.full.get("obj")?.input_schema).toEqual({ type: "object" });
+    expect(catalog.full.get("raw")?.input_schema).toBe("not-json");
   });
 });
 

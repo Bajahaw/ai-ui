@@ -14,6 +14,7 @@ func Handler() http.Handler {
 	mux.HandleFunc("POST /saveAll", saveListOfTools)
 	mux.HandleFunc("GET /approve", approveTool)
 	mux.HandleFunc("POST /sandbox-result", submitSandboxResult)
+	mux.HandleFunc("POST /sandbox-invoke", sandboxInvokeTool)
 	// mux.HandleFunc("GET /{id}", GetTool)
 	// mux.HandleFunc("POST /save", SaveTool)
 	// mux.HandleFunc("DELETE /delete/{id}", DeleteTool)

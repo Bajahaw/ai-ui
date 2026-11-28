@@ -17,6 +17,8 @@ import (
 	fs "github.com/Bajahaw/ai-ui/cmd/files"
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -38,6 +40,16 @@ const (
 	// Longer than the client's 90s iframe timeout so the client's own
 	// timeout report wins the race instead of being lost to a 404.
 	sandboxTimeout = 100 * time.Second
+	// Code mode: each nested tool call extends the run budget a little
+	// (the code is actively waiting on a tool, not spinning), but never
+	// past this hard cap from when the run started.
+	sandboxExtendPerCall = 90 * time.Second
+	sandboxRunMax        = 10 * time.Minute
+	// Per nested tool call: execution cap and body/content limits. A call
+	// longer than the client's own budget would be wasted anyway.
+	sandboxInvokeTimeout        = 60 * time.Second
+	sandboxMaxInvokeBodyBytes   = 10 << 20
+	sandboxMaxToolContentRunes  = 200000
 )
 
 var (
@@ -62,22 +74,31 @@ type sandboxClientResult struct {
 }
 
 type sandboxPending struct {
-	User   string
+	User string
+	// ConvID lets nested code-mode tool calls reach conversation-scoped
+	// built-ins (generate_image, view_document_page) just like direct calls.
+	ConvID string
+	// Timer and runCap let sandboxInvokeTool stretch the wait budget while
+	// the code is blocked on a nested tool call, without outliving a hard
+	// cap from when the run started.
+	Timer  *time.Timer
+	RunCap time.Time
 	Result chan sandboxClientResult
 }
 
 // sandboxWait pairs a blocked browserSandboxTool call with the client's
 // POST /api/tools/sandbox-result. Entries are keyed by tool call ID and
-// scoped to the owning user; they live at most sandboxTimeout.
+// scoped to the owning user; they live at most sandboxTimeout, extended
+// per nested tool call up to sandboxRunMax.
 var sandboxWait = struct {
 	mu      sync.Mutex
 	pending map[string]sandboxPending
 }{pending: map[string]sandboxPending{}}
 
-func registerSandboxWait(callID, user string) <-chan sandboxClientResult {
+func registerSandboxWait(callID, user, convID string, timer *time.Timer, runCap time.Time) <-chan sandboxClientResult {
 	ch := make(chan sandboxClientResult, 1)
 	sandboxWait.mu.Lock()
-	sandboxWait.pending[callID] = sandboxPending{User: user, Result: ch}
+	sandboxWait.pending[callID] = sandboxPending{User: user, ConvID: convID, Timer: timer, RunCap: runCap, Result: ch}
 	sandboxWait.mu.Unlock()
 	return ch
 }
@@ -107,7 +128,42 @@ func completeSandboxWait(callID, user string, result sandboxClientResult) error 
 	return nil
 }
 
-func browserSandboxTool(ctx context.Context, callID, args, user string) providers.ToolOutput {
+// lookupSandboxRun returns the conversation ID of a pending sandbox run,
+// verifying the caller owns it. Nested code-mode tool calls are only allowed
+// while that run is actually waiting, so the endpoint cannot be used as a
+// free-standing way around tool approval.
+func lookupSandboxRun(callID, user string) (string, error) {
+	sandboxWait.mu.Lock()
+	defer sandboxWait.mu.Unlock()
+	p, ok := sandboxWait.pending[callID]
+	if !ok {
+		return "", errSandboxNotPending
+	}
+	if p.User != user {
+		return "", errSandboxUnauthorized
+	}
+	return p.ConvID, nil
+}
+
+// extendSandboxRun stretches a pending run's timeout while the code is
+// blocked on a nested tool call, capped at the run's hard limit. Returns
+// false when there is no matching pending run.
+func extendSandboxRun(callID, user string) bool {
+	sandboxWait.mu.Lock()
+	defer sandboxWait.mu.Unlock()
+	p, ok := sandboxWait.pending[callID]
+	if !ok || p.User != user {
+		return false
+	}
+	next := time.Now().Add(sandboxExtendPerCall)
+	if next.After(p.RunCap) {
+		next = p.RunCap
+	}
+	p.Timer.Reset(next.Sub(time.Now()))
+	return true
+}
+
+func browserSandboxTool(ctx context.Context, callID, args, user, convID string) providers.ToolOutput {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -132,10 +188,9 @@ func browserSandboxTool(ctx context.Context, callID, args, user string) provider
 		return providers.ToolOutput{Content: "Error: 'code' is required."}
 	}
 
-	ch := registerSandboxWait(callID, user)
-	defer unregisterSandboxWait(callID, user)
-
 	timer := time.NewTimer(sandboxTimeout)
+	ch := registerSandboxWait(callID, user, convID, timer, time.Now().Add(sandboxRunMax))
+	defer unregisterSandboxWait(callID, user)
 	defer timer.Stop()
 
 	select {
@@ -336,6 +391,106 @@ func submitSandboxResult(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.RespondWithJSON(w, nil, http.StatusOK)
+}
+
+type sandboxInvokeRequest struct {
+	CallID string          `json:"call_id"`
+	Name   string          `json:"name"`
+	Args   json.RawMessage `json:"args"`
+}
+
+type sandboxInvokeResponse struct {
+	OK      bool   `json:"ok"`
+	Content string `json:"content,omitempty"`
+	FileID  string `json:"file_id,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+// sandboxInvokeTool runs one nested tool call from inside a pending
+// browser_sandbox run (code mode). The result goes straight back to the
+// sandbox code; it is never persisted as a separate tool call, and the
+// browser_sandbox approval already granted covers it.
+func sandboxInvokeTool(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	user := utils.ExtractContextUser(r)
+	r.Body = http.MaxBytesReader(w, r.Body, sandboxMaxInvokeBodyBytes)
+
+	var req sandboxInvokeRequest
+	if err := utils.ExtractJSONBody(r, &req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.CallID == "" {
+		http.Error(w, "call_id is required", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+
+	convID, err := lookupSandboxRun(req.CallID, user)
+	if errors.Is(err, errSandboxNotPending) {
+		http.Error(w, "No pending sandbox call found", http.StatusNotFound)
+		return
+	}
+	if errors.Is(err, errSandboxUnauthorized) {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if err != nil {
+		http.Error(w, "Error looking up sandbox call", http.StatusInternalServerError)
+		return
+	}
+
+	// Tool-level failures answer 200 with ok=false so the sandbox code gets
+	// a model-readable rejection instead of a transport error.
+	fail := func(msg string) {
+		utils.RespondWithJSON(w, sandboxInvokeResponse{OK: false, Error: msg}, http.StatusOK)
+	}
+
+	if req.Name == "browser_sandbox" {
+		fail("callTool: browser_sandbox cannot be called from inside the sandbox")
+		return
+	}
+
+	tool, err := tools.GetByName(req.Name, user)
+	if err != nil {
+		fail(fmt.Sprintf("callTool: unknown tool %q (see sandbox.tools for available tools)", req.Name))
+		return
+	}
+	if !tool.IsEnabled {
+		fail(fmt.Sprintf("callTool: tool %q is disabled", tool.Name))
+		return
+	}
+
+	args := strings.TrimSpace(string(req.Args))
+	if args == "" || args == "null" {
+		args = "{}"
+	}
+
+	// The code is blocked on this call: stretch the run budget while it
+	// executes, and cap the call itself well under the run limit.
+	extendSandboxRun(req.CallID, user)
+
+	ctx, cancel := context.WithTimeout(r.Context(), sandboxInvokeTimeout)
+	defer cancel()
+
+	nested := providers.ToolCall{
+		ID:   req.CallID + "-" + uuid.New().String(),
+		Name: tool.Name,
+		Args: args,
+	}
+	out := executeTool(ctx, nested, user, convID, true)
+
+	utils.RespondWithJSON(w, sandboxInvokeResponse{
+		OK:      true,
+		Content: truncateRunes(out.Content, sandboxMaxToolContentRunes),
+		FileID:  out.FileID,
+	}, http.StatusOK)
 }
 
 

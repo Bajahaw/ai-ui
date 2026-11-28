@@ -117,7 +117,12 @@ const ToolCallItem = ({
                 // trigger to run, now that the backend is waiting for us.
                 // Conversation files are auto-mounted; the model only sees a filesystem.
                 if (toolCall.name === "browser_sandbox") {
-                  void runBrowserSandbox(toolCall, undefined, conversationFileIds);
+                  void runBrowserSandbox(
+                    toolCall,
+                    undefined,
+                    conversationFileIds,
+                    settingsData.tools,
+                  );
                 }
               }
             }}

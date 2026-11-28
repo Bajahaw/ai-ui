@@ -19,8 +19,8 @@ import (
 // Syncing does not depend on remembering the bump: the stored marker also
 // carries the content hash, so any change to the definitions reaches users.
 const (
-	builtInToolsVersion = 2
-	builtInToolsHash    = "293cb977618383c0f8f48f2990cab9f0b1249698d3680d01353313a9c7e4e5ef"
+	builtInToolsVersion = 4
+	builtInToolsHash    = "e1bc76817f925073563667c73d30e0bd6c16f7357b9e6f713f2c36cae8191a7b"
 )
 
 // GetBuiltInTools returns the platform built-in tools.
@@ -64,11 +64,25 @@ func GetBuiltInTools() []*Tool {
 			IsEnabled:   true,
 		},
 		{
+			ID:          uuid.New().String(),
+			Name:        "list_tools",
+			Description: "List available tools with a one-line description each (optionally filtered by a query substring). Use this to search tools that are summarized in the <deferred_tools> section of the system prompt, and get_tool_schema to fetch a tool's parameters before calling it.",
+			InputSchema: `{"type":"object","properties":{"query":{"type":"string","description":"Optional case-insensitive substring matched against tool name or description."},"limit":{"type":"integer","description":"Maximum number of tools to return (default 100, max 500)."}}}`,
+			IsEnabled:   true,
+		},
+		{
+			ID:          uuid.New().String(),
+			Name:        "get_tool_schema",
+			Description: "Get the full description and input schema of up to 20 tools by name, e.g. before calling a tool discovered via list_tools.",
+			InputSchema: `{"type":"object","properties":{"names":{"type":"array","items":{"type":"string"},"description":"Tool names to look up."}},"required":["names"]}`,
+			IsEnabled:   true,
+		},
+		{
 			// Off by default and approval-gated: executing code should be an
 			// explicit user opt-in, not something that runs unnoticed.
 			ID:              uuid.New().String(),
 			Name:            "browser_sandbox",
-			Description:     "Run JavaScript with conversation files mounted. Top-level await is supported; the return value, console output, and saved files are reported back. API: sandbox.listFiles(); sandbox.readFile(name) -> Uint8Array; await sandbox.writeFile(name, data, mime); await sandbox.screenshot(nameOrBytes, options) -> PNG Blob (DOCX/XLSX/PPTX); await sandbox.loadScript(url).",
+			Description:     "Run JavaScript with conversation files mounted. Top-level await is supported; the return value, console output, and saved files are reported back. API: sandbox.listFiles(); sandbox.readFile(name) -> Uint8Array; await sandbox.writeFile(name, data, mime); await sandbox.screenshot(nameOrBytes, options) -> PNG Blob (DOCX/XLSX/PPTX); await sandbox.loadScript(url). Other tools can be called from the code: sandbox.tools lists them (name, description); await sandbox.getTool(name) -> full description and input schema; await sandbox.callTool(name, args) -> {content, file_id}.",
 			InputSchema:     `{"type":"object","properties":{"code":{"type":"string","description":"JavaScript source to run (async context; top-level await and return are allowed)."}},"required":["code"]}`,
 			RequireApproval: true,
 		},

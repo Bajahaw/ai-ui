@@ -185,7 +185,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		ConversationID:  convID,
 		MessageID:       responseMessage.ID,
 		Context:         genCtx,
-		Tools:           toOpenAITools(tools.GetAvailableTools(user)),
+		Tools:           toOpenAITools(tools.GetPromptTools(user)),
 	}
 
 	var calls []providers.ToolCall
@@ -359,7 +359,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		ConversationID:  req.ConversationID,
 		MessageID:       responseMessage.ID,
 		Context:         genCtx,
-		Tools:           toOpenAITools(tools.GetAvailableTools(user)),
+		Tools:           toOpenAITools(tools.GetPromptTools(user)),
 	}
 
 	var calls []providers.ToolCall

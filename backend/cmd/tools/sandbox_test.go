@@ -83,7 +83,7 @@ func TestBrowserSandboxTool_EchoesReturnValue(t *testing.T) {
 	callID := "call-result"
 	done := make(chan providers.ToolOutput, 1)
 	go func() {
-		done <- browserSandboxTool(context.Background(), callID, `{"code":"return sandbox.listFiles()"}`, "u1")
+		done <- browserSandboxTool(context.Background(), callID, `{"code":"return sandbox.listFiles()"}`, "u1", "conv-1")
 	}()
 
 	waitForPending(t, callID, "u1")
@@ -101,7 +101,7 @@ func TestBrowserSandboxTool_EchoesReturnValue(t *testing.T) {
 }
 
 func TestBrowserSandboxTool_RejectsLegacyHTMLArg(t *testing.T) {
-	out := browserSandboxTool(context.Background(), "call-html", `{"html":"<div></div>"}`, "u1")
+	out := browserSandboxTool(context.Background(), "call-html", `{"html":"<div></div>"}`, "u1", "conv-1")
 	if !strings.Contains(out.Content, "'code' is required") {
 		t.Fatalf("html-only args must be rejected, got: %s", out.Content)
 	}
@@ -113,7 +113,7 @@ func TestBrowserSandboxTool_PersistsFiles(t *testing.T) {
 	callID := "call-1"
 	done := make(chan providers.ToolOutput, 1)
 	go func() {
-		done <- browserSandboxTool(context.Background(), callID, `{"code":"console.log(1)"}`, "u1")
+		done <- browserSandboxTool(context.Background(), callID, `{"code":"console.log(1)"}`, "u1", "conv-1")
 	}()
 
 	waitForPending(t, callID, "u1")
@@ -152,7 +152,7 @@ func TestBrowserSandboxTool_Cancel(t *testing.T) {
 	callID := "call-cancel"
 	done := make(chan providers.ToolOutput, 1)
 	go func() {
-		done <- browserSandboxTool(ctx, callID, `{"code":"1"}`, "u1")
+		done <- browserSandboxTool(ctx, callID, `{"code":"1"}`, "u1", "conv-1")
 	}()
 	waitForPending(t, callID, "u1")
 	cancel()
@@ -173,7 +173,7 @@ func TestSubmitSandboxResult_AuthAndPending(t *testing.T) {
 		t.Fatalf("missing pending: got %d", w.Code)
 	}
 
-	ch := registerSandboxWait("c1", "u1")
+	ch := registerSandboxWait("c1", "u1", "conv-1", time.NewTimer(sandboxTimeout), time.Now().Add(sandboxRunMax))
 	req = httptest.NewRequest(http.MethodPost, "/sandbox-result", bytes.NewBufferString(`{"call_id":"c1","ok":true}`))
 	req = req.WithContext(context.WithValue(req.Context(), "user", "other"))
 	w = httptest.NewRecorder()
@@ -235,7 +235,7 @@ func TestSubmitSandboxResult_MethodAndBounds(t *testing.T) {
 		t.Fatalf("method guard: got %d", w.Code)
 	}
 
-	ch := registerSandboxWait("bound-1", "u1")
+	ch := registerSandboxWait("bound-1", "u1", "conv-1", time.NewTimer(sandboxTimeout), time.Now().Add(sandboxRunMax))
 	longErr := strings.Repeat("e", sandboxMaxErrorRunes+100)
 	manyLogs := make([]string, sandboxMaxLogLines+50)
 	for i := range manyLogs {
@@ -289,4 +289,76 @@ func waitForPending(t *testing.T, callID, user string) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	t.Fatal("timed out waiting for pending sandbox")
+}
+
+func TestSandboxInvokeTool(t *testing.T) {
+	endpoint := startTestMCPServer(t)
+	setupOAuthTest(t) // after the server so the session cache closes first
+
+	saved := saveServerReq(t, map[string]any{
+		"name": "Plain MCP", "endpoint": endpoint, "api_key": "", "headers": map[string]string{},
+	})
+
+	callID := "run-invoke"
+	registerSandboxWait(callID, "testuser", "conv-1", time.NewTimer(sandboxTimeout), time.Now().Add(sandboxRunMax))
+	defer unregisterSandboxWait(callID, "testuser")
+
+	post := func(user, body string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/sandbox-invoke", strings.NewReader(body))
+		r = r.WithContext(context.WithValue(r.Context(), "user", user))
+		sandboxInvokeTool(w, r)
+		return w
+	}
+	decode := func(w *httptest.ResponseRecorder) sandboxInvokeResponse {
+		t.Helper()
+		var res sandboxInvokeResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &res); err != nil {
+			t.Fatalf("decode %q: %v", w.Body.String(), err)
+		}
+		return res
+	}
+
+	// Missing pending run.
+	if w := post("testuser", `{"call_id":"missing","name":"echo"}`); w.Code != http.StatusNotFound {
+		t.Fatalf("missing pending: got %d", w.Code)
+	}
+	// Wrong user.
+	if w := post("other", `{"call_id":"`+callID+`","name":"echo"}`); w.Code != http.StatusUnauthorized {
+		t.Fatalf("wrong user: got %d", w.Code)
+	}
+	// No recursion from inside the sandbox.
+	if res := decode(post("testuser", `{"call_id":"`+callID+`","name":"browser_sandbox","args":{"code":"1"}}`)); res.OK {
+		t.Fatalf("recursion must fail: %+v", res)
+	}
+	// Unknown tool.
+	if res := decode(post("testuser", `{"call_id":"`+callID+`","name":"nope"}`)); res.OK {
+		t.Fatalf("unknown tool must fail: %+v", res)
+	}
+	// Disabled tool.
+	server, _ := mcps.GetByID(saved.ID, "testuser")
+	echo := *server.Tools[0]
+	echo.IsEnabled = false
+	if err := tools.SaveAll([]*Tool{&echo}); err != nil {
+		t.Fatal(err)
+	}
+	if res := decode(post("testuser", `{"call_id":"`+callID+`","name":"echo","args":{"text":"hi"}}`)); res.OK {
+		t.Fatalf("disabled tool must fail: %+v", res)
+	}
+	echo.IsEnabled = true
+	if err := tools.SaveAll([]*Tool{&echo}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Happy path: the nested call runs through the real MCP session and
+	// its content goes back to the code.
+	res := decode(post("testuser", `{"call_id":"`+callID+`","name":"echo","args":{"text":"hi"}}`))
+	if !res.OK || res.Content != "hi" {
+		t.Fatalf("echo: %+v", res)
+	}
+
+	// The invoke must not complete or consume the sandbox run itself.
+	if err := completeSandboxWait(callID, "testuser", sandboxClientResult{OK: true, Result: "done"}); err != nil {
+		t.Fatalf("run must stay pending after invoke: %v", err)
+	}
 }
