@@ -19,8 +19,8 @@ import (
 // Syncing does not depend on remembering the bump: the stored marker also
 // carries the content hash, so any change to the definitions reaches users.
 const (
-	builtInToolsVersion = 5
-	builtInToolsHash    = "6d15fb46a956d3ffe6a5432dd4bb096fd385c15fb4e4850b58a2806d34a7a691"
+	builtInToolsVersion = 7
+	builtInToolsHash    = "1480de7c8b90a07cdc7f09202780177cd3df04273ac7e1ff02e52cad54deceb2"
 )
 
 // GetBuiltInTools returns the platform built-in tools.
@@ -38,14 +38,14 @@ func GetBuiltInTools() []*Tool {
 		{
 			ID:          uuid.New().String(),
 			Name:        "read_document_page",
-			Description: "Read the extracted text of specific pages from a retreivable attached document.",
+			Description: "Read the extracted text of specific pages from an attached document.",
 			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"start_page":{"type":"integer","description":"The 1-based page number to start reading from"},"end_page":{"type":"integer","description":"The 1-based page number to end reading at (inclusive)"}},"required":["file_id","start_page","end_page"]}`,
 			IsEnabled:   true,
 		},
 		{
 			ID:          uuid.New().String(),
 			Name:        "view_document_page",
-			Description: "Get a screenshot of a specific PDF page (works only with pdf!). Use this when the user specifically mentions looking at an image, chart, format, or layout in a PDF. Pass array of files_ids via file_id property if needed.",
+			Description: "Get a screenshot of a specific PDF page.",
 			InputSchema: `{"type":"object","properties":{"file_id":{"type":"string","description":"The id of the attached file"},"page_number":{"type":"integer","description":"The 1-based page number to view"}},"required":["file_id","page_number"]}`,
 			IsEnabled:   true,
 		},
@@ -59,22 +59,22 @@ func GetBuiltInTools() []*Tool {
 		{
 			ID:          uuid.New().String(),
 			Name:        "read_skill",
-			Description: "Read the full content of a specific skill by its name. Choose the skill that best matches the user's task from the <available_skills> section in the system prompt, then read its full instructions using this tool.",
+			Description: "Read the full content of a specific skill by its name.",
 			InputSchema: `{"type":"object","properties":{"name":{"type":"string","description":"The exact name of the skill to read"}},"required":["name"]}`,
 			IsEnabled:   true,
 		},
 		{
 			ID:          uuid.New().String(),
 			Name:        "list_tools",
-			Description: "List available tools with a one-line description each (optionally filtered by a query substring). Use this to search tools that are summarized in the <deferred_tools> section of the system prompt, and get_tool_schema to fetch a tool's parameters before calling it.",
-			InputSchema: `{"type":"object","properties":{"query":{"type":"string","description":"Optional case-insensitive substring matched against tool name or description."},"limit":{"type":"integer","description":"Maximum number of tools to return (default 100, max 500)."}}}`,
+			Description: "List available tools with a one-line description each.",
+			InputSchema: `{"type":"object","properties":{"query":{"type":"string","description":"Optional case-insensitive substring matched against tool name or description."},"server":{"type":"string","description":"Optional case-insensitive substring matched against the tool's server name (e.g. \"jira\")."},"limit":{"type":"integer","description":"Maximum number of tools to return (default 100, max 500)."}}}`,
 			IsEnabled:   true,
 		},
 		{
 			ID:          uuid.New().String(),
 			Name:        "get_tool_schema",
-			Description: "Get the full description and input schema of up to 20 tools by name, e.g. before calling a tool discovered via list_tools.",
-			InputSchema: `{"type":"object","properties":{"names":{"type":"array","items":{"type":"string"},"description":"Tool names to look up."}},"required":["names"]}`,
+			Description: "Get the full description and input schema of tools by name.",
+			InputSchema: `{"type":"object","properties":{"names":{"type":"array","items":{"type":"string"},"description":"Tool names to look up (max 20)."}},"required":["names"]}`,
 			IsEnabled:   true,
 		},
 		{

@@ -16,7 +16,7 @@ import (
 // calls keep working regardless - execution looks tools up in the database,
 // not in the prompt - and the system prompt lists their tool names.
 const (
-	promptDeferThreshold = 50
+	promptDeferThreshold = 5
 	promptNameLimit      = 60
 	listToolsDefault     = 100
 	listToolsMax         = 500
@@ -111,8 +111,9 @@ func DeferredServerSummaries(user string) []DeferredServerSummary {
 
 func listToolsTool(args, user string) providers.ToolOutput {
 	var params struct {
-		Query string `json:"query"`
-		Limit int    `json:"limit"`
+		Query  string `json:"query"`
+		Server string `json:"server"`
+		Limit  int    `json:"limit"`
 	}
 	if err := json.Unmarshal([]byte(args), &params); err != nil {
 		return providers.ToolOutput{Content: fmt.Sprintf("error decoding arguments: %v", err)}
@@ -125,6 +126,7 @@ func listToolsTool(args, user string) providers.ToolOutput {
 		limit = listToolsMax
 	}
 	query := strings.ToLower(strings.TrimSpace(params.Query))
+	serverQuery := strings.ToLower(strings.TrimSpace(params.Server))
 
 	deferred := deferredServerIDs(user)
 	servers := mcps.GetAll(user)
@@ -142,15 +144,18 @@ func listToolsTool(args, user string) providers.ToolOutput {
 		if !t.IsEnabled {
 			continue
 		}
+		server := serverName[t.MCPServerID]
+		if server == "" {
+			server = "built-in"
+		}
+		if serverQuery != "" && !strings.Contains(strings.ToLower(server), serverQuery) {
+			continue
+		}
 		desc := t.Description
 		if query != "" &&
 			!strings.Contains(strings.ToLower(t.Name), query) &&
 			!strings.Contains(strings.ToLower(desc), query) {
 			continue
-		}
-		server := serverName[t.MCPServerID]
-		if server == "" {
-			server = "built-in"
 		}
 		rows = append(rows, row{t.Name, desc, server, deferred[t.MCPServerID]})
 	}
@@ -160,6 +165,9 @@ func listToolsTool(args, user string) providers.ToolOutput {
 	fmt.Fprintf(&b, "%d matching tool(s), showing %d", len(rows), min(limit, len(rows)))
 	if query != "" {
 		fmt.Fprintf(&b, " (query: %q)", params.Query)
+	}
+	if serverQuery != "" {
+		fmt.Fprintf(&b, " (server: %q)", params.Server)
 	}
 	b.WriteString(".\n")
 	shown := 0

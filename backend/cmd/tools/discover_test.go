@@ -127,6 +127,12 @@ func TestListToolsTool_MarksDeferredAndFilters(t *testing.T) {
 	if strings.Contains(out.Content, "big_tool_0") || !strings.Contains(out.Content, "Does thing 1") {
 		t.Fatalf("query filter broken: %s", out.Content[:300])
 	}
+
+	// Server filter narrows to one server, case-insensitively.
+	out = listToolsTool(`{"server":"BIG M"}`, "testuser")
+	if strings.Contains(out.Content, "server1_tool_0") || !strings.Contains(out.Content, "big_tool_0") {
+		t.Fatalf("server filter broken: %s", out.Content[:300])
+	}
 }
 
 func TestGetToolSchemaTool(t *testing.T) {

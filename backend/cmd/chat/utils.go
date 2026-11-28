@@ -80,7 +80,6 @@ func compileSystemPrompt(user string) string {
 	availableSkills := skills.GetAvailable(user)
 	if len(availableSkills) > 0 {
 		sb.WriteString("<available_skills>\n")
-		sb.WriteString("Prefer user skills over system built-ins when both could apply.\n\n")
 		for _, s := range availableSkills {
 			desc := s.Description
 			if desc == "" {
@@ -101,7 +100,6 @@ func compileSystemPrompt(user string) string {
 	deferredServers := tools.DeferredServerSummaries(user)
 	if len(deferredServers) > 0 {
 		sb.WriteString("<deferred_tools>\n")
-		sb.WriteString("These MCP servers have many tools, so their schemas are not in your tool list. Search them with list_tools, fetch parameters with get_tool_schema, then call the tool directly by name.\n\n")
 		for _, s := range deferredServers {
 			fmt.Fprintf(&sb, "- %s (%d tools): %s", s.Server, s.Total, strings.Join(s.ToolNames, ", "))
 			if s.Total > len(s.ToolNames) {
