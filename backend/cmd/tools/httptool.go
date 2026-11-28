@@ -51,6 +51,9 @@ var (
 	)
 	// Keep in sync with httpRequestBase64MinLen (256).
 	reLongBase64 = regexp.MustCompile(`[A-Za-z0-9+/]{256,}={0,2}`)
+	// Reject malformed URL shapes before applying the full scheme, hostname,
+	// DNS, and IP policy in validatePublicHTTPSURL.
+	reHTTPRequestURL = regexp.MustCompile(`^https?://[^\s/?#]+(?:[/?#][^\s]*)?$`)
 )
 
 var allowedHTTPMethods = map[string]struct{}{
@@ -234,11 +237,15 @@ func doSafeHTTPRequest(params httpRequestParams) (string, error) {
 		return "", fmt.Errorf("method %q is not allowed", method)
 	}
 
-	if strings.TrimSpace(params.URL) == "" {
+	rawURL := strings.TrimSpace(params.URL)
+	if rawURL == "" {
 		return "", errors.New("url is required")
 	}
-	if len(params.URL) > httpRequestMaxURLLen {
+	if len(rawURL) > httpRequestMaxURLLen {
 		return "", fmt.Errorf("url exceeds maximum length of %d", httpRequestMaxURLLen)
+	}
+	if !reHTTPRequestURL.MatchString(rawURL) {
+		return "", errors.New("url must be an absolute HTTP(S) URL without whitespace")
 	}
 	if err := validateJSONPointers(params.JSONPointers); err != nil {
 		return "", err
@@ -250,7 +257,7 @@ func doSafeHTTPRequest(params httpRequestParams) (string, error) {
 		return "", errors.New("json_pointers and css_selectors are mutually exclusive")
 	}
 
-	parsed, err := validatePublicHTTPSURL(params.URL)
+	parsed, err := validatePublicHTTPSURL(rawURL)
 	if err != nil {
 		return "", err
 	}
