@@ -20,6 +20,7 @@ import (
 
 func setupProvidersTest(t *testing.T) *sql.DB {
 	t.Helper()
+	t.Setenv("ALLOW_LOCAL_NETWORK", "true")
 	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "test.db")+"?_pragma=foreign_keys(1)")
 	if err != nil {
 		t.Fatal(err)

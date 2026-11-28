@@ -387,7 +387,7 @@ func enterAgentLoop(
 		log.Error("Error streaming chat completion after tool call", "err", err)
 		utils.SendStreamChunk(sc, utils.StreamChunk{
 			Type:    utils.EVENT_ERROR,
-			Payload: err.Error(),
+			Payload: providerErrorMessage,
 		})
 		return completion, err
 	}

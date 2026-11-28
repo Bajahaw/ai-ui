@@ -2,7 +2,6 @@ package providers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Bajahaw/ai-ui/cmd/chatgptoauth"
+	"github.com/Bajahaw/ai-ui/cmd/netutil"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
 
 	"github.com/google/uuid"
@@ -90,6 +90,7 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompl
 	opts := []option.RequestOption{
 		option.WithAPIKey(provider.APIKey),
 		option.WithBaseURL(provider.BaseURL),
+		option.WithHTTPClient(netutil.NewOutboundHTTPClient(0)),
 	}
 	for key, value := range provider.Headers {
 		opts = append(opts, option.WithHeader(key, value))
@@ -115,7 +116,8 @@ func (c *ClientImpl) SendChatCompletionRequest(params RequestParams) (*ChatCompl
 
 	completion, err := client.Chat.Completions.New(ctx, openAIparams)
 	if err != nil {
-		return nil, err
+		log.Error("Provider chat completion failed", "err", err)
+		return nil, publicProviderError(err)
 	}
 
 	var toolCalls []ToolCall
@@ -168,6 +170,7 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 	opts := []option.RequestOption{
 		option.WithAPIKey(provider.APIKey),
 		option.WithBaseURL(provider.BaseURL),
+		option.WithHTTPClient(netutil.NewOutboundHTTPClient(0)),
 		// option.WithDebugLog(log.StandardLog()),
 	}
 	for key, value := range provider.Headers {
@@ -260,36 +263,7 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 			log.Debug("Stream cancelled by user")
 			// Ignore context cancelled error and return partial response
 		} else {
-			var apiErr *openai.Error
-			if errors.As(err, &apiErr) {
-				type Error struct {
-					Message string `json:"message"`
-					Code    string `json:"code"`
-				}
-				type ErrorMessage struct {
-					Error Error `json:"error"`
-				}
-
-				var errMsg ErrorMessage
-				err = json.Unmarshal([]byte(apiErr.Message), &errMsg)
-				if err != nil {
-					errMsg = ErrorMessage{
-						Error: Error{Message: apiErr.Message, Code: apiErr.Code},
-					}
-				}
-
-				if errMsg.Error.Code != "" {
-					errMsg.Error.Message = "- " + errMsg.Error.Message
-				}
-
-				err = fmt.Errorf("%d %s %s",
-					apiErr.StatusCode,
-					http.StatusText(apiErr.StatusCode),
-					errMsg.Error.Message,
-				)
-			}
-
-			return nil, err
+			return nil, publicProviderError(err)
 		}
 	}
 
@@ -397,6 +371,16 @@ func (c *ClientImpl) SendChatCompletionStreamRequest(params RequestParams, sc ut
 		Stats:     stats,
 		Cancelled: cancelled,
 	}, nil
+}
+
+// publicProviderError deliberately omits upstream response bodies, which can
+// contain sensitive data when a provider endpoint is untrusted or misconfigured.
+func publicProviderError(err error) error {
+	var apiErr *openai.Error
+	if errors.As(err, &apiErr) {
+		return fmt.Errorf("provider request failed (%d %s)", apiErr.StatusCode, http.StatusText(apiErr.StatusCode))
+	}
+	return errors.New("provider request failed; check the provider configuration and server logs")
 }
 
 func isContextCanceled(err error) bool {

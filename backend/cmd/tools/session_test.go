@@ -16,6 +16,7 @@ type echoArgs struct {
 
 func startTestMCPServer(t *testing.T) string {
 	t.Helper()
+	t.Setenv("ALLOW_LOCAL_NETWORK", "true")
 	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "v1"}, nil)
 	mcp.AddTool(server, &mcp.Tool{Name: "echo", Description: "echo"}, func(_ context.Context, _ *mcp.CallToolRequest, args echoArgs) (*mcp.CallToolResult, any, error) {
 		return &mcp.CallToolResult{
@@ -28,6 +29,16 @@ func startTestMCPServer(t *testing.T) string {
 	httpServer := httptest.NewServer(handler)
 	t.Cleanup(httpServer.Close)
 	return httpServer.URL
+}
+
+func TestMCPSessionManager_RejectsLocalEndpointWithoutOptIn(t *testing.T) {
+	url := startTestMCPServer(t)
+	t.Setenv("ALLOW_LOCAL_NETWORK", "false")
+	m := newMCPSessionManager()
+	t.Cleanup(m.closeAll)
+	if _, err := m.session(context.Background(), MCPServer{ID: "s1", Endpoint: url}); err == nil {
+		t.Fatal("expected loopback MCP endpoint to be blocked")
+	}
 }
 
 func TestMCPSessionManager_ReusesSession(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Bajahaw/ai-ui/cmd/netutil"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
 
 	"github.com/google/uuid"
@@ -443,10 +444,10 @@ func (rt *acceptHeaderRoundTripper) RoundTrip(req *http.Request) (*http.Response
 }
 
 func httpClientWithCustomHeaders(headers map[string]string) *http.Client {
-	return &http.Client{
-		Transport: &acceptHeaderRoundTripper{
-			extraHeaders: headers,
-			delegate:     http.DefaultTransport,
-		},
+	client := netutil.NewOutboundHTTPClient(0)
+	client.Transport = &acceptHeaderRoundTripper{
+		extraHeaders: headers,
+		delegate:     client.Transport,
 	}
+	return client
 }

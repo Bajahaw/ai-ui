@@ -12,6 +12,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const providerErrorMessage = "AI provider request failed. Check the provider configuration and server logs."
+
 type Request struct {
 	ConversationID  string   `json:"conversationId"`
 	ParentID        int      `json:"parentId"`
@@ -197,9 +199,9 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 		log.Error("Error streaming chat completion", "err", err)
 		utils.SendStreamChunk(sc, utils.StreamChunk{
 			Type:    utils.EVENT_ERROR,
-			Payload: err.Error(),
+			Payload: providerErrorMessage,
 		})
-		responseMessage.Error = err.Error()
+		responseMessage.Error = providerErrorMessage
 	} else {
 		responseMessage.Content = completion.Content
 		responseMessage.Reasoning = completion.Reasoning
@@ -218,7 +220,7 @@ func chatStream(w http.ResponseWriter, r *http.Request) {
 			user, sc,
 		)
 		if err != nil {
-			responseMessage.Error = err.Error()
+			responseMessage.Error = providerErrorMessage
 		} else if completion != nil {
 			// Content is already accumulated in responseMessage by enterAgentLoop.
 			streamStats = completion.Stats
@@ -372,9 +374,9 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 		log.Error("Error streaming retry completion", "err", err)
 		utils.SendStreamChunk(sc, utils.StreamChunk{
 			Type:    utils.EVENT_ERROR,
-			Payload: err.Error(),
+			Payload: providerErrorMessage,
 		})
-		responseMessage.Error = err.Error()
+		responseMessage.Error = providerErrorMessage
 	} else {
 		responseMessage.Content = completion.Content
 		responseMessage.Reasoning = completion.Reasoning
@@ -391,7 +393,7 @@ func retryStream(w http.ResponseWriter, r *http.Request) {
 			user, sc,
 		)
 		if err != nil {
-			responseMessage.Error = err.Error()
+			responseMessage.Error = providerErrorMessage
 		} else if completion != nil {
 			// Content is already accumulated in responseMessage by enterAgentLoop.
 			streamStats = completion.Stats

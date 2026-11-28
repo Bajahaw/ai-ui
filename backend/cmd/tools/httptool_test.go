@@ -187,6 +187,22 @@ func TestDoSafeHTTPRequest_HappyPath(t *testing.T) {
 	}
 }
 
+func TestDoSafeHTTPRequest_AllowsLocalNetworkOptIn(t *testing.T) {
+	t.Setenv("ALLOW_LOCAL_NETWORK", "true")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, "local-ok")
+	}))
+	defer srv.Close()
+
+	result, err := doSafeHTTPRequest(httpRequestParams{URL: srv.URL, Method: http.MethodGet})
+	if err != nil {
+		t.Fatalf("local opt-in request failed: %v", err)
+	}
+	if !strings.Contains(result, "Status: 200") || !strings.Contains(result, "local-ok") {
+		t.Fatalf("unexpected local response: %s", result)
+	}
+}
+
 func TestDoSafeHTTPRequest_MethodAndBody(t *testing.T) {
 	_, err := doSafeHTTPRequest(httpRequestParams{
 		URL:    "https://example.com/",

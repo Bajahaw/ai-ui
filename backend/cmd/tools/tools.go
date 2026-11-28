@@ -136,9 +136,9 @@ func executeTool(ctx context.Context, toolCall providers.ToolCall, user, convID 
 		case "read_skill":
 			return readSkillTool(toolCall.Args, user)
 		case "search_document":
-			return searchDocumentTool(toolCall.Args)
+			return searchDocumentTool(toolCall.Args, user)
 		case "read_document_page":
-			return readDocumentPageTool(toolCall.Args)
+			return readDocumentPageTool(toolCall.Args, user)
 		case "view_document_page":
 			return viewDocumentPageTool(toolCall.Args, user, convID)
 		case "generate_image":
@@ -191,13 +191,21 @@ func GetAvailableTools(user string) []*Tool {
 	return enabledTools
 }
 
-func searchDocumentTool(args string) providers.ToolOutput {
+func searchDocumentTool(args, user string) providers.ToolOutput {
 	var params struct {
 		FileID string `json:"file_id"`
 		Query  string `json:"query"`
 	}
 	if err := json.Unmarshal([]byte(args), &params); err != nil {
 		return providers.ToolOutput{Content: fmt.Sprintf("error decoding arguments: %v", err)}
+	}
+
+	docs, err := files.GetByIDs([]string{params.FileID}, user)
+	if err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("error finding document: %v", err)}
+	}
+	if len(docs) == 0 {
+		return providers.ToolOutput{Content: fmt.Sprintf("Unable to find document with id %s", params.FileID)}
 	}
 
 	pages, err := files.SearchPages(params.FileID, params.Query, 10)
@@ -217,7 +225,7 @@ func searchDocumentTool(args string) providers.ToolOutput {
 	return providers.ToolOutput{Content: res.String()}
 }
 
-func readDocumentPageTool(args string) providers.ToolOutput {
+func readDocumentPageTool(args, user string) providers.ToolOutput {
 	var params struct {
 		FileID    string `json:"file_id"`
 		StartPage int    `json:"start_page"`
@@ -229,6 +237,14 @@ func readDocumentPageTool(args string) providers.ToolOutput {
 
 	if params.StartPage > params.EndPage {
 		return providers.ToolOutput{Content: "error: start_page must be less than or equal to end_page"}
+	}
+
+	docs, err := files.GetByIDs([]string{params.FileID}, user)
+	if err != nil {
+		return providers.ToolOutput{Content: fmt.Sprintf("error finding document: %v", err)}
+	}
+	if len(docs) == 0 {
+		return providers.ToolOutput{Content: fmt.Sprintf("Unable to find document with id %s", params.FileID)}
 	}
 
 	pages, err := files.GetPagesRange(params.FileID, params.StartPage, params.EndPage)

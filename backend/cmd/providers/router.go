@@ -8,6 +8,7 @@ import (
 
 	"github.com/Bajahaw/ai-ui/cmd/auth"
 	"github.com/Bajahaw/ai-ui/cmd/chatgptoauth"
+	"github.com/Bajahaw/ai-ui/cmd/netutil"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
 
 	"github.com/google/uuid"
@@ -140,6 +141,7 @@ func fetchAllModels(provider *Provider) ([]*Model, error) {
 	opts := []option.RequestOption{
 		option.WithAPIKey(provider.APIKey),
 		option.WithBaseURL(provider.BaseURL),
+		option.WithHTTPClient(netutil.NewOutboundHTTPClient(0)),
 		option.WithQuery("output_modalities", "all"),
 	}
 	for key, value := range provider.Headers {

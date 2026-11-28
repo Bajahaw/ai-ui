@@ -19,8 +19,8 @@ import (
 // Syncing does not depend on remembering the bump: the stored marker also
 // carries the content hash, so any change to the definitions reaches users.
 const (
-	builtInToolsVersion = 4
-	builtInToolsHash    = "e1bc76817f925073563667c73d30e0bd6c16f7357b9e6f713f2c36cae8191a7b"
+	builtInToolsVersion = 5
+	builtInToolsHash    = "6d15fb46a956d3ffe6a5432dd4bb096fd385c15fb4e4850b58a2806d34a7a691"
 )
 
 // GetBuiltInTools returns the platform built-in tools.
@@ -89,8 +89,8 @@ func GetBuiltInTools() []*Tool {
 		{
 			ID:              uuid.New().String(),
 			Name:            "http_request",
-			Description:     "HTTPS request to a public host (no IPs/private/loopback). Prefer json_pointers or css_selectors to extract fields. Response bodies are reduced by default; verbose for raw/larger. Secrets: $secrets.NAME$ in headers or URL path/query only.",
-			InputSchema:     `{"type":"object","properties":{"url":{"type":"string","description":"https URL (DNS hostname). $secrets.NAME$ in path/query."},"method":{"type":"string","description":"GET, HEAD, POST, PUT, PATCH, or DELETE","default":"GET"},"headers":{"type":"object","additionalProperties":{"type":"string"},"description":"Optional headers. $secrets.NAME$ allowed."},"body":{"description":"Optional body for POST/PUT/PATCH/DELETE. Prefer JSON object/array."},"verbose":{"type":"boolean","description":"Raw/larger response body.","default":false},"json_pointers":{"type":"array","items":{"type":"string"},"description":"RFC 6901 pointers into JSON body (e.g. \"/data/0/id\"). Missing paths → null. Exclusive with css_selectors."},"css_selectors":{"type":"array","items":{"type":"string"},"description":"CSS selectors into HTML (e.g. \"a.result\"). Exclusive with json_pointers."}},"required":["url"]}`,
+			Description:     "Make an HTTP request. Prefer json_pointers or css_selectors to extract fields. Secrets: $secrets.NAME$ in headers or URL path/query only.",
+			InputSchema:     `{"type":"object","properties":{"url":{"type":"string","description":"Request URL. $secrets.NAME$ in path/query."},"method":{"type":"string","description":"GET, HEAD, POST, PUT, PATCH, or DELETE","default":"GET"},"headers":{"type":"object","additionalProperties":{"type":"string"},"description":"Optional headers. $secrets.NAME$ allowed."},"body":{"description":"Optional body for POST/PUT/PATCH/DELETE. Prefer JSON object/array."},"verbose":{"type":"boolean","description":"Raw/larger response body.","default":false},"json_pointers":{"type":"array","items":{"type":"string"},"description":"RFC 6901 pointers into JSON body (e.g. \"/data/0/id\"). Missing paths → null. Exclusive with css_selectors."},"css_selectors":{"type":"array","items":{"type":"string"},"description":"CSS selectors into HTML (e.g. \"a.result\"). Exclusive with json_pointers."}},"required":["url"]}`,
 			RequireApproval: true,
 			IsEnabled:       true,
 		},

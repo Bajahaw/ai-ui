@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Bajahaw/ai-ui/cmd/netutil"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -30,7 +31,7 @@ const (
 	mcpOAuthBroadcastName = "mcp-oauth"
 )
 
-var mcpOAuthHTTPClient = &http.Client{Timeout: 30 * time.Second}
+var mcpOAuthHTTPClient = netutil.NewOutboundHTTPClient(30 * time.Second)
 
 // MCPOAuth holds the OAuth2 settings a user enters for an MCP server, plus the
 // session negotiated by the last successful authorization.

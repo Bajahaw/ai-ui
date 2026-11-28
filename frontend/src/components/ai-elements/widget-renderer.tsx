@@ -16,6 +16,7 @@ import {
 } from "react";
 import { Action } from "./actions";
 import { useCopyFeedback } from "./diagram-actions";
+import { openWidgetInNewTab, WIDGET_SANDBOX } from "./widget-new-tab";
 
 type WidgetRendererProps = HTMLAttributes<HTMLDivElement> & {
   code: unknown;
@@ -286,11 +287,7 @@ export function WidgetRenderer({
   }, []);
 
   const openInNewTab = useCallback(() => {
-    if (!srcdoc) return;
-    const blob = new Blob([srcdoc], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    openWidgetInNewTab(srcdoc);
   }, [srcdoc]);
 
   if (!normalizedCode) return null;
@@ -342,7 +339,7 @@ export function WidgetRenderer({
           key={srcdoc}
           ref={iframeRef}
           srcDoc={srcdoc}
-          sandbox="allow-scripts allow-forms allow-modals allow-downloads"
+          sandbox={WIDGET_SANDBOX}
           allow="clipboard-write *"
           className="w-full my-8 border border-border"
           style={{

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Bajahaw/ai-ui/cmd/netutil"
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
 	"github.com/openai/openai-go/v3"
@@ -42,6 +43,7 @@ func generateImageTool(args string, user string, convID string) providers.ToolOu
 	opts := []option.RequestOption{
 		option.WithAPIKey(provider.APIKey),
 		option.WithBaseURL(provider.BaseURL),
+		option.WithHTTPClient(netutil.NewOutboundHTTPClient(0)),
 	}
 	for key, value := range provider.Headers {
 		opts = append(opts, option.WithHeader(key, value))
@@ -60,7 +62,8 @@ func generateImageTool(args string, user string, convID string) providers.ToolOu
 	}, opts...)
 
 	if err != nil {
-		return providers.ToolOutput{Content: fmt.Sprintf("error generating image: %v", err)}
+		log.Error("Image generation provider request failed", "err", err)
+		return providers.ToolOutput{Content: "error generating image: provider request failed; check server logs"}
 	}
 
 	if len(res.Output) == 0 {

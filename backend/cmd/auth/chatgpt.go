@@ -1,8 +1,10 @@
 package auth
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Bajahaw/ai-ui/cmd/chatgptoauth"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
@@ -11,6 +13,33 @@ import (
 // ChatGPTProviderSaver is set by main/providers to avoid import cycles.
 // It saves or updates a ChatGPT OAuth provider for the given user and returns provider id.
 var ChatGPTProviderSaver func(username string, tokens *chatgptoauth.Tokens) (providerID string, model string, err error)
+
+const (
+	chatGPTStateCookie     = "chatgpt_oauth_state"
+	chatGPTStateCookiePath = "/api/auth/chatgpt"
+	chatGPTStateCookieTTL  = 5 * time.Minute
+)
+
+func setChatGPTStateCookie(w http.ResponseWriter, state string) {
+	http.SetCookie(w, &http.Cookie{
+		Name: chatGPTStateCookie, Value: state, Path: chatGPTStateCookiePath,
+		Expires: time.Now().Add(chatGPTStateCookieTTL), MaxAge: int(chatGPTStateCookieTTL.Seconds()),
+		HttpOnly: true, Secure: cookieSecure, SameSite: http.SameSiteStrictMode,
+	})
+}
+
+func clearChatGPTStateCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name: chatGPTStateCookie, Value: "", Path: chatGPTStateCookiePath,
+		Expires: time.Unix(0, 0), MaxAge: -1,
+		HttpOnly: true, Secure: cookieSecure, SameSite: http.SameSiteStrictMode,
+	})
+}
+
+func hasChatGPTStateCookie(r *http.Request, state string) bool {
+	cookie, err := r.Cookie(chatGPTStateCookie)
+	return err == nil && subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(state)) == 1
+}
 
 type chatgptStartResponse struct {
 	AuthURL string `json:"auth_url"`
@@ -52,6 +81,7 @@ func startChatGPTLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
+	setChatGPTStateCookie(w, state)
 	utils.RespondWithJSON(w, chatgptStartResponse{AuthURL: authURL, State: state}, http.StatusOK)
 }
 
@@ -84,6 +114,10 @@ func pollChatGPTLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "state is required", http.StatusBadRequest)
 		return
 	}
+	if !hasChatGPTStateCookie(r, state) {
+		http.Error(w, "OAuth browser binding is missing or invalid; start ChatGPT sign-in again", http.StatusForbidden)
+		return
+	}
 
 	// Peek first so we don't consume while still pending
 	peek := chatgptoauth.DefaultLoginManager.Peek(state)
@@ -92,6 +126,7 @@ func pollChatGPTLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	clearChatGPTStateCookie(w)
 	pending := chatgptoauth.DefaultLoginManager.Consume(state)
 	if pending.Status == chatgptoauth.StatusError {
 		utils.RespondWithJSON(w, chatgptStatusResponse{

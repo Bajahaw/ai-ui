@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -65,7 +66,7 @@ func (m *mockProviderError) SendChatCompletionRequest(params providers.RequestPa
 
 func (m *mockProviderError) SendChatCompletionStreamRequest(params providers.RequestParams, sc utils.StreamClient) (*providers.ChatCompletionMessage, error) {
 	_ = utils.SendStreamChunk(sc, utils.StreamChunk{Type: utils.CONTENT, Payload: "partial-content"})
-	return nil, http.ErrHandlerTimeout
+	return nil, errors.New("sensitive upstream response body")
 }
 
 // setupTest initializes sqlite DB, logger, utils and chat package with the provided mock provider.
@@ -146,6 +147,12 @@ func TestChatStream_ProviderError(t *testing.T) {
 	body := rr.Body.String()
 	if !contains(body, "event: error") {
 		t.Errorf("expected error event in body; got: %s", body)
+	}
+	if contains(body, "sensitive upstream response body") {
+		t.Fatalf("stream leaked upstream response body: %s", body)
+	}
+	if !contains(body, providerErrorMessage) {
+		t.Fatalf("expected generic provider error, got: %s", body)
 	}
 }
 

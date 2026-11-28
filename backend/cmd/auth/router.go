@@ -35,8 +35,8 @@ var users UserRepository
 var JWT_SECRET string
 
 // allowRegistration gates POST /register and new ChatGPT OAuth user creation.
-// Default true when unset so existing deploys keep open signup.
-var allowRegistration = true
+// Registration is opt-in outside development mode.
+var allowRegistration = false
 
 const AUTH_COOKIE = "auth_token"
 
@@ -49,9 +49,9 @@ func Setup(l *logger.Logger, d *sql.DB) {
 		JWT_SECRET = rand.Text()
 		log.Warn("JWT_SECRET not set in environment; using random secret for this session")
 	}
-	allowRegistration = parseBoolEnv("ALLOW_REGISTRATION", true)
+	allowRegistration = parseBoolEnv("ALLOW_REGISTRATION", os.Getenv("ENV") == "dev")
 	if !allowRegistration {
-		log.Info("Registration is disabled (ALLOW_REGISTRATION=false)")
+		log.Info("Registration is disabled; set ALLOW_REGISTRATION=true to enable it")
 	}
 	cookieSecure = os.Getenv("ENV") != "dev"
 	if !cookieSecure {

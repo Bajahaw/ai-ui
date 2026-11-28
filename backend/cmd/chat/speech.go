@@ -16,6 +16,7 @@ import (
 
 	"github.com/Bajahaw/ai-ui/cmd/auth"
 	"github.com/Bajahaw/ai-ui/cmd/data"
+	"github.com/Bajahaw/ai-ui/cmd/netutil"
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/Bajahaw/ai-ui/cmd/utils"
 
@@ -137,6 +138,7 @@ func synthesizeMessageSpeech(w http.ResponseWriter, r *http.Request) {
 	opts := []option.RequestOption{
 		option.WithAPIKey(provider.APIKey),
 		option.WithBaseURL(provider.BaseURL),
+		option.WithHTTPClient(netutil.NewOutboundHTTPClient(0)),
 	}
 	for key, value := range provider.Headers {
 		opts = append(opts, option.WithHeader(key, value))
@@ -157,7 +159,7 @@ func synthesizeMessageSpeech(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Error("TTS speech request failed", "model", modelName, "err", err)
-		http.Error(w, "TTS request failed: "+err.Error(), http.StatusBadGateway)
+		http.Error(w, "TTS request failed; check the provider configuration and server logs", http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()

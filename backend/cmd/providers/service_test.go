@@ -9,7 +9,39 @@ import (
 	"testing"
 
 	"github.com/Bajahaw/ai-ui/cmd/utils"
+	"github.com/openai/openai-go/v3"
 )
+
+func TestProviderRejectsLocalEndpointWithoutOptIn(t *testing.T) {
+	setupProvidersTest(t)
+	t.Setenv("ALLOW_LOCAL_NETWORK", "false")
+	hits := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+	}))
+	defer srv.Close()
+	if err := providers.Save(&Provider{ID: "local-provider", BaseURL: srv.URL, User: "alice"}); err != nil {
+		t.Fatal(err)
+	}
+	client := &ClientImpl{}
+	_, err := client.SendChatCompletionRequest(RequestParams{
+		Messages: []SimpleMessage{{Role: "user", Content: "hello"}},
+		Model:    "local-provider/m1", User: "alice",
+	})
+	if err == nil {
+		t.Fatal("expected local provider request to be blocked")
+	}
+	if hits != 0 {
+		t.Fatal("blocked provider request reached the local server")
+	}
+}
+
+func TestPublicProviderErrorOmitsUpstreamBody(t *testing.T) {
+	apiErr := &openai.Error{StatusCode: http.StatusBadGateway, Message: `{"error":{"message":"sensitive upstream body"}}`}
+	if got := publicProviderError(apiErr).Error(); strings.Contains(got, "sensitive") || strings.Contains(got, "upstream body") {
+		t.Fatalf("provider error leaked upstream body: %q", got)
+	}
+}
 
 func TestConversationIDSentAsSessionIDHeader(t *testing.T) {
 	setupProvidersTest(t)

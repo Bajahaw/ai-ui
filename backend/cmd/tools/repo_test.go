@@ -13,6 +13,7 @@ import (
 // setupTestDB creates a temp SQLite DB with full schema and returns the db + repo.
 func setupTestDB(t *testing.T) (*sql.DB, ToolRepository) {
 	t.Helper()
+	t.Setenv("ALLOW_LOCAL_NETWORK", "true")
 	tmpDir := t.TempDir()
 	dbPath := path.Join(tmpDir, "test.db")
 

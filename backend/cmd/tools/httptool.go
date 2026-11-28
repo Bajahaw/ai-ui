@@ -19,6 +19,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/Bajahaw/ai-ui/cmd/netutil"
 	"github.com/Bajahaw/ai-ui/cmd/providers"
 	"github.com/Bajahaw/ai-ui/cmd/secrets"
 	"github.com/PuerkitoBio/goquery"
@@ -29,7 +30,7 @@ import (
 const (
 	httpRequestTimeout           = 30 * time.Second
 	httpRequestMaxRedirect       = 3
-	httpRequestMaxBody           = 1 << 20      // 1 MiB request body
+	httpRequestMaxBody           = 1 << 20   // 1 MiB request body
 	httpRequestMaxRespRead       = 1 << 20   // 1 MiB max bytes read from response
 	httpRequestMaxTextOut        = 32 << 10  // 32 KiB max text body in tool output (default/reduced)
 	httpRequestMaxTextOutVerbose = 256 << 10 // 256 KiB max text body when verbose
@@ -63,31 +64,18 @@ var allowedHTTPMethods = map[string]struct{}{
 
 // Hop-by-hop and request-smuggling sensitive headers must not be set by the model.
 var blockedRequestHeaders = map[string]struct{}{
-	"host":              {},
-	"content-length":    {},
-	"transfer-encoding": {},
-	"connection":        {},
-	"keep-alive":        {},
-	"upgrade":           {},
-	"te":                {},
-	"trailer":           {},
-	"proxy-connection":  {},
-	"proxy-authenticate": {},
+	"host":                {},
+	"content-length":      {},
+	"transfer-encoding":   {},
+	"connection":          {},
+	"keep-alive":          {},
+	"upgrade":             {},
+	"te":                  {},
+	"trailer":             {},
+	"proxy-connection":    {},
+	"proxy-authenticate":  {},
 	"proxy-authorization": {},
-	"accept-encoding":   {}, // we control decompression
-}
-
-// Hostnames that must never be contacted, regardless of DNS.
-var blockedHostnames = map[string]struct{}{
-	"localhost":                 {},
-	"localhost.localdomain":     {},
-	"metadata":                  {},
-	"metadata.google.internal":  {},
-	"metadata.goog":             {},
-	"kubernetes":                {},
-	"kubernetes.default":        {},
-	"kubernetes.default.svc":    {},
-	"kubernetes.default.svc.cluster.local": {},
+	"accept-encoding":     {}, // we control decompression
 }
 
 // httpRequestBody accepts a string (raw wire body) or any JSON value (object/array/…),
@@ -139,12 +127,12 @@ type httpRequestParams struct {
 }
 
 type httpBodyFormatOpts struct {
-	Verbose            bool
-	ReadTruncated      bool
-	JSONPointers       []string
-	JSONPointerErrors  []string // soft-fail notes for unresolved pointers (missing key, OOB, etc.)
-	CSSSelectors       []string
-	WireBytes          int // when > 0, reported as Bytes-Read (wire size before filter)
+	Verbose           bool
+	ReadTruncated     bool
+	JSONPointers      []string
+	JSONPointerErrors []string // soft-fail notes for unresolved pointers (missing key, OOB, etc.)
+	CSSSelectors      []string
+	WireBytes         int // when > 0, reported as Bytes-Read (wire size before filter)
 }
 
 func httpRequestTool(args, user string) providers.ToolOutput {
@@ -1019,350 +1007,21 @@ func applySafeHeaders(req *http.Request, headers map[string]string) error {
 }
 
 func newSafeHTTPClient() *http.Client {
-	dialer := &net.Dialer{
-		Timeout:   10 * time.Second,
-		KeepAlive: 30 * time.Second,
-	}
-
-	transport := &http.Transport{
-		Proxy:                 nil, // never honor HTTP_PROXY from env for this tool
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          4,
-		IdleConnTimeout:       30 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		DisableKeepAlives:     true,
-		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-			if network != "tcp" && network != "tcp4" && network != "tcp6" {
-				return nil, fmt.Errorf("network %q is not allowed", network)
-			}
-			host, port, err := net.SplitHostPort(address)
-			if err != nil {
-				return nil, err
-			}
-			ips, err := resolveDialIPs(ctx, host)
-			if err != nil {
-				return nil, err
-			}
-			var lastErr error
-			for _, ip := range ips {
-				if err := assertPublicIP(ip); err != nil {
-					lastErr = err
-					continue
-				}
-				conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
-				if err == nil {
-					return conn, nil
-				}
-				lastErr = err
-			}
-			if lastErr == nil {
-				lastErr = errors.New("no public addresses to dial")
-			}
-			return nil, lastErr
-		},
-	}
-
-	return &http.Client{
-		Transport: transport,
-		Timeout:   httpRequestTimeout,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= httpRequestMaxRedirect {
-				return fmt.Errorf("stopped after %d redirects", httpRequestMaxRedirect)
-			}
-			if _, err := validatePublicHTTPSURL(req.URL.String()); err != nil {
-				return fmt.Errorf("redirect blocked: %w", err)
-			}
-			// Drop body-bearing method quirks are handled by net/http; re-apply header policy
-			// by stripping blocked headers that servers might have set on the redirect request.
-			for h := range blockedRequestHeaders {
-				req.Header.Del(h)
-			}
-			return nil
-		},
-	}
+	return netutil.NewOutboundHTTPClient(httpRequestTimeout)
 }
 
 func validatePublicHTTPSURL(raw string) (*url.URL, error) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil, errors.New("url is required")
-	}
-	if strings.ContainsAny(raw, " \t\r\n") {
-		return nil, errors.New("url must not contain whitespace")
-	}
-
-	u, err := url.Parse(raw)
-	if err != nil {
-		return nil, fmt.Errorf("invalid url: %w", err)
-	}
-	if u.Scheme != "https" {
-		return nil, errors.New("only https URLs are allowed")
-	}
-	if u.Host == "" {
-		return nil, errors.New("url host is required")
-	}
-	if u.User != nil {
-		return nil, errors.New("url userinfo is not allowed")
-	}
-	if u.Opaque != "" {
-		return nil, errors.New("opaque urls are not allowed")
-	}
-	if u.Fragment != "" {
-		// Fragments are not sent to servers; drop rather than reject.
-		u.Fragment = ""
-	}
-
-	host := u.Hostname()
-	if host == "" {
-		return nil, errors.New("url host is required")
-	}
-	if err := validateHostname(host); err != nil {
-		return nil, err
-	}
-
-	port := u.Port()
-	if port != "" && port != "443" {
-		// Allow non-443 HTTPS only on public hosts (still resolved/checked).
-		// Reject clearly local-only ports? No — port alone isn't SSRF if IP is public.
-		// But reject port 0 and non-numeric.
-		if _, err := net.LookupPort("tcp", port); err != nil {
-			return nil, fmt.Errorf("invalid port: %w", err)
-		}
-	}
-
-	// Resolve and ensure every address is a public IP (blocks DNS→private).
-	if err := resolveAndAssertPublic(host); err != nil {
-		return nil, err
-	}
-
-	return u, nil
+	return netutil.ValidateOutboundURL(raw)
 }
 
 func validateHostname(host string) error {
-	h := strings.ToLower(strings.TrimSuffix(host, "."))
-	if h == "" {
-		return errors.New("empty hostname")
-	}
-
-	// Literal IPs are never allowed — hostname must be a DNS name.
-	if ip := net.ParseIP(h); ip != nil {
-		return errors.New("IP address hosts are not allowed; use a DNS hostname")
-	}
-	// Bracketed IPv6 should already be stripped by Hostname(), but be defensive.
-	if strings.HasPrefix(h, "[") {
-		return errors.New("IP address hosts are not allowed; use a DNS hostname")
-	}
-
-	if _, blocked := blockedHostnames[h]; blocked {
-		return fmt.Errorf("host %q is not allowed", h)
-	}
-
-	// Block obvious local/internal suffixes.
-	blockedSuffixes := []string{
-		".localhost",
-		".local",
-		".internal",
-		".intranet",
-		".corp",
-		".home",
-		".lan",
-		".home.arpa",
-		".localdomain",
-		".invalid",
-		".onion",
-	}
-	for _, suf := range blockedSuffixes {
-		if h == strings.TrimPrefix(suf, ".") || strings.HasSuffix(h, suf) {
-			return fmt.Errorf("host suffix %q is not allowed", suf)
-		}
-	}
-
-	// Basic DNS label sanity (no spaces, no .., length limits).
-	if len(h) > 253 {
-		return errors.New("hostname too long")
-	}
-	if strings.Contains(h, "..") || strings.HasPrefix(h, ".") {
-		return errors.New("invalid hostname")
-	}
-	for _, label := range strings.Split(h, ".") {
-		if label == "" || len(label) > 63 {
-			return errors.New("invalid hostname label")
-		}
-		if label[0] == '-' || label[len(label)-1] == '-' {
-			return errors.New("invalid hostname label")
-		}
-		for _, r := range label {
-			if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
-				continue
-			}
-			// Allow punycode xn-- already covered by a-z0-9-
-			return fmt.Errorf("invalid hostname character in %q", label)
-		}
-	}
-
-	// Reject decimal/octal/hex IP obfuscation like 2130706433 or 0x7f000001 as host.
-	if isObfuscatedIPHost(h) {
-		return errors.New("obfuscated IP hosts are not allowed")
-	}
-
-	return nil
+	return netutil.ValidateHostname(host)
 }
 
 func isObfuscatedIPHost(host string) bool {
-	// Single-label all-digit hosts (e.g. 2130706433 → 127.0.0.1)
-	if strings.Contains(host, ".") {
-		// Dotted forms that aren't valid DNS but parse as IP are already caught by ParseIP.
-		// Catch octal-ish 0177.0.0.1 — Go's ParseIP may not parse these; reject labels with leading zeros-only octal patterns for pure-numeric dotted quads.
-		parts := strings.Split(host, ".")
-		if len(parts) == 4 {
-			allNumeric := true
-			for _, p := range parts {
-				if p == "" {
-					allNumeric = false
-					break
-				}
-				for _, c := range p {
-					if c < '0' || c > '9' {
-						allNumeric = false
-						break
-					}
-				}
-				if !allNumeric {
-					break
-				}
-			}
-			if allNumeric {
-				return true
-			}
-		}
-		return false
-	}
-	// hex form
-	if strings.HasPrefix(host, "0x") || strings.HasPrefix(host, "0X") {
-		return true
-	}
-	// pure integer
-	if host[0] >= '0' && host[0] <= '9' {
-		allDigit := true
-		for _, c := range host {
-			if c < '0' || c > '9' {
-				allDigit = false
-				break
-			}
-		}
-		return allDigit
-	}
-	return false
-}
-
-func resolveAndAssertPublic(host string) error {
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		return fmt.Errorf("dns lookup failed for %q: %w", host, err)
-	}
-	if len(ips) == 0 {
-		return fmt.Errorf("dns lookup returned no addresses for %q", host)
-	}
-	// Fail closed: every resolved address must be public (blocks dual-stack
-	// records that mix public + link-local/private).
-	for _, ip := range ips {
-		if err := assertPublicIP(ip); err != nil {
-			return fmt.Errorf("host %q resolves to blocked address %s: %w", host, ip.String(), err)
-		}
-	}
-	return nil
-}
-
-func resolveDialIPs(ctx context.Context, host string) ([]net.IP, error) {
-	if ip := net.ParseIP(host); ip != nil {
-		// Dial path may receive an IP from the transport; still enforce policy.
-		return []net.IP{ip}, nil
-	}
-	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-	if err != nil {
-		return nil, fmt.Errorf("dns lookup failed for %q: %w", host, err)
-	}
-	if len(addrs) == 0 {
-		return nil, fmt.Errorf("dns lookup returned no addresses for %q", host)
-	}
-	ips := make([]net.IP, 0, len(addrs))
-	for _, a := range addrs {
-		ips = append(ips, a.IP)
-	}
-	return ips, nil
+	return netutil.IsObfuscatedIPHost(host)
 }
 
 func assertPublicIP(ip net.IP) error {
-	if ip == nil {
-		return errors.New("nil IP")
-	}
-	if ip.IsUnspecified() {
-		return errors.New("unspecified address")
-	}
-	if ip.IsLoopback() {
-		return errors.New("loopback address")
-	}
-	if ip.IsPrivate() {
-		return errors.New("private address")
-	}
-	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-		return errors.New("link-local address")
-	}
-	if ip.IsMulticast() {
-		return errors.New("multicast address")
-	}
-	if ip.IsInterfaceLocalMulticast() {
-		return errors.New("interface-local multicast address")
-	}
-
-	// IPv4-mapped or plain IPv4 extra ranges not fully covered by IsPrivate.
-	v4 := ip.To4()
-	if v4 != nil {
-		// 0.0.0.0/8
-		if v4[0] == 0 {
-			return errors.New("current network (0.0.0.0/8)")
-		}
-		// 100.64.0.0/10 CGNAT
-		if v4[0] == 100 && v4[1] >= 64 && v4[1] <= 127 {
-			return errors.New("carrier-grade NAT address")
-		}
-		// 169.254.0.0/16 link-local (also IsLinkLocalUnicast)
-		if v4[0] == 169 && v4[1] == 254 {
-			return errors.New("link-local address")
-		}
-		// 192.0.0.0/24 IETF protocol assignments
-		if v4[0] == 192 && v4[1] == 0 && v4[2] == 0 {
-			return errors.New("IETF protocol assignment address")
-		}
-		// 192.0.2.0/24 TEST-NET-1, 198.51.100.0/24 TEST-NET-2, 203.0.113.0/24 TEST-NET-3
-		if v4[0] == 192 && v4[1] == 0 && v4[2] == 2 {
-			return errors.New("documentation address")
-		}
-		if v4[0] == 198 && v4[1] == 51 && v4[2] == 100 {
-			return errors.New("documentation address")
-		}
-		if v4[0] == 203 && v4[1] == 0 && v4[2] == 113 {
-			return errors.New("documentation address")
-		}
-		// 198.18.0.0/15 benchmarking
-		if v4[0] == 198 && (v4[1] == 18 || v4[1] == 19) {
-			return errors.New("benchmarking address")
-		}
-		// 255.255.255.255
-		if v4[0] == 255 && v4[1] == 255 && v4[2] == 255 && v4[3] == 255 {
-			return errors.New("broadcast address")
-		}
-	} else {
-		// IPv6: unique local fc00::/7
-		if len(ip) == net.IPv6len && (ip[0]&0xfe) == 0xfc {
-			return errors.New("unique local address")
-		}
-		// IPv6 documentation 2001:db8::/32
-		if len(ip) == net.IPv6len && ip[0] == 0x20 && ip[1] == 0x01 && ip[2] == 0x0d && ip[3] == 0xb8 {
-			return errors.New("documentation address")
-		}
-	}
-
-	return nil
+	return netutil.AssertPublicIP(ip)
 }
