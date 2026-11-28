@@ -37,8 +37,8 @@ func TestRunMigrations_FreshDB(t *testing.T) {
 		t.Fatalf("Failed to get user_version: %v", err)
 	}
 
-	if userVersion != 14 {
-		t.Errorf("Expected user_version to be 14, got %d", userVersion)
+	if userVersion != 15 {
+		t.Errorf("Expected user_version to be 15, got %d", userVersion)
 	}
 
 	var hasUserSecrets bool
@@ -249,8 +249,8 @@ func TestRunMigrations_UpgradeFromV1(t *testing.T) {
 	if err := db.QueryRow("PRAGMA user_version;").Scan(&userVersion); err != nil {
 		t.Fatalf("Failed to retrieve user version: %v", err)
 	}
-	if userVersion != 14 {
-		t.Errorf("Expected bumped version to be 14, got %d", userVersion)
+	if userVersion != 15 {
+		t.Errorf("Expected bumped version to be 15, got %d", userVersion)
 	}
 
 	// Verify headers_json was added and old data is intact
@@ -261,5 +261,51 @@ func TestRunMigrations_UpgradeFromV1(t *testing.T) {
 	}
 	if headers != "{}" {
 		t.Errorf("Expected '{}' as DEFAULT for headers_json, got %q", headers)
+	}
+}
+
+func TestRunMigrations_V15EnablesAutoUpdate(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := path.Join(tmpDir, "test_v14.db")
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("Failed to open test DB: %v", err)
+	}
+	defer db.Close()
+	defer os.RemoveAll(tmpDir)
+	defer time.Sleep(100 * time.Millisecond)
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("Failed to run migrations: %v", err)
+	}
+
+	// Simulate a pre-v15 database: auto_update off, version 14.
+	if _, err := db.Exec(`INSERT INTO MCPServers (id, name, endpoint, api_key, user, auth_type, oauth_json, auto_update, update_pending, last_checked_at)
+		VALUES ('s1', 'old', '', '', 'u', '', '', 0, 0, 0);`); err != nil {
+		t.Fatalf("Failed to seed MCPServer row: %v", err)
+	}
+	if _, err := db.Exec("PRAGMA user_version = 14;"); err != nil {
+		t.Fatalf("Failed to reset user_version: %v", err)
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("Failed to upgrade to v15: %v", err)
+	}
+
+	var userVersion int
+	if err := db.QueryRow("PRAGMA user_version;").Scan(&userVersion); err != nil {
+		t.Fatalf("Failed to retrieve user version: %v", err)
+	}
+	if userVersion != 15 {
+		t.Errorf("Expected user_version 15, got %d", userVersion)
+	}
+
+	var autoUpdate bool
+	if err := db.QueryRow("SELECT auto_update FROM MCPServers WHERE id = 's1'").Scan(&autoUpdate); err != nil {
+		t.Fatalf("Failed to query auto_update: %v", err)
+	}
+	if !autoUpdate {
+		t.Error("v15 migration should enable auto_update for existing servers")
 	}
 }

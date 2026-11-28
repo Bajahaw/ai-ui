@@ -77,7 +77,7 @@ export const MCPServerForm = ({
     api_key: "",
     headers: server?.headers || preset?.headers || {},
     auth_type: server ? (server.auth_type ?? "") : (preset?.authType ?? ""),
-    auto_update: server?.auto_update ?? false,
+    auto_update: server?.auto_update ?? true,
   });
   const initialOAuth = (): MCPOAuthRequest => ({
     client_id: server?.oauth?.client_id ?? "",
@@ -346,78 +346,82 @@ export const MCPServerForm = ({
                 </p>
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="mcp_client_id">Client ID</Label>
-                <Input
-                  id="mcp_client_id"
-                  placeholder="Leave blank to register automatically"
-                  value={oauth.client_id}
-                  onChange={(e) => setOAuthField("client_id", e.target.value)}
-                  disabled={isSubmitting}
-                  autoComplete="off"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Blank works only if the server supports dynamic client
-                  registration.
-                </p>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="mcp_client_secret">Client Secret</Label>
-                <div className="relative">
-                  <Input
-                    id="mcp_client_secret"
-                    type={showSecret ? "text" : "password"}
-                    placeholder={secretPlaceholder}
-                    value={oauth.client_secret}
-                    onChange={(e) =>
-                      setOAuthField("client_secret", e.target.value)
-                    }
-                    disabled={isSubmitting}
-                    autoComplete="off"
-                    className="pr-10"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowSecret(!showSecret)}
-                    disabled={isSubmitting}
-                  >
-                    {showSecret ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                    <span className="sr-only">
-                      {showSecret ? "Hide" : "Show"} client secret
-                    </span>
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="mcp_scopes">Scopes</Label>
-                <Input
-                  id="mcp_scopes"
-                  placeholder="Space-separated; blank uses server defaults"
-                  value={oauth.scopes}
-                  onChange={(e) => setOAuthField("scopes", e.target.value)}
-                  disabled={isSubmitting}
-                  autoComplete="off"
-                />
-              </div>
-
               <Collapsible
-                defaultOpen={!!(oauth.auth_url || oauth.token_url)}
+                defaultOpen={
+                  !!(oauth.client_id || oauth.scopes || oauth.auth_url || oauth.token_url)
+                }
                 className="space-y-3"
               >
                 <CollapsibleTrigger className="group flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
                   <ChevronRight className="h-4 w-4 transition-transform group-data-[state=open]:rotate-90" />
-                  Custom endpoints
+                  Advanced
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="mcp_client_id">Client ID</Label>
+                    <Input
+                      id="mcp_client_id"
+                      placeholder="Leave blank to register automatically"
+                      value={oauth.client_id}
+                      onChange={(e) =>
+                        setOAuthField("client_id", e.target.value)
+                      }
+                      disabled={isSubmitting}
+                      autoComplete="off"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Blank works only if the server supports dynamic client
+                      registration.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="mcp_client_secret">Client Secret</Label>
+                    <div className="relative">
+                      <Input
+                        id="mcp_client_secret"
+                        type={showSecret ? "text" : "password"}
+                        placeholder={secretPlaceholder}
+                        value={oauth.client_secret}
+                        onChange={(e) =>
+                          setOAuthField("client_secret", e.target.value)
+                        }
+                        disabled={isSubmitting}
+                        autoComplete="off"
+                        className="pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                        onClick={() => setShowSecret(!showSecret)}
+                        disabled={isSubmitting}
+                      >
+                        {showSecret ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                        <span className="sr-only">
+                          {showSecret ? "Hide" : "Show"} client secret
+                        </span>
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="mcp_scopes">Scopes</Label>
+                    <Input
+                      id="mcp_scopes"
+                      placeholder="Space-separated; blank uses server defaults"
+                      value={oauth.scopes}
+                      onChange={(e) => setOAuthField("scopes", e.target.value)}
+                      disabled={isSubmitting}
+                      autoComplete="off"
+                    />
+                  </div>
+
                   <div className="space-y-1.5">
                     <Label htmlFor="mcp_auth_url">Authorization URL</Label>
                     <Input
@@ -492,17 +496,10 @@ export const MCPServerForm = ({
             </div>
           )}
 
-          <div className="flex items-start justify-between gap-4 pt-2">
-            <div className="space-y-1">
-              <Label className="!mb-0">Auto-update tools</Label>
-              <p className="text-xs text-muted-foreground">
-                Apply tool changes from this server when the app opens
-                (checked at most every 6 hours). Off: you'll see "Update
-                available" and can refresh manually.
-              </p>
-            </div>
+          <div className="flex items-center justify-between gap-4 pt-2">
+            <Label className="!mb-0">Auto-update tools</Label>
             <Switch
-              className="mx-1 mt-0.5 flex-shrink-0"
+              className="mx-1 flex-shrink-0"
               title="Auto-update tools"
               checked={!!formData.auto_update}
               onCheckedChange={() =>

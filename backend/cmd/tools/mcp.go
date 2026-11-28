@@ -111,7 +111,7 @@ type MCPServerRequest struct {
 	Headers  map[string]string `json:"headers"`
 	AuthType string            `json:"auth_type,omitempty"`
 	OAuth    *MCPOAuthRequest  `json:"oauth,omitempty"`
-	// Omitted keeps the stored setting (off for new servers).
+	// Omitted keeps the stored setting (on for new servers).
 	AutoUpdate *bool `json:"auto_update,omitempty"`
 }
 
@@ -187,6 +187,8 @@ func saveMCPServer(w http.ResponseWriter, r *http.Request) {
 		server.LastCheckedAt = existing.LastCheckedAt
 	} else {
 		server.ID = uuid.NewString()
+		// New servers auto-update by default.
+		server.AutoUpdate = true
 	}
 	if req.AutoUpdate != nil {
 		server.AutoUpdate = *req.AutoUpdate

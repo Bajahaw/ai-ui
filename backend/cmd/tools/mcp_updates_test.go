@@ -72,10 +72,10 @@ func TestMCPUpdateCheck_FlagsWhenAutoUpdateOff(t *testing.T) {
 	setupOAuthTest(t)
 
 	saved := saveServerReq(t, map[string]any{
-		"name": "manual", "endpoint": endpoint, "api_key": "", "headers": map[string]string{},
+		"name": "manual", "endpoint": endpoint, "api_key": "", "headers": map[string]string{}, "auto_update": false,
 	})
 	if saved.AutoUpdate {
-		t.Fatal("auto_update should default to off")
+		t.Fatal("auto_update should be saved as off")
 	}
 
 	makeDue(t, saved.ID)
@@ -114,6 +114,9 @@ func TestMCPUpdateCheck_UnreachableServerIsThrottled(t *testing.T) {
 	saved := saveServerReq(t, map[string]any{
 		"name": "gone", "endpoint": endpoint, "api_key": "", "headers": map[string]string{},
 	})
+	if !saved.AutoUpdate {
+		t.Fatal("auto_update should default to on")
+	}
 
 	server, _ := mcps.GetByID(saved.ID, "testuser")
 	server.Endpoint = "http://127.0.0.1:1/mcp"

@@ -455,5 +455,21 @@ func RunMigrations(db *sql.DB) error {
 		}
 	}
 
+	if userVersion < 15 {
+		// Auto-update becomes the default: enable it for every existing
+		// MCP server, across all users.
+		schemaV15 := `
+		UPDATE MCPServers SET auto_update = 1;
+		`
+		_, err = db.Exec(schemaV15)
+		if err != nil {
+			return err
+		}
+		_, err = db.Exec("PRAGMA user_version = 15;")
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

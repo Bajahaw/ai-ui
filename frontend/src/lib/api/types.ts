@@ -299,7 +299,7 @@ export interface MCPServerRequest {
   headers?: Record<string, string>;
   auth_type?: MCPAuthType;
   oauth?: MCPOAuthRequest;
-  /** Omit to keep the stored setting (off for new servers). */
+  /** Omit to keep the stored setting (on for new servers). */
   auto_update?: boolean;
 }
 
